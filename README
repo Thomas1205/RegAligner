@@ -1,4 +1,4 @@
-Implementation of the papers
+This toolkit primarily implements the papers
 
 [Schoenemann, CoNLL 2011]
 
@@ -6,4 +6,14 @@ and
 
 [Schoenemann, IJCNLP 2011]
 
-with additional features.
+with additional features. At the same time, it is an adequate replacement for
+GIZA++ as the models IBM-1,2,3,4 and HMM are implemented. 
+
+There are a few restrictions however:
+- support for the IBM-2 is limited.
+- for IBM-4 there is currently no dependence on word classes 
+
+On the other hand, there are some additional features:
+- implementation of the regularity terms
+- IBM-3 allows a reducing of the alignment parameters by
+  pooling over all sentence lengths.
