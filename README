@@ -14,6 +14,6 @@ There are a few restrictions however:
 - for IBM-4 there is currently no dependence on word classes 
 
 On the other hand, there are some additional features:
-- implementation of the regularity terms
-- IBM-3 allows a reducing of the alignment parameters by
+- implementation of regularity terms
+- IBM-3 allows a reduction of the alignment parameters by
   pooling over all sentence lengths.
