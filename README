@@ -12,8 +12,12 @@ GIZA++ as the models IBM-1,2,3,4 and HMM are implemented.
 There are a few restrictions however:
 - support for the IBM-2 is limited.
 - for IBM-4 there is currently no dependence on word classes 
+- pegging is not implemented (and usually too slow, anyway)
 
 On the other hand, there are some additional features:
-- implementation of regularity terms
+- implementation of regularity terms (L_0 and weighted L_1)
+- the EM-algorithm for the HMM is closer to the model (see [Schoenemann, IJCNLP 2011])
 - IBM-3 allows a reduction of the alignment parameters by
   pooling over all sentence lengths.
+- Refined Viterbi training mode with ICM stage (useful with L_0-norms)
+
