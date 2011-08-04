@@ -1,0 +1,39 @@
+This software was exclusively written by 
+
+Thomas Schoenemann,
+
+in the following referred to as the copyright holder. The code was written in
+roughly equal parts in his freetime and at Lund University, Sweden.
+
+
+The copyright holder grants the user access to this software under the
+following conditions:
+
+1. The software is provided "as is" by the author, with absolutely no
+actual or implied warranty of correctness, fitness, intellectual
+property ownership, or anything else whatsoever. You use the software
+entirely at your own risk. In no event shall the copyright holder be
+liable for any direct, indirect or perceived damage whatsoever
+connected with the use of this work.
+
+2. The user is granted permission to use this software for any kind of
+research purposes, e.g. in academia, in an industrial setting or in a private
+setting. Commercial usage of this code is however strictly prohibited. That
+is, this software may not be used for software packages that are charged for
+in any way.
+
+3. The user is free to distribute this code as long as this is free of charge
+and he/she indicates the original author and also distributes this license.
+
+4. The user is granted the right to modify the code to suit his/her own
+needs. The author appreciates to be informed about useful modifications. It is
+allowed, but not required, to make these changes publicly available.
+
+5. If you use this software for publications, please consider if citing one
+(or more) of the following papers is appropriate:
+
+- [T. Schoenemann, Probabilistic Word Alignment Under the L_0-norm, CoNLL 2011.]
+(relevant in combination with Viterbi-training)
+
+- [T. Schoenemann, Regularizing Mono- and Bi-word Models for Word Alignment, IJCNLP 2011.]
+(relevant when using EM with regularity terms, or when emphasis on the corrected HMM training is appropriate)
