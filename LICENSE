@@ -37,3 +37,6 @@ allowed, but not required, to make these changes publicly available.
 
 - [T. Schoenemann, Regularizing Mono- and Bi-word Models for Word Alignment, IJCNLP 2011.]
 (relevant when using EM with regularity terms, or when emphasis on the corrected HMM training is appropriate)
+
+6. The copyright holder maintains all rights on this software, and reserves
+the right to issue commercial licenses.
