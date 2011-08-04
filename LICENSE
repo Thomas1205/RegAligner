@@ -1,9 +1,11 @@
-This software was exclusively written by 
+This software (except for the C++-Toolbox) was exclusively written by 
 
 Thomas Schoenemann,
 
 in the following referred to as the copyright holder. The code was written in
-roughly equal parts in his freetime and at Lund University, Sweden.
+roughly equal parts in his freetime and at Lund University, Sweden. The
+package includes a recent (partial) version of the C++-Toolbox by Thomas
+Schoenemann, which received additional support from Petter Strandmark.
 
 
 The copyright holder grants the user access to this software under the
@@ -36,7 +38,8 @@ allowed, but not required, to make these changes publicly available.
 (relevant in combination with Viterbi-training)
 
 - [T. Schoenemann, Regularizing Mono- and Bi-word Models for Word Alignment, IJCNLP 2011.]
-(relevant when using EM with regularity terms, or when emphasis on the corrected HMM training is appropriate)
+(relevant when using gradient descent or EM with regularity terms, 
+or when emphasis on the corrected HMM training is appropriate)
 
 6. The copyright holder maintains all rights on this software, and reserves
 the right to issue commercial licenses.
