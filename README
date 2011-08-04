@@ -13,11 +13,16 @@ There are a few restrictions however:
 - support for the IBM-2 is limited.
 - for IBM-4 there is currently no dependence on word classes 
 - pegging is not implemented (and usually too slow, anyway)
+- when moving from one model to the next, there is no count collection 
+  from the previous model. Rather, novel parameters are initialized uniformly.
+- smoothing (e.g. for HMMs) is not implemented
 
 On the other hand, there are some additional features:
 - implementation of regularity terms (L_0 and weighted L_1)
 - the EM-algorithm for the HMM is closer to the model (see [Schoenemann, IJCNLP 2011])
 - IBM-3 allows a reduction of the alignment parameters by
   pooling over all sentence lengths.
-- Refined Viterbi training mode with ICM stage (useful with L_0-norms)
-
+- variants of IBM-4 where instead of the center of a cept one can take the head or the tail
+- refined Viterbi training mode with ICM stage (useful with L_0-norms)
+- training the IBM-3 with the ITG constraints and the IBM constraints is supported
+- computation of IBM-3 Viterbi alignments via ILPs is integrated
