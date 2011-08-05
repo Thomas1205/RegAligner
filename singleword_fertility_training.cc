@@ -202,7 +202,7 @@ void FertilityModelTrainer::print_uncovered_set(uint state) const {
 
   for (uint k=0; k < uncovered_set_.xDim(); k++) {
 
-    if (uncovered_set_(k,state) == MAX_UINT)
+    if (uncovered_set_(k,state) == MAX_USHORT)
       std::cerr << "-";
     else
       std::cerr << uncovered_set_(k,state);
@@ -215,7 +215,7 @@ uint FertilityModelTrainer::nUncoveredPositions(uint state) const {
   uint result = uncovered_set_.xDim();
 
   for (uint k=0; k < uncovered_set_.xDim(); k++) {
-    if (uncovered_set_(k,state) == MAX_UINT)
+    if (uncovered_set_(k,state) == MAX_USHORT)
       result--;
     else
       break;
@@ -243,7 +243,7 @@ void FertilityModelTrainer::cover(uint level) {
   //std::cerr << "ref_line: ";
 //   for (uint k=0; k < uncovered_set_.xDim(); k++) {
 
-//     if (uncovered_set_(k,ref_set_idx) == MAX_UINT)
+//     if (uncovered_set_(k,ref_set_idx) == MAX_USHORT)
 //       std::cerr << "-";
 //     else
 //       std::cerr << uncovered_set_(k,ref_set_idx);
@@ -275,7 +275,7 @@ void FertilityModelTrainer::compute_uncovered_sets(uint nMaxSkips) {
   std::cerr << nSets << " sets of uncovered positions" << std::endl;
 
   uncovered_set_.resize_dirty(nMaxSkips,nSets);
-  uncovered_set_.set_constant(MAX_UINT);
+  uncovered_set_.set_constant(MAX_USHORT);
   nUncoveredPositions_.resize_dirty(nSets);
   first_set_.resize_dirty(maxJ_+2);
   
@@ -322,7 +322,7 @@ void FertilityModelTrainer::compute_uncovered_sets(uint nMaxSkips) {
 //     std::cerr << "processing state ";
 //     for (uint k=0; k < nMaxSkips; k++) {
 
-//       if (uncovered_set_(k,state) == MAX_UINT)
+//       if (uncovered_set_(k,state) == MAX_USHORT)
 // 	std::cerr << "-";
 //       else
 // 	std::cerr << uncovered_set_(k,state);
@@ -333,12 +333,12 @@ void FertilityModelTrainer::compute_uncovered_sets(uint nMaxSkips) {
     //uint maxUncoveredPos = uncovered_set_(nMaxSkips-1,state);
 
     //NOTE: a state is always its own predecessor state; to save memory we omit the entry
-    bool limit_state = (uncovered_set_(0,state) != MAX_UINT);
+    bool limit_state = (uncovered_set_(0,state) != MAX_USHORT);
     //uint prev_candidate;
 
     if (limit_state) {
 //       for (uint k=1; k < nMaxSkips; k++)
-// 	assert(uncovered_set_(k,state) != MAX_UINT);
+// 	assert(uncovered_set_(k,state) != MAX_USHORT);
 
       //predecessor states can only be states with less entries
 
@@ -395,7 +395,7 @@ void FertilityModelTrainer::compute_uncovered_sets(uint nMaxSkips) {
 //       for (prev_candidate = 0; prev_candidate < first_set_[secondHighestUncoveredPos+1]; prev_candidate++) {
 
 // 	is_predecessor = true;
-// 	if (uncovered_set_(0,prev_candidate) != MAX_UINT)
+// 	if (uncovered_set_(0,prev_candidate) != MAX_USHORT)
 // 	  is_predecessor = false;
 // 	else {
 // 	  const uint nCandidateSkips = nUncoveredPositions_[prev_candidate];
@@ -634,7 +634,7 @@ void FertilityModelTrainer::visualize_set_graph(std::string filename) {
     dotstream << "state" << state << " [shape=record,label=\"";
     for (uint k=0; k < uncovered_set_.xDim(); k++) {
 
-      if (uncovered_set_(k,state) == MAX_UINT)
+      if (uncovered_set_(k,state) == MAX_USHORT)
 	dotstream << "-";
       else
 	dotstream << uncovered_set_(k,state);
@@ -719,7 +719,7 @@ void FertilityModelTrainer::compute_coverage_states() {
     const uint uncovered_set_idx = coverage_state_(0,state_num);
     const uint highest_uncovered_source_pos = uncovered_set_(nMaxSkips-1,uncovered_set_idx);
 
-    if (highest_uncovered_source_pos == MAX_UINT) {
+    if (highest_uncovered_source_pos == MAX_USHORT) {
       //the set of uncovered positions is empty
 
       assert(uncovered_set_idx == 0);
@@ -2382,8 +2382,17 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
 
       assert(2*fertility[0] <= curJ);
 
+      // uint maxFert = 15;
+      // if (2*curI <= curJ)
+      // 	maxFert = 25;
+
       max_perplexity -= std::log(best_prob);
       
+      //const long double sentence_prob = best_prob;
+
+      //const long double inv_sentence_prob = 1.0 / sentence_prob;
+      //assert(!isnan(inv_sentence_prob));
+
       //std::cerr << "updating counts " << std::endl;
 
       double cur_zero_weight = 1.0;
@@ -2473,6 +2482,7 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
 	    allowed = false;
 
 	  if (allowed) {
+	    //if (cur_aj != i && (i != 0 || 2*cur_fertilities[0]+2 <= curJ)) {
 
 	    uint new_target_word = (i == 0) ? 0 : cur_target[i-1];
 
@@ -3138,6 +3148,19 @@ void IBM3Trainer::train_with_itg_constraints(uint nIter, bool extended_reorderin
 
 
   for (uint iter=1; iter <= nIter; iter++) {
+
+
+    fzero_count = 0.0;
+    fnonzero_count = 0.0;
+
+    for (uint i=0; i < nTargetWords; i++) {
+      fwcount[i].set_constant(0.0);
+      ffert_count[i].set_constant(0.0);
+    }
+
+    for (uint J=0; J < distortion_prob_.size(); J++) {
+      fdistort_count[J].set_constant(0.0);
+    }
 
     double max_perplexity = 0.0;
 
@@ -3972,7 +3995,9 @@ long double IBM3Trainer::compute_viterbi_alignment_ilp(uint s, uint max_fertilit
     double min_cost = approx_icost(i,0);
 
     for (uint f=1; f < nFertVarsPerWord; f++) {
+      //for (uint f=1; f < cur_limit; f++) {
 
+      //approx_icost(i,f) = cost[fert_var_offs+i*nFertVarsPerWord+f] + values[f-1];
       if (i == 0)
 	approx_icost(i,f) = cost[fert_var_offs+f] + values[f-1];
       else
@@ -4027,6 +4052,10 @@ long double IBM3Trainer::compute_viterbi_alignment_ilp(uint s, uint max_fertilit
       var_ub[v] = 0.0;
     }
   }
+
+  //if (nHighCost > 0) //std::cerr << "WARNING: dampened " << nHighCost << " cost entries" << std::endl;
+
+//   std::cerr << "highest cost: " << cost.max() << std::endl;
 
   Math1D::NamedVector<double> rhs(nConstraints,1.0,MAKENAME(rhs));
   
@@ -4092,7 +4121,7 @@ long double IBM3Trainer::compute_viterbi_alignment_ilp(uint s, uint max_fertilit
   clp_interface.loadProblem (coinMatrix, var_lb.direct_access(), var_ub.direct_access(),   
 			     cost.direct_access(), rhs.direct_access(), rhs.direct_access());
 
-  for (uint v=0; v < nVars; v++) {
+  for (uint v=0 /*fert_var_offs*/; v < nVars; v++) {
     clp_interface.setInteger(v);
   }
 
@@ -4146,6 +4175,7 @@ long double IBM3Trainer::compute_viterbi_alignment_ilp(uint s, uint max_fertilit
     //clp_interface.findIntegersAndSOS(false);
     clp_interface.setupForRepeatedUse();
     
+    //if (curI <= 30 || curJ <= 30) 
     cbc_model.messageHandler()->setLogLevel(0);
     cbc_model.setLogLevel(0);
 
@@ -4309,6 +4339,18 @@ void IBM3Trainer::train_with_ibm_constraints(uint nIter, uint maxFertility, uint
 
   for (uint iter=1; iter <= nIter; iter++) {
 
+    fzero_count = 0.0;
+    fnonzero_count = 0.0;
+
+    for (uint i=0; i < nTargetWords; i++) {
+      fwcount[i].set_constant(0.0);
+      ffert_count[i].set_constant(0.0);
+    }
+
+    for (uint J=0; J < distortion_prob_.size(); J++) {
+      fdistort_count[J].set_constant(0.0);
+    }
+
     double max_perplexity = 0.0;
 
     uint nBetter = 0;
@@ -4421,6 +4463,8 @@ void IBM3Trainer::train_with_ibm_constraints(uint nIter, uint maxFertility, uint
     //update distortion prob from counts
     for (uint J=0; J < distortion_prob_.size(); J++) {
 
+//       std::cerr << "J:" << J << std::endl;
+//       std::cerr << "distort_count: " << fdistort_count[J] << std::endl;
       for (uint i=0; i < distortion_prob_[J].yDim(); i++) {
 
 	double sum = 0.0;
@@ -4914,6 +4958,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(uint s, uint& nIter, M
 
       const uint aj = best_known_alignment_[s][j];
       assert(fertility[aj] > 0);
+      //const uint cur_aj_fert = fertility[aj];
       expansion_prob(j,aj) = 0.0;
       
       const uint prev_i = prev_cept[aj];

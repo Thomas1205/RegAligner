@@ -52,7 +52,7 @@ protected:
 
   void compute_coverage_states();
 
-  Math2D::NamedMatrix<uint> uncovered_set_;
+  Math2D::NamedMatrix<ushort> uncovered_set_;
   
   //the first entry denotes the predecessor state, the second the source position covered in the transition
   NamedStorage1D<Math2D::Matrix<uint> > predecessor_sets_;
