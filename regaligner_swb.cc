@@ -45,13 +45,13 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  const int nParams = 14;
+  const int nParams = 16;
   ParamDescr  params[nParams] = {{"-s",mandInFilename,0,""},{"-t",mandInFilename,0,""},
 				 {"-o",optOutFilename,0,""},{"-oa",mandOutFilename,0,""},
 				 {"-refa",optInFilename,0,""},{"-invert-biling-data",flag,0,""},
 				 {"-dict-regularity",optWithValue,1,"0.0"},
 				 {"-sparse-reg",flag,0,""},{"-prior-dict",optInFilename,0,""},
-				 {"-hmm-iter",optWithValue,1,"20"},{"-method",optWithValue,1,"em"}
+				 {"-hmm-iter",optWithValue,1,"20"},{"-method",optWithValue,1,"em"},
 				 {"-ibm1-iter",optWithValue,1,"10"},{"-ibm2-iter",optWithValue,1,"0"},
 				 {"-ibm3-iter",optWithValue,0,""},{"-ibm4-iter",optWithValue,0,""},
 				 {"-fertpen",optWithValue,1,"0.0"}};
@@ -87,6 +87,8 @@ int main(int argc, char** argv) {
     USER_ERROR << "unknown method \"" << method << "\"" << std::endl;
     exit(1);
   }
+
+  double l0_fertpen = convert<double>(app.getParam("-fertpen"));
 
   timeval tStartRead, tEndRead;
   gettimeofday(&tStartRead,0);
@@ -127,7 +129,6 @@ int main(int argc, char** argv) {
   CooccuringWordsType wcooc(MAKENAME(wcooc));
   CooccuringLengthsType lcooc(MAKENAME(lcooc));
   SingleWordDictionary dict(MAKENAME(dict));
-  IBM2AlignmentModel ibm2align_model(MAKENAME(ibm2align_model));
   ReducedIBM2AlignmentModel reduced_ibm2align_model(MAKENAME(reduced_ibm2align_model));
   FullHMMAlignmentModel hmmalign_model(MAKENAME(hmmalign_model));
   InitialAlignmentProbability initial_prob(MAKENAME(initial_prob));
@@ -147,9 +148,9 @@ int main(int argc, char** argv) {
   floatSingleWordDictionary prior_weight(nTargetWords, MAKENAME(prior_weight));
       
   if (app.is_set("-ibm3-iter"))
-    ibm3_em_iter = convert<uint>(app.getParam("-ibm3-iter"));
+    ibm3_iter = convert<uint>(app.getParam("-ibm3-iter"));
   if (app.is_set("-ibm4-iter"))
-    ibm4_em_iter = convert<uint>(app.getParam("-ibm4-iter"));
+    ibm4_iter = convert<uint>(app.getParam("-ibm4-iter"));
 
   Math1D::Vector<double> distribution_weight;
 
@@ -244,7 +245,7 @@ int main(int argc, char** argv) {
   }
   else if (method == "gd") {
 
-    train_ibm1_gd_stepcontrol(source_sentence, slookup, target_sentence, wcooc, nSourceWords, nTargetWords, dict, ibm1_ter,
+    train_ibm1_gd_stepcontrol(source_sentence, slookup, target_sentence, wcooc, nSourceWords, nTargetWords, dict, ibm1_iter,
 			      sure_ref_alignments, possible_ref_alignments, prior_weight); 
   }
   else {
@@ -263,7 +264,7 @@ int main(int argc, char** argv) {
     if (method == "em") {
 
       train_reduced_ibm2(source_sentence,  slookup, target_sentence, wcooc, lcooc,
-			 nSourceWords, nTargetWords, reduced_ibm2align_model, dict, ibm2_em_iter,
+			 nSourceWords, nTargetWords, reduced_ibm2align_model, dict, ibm2_iter,
 			 sure_ref_alignments, possible_ref_alignments);
     }
     else if (method == "gd") {
@@ -356,6 +357,8 @@ int main(int argc, char** argv) {
 
     for (uint s = 0; s < nSentences; s++) {
 
+      const uint curI = target_sentence[s].size();
+
       if (hmm_iter > 0) {
 	
 	compute_ehmm_viterbi_alignment(source_sentence[s],slookup[s], target_sentence[s], 
@@ -363,8 +366,7 @@ int main(int argc, char** argv) {
       }
       else if (ibm2_iter > 0) {
 	
-	const uint curI = target_sentence[s].size();
-	const Math2D::Matrix<double>& cur_align_model = ibm2align_model[curI];
+	const Math2D::Matrix<double>& cur_align_model = reduced_ibm2align_model[curI];
 
 	compute_ibm2_viterbi_alignment(source_sentence[s], slookup[s], target_sentence[s], dict, 
 				       cur_align_model, viterbi_alignment);
