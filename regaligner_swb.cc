@@ -327,8 +327,12 @@ int main(int argc, char** argv) {
       }
       else if (constraint_mode == "itg") 
 	ibm3_trainer.train_with_itg_constraints(ibm3_iter,true);
-      else
+      else if (constraint_mode == "ibm") 
 	ibm3_trainer.train_with_ibm_constraints(ibm3_iter,5,4);
+      else {
+	USER_ERROR << "unknown constraint mode: \"" << constraint_mode << "\". Exiting" << std::endl;
+	exit(1);
+      }
     }
     else
       ibm3_trainer.train_viterbi(ibm3_iter,false);
