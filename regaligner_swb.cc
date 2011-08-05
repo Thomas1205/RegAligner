@@ -36,6 +36,7 @@ int main(int argc, char** argv) {
 	      << " [-ibm2-iter <uint> ]: iterations for the IBM-2 model (default 0)" << std::endl
 	      << " [-ibm3-iter <uint> ]: iterations for the IBM-3 model (default 0)" << std::endl
 	      << " [-ibm4-iter <uint> ]: iterations for the IBM-4 model (default 0)" << std::endl
+	      << " [-constraint-mode (unconstrined | itg | ibm) " << std::endl
 	      << " -o <file>  : the determined dictionary is written to this file" << std::endl
 	      << " -oa <file> : the determined alignment is written to this file" << std::endl
 	      << std::endl;
@@ -45,7 +46,7 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  const int nParams = 16;
+  const int nParams = 17;
   ParamDescr  params[nParams] = {{"-s",mandInFilename,0,""},{"-t",mandInFilename,0,""},
 				 {"-o",optOutFilename,0,""},{"-oa",mandOutFilename,0,""},
 				 {"-refa",optInFilename,0,""},{"-invert-biling-data",flag,0,""},
@@ -54,7 +55,7 @@ int main(int argc, char** argv) {
 				 {"-hmm-iter",optWithValue,1,"20"},{"-method",optWithValue,1,"em"},
 				 {"-ibm1-iter",optWithValue,1,"10"},{"-ibm2-iter",optWithValue,1,"0"},
 				 {"-ibm3-iter",optWithValue,0,""},{"-ibm4-iter",optWithValue,0,""},
-				 {"-fertpen",optWithValue,1,"0.0"}};
+				 {"-fertpen",optWithValue,1,"0.0"},{"-constraint-mode",optWithValue,1,"unconstrained"}};
 
   Application app(argc,argv,params,nParams);
 
@@ -314,16 +315,25 @@ int main(int argc, char** argv) {
 			   true, true, false, l0_fertpen);
   
   ibm3_trainer.init_from_hmm(hmmalign_model,initial_prob);
-  if (method == "em" || method == "gd") {
-    ibm3_trainer.train_unconstrained(ibm3_iter);
-    //ibm3_trainer.train_with_itg_constraints(1,true);
-    //ibm3_trainer.train_with_ibm_constraints(1,5,4);
-  }
-  else
-    ibm3_trainer.train_viterbi(ibm3_iter,false);
-  
+
   if (ibm3_iter > 0) {
-    ibm3_trainer.update_alignments_unconstrained();
+
+    if (method == "em" || method == "gd") {
+      
+      std::string constraint_mode = app.getParam("-constraint-mode");
+
+      if (constraint_mode == "unconstrained") {
+	ibm3_trainer.train_unconstrained(ibm3_iter);
+      }
+      else if (constraint_mode == "itg") 
+	ibm3_trainer.train_with_itg_constraints(ibm3_iter,true);
+      else
+	ibm3_trainer.train_with_ibm_constraints(ibm3_iter,5,4);
+    }
+    else
+      ibm3_trainer.train_viterbi(ibm3_iter,false);
+  
+    //ibm3_trainer.update_alignments_unconstrained();
   }
 
   /*** IBM-4 ***/
@@ -335,12 +345,15 @@ int main(int argc, char** argv) {
 			   dict, wcooc, nSourceWords, nTargetWords, prior_weight, true, true, true,
 			   IBM4FIRST);
   ibm4_trainer.init_from_ibm3(ibm3_trainer);
-  //ibm4_trainer.update_alignments_unconstrained();
-  
-  if (!app.is_set("-viterbi"))
-    ibm4_trainer.train_viterbi(ibm4_iter);
-  else
-    ibm4_trainer.train_unconstrained(ibm4_iter);
+
+  if (ibm4_iter > 0) {
+    if (!app.is_set("-viterbi"))
+      ibm4_trainer.train_viterbi(ibm4_iter);
+    else
+      ibm4_trainer.train_unconstrained(ibm4_iter);
+
+    //ibm4_trainer.update_alignments_unconstrained();
+  }
 
   /*** write alignments ***/
   if (ibm4_iter > 0) {
