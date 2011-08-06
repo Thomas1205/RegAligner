@@ -113,27 +113,6 @@ double single_dict_m_step_energy(const Math1D::Vector<double>& fdict_count,
   return energy;
 }
 
-
-double dict_m_step_energy(const SingleWordDictionary& fdict_count, 
-			  const floatSingleWordDictionary& prior_weight,
-			  const SingleWordDictionary& dict) {
-
-  double energy = 0.0;
-
-  for (uint i=0; i < prior_weight.size(); i++) {
-    for (uint k=0; k < prior_weight[i].size(); k++) {
-      energy += prior_weight[i][k] * dict[i][k];
-
-      if (dict[i][k] > 1e-300)
-	energy -= fdict_count[i][k] * std::log(dict[i][k]);
-      else
-	energy += fdict_count[i][k] * 15000.0;
-    }
-  }
-
-  return energy;
-}
-
 void single_dict_m_step(const Math1D::Vector<double>& fdict_count, 
 			const Math1D::Vector<float>& prior_weight,
 			Math1D::Vector<double>& dict, double alpha, uint nIter) {

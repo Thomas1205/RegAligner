@@ -6067,7 +6067,7 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
       
       const long double best_prob = update_alignment_by_hillclimbing(s,sum_iter,fertility,
 								     expansion_move_prob,swap_move_prob);
-      max_perplexity -= std::log(best_prob);
+      max_perplexity -= std::log(std::max<double>(best_prob,1e-300));
 
       gettimeofday(&tHillclimbEnd,0);
 
