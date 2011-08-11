@@ -2895,7 +2895,7 @@ long double IBM3Trainer::compute_itg_viterbi_alignment_noemptyword(uint s, bool 
 
   for (uint J=2; J <= curJ; J++) {
 
-    std::cerr << "J: " << J << std::endl;
+    //std::cerr << "J: " << J << std::endl;
 
     score[J].set_name("score[" + toString(J) + "]");
     score[J].resize(curJ,curI,curI,0.0);

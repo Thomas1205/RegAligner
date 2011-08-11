@@ -26,3 +26,14 @@ On the other hand, there are some additional features:
 - refined Viterbi training mode with ICM stage (useful with L_0-norms)
 - training the IBM-3 with the ITG constraints and the IBM constraints is supported
 - computation of IBM-3 Viterbi alignments via ILPs is integrated
+
+
+BUILDING REGALIGNER
+
+A sample Makefile has been provided, but you will most likely have to modify
+it. Also, you will have to change to the directory common first, and build there.
+
+
+USING REGALIGNER
+
+See doc/INTRODUCTION for the most commonly used options.

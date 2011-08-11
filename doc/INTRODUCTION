@@ -4,19 +4,39 @@
 
 RegAligner gets an list of source sentences and a list of target sentences. In
 both cases, the lists are INDICES, e.g. non-negative numbers. It then
-estimates p(source | target) based on models derived from IBM1-4 and HMM. Here
-is a sample call that estimates p(German | English):
+estimates p(source | target) based on models derived from IBM1-4 and
+HMM. RegAligner so far only trains single-word based models. If you are
+interested in Bi-word models, please contact thomas_schoenemann@yahoo.de .
+
+Here is a sample call that estimates p(German | English):
 
 regaligner_swb.opt.L64 -s de.idx -t en.idx -oa alignments.final
 
-The estimated alignments are written to the file alignments.final
+The estimated alignments are written to the file alignments.final .
 
-***** Default Behaviour ****
+To get your input files into the required format, please take a look at 
+the binaries 
+
+extractvoc.opt.L64       and
+plain2indices.opt.L64
+
+that are included in RegAligner.
+
+***** Default behavior ****
 
 By default, RegAligner runs 10 EM-iterations of the IBM-1, then 20
 EM-iterations of the HMM. By default no regularity terms are used.
 
-***** Changing the number of Iterations ****
+***** Changing output behavior ****
+
+Apart from the final alignments, so far only the computed dictionary can be output.
+To this end, add 
+
+-o dict.final
+
+(or any other filename) to the command line.
+
+***** Changing the number of iterations ****
 
 To change the iterations, in particular activate IBM-3 and IBM-4, add the
 options
