@@ -1,0 +1,116 @@
+
+
+***** Getting Started ******
+
+RegAligner gets an list of source sentences and a list of target sentences. In
+both cases, the lists are INDICES, e.g. non-negative numbers. It then
+estimates p(source | target) based on models derived from IBM1-4 and HMM. Here
+is a sample call that estimates p(German | English):
+
+regaligner_swb.opt.L64 -s de.idx -t en.idx -oa alignments.final
+
+The estimated alignments are written to the file alignments.final
+
+***** Default Behaviour ****
+
+By default, RegAligner runs 10 EM-iterations of the IBM-1, then 20
+EM-iterations of the HMM. By default no regularity terms are used.
+
+***** Changing the number of Iterations ****
+
+To change the iterations, in particular activate IBM-3 and IBM-4, add the
+options
+
+-ibm1-iter <uint>
+-ibm2-iter <uint>
+-hmm-iter <uint>
+-ibm3-iter <uint>
+-ibm4-iter <uint>
+
+to the command line.
+
+***** Evaluating on gold alignments for the training set ****
+
+RegAligner supports the option to evaluate intermediate alignments (arising
+during the iterations) on gold alignments for the training set. These
+alignments are used solely for outputting error/accuracy measures. The do not
+influence the computed alignments.
+
+To pass in gold alignments, add
+
+-refa <filename>
+
+to the command line. For the general format see sample.refa (in the directory
+doc). Here target indices are listed first. To swap the roles of source and
+target, add
+
+-invert-biling-data
+
+to the command line.
+
+***** Activating Penalization of Mass ****
+
+to activate the penalization of mass as in [Schoenemann, IJCNLP 2011],
+add 
+
+-sparse-reg -dict-regularity 5.0
+
+(or any other value) to the command line. Make sure that you are NOT using
+Viterbi training (e.g. that -method gets the default value of "em").
+
+***** Viterbi-training with or without L0-terms ****
+
+To activate Viterbi training (with ICM-stages as in [Schoenemann, CoNLL
+2011]), add
+
+-method viterbi
+
+to the command line. If you further wish to activate the L0-regularity (which
+is recommended for Viterbi training), add 
+
+-dict-regularity 2.5
+
+(or any other value) to the command line.
+
+****** Using gradient descent instead of EM ****
+
+Using gradient descent has been shown to be inferior to using EM [Schoenemann,
+IJCNLP 2011]. If you want to test it nonetheless, add
+
+-method gd 
+
+to the command line.
+
+
+***** Regularizers based on prior dictionary knowledge ****
+
+RegAligner supports the possibility to use regularizers based on
+prior dictionaries. These dictionaries contain per line one possible 
+constellation of source and target index, in the form
+
+<target word idx> <source word idx>
+
+The regularity weight for this constellation is set to 0. To pass a dictionary
+to RegAligner, add
+
+-prior-dict <filename>
+
+to the command line. If your dictionary contains entries in the form <source> <target>,
+add
+
+-invert-biling-data
+
+to the command line. ATTENTION: this will swap source and target for gold alignments, too.
+
+********** training with ITG and IBM constraints ***********
+
+This is not recommended, and only available for the IBM-3. If you want to use it,
+add
+
+-constraint-mode itg
+
+for ITG, and
+
+-constraint-mode ibm
+
+for the IBM-constraints to the command line.

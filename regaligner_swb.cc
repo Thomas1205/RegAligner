@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
 	      << " [-ibm2-iter <uint> ]: iterations for the IBM-2 model (default 0)" << std::endl
 	      << " [-ibm3-iter <uint> ]: iterations for the IBM-3 model (default 0)" << std::endl
 	      << " [-ibm4-iter <uint> ]: iterations for the IBM-4 model (default 0)" << std::endl
-	      << " [-constraint-mode (unconstrined | itg | ibm) " << std::endl
+	      << " [-constraint-mode (unconstrained | itg | ibm) " << std::endl
 	      << " -o <file>  : the determined dictionary is written to this file" << std::endl
 	      << " -oa <file> : the determined alignment is written to this file" << std::endl
 	      << std::endl;
@@ -351,7 +351,7 @@ int main(int argc, char** argv) {
   ibm4_trainer.init_from_ibm3(ibm3_trainer);
 
   if (ibm4_iter > 0) {
-    if (!app.is_set("-viterbi"))
+    if (method == "viterbi")
       ibm4_trainer.train_viterbi(ibm4_iter);
     else
       ibm4_trainer.train_unconstrained(ibm4_iter);
