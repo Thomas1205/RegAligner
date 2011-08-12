@@ -1969,6 +1969,9 @@ void IBM3Trainer::train_unconstrained(uint nIter) {
 
       const long double sentence_prob = best_prob + expansion_prob +  swap_prob;
 
+      if (sentence_prob < 1e-305)
+	continue;
+
       const long double inv_sentence_prob = 1.0 / sentence_prob;
       assert(!isnan(inv_sentence_prob));
 
@@ -3174,6 +3177,11 @@ void IBM3Trainer::train_with_itg_constraints(uint nIter, bool extended_reorderin
       long double prob = compute_itg_viterbi_alignment_noemptyword(s,extended_reordering);
 
       long double actual_prob = prob * pow(p_nonzero_,source_sentence_[s].size());
+
+      if (actual_prob < 1e-305) {
+	max_perplexity -= std::log(1e-305);
+	continue;
+      }
       
       if (verbose) {
 	long double check_prob = alignment_prob(s,best_known_alignment_[s]);
@@ -3190,6 +3198,9 @@ void IBM3Trainer::train_with_itg_constraints(uint nIter, bool extended_reorderin
       }
 
       max_perplexity -= std::log(actual_prob);
+
+      assert(!isnan(actual_prob));
+      assert(!isinf(actual_prob));
 
       const Storage1D<uint>&  cur_source = source_sentence_[s];
       const Storage1D<uint>&  cur_target = target_sentence_[s];
@@ -4364,6 +4375,11 @@ void IBM3Trainer::train_with_ibm_constraints(uint nIter, uint maxFertility, uint
       prob *= pow(p_nonzero_,source_sentence_[s].size());
       std::cerr << "probability " << prob << std::endl;
       std::cerr << "generated alignment: " << best_known_alignment_[s] << std::endl;
+
+      if (prob < 1e-305) {
+	max_perplexity -= std::log(1e-305);
+	continue;
+      }
 
       long double check_prob = alignment_prob(s,best_known_alignment_[s]);
       double check_ratio = prob / check_prob;
@@ -6067,7 +6083,7 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
       
       const long double best_prob = update_alignment_by_hillclimbing(s,sum_iter,fertility,
 								     expansion_move_prob,swap_move_prob);
-      max_perplexity -= std::log(std::max<double>(best_prob,1e-300));
+      max_perplexity -= std::log(best_prob);
 
       gettimeofday(&tHillclimbEnd,0);
 
@@ -6078,8 +6094,9 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
 
       const long double sentence_prob = best_prob + expansion_prob +  swap_prob;
 
-      if (sentence_prob < 1e-305) 
+      if (sentence_prob < 1e-305) {
 	continue;
+      }
 
       const long double inv_sentence_prob = 1.0 / sentence_prob;
 
