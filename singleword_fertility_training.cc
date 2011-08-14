@@ -4369,6 +4369,8 @@ void IBM3Trainer::train_with_ibm_constraints(uint nIter, uint maxFertility, uint
 
     for (uint s=0; s < source_sentence_.size(); s++) {
 
+      std::cerr << "s: " << s << std::endl;
+
       long double prev_prob = (verbose) ? alignment_prob(s,best_known_alignment_[s]) : 0.0;
 
       long double prob = compute_ibmconstrained_viterbi_alignment_noemptyword(s,maxFertility,nMaxSkips);
@@ -6255,32 +6257,32 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
       gettimeofday(&tCountCollectStart,0);
 
       /**** update distortion counts *****/
-      NamedStorage1D<std::set<uint> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
-      Math1D::NamedVector<uint> cept_center(curI+1,MAX_UINT,MAKENAME(cept_center));
+      NamedStorage1D<std::set<int> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
+      Math1D::NamedVector<int> cept_center(curI+1,-100,MAKENAME(cept_center));
 
       //denotes the largest preceding target position that produces source words
-      Math1D::NamedVector<uint> prev_cept(curI+1,MAX_UINT,MAKENAME(prev_cept));
-      Math1D::NamedVector<uint> first_aligned_source_word(curI+1,MAX_UINT,
+      Math1D::NamedVector<int> prev_cept(curI+1,-100,MAKENAME(prev_cept));
+      Math1D::NamedVector<int> first_aligned_source_word(curI+1,-100,
 							  MAKENAME(first_aligned_source_word));
-      Math1D::NamedVector<uint> second_aligned_source_word(curI+1,MAX_UINT,
+      Math1D::NamedVector<int> second_aligned_source_word(curI+1,-100,
 							   MAKENAME(second_aligned_source_word));
 
       for (uint j=0; j < curJ; j++) {
-	const uint cur_aj = best_known_alignment_[s][j];
+	const int cur_aj = best_known_alignment_[s][j];
 	aligned_source_words[cur_aj].insert(j);	
       }
 
-      uint cur_prev_cept = MAX_UINT;
+      int cur_prev_cept = -100;
       for (uint i=0; i <= curI; i++) {
 
 	assert(aligned_source_words[i].size() == fertility[i]);
 
 	if (fertility[i] > 0) {
 	  
-	  std::set<uint>::iterator ait = aligned_source_words[i].begin();
+	  std::set<int>::iterator ait = aligned_source_words[i].begin();
 	  first_aligned_source_word[i] = *ait;
 
-	  uint prev_j = *ait;
+	  int prev_j = *ait;
 	  if (fertility[i] > 1) {
 	    ait++;
 	    second_aligned_source_word[i] = *ait;
@@ -6288,13 +6290,13 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
 	  } 	    
 
 	  double sum = 0.0;
-	  for (std::set<uint>::iterator ait = aligned_source_words[i].begin(); ait != aligned_source_words[i].end(); ait++) {
+	  for (std::set<int>::iterator ait = aligned_source_words[i].begin(); ait != aligned_source_words[i].end(); ait++) {
 	    sum += *ait;
 	  }
 
 	  switch (cept_start_mode_) {
 	  case IBM4CENTER:
-	    cept_center[i] = (uint) round(sum / fertility[i]);
+	    cept_center[i] = (int) round(sum / fertility[i]);
 	    break;
 	  case IBM4FIRST:
 	    cept_center[i] = first_aligned_source_word[i];
@@ -6303,7 +6305,7 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
 	    cept_center[i] = prev_j;
 	    break;
 	  case IBM4UNIFORM:
-	    cept_center[i] = (uint) round(sum / fertility[i]);
+	    cept_center[i] = (int) round(sum / fertility[i]);
 	    break;
 	  default:
 	    assert(false);
@@ -6322,7 +6324,7 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
 	if (fertility[i] > 0) {
 	  
 	  //a) update head prob
-	  if (prev_cept[i] != MAX_UINT) {
+	  if (prev_cept[i] >= 0) {
 
 	    int diff = first_aligned_source_word[i] - cept_center[prev_cept[i]];
 	    diff += displacement_offset_;
@@ -6333,13 +6335,13 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
 	    fsentence_start_count[first_aligned_source_word[i]] += cur_prob;
 
 	  //b) update within-cept prob
-	  uint prev_aligned_j = first_aligned_source_word[i];
-	  std::set<uint>::iterator ait = aligned_source_words[i].begin();
+	  int prev_aligned_j = first_aligned_source_word[i];
+	  std::set<int>::iterator ait = aligned_source_words[i].begin();
 	  ait++;
 	  for (;ait != aligned_source_words[i].end(); ait++) {
 
-	    const uint cur_j = *ait;
-	    uint diff = cur_j - prev_aligned_j;
+	    const int cur_j = *ait;
+	    int diff = cur_j - prev_aligned_j;
 	    diff += displacement_offset_;
 	    fwithincept_count(0,diff) += cur_prob;
 
@@ -6361,13 +6363,13 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
 
 	    cur_prob *= inv_sentence_prob;
 
-	    NamedStorage1D<std::set<uint> > exp_aligned_source_words(MAKENAME(exp_aligned_source_words));
+	    NamedStorage1D<std::set<int> > exp_aligned_source_words(MAKENAME(exp_aligned_source_words));
 	    exp_aligned_source_words = aligned_source_words;
 	    
 	    exp_aligned_source_words[cur_aj].erase(exp_j);
 	    exp_aligned_source_words[exp_i].insert(exp_j);
 	    
-	    uint prev_center = MAX_UINT;
+	    int prev_center = 0;
 	    
 	    for (uint i=1; i <= curI; i++) {
 	    
@@ -6376,13 +6378,13 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
 		double sum_j = 0;
 		uint nAlignedWords = 0;
 
-		std::set<uint>::iterator ait = exp_aligned_source_words[i].begin();
-		const uint first_j = *ait;
+		std::set<int>::iterator ait = exp_aligned_source_words[i].begin();
+		const int first_j = *ait;
 		sum_j += *ait;
 		nAlignedWords++;
 		
 		//collect counts for the head model
-		if (prev_center != MAX_UINT) {
+		if (prev_center >= 0) {
 		  int diff =  first_j - prev_center;
 		  diff += displacement_offset_;
 		  fceptstart_count(0,0,diff) += cur_prob;
@@ -6391,10 +6393,10 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
 		  fsentence_start_count[first_j] += cur_prob;
 
 		//collect counts for the within-cept model
-		uint prev_j = first_j;
+		int prev_j = first_j;
 		for (ait++; ait != exp_aligned_source_words[i].end(); ait++) {
 
-		  const uint cur_j = *ait;
+		  const int cur_j = *ait;
 		  sum_j += cur_j;
 		  nAlignedWords++;
 
@@ -6408,7 +6410,7 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
 		//update prev_center
 		switch (cept_start_mode_) {
 		case IBM4CENTER:
-		  prev_center = (uint) round(sum_j / nAlignedWords);
+		  prev_center = (int) round(sum_j / nAlignedWords);
 		  break;
 		case IBM4FIRST:
 		  prev_center = first_j;
@@ -6417,7 +6419,7 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
 		  prev_center = prev_j;
 		  break;
 		case IBM4UNIFORM:
-		  prev_center = (uint) round(sum_j / nAlignedWords);
+		  prev_center = (int) round(sum_j / nAlignedWords);
 		  break;
 		default:
 		  assert(false);
@@ -6442,16 +6444,16 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
 
 	    cur_prob *= inv_sentence_prob;
 
-	    const uint aj2 = best_known_alignment_[s][swap_j2];
+	    const int aj2 = best_known_alignment_[s][swap_j2];
 
-	    NamedStorage1D<std::set<uint> > exp_aligned_source_words(MAKENAME(exp_aligned_source_words));
+	    NamedStorage1D<std::set<int> > exp_aligned_source_words(MAKENAME(exp_aligned_source_words));
 	    exp_aligned_source_words = aligned_source_words;
 	    exp_aligned_source_words[aj1].erase(swap_j1);
 	    exp_aligned_source_words[aj1].insert(swap_j2);
 	    exp_aligned_source_words[aj2].erase(swap_j2);
 	    exp_aligned_source_words[aj2].insert(swap_j1);
 
-	    uint prev_center = MAX_UINT;
+	    int prev_center = -100;
 	    
 	    for (uint i=1; i <= curI; i++) {
 	    
@@ -6460,13 +6462,13 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
 		double sum_j = 0;
 		uint nAlignedWords = 0;
 
-		std::set<uint>::iterator ait = exp_aligned_source_words[i].begin();
-		const uint first_j = *ait;
+		std::set<int>::iterator ait = exp_aligned_source_words[i].begin();
+		const int first_j = *ait;
 		sum_j += *ait;
 		nAlignedWords++;
 		
 		//collect counts for the head model
-		if (prev_center != MAX_UINT) {
+		if (prev_center >= 0) {
 		  int diff =  first_j - prev_center;
 		  diff += displacement_offset_;
 		  fceptstart_count(0,0,diff) += cur_prob;
@@ -6492,7 +6494,7 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
 		//update prev_center
 		switch (cept_start_mode_) {
 		case IBM4CENTER:
-		  prev_center = (uint) round(sum_j / nAlignedWords);
+		  prev_center = (int) round(sum_j / nAlignedWords);
 		  break;
 		case IBM4FIRST:
 		  prev_center = first_j;
@@ -6501,7 +6503,7 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
 		  prev_center = prev_j;
 		  break;
 		case IBM4UNIFORM:
-		  prev_center = (uint) round(sum_j / nAlignedWords);
+		  prev_center = (int) round(sum_j / nAlignedWords);
 		  break;
 		default:
 		  assert(false);
@@ -6800,14 +6802,14 @@ void IBM4Trainer::train_viterbi(uint nIter) {
       }
 
       /**** update distortion counts *****/
-      NamedStorage1D<std::set<uint> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
-      Math1D::NamedVector<uint> cept_center(curI+1,MAX_UINT,MAKENAME(cept_center));
+      NamedStorage1D<std::set<int> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
+      Math1D::NamedVector<int> cept_center(curI+1,-100,MAKENAME(cept_center));
 
       //denotes the largest preceding target position that produces source words
-      Math1D::NamedVector<uint> prev_cept(curI+1,MAX_UINT,MAKENAME(prev_cept));
-      Math1D::NamedVector<uint> first_aligned_source_word(curI+1,MAX_UINT,
+      Math1D::NamedVector<int> prev_cept(curI+1,-100,MAKENAME(prev_cept));
+      Math1D::NamedVector<int> first_aligned_source_word(curI+1,-100,
 							  MAKENAME(first_aligned_source_word));
-      Math1D::NamedVector<uint> second_aligned_source_word(curI+1,MAX_UINT,
+      Math1D::NamedVector<int> second_aligned_source_word(curI+1,-100,
 							   MAKENAME(second_aligned_source_word));
 
       for (uint j=0; j < curJ; j++) {
@@ -6815,17 +6817,17 @@ void IBM4Trainer::train_viterbi(uint nIter) {
 	aligned_source_words[cur_aj].insert(j);	
       }
 
-      uint cur_prev_cept = MAX_UINT;
+      int cur_prev_cept = -100;
       for (uint i=0; i <= curI; i++) {
 
 	assert(aligned_source_words[i].size() == fertility[i]);
 
 	if (fertility[i] > 0) {
 	  
-	  std::set<uint>::iterator ait = aligned_source_words[i].begin();
+	  std::set<int>::iterator ait = aligned_source_words[i].begin();
 	  first_aligned_source_word[i] = *ait;
 
-	  uint prev_j = *ait;
+	  int prev_j = *ait;
 	  if (fertility[i] > 1) {
 	    ait++;
 	    second_aligned_source_word[i] = *ait;
@@ -6833,13 +6835,13 @@ void IBM4Trainer::train_viterbi(uint nIter) {
 	  } 	    
 
 	  double sum = 0.0;
-	  for (std::set<uint>::iterator ait = aligned_source_words[i].begin(); ait != aligned_source_words[i].end(); ait++) {
+	  for (std::set<int>::iterator ait = aligned_source_words[i].begin(); ait != aligned_source_words[i].end(); ait++) {
 	    sum += *ait;
 	  }
 
 	  switch (cept_start_mode_) {
 	  case IBM4CENTER:
-	    cept_center[i] = (uint) round(sum / fertility[i]);
+	    cept_center[i] = (int) round(sum / fertility[i]);
 	    break;
 	  case IBM4FIRST:
 	    cept_center[i] = first_aligned_source_word[i];
@@ -6848,7 +6850,7 @@ void IBM4Trainer::train_viterbi(uint nIter) {
 	    cept_center[i] = prev_j;
 	    break;
 	  case IBM4UNIFORM:
-	    cept_center[i] = (uint) round(sum / fertility[i]);
+	    cept_center[i] = (int) round(sum / fertility[i]);
 	    break;
 	  default:
 	    assert(false);
@@ -6865,7 +6867,7 @@ void IBM4Trainer::train_viterbi(uint nIter) {
 	if (fertility[i] > 0) {
 	  
 	  //a) update head prob
-	  if (prev_cept[i] != MAX_UINT) {
+	  if (prev_cept[i] >= 0) {
 
 	    int diff = first_aligned_source_word[i] - cept_center[prev_cept[i]];
 	    diff += displacement_offset_;
@@ -6876,13 +6878,13 @@ void IBM4Trainer::train_viterbi(uint nIter) {
 	    fsentence_start_count[first_aligned_source_word[i]] += 1.0;
 
 	  //b) update within-cept prob
-	  uint prev_aligned_j = first_aligned_source_word[i];
-	  std::set<uint>::iterator ait = aligned_source_words[i].begin();
+	  int prev_aligned_j = first_aligned_source_word[i];
+	  std::set<int>::iterator ait = aligned_source_words[i].begin();
 	  ait++;
 	  for (;ait != aligned_source_words[i].end(); ait++) {
 
-	    const uint cur_j = *ait;
-	    uint diff = cur_j - prev_aligned_j;
+	    const int cur_j = *ait;
+	    int diff = cur_j - prev_aligned_j;
 	    diff += displacement_offset_;
 	    fwithincept_count(0,diff) += 1.0;
 
