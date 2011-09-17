@@ -150,7 +150,9 @@ double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
 
 //       assert(arg_max != MAX_UINT);
 
-      cur_score[i] = max_score * dict[target_sentence[i]][slookup(j,i)];
+      double dict_entry = std::max(1e-15,dict[target_sentence[i]][slookup(j,i)]);
+
+      cur_score[i] = max_score * dict_entry;
       traceback(i,j) = arg_max;
     }
     for (uint i=I; i < 2*I; i++) {
@@ -164,7 +166,9 @@ double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
 	arg_max = i-I;
       }
 
-      cur_score[i] = max_score * dict[0][source_sentence[j]-1] * align_prob(I,i-I);
+      double dict_entry = dict[0][source_sentence[j]-1];
+
+      cur_score[i] = max_score * dict_entry * align_prob(I,i-I);
       traceback(i,j) = arg_max;
     }
 
