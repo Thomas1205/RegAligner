@@ -228,7 +228,7 @@ double ehmm_m_step_energy(const FullHMMAlignmentModel& facount, const Math1D::Ve
   return energy;
 }
 
-void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::NamedVector<double>& dist_params, uint zero_offset,
+void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& dist_params, uint zero_offset,
 		 uint nIter, double& grouping_param) {
 
   //std::cerr << "init params before projection: " << dist_params << std::endl;
@@ -585,7 +585,10 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 			const CooccuringWordsType& wcooc,
 			uint nSourceWords, uint nTargetWords,
 			FullHMMAlignmentModel& align_model,
+			Math1D::Vector<double>& dist_params, double& dist_grouping_param,
+			Math1D::Vector<double>& source_fert,
 			InitialAlignmentProbability& initial_prob,
+			Math1D::Vector<double>& init_params,
 			SingleWordDictionary& dict,
 			uint nIterations, HmmInitProbType init_type, HmmAlignProbType align_type,
 			std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
@@ -634,13 +637,13 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
   std::cerr << "maxJ: " << maxJ << ", maxI: " << maxI << std::endl;
 
-  Math1D::NamedVector<double> dist_params(0,MAKENAME(dist_params));
+  //Math1D::NamedVector<double> dist_params(0,MAKENAME(dist_params));
   Math1D::NamedVector<double> dist_count(0,MAKENAME(dist_count));
 
-  double dist_grouping_param = -1.0;
+  dist_grouping_param = -1.0;
   double dist_grouping_count = -1.0;
 
-  Math1D::Vector<double> source_fert(0);
+  //Math1D::Vector<double> source_fert(0);
   Math1D::Vector<double> source_fert_count(0);
   
   uint zero_offset = maxI-1;
@@ -661,7 +664,7 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
     source_fert_count.resize(2,0.0);
   }
 
-  Math1D::NamedVector<double> init_params(0, MAKENAME(init_params) );
+  //Math1D::NamedVector<double> init_params(0, MAKENAME(init_params) );
   Math1D::NamedVector<double> init_count(0, MAKENAME(init_count) );
   if (init_type == HmmInitPar) {
     init_params.resize(maxI,1.0 / maxI);
@@ -1262,7 +1265,10 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 				       const CooccuringWordsType& wcooc,
 				       uint nSourceWords, uint nTargetWords,
 				       FullHMMAlignmentModel& align_model,
+				       Math1D::Vector<double>& dist_params, double& dist_grouping_param,
+				       Math1D::Vector<double>& source_fert,
 				       InitialAlignmentProbability& initial_prob,
+				       Math1D::Vector<double>& init_params,
 				       SingleWordDictionary& dict,
 				       uint nIterations, HmmInitProbType init_type, HmmAlignProbType align_type,
 				       std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
@@ -1322,22 +1328,22 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
   Math1D::Vector<double> empty_count(maxI,0.0);
   Math1D::Vector<double> real_count(maxI,0.0);
 
-  double dist_grouping_param = 0.0;
+  dist_grouping_param = 0.0;
   double dist_grouping_grad = 0.0;
   double new_dist_grouping_param = 0.0;
   double hyp_dist_grouping_param = 0.0;
 
-  Math1D::NamedVector<double> dist_params(0,MAKENAME(dist_params));
+  //Math1D::NamedVector<double> dist_params(0,MAKENAME(dist_params));
   Math1D::NamedVector<double> dist_grad(0,MAKENAME(dist_grad));
   Math1D::NamedVector<double> new_dist_params(0,MAKENAME(new_dist_params));
   Math1D::NamedVector<double> hyp_dist_params(0,MAKENAME(hyp_dist_params));
 
-  Math1D::NamedVector<double> init_params(0,MAKENAME(init_params));
+  //Math1D::NamedVector<double> init_params(0,MAKENAME(init_params));
   Math1D::NamedVector<double> init_param_grad(0,MAKENAME(init_param_grad));
   Math1D::NamedVector<double> new_init_params(0,MAKENAME(new_init_params));
   Math1D::NamedVector<double> hyp_init_params(0,MAKENAME(hyp_init_params));
 
-  Math1D::Vector<double> source_fert(0);
+  //Math1D::Vector<double> source_fert(0);
   Math1D::Vector<double> source_fert_grad(0);
   Math1D::Vector<double> new_source_fert(0);  
   Math1D::Vector<double> hyp_source_fert(0);
@@ -2194,7 +2200,10 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 				const CooccuringWordsType& wcooc,
 				uint nSourceWords, uint nTargetWords,
 				FullHMMAlignmentModel& align_model,
+				Math1D::Vector<double>& dist_params, double& dist_grouping_param,
+				Math1D::Vector<double>& source_fert,
 				InitialAlignmentProbability& initial_prob,
+				Math1D::Vector<double>& init_params,
 				SingleWordDictionary& dict, uint nIterations, 
 				HmmInitProbType init_type, HmmAlignProbType align_type, bool deficient_parametric,
 				std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
@@ -2227,7 +2236,8 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
   //NOTE: the dictionary is assumed to be initialized
 
   Math1D::Vector<double> source_fert_count(2,0.0);
-  Math1D::Vector<double> source_fert(2);
+  //Math1D::Vector<double> source_fert(2);
+  source_fert.resize(2);
   source_fert[0] = 0.02;
   source_fert[1] = 0.98;
 
@@ -2330,10 +2340,10 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
     }
   }
 
-  Math1D::NamedVector<double> dist_params(0,MAKENAME(dist_params));
+  //Math1D::NamedVector<double> dist_params(0,MAKENAME(dist_params));
   Math1D::NamedVector<double> dist_count(0,MAKENAME(dist_count));
 
-  double dist_grouping_param = (align_type == HmmAlignProbReducedpar) ? 0.2 : -1.0; 
+  dist_grouping_param = (align_type == HmmAlignProbReducedpar) ? 0.2 : -1.0; 
 
   uint zero_offset = maxI-1;
   

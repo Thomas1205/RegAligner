@@ -134,6 +134,12 @@ int main(int argc, char** argv) {
   FullHMMAlignmentModel hmmalign_model(MAKENAME(hmmalign_model));
   InitialAlignmentProbability initial_prob(MAKENAME(initial_prob));
 
+  Math1D::Vector<double> source_fert;
+
+  Math1D::Vector<double> hmm_init_params;
+  Math1D::Vector<double> hmm_dist_params;
+  double hmm_dist_grouping_param = -1.0;
+
   timeval startProcess, endProcess;
   gettimeofday(&startProcess,0);
 
@@ -288,20 +294,22 @@ int main(int argc, char** argv) {
   if (method == "em") {
 
     train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, nSourceWords, nTargetWords,
-		       hmmalign_model, initial_prob, dict, hmm_iter, HmmInitPar, HmmAlignProbReducedpar,
+		       hmmalign_model, hmm_dist_params, hmm_dist_grouping_param, source_fert,
+		       initial_prob, hmm_init_params, dict, hmm_iter, HmmInitPar, HmmAlignProbReducedpar,
 		       sure_ref_alignments, possible_ref_alignments, prior_weight);
   }
   else if (method == "gd") {
 
     train_extended_hmm_gd_stepcontrol(source_sentence, slookup, target_sentence, wcooc, nSourceWords, nTargetWords,
-				      hmmalign_model, initial_prob, dict, 50, HmmInitPar, HmmAlignProbReducedpar,
+				      hmmalign_model, hmm_dist_params, hmm_dist_grouping_param, source_fert,
+				      initial_prob, hmm_init_params, dict, 50, HmmInitPar, HmmAlignProbReducedpar,
 				      sure_ref_alignments, possible_ref_alignments, prior_weight); 
   }
   else {
 
     viterbi_train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, nSourceWords, nTargetWords,
-			       hmmalign_model, initial_prob, dict, hmm_iter, HmmInitFix, 
-			       HmmAlignProbFullpar, false,  
+			       hmmalign_model, hmm_dist_params, hmm_dist_grouping_param, source_fert,
+			       initial_prob, hmm_init_params, dict, hmm_iter, HmmInitFix, HmmAlignProbFullpar, false,  
 			       sure_ref_alignments, possible_ref_alignments, prior_weight);
   }
   
@@ -328,7 +336,7 @@ int main(int argc, char** argv) {
       else if (constraint_mode == "itg") 
 	ibm3_trainer.train_with_itg_constraints(ibm3_iter,true);
       else if (constraint_mode == "ibm") 
-	ibm3_trainer.train_with_ibm_constraints(ibm3_iter,5,4);
+	ibm3_trainer.train_with_ibm_constraints(ibm3_iter,5,3);
       else {
 	USER_ERROR << "unknown constraint mode: \"" << constraint_mode << "\". Exiting" << std::endl;
 	exit(1);

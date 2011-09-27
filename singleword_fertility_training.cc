@@ -4573,7 +4573,7 @@ IBM4Trainer::IBM4Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
 			  nSourceWords,nTargetWords,sure_ref_alignments,possible_ref_alignments),
     cept_start_prob_(1,1,2*maxJ_-1,MAKENAME(cept_start_prob_)),
     within_cept_prob_(1,2*maxJ_-1,MAKENAME(within_cept_prob_)), 
-    sentence_start_prob_(MAKENAME(sentence_start_prob)),
+    sentence_start_prob_(MAKENAME(sentence_start_prob_)),
     och_ney_empty_word_(och_ney_empty_word), cept_start_mode_(cept_start_mode),
     use_sentence_start_prob_(use_sentence_start_prob), no_factorial_(no_factorial), prior_weight_(prior_weight)
  {
