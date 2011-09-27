@@ -2,8 +2,8 @@
 
 ***** Getting Started ******
 
-RegAligner gets an list of source sentences and a list of target sentences. In
-both cases, the lists are INDICES, e.g. non-negative numbers. It then
+RegAligner gets a list of source sentences and a list of target sentences. In
+both cases, the lists are INDICES, i.e. non-negative numbers. It then
 estimates p(source | target) based on models derived from IBM1-4 and
 HMM. RegAligner so far only trains single-word based models. If you are
 interested in Bi-word models, please contact thomas_schoenemann@yahoo.de .
@@ -53,7 +53,7 @@ to the command line.
 
 RegAligner supports the option to evaluate intermediate alignments (arising
 during the iterations) on gold alignments for the training set. These
-alignments are used solely for outputting error/accuracy measures. The do not
+alignments are used solely for outputting error/accuracy measures. They do not
 influence the computed alignments.
 
 To pass in gold alignments, add
