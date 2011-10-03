@@ -132,7 +132,7 @@ public:
 
 protected:
 
-  void par2nonpar_distortion();
+  void par2nonpar_distortion(ReducedIBM3DistortionModel& prob);
 
   double par_distortion_m_step_energy(const ReducedIBM3DistortionModel& fdistort_count,
 				      const Math2D::Matrix<double>& param);
@@ -141,17 +141,23 @@ protected:
 
   long double alignment_prob(uint s, const Math1D::Vector<ushort>& alignment) const;
 
+  long double alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target,
+			     const Math2D::Matrix<uint>& lookup, const Math1D::Vector<ushort>& alignment) const;
+
   //improves the currently best known alignment using hill climbing and
   // returns the probability of the resulting alignment
-  long double update_alignment_by_hillclimbing(uint s, uint& nIter, Math1D::Vector<uint>& fertility,
+  long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target,
+					       const Math2D::Matrix<uint>& lookup,
+					       uint& nIter, Math1D::Vector<uint>& fertility,
 					       Math2D::Matrix<long double>& expansion_prob,
-					       Math2D::Matrix<long double>& swap_prob);
+					       Math2D::Matrix<long double>& swap_prob, Math1D::Vector<ushort>& alignment);
 
   long double compute_itg_viterbi_alignment_noemptyword(uint s, bool extended_reordering = false);
 
   //@param time_limit: maximum amount of seconds spent in the ILP-solver.
   //          values <= 0 indicate that no time limit is set
-  long double compute_viterbi_alignment_ilp(uint s, uint max_fertility,
+  long double compute_viterbi_alignment_ilp(const Storage1D<uint>& source, const Storage1D<uint>& target,
+					    const Math2D::Matrix<uint>& lookup, uint max_fertility,
 					    Math1D::Vector<ushort>& alignment, double time_limit = -1.0);
 
   void itg_traceback(uint s, const NamedStorage1D<Math3D::NamedTensor<uint> >& trace, uint J, uint j, uint i, uint ii);
@@ -205,6 +211,9 @@ public:
 protected:
 
   long double alignment_prob(uint s, const Math1D::Vector<ushort>& alignment) const;
+
+  long double alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target,
+			     const Math2D::Matrix<uint>& lookup, const Math1D::Vector<ushort>& alignment) const;
 
   long double update_alignment_by_hillclimbing(uint s, uint& nIter, Math1D::Vector<uint>& fertility,
 					       Math2D::Matrix<long double>& expansion_prob,
