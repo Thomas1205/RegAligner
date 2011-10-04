@@ -43,70 +43,11 @@ double extended_hmm_perplexity(const Storage1D<Storage1D<uint> >& source,
     /**** calculate forward ********/
 
     Math2D::NamedMatrix<double> forward(2*curI,curJ,MAKENAME(forward));
+
+    calculate_hmm_forward(cur_source,cur_target,cur_lookup, dict,
+			  cur_align_model, initial_prob[curI-1], forward);
       
     const uint start_s_idx = cur_source[0];
-    for (uint i=0; i < curI; i++) {
-      forward(i,0) = initial_prob[curI-1][i] * dict[cur_target[i]][cur_lookup(0,i)];
-      if (!(forward(i,0) >= 0.0)) {
-
-	std::cerr << "forward = " << initial_prob[curI-1][i] << " * "
-		  << dict[cur_target[i]][cur_lookup(0,i)] << std::endl;
-
-	std::cerr << "dict entry: [" << cur_target[i] << "][" << cur_lookup(0,i) << "]" << std::endl;
-      }
-
-      assert(forward(i,0) >= 0.0);
-    }
-    for (uint i=curI; i < 2*curI; i++) {
-      forward(i,0) = initial_prob[curI-1][i] * dict[0][start_s_idx-1];
-      assert(forward(i,0) >= 0.0);
-    }
-    
-    for (uint j=1; j < curJ; j++) {
-      const uint j_prev = j-1;
-      const uint s_idx = cur_source[j];
-      
-      for (uint i=0; i < curI; i++) {
-	
-	double sum = 0.0;
-	for (uint i_prev=0; i_prev < curI; i_prev++)
-	  sum += cur_align_model(i,i_prev) * (forward(i_prev,j_prev) + forward(i_prev+curI,j_prev));
-	
-	forward(i,j) = sum * dict[cur_target[i]][cur_lookup(j,i)];
-	
-	if (!(forward(i,j) >= 0.0)) {
-	  
-	  std::cerr << "i=" << i << ", j=" << j << ", forward: " << forward(i,j) << std::endl;
-	  std::cerr << "sum: " << sum << std::endl;
-	  std::cerr << "dict: " << dict[cur_target[i]][cur_lookup(j,i)] << std::endl;
-	  std::cerr << "align-prob: ";
-	  for (uint i_prev=0; i_prev < curI; i_prev++)
-	    std::cerr << cur_align_model(i,i_prev) << " ";
-	  std::cerr << std::endl;
-	}
-	assert(forward(i,j) >= 0.0);
-      }
-      
-      const double cur_emptyword_prob = dict[0][s_idx-1];
-      assert(cur_emptyword_prob >= 0.0);
-      
-      for (uint i=curI; i < 2*curI; i++) {
-	
-	const double sum = cur_align_model(curI,i-curI) * (forward(i,j_prev) + forward(i-curI,j_prev));
-	forward(i,j) = sum * cur_emptyword_prob;
-	
-// 	  if (!(forward(i,j) >= 0.0)) {
-
-// 	    std::cerr << "cur align model: " << cur_align_model << std::endl;
-	    
-// 	    std::cerr << "s=" << s << ", I=" << curI << ", i= " << i << ", j=" << j 
-// 		      << ", value " << forward(i,j) <<  " = " << sum << " * " << cur_emptyword_prob << std::endl;
-// 	    std::cerr << "align-prob: " << cur_align_model(curI,i-curI) << std::endl;
-// 	  }
-
-	assert(forward(i,j) >= 0.0);
-      }
-    }
     
     double sentence_prob = 0.0;
     for (uint i=0; i < 2*curI; i++) {
@@ -637,13 +578,11 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
   std::cerr << "maxJ: " << maxJ << ", maxI: " << maxI << std::endl;
 
-  //Math1D::NamedVector<double> dist_params(0,MAKENAME(dist_params));
   Math1D::NamedVector<double> dist_count(0,MAKENAME(dist_count));
 
   dist_grouping_param = -1.0;
   double dist_grouping_count = -1.0;
 
-  //Math1D::Vector<double> source_fert(0);
   Math1D::Vector<double> source_fert_count(0);
   
   uint zero_offset = maxI-1;
@@ -664,7 +603,6 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
     source_fert_count.resize(2,0.0);
   }
 
-  //Math1D::NamedVector<double> init_params(0, MAKENAME(init_params) );
   Math1D::NamedVector<double> init_count(0, MAKENAME(init_count) );
   if (init_type == HmmInitPar) {
     init_params.resize(maxI,1.0 / maxI);
@@ -807,62 +745,11 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       /**** Baum-Welch traininig: start with calculating forward and backward ********/
 
       Math2D::NamedMatrix<long double> forward(2*curI,curJ,MAKENAME(forward));
-      
+
+      calculate_hmm_forward(cur_source,cur_target,cur_lookup, dict,
+			    cur_align_model, initial_prob[curI-1], forward);
+
       const uint start_s_idx = cur_source[0];
-      for (uint i=0; i < curI; i++) {
-	forward(i,0) = initial_prob[curI-1][i] * dict[cur_target[i]][cur_lookup(0,i)];
-	assert(forward(i,0) >= 0.0);
-      }
-      for (uint i=curI; i < 2*curI; i++) {
-	forward(i,0) = initial_prob[curI-1][i] * dict[0][start_s_idx-1];
-	assert(forward(i,0) >= 0.0);
-      }
-      
-      for (uint j=1; j < curJ; j++) {
-	const uint j_prev = j-1;
-	const uint s_idx = cur_source[j];
-
-	for (uint i=0; i < curI; i++) {
-
-	  long double sum = 0.0;
-	  for (uint i_prev=0; i_prev < curI; i_prev++)
-	    sum += cur_align_model(i,i_prev) * (forward(i_prev,j_prev) + forward(i_prev+curI,j_prev));
-	  
-	  forward(i,j) = sum * dict[cur_target[i]][cur_lookup(j,i)];
-	  
-	  if (!(forward(i,j) >= 0.0)) {
-
-	    std::cerr << "i=" << i << ", j=" << j << ", forward: " << forward(i,j) << std::endl;
-	    std::cerr << "sum: " << sum << std::endl;
-	    std::cerr << "dict: " << dict[cur_target[i]][cur_lookup(j,i)] << std::endl;
-	    std::cerr << "align-prob: ";
-	    for (uint i_prev=0; i_prev < curI; i_prev++)
-	      std::cerr << cur_align_model(i,i_prev) << " ";
-	    std::cerr << std::endl;
-	  }
-	  assert(forward(i,j) >= 0.0);
-	}
-	
-	long double cur_emptyword_prob = dict[0][s_idx-1];
-	assert(cur_emptyword_prob >= 0.0);
-
-	for (uint i=curI; i < 2*curI; i++) {
-
-	  long double sum = cur_align_model(curI,i-curI) * (forward(i,j_prev) + forward(i-curI,j_prev));
-	  forward(i,j) = sum * cur_emptyword_prob;
-
-// 	  if (!(forward(i,j) >= 0.0)) {
-
-// 	    std::cerr << "cur align model: " << cur_align_model << std::endl;
-	    
-// 	    std::cerr << "s=" << s << ", I=" << curI << ", i= " << i << ", j=" << j 
-// 		      << ", value " << forward(i,j) <<  " = " << sum << " * " << cur_emptyword_prob << std::endl;
-// 	    std::cerr << "align-prob: " << cur_align_model(curI,i-curI) << std::endl;
-// 	  }
-
-	  assert(forward(i,j) >= 0.0);
-	}
-      }
 
       long double sentence_prob = 0.0;
       for (uint i=0; i < 2*curI; i++) {
@@ -887,41 +774,10 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       assert(sentence_prob > 0.0);
       
       Math2D::NamedMatrix<long double> backward(2*curI,curJ,MAKENAME(backward));
-      const uint end_s_idx = cur_source[curJ-1];
+      calculate_hmm_backward(cur_source,cur_target,cur_lookup, dict,
+			     cur_align_model, initial_prob[curI-1], backward,true);
 
-      for (uint i=0; i < curI; i++)
-	backward(i,curJ-1) = dict[cur_target[i]][cur_lookup(curJ-1,i)];
-      for (uint i=curI; i < 2*curI; i++)
-	backward(i,curJ-1) = dict[0][end_s_idx-1];
-      
-      for (int j=curJ-2; j >= 0; j--) {
-	const uint s_idx = cur_source[j];
-	const uint j_next = j+1;
-
-	for (uint i=0; i < curI; i++) {
-
-	  long double sum = 0.0;
-	  for (uint i_next = 0; i_next < curI; i_next++)
-	    sum += backward(i_next,j_next) * cur_align_model(i_next,i);
-	  sum += backward(i+curI,j_next) * cur_align_model(curI,i);
-
-	  backward(i,j) = sum * dict[cur_target[i]][cur_lookup(j,i)];
-	}
-
-	long double cur_emptyword_prob = dict[0][s_idx-1];
-
-	for (uint i=curI; i < 2*curI; i++) {
-
-	  long double sum = 0.0;
-	  for (uint i_next = 0; i_next < curI; i_next++)
-	    sum += backward(i_next,j_next) * cur_align_model(i_next,i-curI);
-	  sum += backward(i,j_next) * cur_align_model(curI,i-curI);
-	  
-	  backward(i,j) = sum * cur_emptyword_prob;
-	}
-      }
-      for (uint i=0; i < 2*curI; i++)
-	backward(i,0) *= initial_prob[curI-1][i];
+      //const uint end_s_idx = cur_source[curJ-1];
 
       long double bwd_sentence_prob = 0.0;
       for (uint i=0; i < 2*curI; i++)
@@ -1333,17 +1189,14 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
   double new_dist_grouping_param = 0.0;
   double hyp_dist_grouping_param = 0.0;
 
-  //Math1D::NamedVector<double> dist_params(0,MAKENAME(dist_params));
   Math1D::NamedVector<double> dist_grad(0,MAKENAME(dist_grad));
   Math1D::NamedVector<double> new_dist_params(0,MAKENAME(new_dist_params));
   Math1D::NamedVector<double> hyp_dist_params(0,MAKENAME(hyp_dist_params));
 
-  //Math1D::NamedVector<double> init_params(0,MAKENAME(init_params));
   Math1D::NamedVector<double> init_param_grad(0,MAKENAME(init_param_grad));
   Math1D::NamedVector<double> new_init_params(0,MAKENAME(new_init_params));
   Math1D::NamedVector<double> hyp_init_params(0,MAKENAME(hyp_init_params));
 
-  //Math1D::Vector<double> source_fert(0);
   Math1D::Vector<double> source_fert_grad(0);
   Math1D::Vector<double> new_source_fert(0);  
   Math1D::Vector<double> hyp_source_fert(0);
@@ -1534,62 +1387,11 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
       /**** Baum-Welch traininig: start with calculating forward and backward ********/
 
       Math2D::NamedMatrix<long double> forward(2*curI,curJ,MAKENAME(forward));
-      
+
+      calculate_hmm_forward(cur_source,cur_target,cur_lookup, dict,
+			    cur_align_model, initial_prob[curI-1], forward);      
+
       const uint start_s_idx = cur_source[0];
-      for (uint i=0; i < curI; i++) {
-	forward(i,0) = initial_prob[curI-1][i] * dict[cur_target[i]][cur_lookup(0,i)];
-	assert(forward(i,0) >= 0.0);
-      }
-      for (uint i=curI; i < 2*curI; i++) {
-	forward(i,0) = initial_prob[curI-1][i] * dict[0][start_s_idx-1];
-	assert(forward(i,0) >= 0.0);
-      }
-      
-      for (uint j=1; j < curJ; j++) {
-	const uint j_prev = j-1;
-	const uint s_idx = cur_source[j];
-
-	for (uint i=0; i < curI; i++) {
-
-	  long double sum = 0.0;
-	  for (uint i_prev=0; i_prev < curI; i_prev++)
-	    sum += cur_align_model(i,i_prev) * (forward(i_prev,j_prev) + forward(i_prev+curI,j_prev));
-	  
-	  forward(i,j) = sum * dict[cur_target[i]][cur_lookup(j,i)];
-	  
-	  if (!(forward(i,j) >= 0.0)) {
-
-	    std::cerr << "i=" << i << ", j=" << j << ", forward: " << forward(i,j) << std::endl;
-	    std::cerr << "sum: " << sum << std::endl;
-	    std::cerr << "dict: " << dict[cur_target[i]][cur_lookup(j,i)] << std::endl;
-	    std::cerr << "align-prob: ";
-	    for (uint i_prev=0; i_prev < curI; i_prev++)
-	      std::cerr << cur_align_model(i,i_prev) << " ";
-	    std::cerr << std::endl;
-	  }
-	  assert(forward(i,j) >= 0.0);
-	}
-	
-	long double cur_emptyword_prob = dict[0][s_idx-1];
-	assert(cur_emptyword_prob >= 0.0);
-
-	for (uint i=curI; i < 2*curI; i++) {
-
-	  long double sum = cur_align_model(curI,i-curI) * (forward(i,j_prev) + forward(i-curI,j_prev));
-	  forward(i,j) = sum * cur_emptyword_prob;
-
-// 	  if (!(forward(i,j) >= 0.0)) {
-
-// 	    std::cerr << "cur align model: " << cur_align_model << std::endl;
-	    
-// 	    std::cerr << "s=" << s << ", I=" << curI << ", i= " << i << ", j=" << j 
-// 		      << ", value " << forward(i,j) <<  " = " << sum << " * " << cur_emptyword_prob << std::endl;
-// 	    std::cerr << "align-prob: " << cur_align_model(curI,i-curI) << std::endl;
-// 	  }
-
-	  assert(forward(i,j) >= 0.0);
-	}
-      }
 
       long double sentence_prob = 0.0;
       for (uint i=0; i < 2*curI; i++) {
@@ -1611,41 +1413,11 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
       assert(sentence_prob > 0.0);
       
       Math2D::NamedMatrix<long double> backward(2*curI,curJ,MAKENAME(backward));
-      const uint end_s_idx = cur_source[curJ-1];
+      //const uint end_s_idx = cur_source[curJ-1];
 
-      for (uint i=0; i < curI; i++)
-	backward(i,curJ-1) = dict[cur_target[i]][cur_lookup(curJ-1,i)];
-      for (uint i=curI; i < 2*curI; i++)
-	backward(i,curJ-1) = dict[0][end_s_idx-1];
-      
-      for (int j=curJ-2; j >= 0; j--) {
-	const uint s_idx = cur_source[j];
-	const uint j_next = j+1;
+      calculate_hmm_backward(cur_source,cur_target,cur_lookup, dict,
+			     cur_align_model, initial_prob[curI-1], backward, true);
 
-	for (uint i=0; i < curI; i++) {
-
-	  long double sum = 0.0;
-	  for (uint i_next = 0; i_next < curI; i_next++)
-	    sum += backward(i_next,j_next) * cur_align_model(i_next,i);
-	  sum += backward(i+curI,j_next) * cur_align_model(curI,i);
-
-	  backward(i,j) = sum * dict[cur_target[i]][cur_lookup(j,i)];
-	}
-
-	const long double cur_emptyword_prob = dict[0][s_idx-1];
-
-	for (uint i=curI; i < 2*curI; i++) {
-
-	  long double sum = 0.0;
-	  for (uint i_next = 0; i_next < curI; i_next++)
-	    sum += backward(i_next,j_next) * cur_align_model(i_next,i-curI);
-	  sum += backward(i,j_next) * cur_align_model(curI,i-curI);
-	  
-	  backward(i,j) = sum * cur_emptyword_prob;
-	}
-      }
-      for (uint i=0; i < 2*curI; i++)
-	backward(i,0) *= initial_prob[curI-1][i];
 
 //       long double bwd_sentence_prob = 0.0;
 //       for (uint i=0; i < 2*curI; i++)
