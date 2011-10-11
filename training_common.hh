@@ -14,6 +14,13 @@ void find_cooccuring_words(const Storage1D<Storage1D<uint> >& source,
 			   uint nSourceWords, uint nTargetWords,
 			   CooccuringWordsType& cooc);
 
+void find_cooccuring_words(const Storage1D<Storage1D<uint> >& source, 
+			   const Storage1D<Storage1D<uint> >& target,
+			   const Storage1D<Storage1D<uint> >& additional_source, 
+			   const Storage1D<Storage1D<uint> >& additional_target,
+			   uint nSourceWords, uint nTargetWords,
+			   CooccuringWordsType& cooc);
+
 
 void find_cooc_monolingual_pairs(const Storage1D<Storage1D<uint> >& sentence,
 				 uint voc_size, Storage1D<Storage1D<uint> >& cooc);

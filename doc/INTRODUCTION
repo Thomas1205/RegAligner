@@ -27,6 +27,14 @@ that are included in RegAligner.
 By default, RegAligner runs 10 EM-iterations of the IBM-1, then 20
 EM-iterations of the HMM. By default no regularity terms are used.
 
+***** Enabling reading of zipped files ****
+
+To enable reading of zipped files (presently these can only be the corpus
+files, i.e. no dictionaries etc.), you need to download the gzstream classes
+from the University of North Carolina: http://www.cs.unc.edu/Research/compgeom/gzstream/ 
+and make sure that you have permission to use them. Afterward, add -DHAS_GZSTREAM to the 
+compiler options and make sure that you link against gzstream.
+
 ***** Changing output behavior ****
 
 Apart from the final alignments, so far only the computed dictionary can be output.

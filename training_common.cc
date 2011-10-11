@@ -11,7 +11,20 @@ void find_cooccuring_words(const Storage1D<Storage1D<uint> >& source,
 			   const Storage1D<Storage1D<uint> >& target,
 			   uint nSourceWords, uint nTargetWords,
 			   CooccuringWordsType& cooc) {
+  
+  Storage1D<Storage1D<uint> > additional_source;
+  Storage1D<Storage1D<uint> > additional_target;
 
+  find_cooccuring_words(source,target,additional_source,additional_target,nSourceWords,nTargetWords,cooc);
+}
+
+
+void find_cooccuring_words(const Storage1D<Storage1D<uint> >& source, 
+			   const Storage1D<Storage1D<uint> >& target,
+			   const Storage1D<Storage1D<uint> >& additional_source, 
+			   const Storage1D<Storage1D<uint> >& additional_target,
+			   uint nSourceWords, uint nTargetWords,
+			   CooccuringWordsType& cooc) {
 
   NamedStorage1D<std::set<uint> > coocset(nTargetWords,MAKENAME(coocset));
   for (uint j=0; j < nSourceWords-1; j++)
@@ -48,6 +61,35 @@ void find_cooccuring_words(const Storage1D<Storage1D<uint> >& source,
     }
   }
 
+  const uint nAddSentences = additional_source.size();
+  assert(nAddSentences == additional_target.size());
+
+  for (uint s=0; s < nAddSentences; s++) {
+
+    if ((s%10000) == 0)
+      std::cerr << "sentence pair number " << s << std::endl;
+    
+    const uint nCurSourceWords = additional_source[s].size();
+    const uint nCurTargetWords = additional_target[s].size();
+
+    const Storage1D<uint>& cur_source = additional_source[s];
+    const Storage1D<uint>& cur_target = additional_target[s];
+
+    for (uint i=0; i < nCurTargetWords; i++) {
+      uint t_idx = cur_target[i]; 
+      assert(t_idx < nTargetWords);
+
+      std::set<uint>& cur_set = coocset[t_idx];
+
+      for (uint j=0; j < nCurSourceWords; j++) {
+	uint s_idx = cur_source[j]; 
+	assert(s_idx < nSourceWords);
+	
+	cur_set.insert(s_idx);
+      }
+    }
+  }
+
   for (uint i=0; i < nTargetWords; i++) {
     
     const uint size = coocset[i].size();
@@ -66,6 +108,7 @@ void find_cooccuring_words(const Storage1D<Storage1D<uint> >& source,
   
   std::cerr << "average number of cooccuring words: " << (sum_cooc / nTargetWords) << std::endl;
 }
+
 
 void find_cooc_monolingual_pairs(const Storage1D<Storage1D<uint> >& sentence,
 				 uint voc_size, Storage1D<Storage1D<uint> >& cooc) {
@@ -485,6 +528,8 @@ void count_cooc_target_pairs_and_source_words(const Storage1D<Storage1D<uint> >&
 	  cur_cooc.resize(cur_cooc.size()+1);
 	  cur_cooc[t2_cooc_idx].first = t2;
 	}
+
+	//std::pair<uint,Storage1D<std::pair<uint,uint> > >& cur_pair = cur_cooc[t2_cooc_idx];
 
 	Storage1D<std::pair<uint,uint> >& cur_vec = cur_cooc[t2_cooc_idx].second;
 

@@ -33,6 +33,13 @@ BUILDING REGALIGNER
 A sample Makefile has been provided, but you will most likely have to modify
 it. Also, you will have to change to the directory common first, and build there.
 
+DEPENDENCIES
+
+There are no mandatory dependencies. However, if you want to be able to read zipped files,
+you need to download the gzstream classes from the University of North Carolina:
+http://www.cs.unc.edu/Research/compgeom/gzstream/ . To use this class, add -DHAS_GZSTREAM
+to the compiler options and link against gzstream.
+
 
 USING REGALIGNER
 
