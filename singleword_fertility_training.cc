@@ -60,7 +60,7 @@ FertilityModelTrainer::FertilityModelTrainer(const Storage1D<Storage1D<uint> >& 
   maxJ_ = 0;
   maxI_ = 0;
 
-  for (uint s=0; s < source_sentence.size(); s++) {
+  for (size_t s=0; s < source_sentence.size(); s++) {
 
     const uint curJ = source_sentence[s].size();
     const uint curI = target_sentence[s].size();
@@ -107,7 +107,7 @@ double FertilityModelTrainer::AER() {
   double sum_aer = 0.0;
   uint nContributors = 0;
   
-  for (uint s=0; s < source_sentence_.size(); s++) {
+  for (size_t s=0; s < source_sentence_.size(); s++) {
     
     if (possible_ref_alignments_.find(s+1) != possible_ref_alignments_.end()) {
       
@@ -131,7 +131,7 @@ double FertilityModelTrainer::AER(const Storage1D<Math1D::Vector<ushort> >& alig
   double sum_aer = 0.0;
   uint nContributors = 0;
   
-  for (uint s=0; s < source_sentence_.size(); s++) {
+  for (size_t s=0; s < source_sentence_.size(); s++) {
     
     if (possible_ref_alignments_.find(s+1) != possible_ref_alignments_.end()) {
       
@@ -155,7 +155,7 @@ double FertilityModelTrainer::f_measure(double alpha) {
   double sum_fmeasure = 0.0;
   uint nContributors = 0;
   
-  for (uint s=0; s < source_sentence_.size(); s++) {
+  for (size_t s=0; s < source_sentence_.size(); s++) {
     
     if (possible_ref_alignments_.find(s+1) != possible_ref_alignments_.end()) {
       
@@ -179,7 +179,7 @@ double FertilityModelTrainer::DAE_S() {
   double sum_errors = 0.0;
   uint nContributors = 0;
   
-  for (uint s=0; s < source_sentence_.size(); s++) {
+  for (size_t s=0; s < source_sentence_.size(); s++) {
     
     if (possible_ref_alignments_.find(s+1) != possible_ref_alignments_.end()) {
       
@@ -829,7 +829,7 @@ void FertilityModelTrainer::write_alignments(const std::string filename) const {
 
   std::ofstream out(filename.c_str());
 
-  for (uint s=0; s < source_sentence_.size(); s++) {
+  for (size_t s=0; s < source_sentence_.size(); s++) {
 
     const uint curJ = source_sentence_[s].size();
 
@@ -867,7 +867,7 @@ IBM3Trainer::IBM3Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
   p_zero_ = 0.1;
   p_nonzero_ = 0.9;
 
-  for (uint s=0; s < source_sentence_.size(); s++) {
+  for (size_t s=0; s < source_sentence_.size(); s++) {
 
     const uint curI = target_sentence_[s].size();
 
@@ -880,7 +880,7 @@ IBM3Trainer::IBM3Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
 
   Math1D::Vector<uint> max_I(maxJ_,0);
 
-  for (uint s=0; s < source_sentence_.size(); s++) {
+  for (size_t s=0; s < source_sentence_.size(); s++) {
 
     const uint curI = target_sentence_[s].size();
     const uint curJ = source_sentence_[s].size();
@@ -909,7 +909,7 @@ void IBM3Trainer::init_from_hmm(const FullHMMAlignmentModel& align_model,
     fert_count[i].resize(fertility_prob_[i].size(),0);
   }
 
-  for (uint s=0; s < source_sentence_.size(); s++) {
+  for (size_t s=0; s < source_sentence_.size(); s++) {
 
     const uint curI = target_sentence_[s].size();
     const uint curJ = source_sentence_[s].size();
@@ -1004,7 +1004,7 @@ void IBM3Trainer::init_from_hmm(const FullHMMAlignmentModel& align_model,
   Math1D::Vector<double> empty_vec;
 
   //init distortion probabilities using forward-backward
-  for (uint s=0; s < source_sentence_.size(); s++) {
+  for (size_t s=0; s < source_sentence_.size(); s++) {
 
     const Storage1D<uint>& cur_source = source_sentence_[s];
     const Storage1D<uint>& cur_target = target_sentence_[s];
@@ -1813,7 +1813,7 @@ void IBM3Trainer::update_alignments_unconstrained() {
   Math2D::NamedMatrix<long double> expansion_prob(MAKENAME(expansion_prob));
   Math2D::NamedMatrix<long double> swap_prob(MAKENAME(swap_prob));
 
-  for (uint s=0; s < source_sentence_.size(); s++) {
+  for (size_t s=0; s < source_sentence_.size(); s++) {
 
     const uint curI = target_sentence_[s].size();
     Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
@@ -1885,7 +1885,7 @@ void IBM3Trainer::train_unconstrained(uint nIter) {
 
     max_perplexity = 0.0;
 
-    for (uint s=0; s < source_sentence_.size(); s++) {
+    for (size_t s=0; s < source_sentence_.size(); s++) {
 
       if ((s% 250) == 0)
 	std::cerr << "sentence pair #" << s << std::endl;
@@ -2159,7 +2159,7 @@ void IBM3Trainer::train_unconstrained(uint nIter) {
     //DEBUG
     uint nZeroAlignments = 0;
     uint nAlignments = 0;
-    for (uint s=0; s < source_sentence_.size(); s++) {
+    for (size_t s=0; s < source_sentence_.size(); s++) {
 
       nAlignments += source_sentence_[s].size();
 
@@ -2391,7 +2391,7 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
 
     max_perplexity = 0.0;
 
-    for (uint s=0; s < source_sentence_.size(); s++) {
+    for (size_t s=0; s < source_sentence_.size(); s++) {
 
       if ((s% 1250) == 0)
 	std::cerr << "sentence pair #" << s << std::endl;
@@ -2494,7 +2494,7 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
 
     uint nSwitches = 0;
 
-    for (uint s=0; s < source_sentence_.size(); s++) {
+    for (size_t s=0; s < source_sentence_.size(); s++) {
 
       if ((s% 1250) == 0)
 	std::cerr << "ICM, sentence pair #" << s << std::endl;
@@ -2757,7 +2757,7 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
     //DEBUG
     uint nZeroAlignments = 0;
     uint nAlignments = 0;
-    for (uint s=0; s < source_sentence_.size(); s++) {
+    for (size_t s=0; s < source_sentence_.size(); s++) {
 
       nAlignments += source_sentence_[s].size();
 
@@ -2853,7 +2853,7 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
     }
     
     max_perplexity = 0.0;
-    for (uint s=0; s < source_sentence_.size(); s++)
+    for (size_t s=0; s < source_sentence_.size(); s++)
       max_perplexity -= std::log(alignment_prob(s,best_known_alignment_[s]));
 
     for (uint i=0; i < fwcount.size(); i++)
@@ -3216,7 +3216,7 @@ void IBM3Trainer::train_with_itg_constraints(uint nIter, bool extended_reorderin
     uint nBetter = 0;
     uint nEqual = 0;
 
-    for (uint s=0; s < source_sentence_.size(); s++) {
+    for (size_t s=0; s < source_sentence_.size(); s++) {
 
       long double hillclimbprob = alignment_prob(s,best_known_alignment_[s]);
 
@@ -4183,9 +4183,9 @@ long double IBM3Trainer::compute_viterbi_alignment_ilp(const Storage1D<uint>& so
     clp_interface.setInteger(v);
   }
 
-  timeval tStartCLP, tEndCLP;
+  std::clock_t tStartCLP, tEndCLP;
   
-  gettimeofday(&tStartCLP,0);
+  tStartCLP = std::clock();
 
   int error = 0; 
   clp_interface.resolve();
@@ -4196,7 +4196,7 @@ long double IBM3Trainer::compute_viterbi_alignment_ilp(const Storage1D<uint>& so
     exit(1);
   }
 
-  gettimeofday(&tEndCLP,0);
+  tEndCLP = std::clock();
   //std::cerr << "CLP-time: " << diff_seconds(tEndCLP,tStartCLP) << " seconds. " << std::endl;
 
   const double* lp_solution = clp_interface.getColSolution(); 
@@ -4413,7 +4413,7 @@ void IBM3Trainer::train_with_ibm_constraints(uint nIter, uint maxFertility, uint
     uint nBetter = 0;
     uint nEqual = 0;
 
-    for (uint s=0; s < source_sentence_.size(); s++) {
+    for (size_t s=0; s < source_sentence_.size(); s++) {
 
       std::cerr << "s: " << s << std::endl;
 
@@ -4645,7 +4645,7 @@ void IBM4Trainer::init_from_ibm3(IBM3Trainer& ibm3trainer) {
   for (uint k=0; k < fertility_prob_.size(); k++)
     fertility_prob_[k] = ibm3trainer.fertility_prob()[k];
 
-  for (uint s=0; s < source_sentence_.size(); s++) 
+  for (size_t s=0; s < source_sentence_.size(); s++) 
     best_known_alignment_[s] = ibm3trainer.best_alignments()[s];
 
   p_zero_ = ibm3trainer.p_zero();
@@ -4656,7 +4656,7 @@ void IBM4Trainer::init_from_ibm3(IBM3Trainer& ibm3trainer) {
   within_cept_prob_.set_constant(0.0);
   sentence_start_prob_.set_constant(0.0);
  
-  for (uint s=0; s < source_sentence_.size(); s++) {
+  for (size_t s=0; s < source_sentence_.size(); s++) {
 
     const uint curI = target_sentence_[s].size();
     const uint curJ = source_sentence_[s].size();
@@ -4774,7 +4774,7 @@ void IBM4Trainer::update_alignments_unconstrained() {
   Math2D::NamedMatrix<long double> expansion_prob(MAKENAME(expansion_prob));
   Math2D::NamedMatrix<long double> swap_prob(MAKENAME(swap_prob));
 
-  for (uint s=0; s < source_sentence_.size(); s++) {
+  for (size_t s=0; s < source_sentence_.size(); s++) {
 
     const uint curI = target_sentence_[s].size();
     Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
@@ -5019,8 +5019,8 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(uint s, uint& nIter, M
     /**** scan neighboring alignments and keep track of the best one that is better 
      ****  than the current alignment  ****/
 
-    timeval tStartExp,tEndExp;
-    gettimeofday(&tStartExp,0);
+    std::clock_t tStartExp,tEndExp;
+    tStartExp = std::clock();
 
     //a) expansion moves
 
@@ -5623,12 +5623,10 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(uint s, uint& nIter, M
       }
     }
 
-    gettimeofday(&tEndExp,0);
-    //if (curJ >= 45 && curI >= 45)
-    //std::cerr << "pair #" << s << ": spent " << diff_seconds(tEndExp,tStartExp) << " seconds on expansion moves" << std::endl;
+    tEndExp = std::clock();
 
-    timeval tStartSwap,tEndSwap;
-    gettimeofday(&tStartSwap,0);
+    std::clock_t tStartSwap,tEndSwap;
+    tStartSwap = std::clock();
 
     //b) swap moves
     for (uint j1=0; j1 < curJ; j1++) {
@@ -6021,11 +6019,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(uint s, uint& nIter, M
       }
     }
 
-    gettimeofday(&tEndSwap,0);
-    // if (curJ >= 45 && curI >= 45)
-    //   std::cerr << "pair #" << s << ": spent " << diff_seconds(tEndSwap,tStartSwap) 
-    // 		<< " seconds on swap moves" << std::endl;
-
+    tEndSwap = std::clock();
 
     //update alignment if a better one was found
     if (!improvement)
@@ -6115,7 +6109,7 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
 
     max_perplexity = 0.0;
 
-    for (uint s=0; s < source_sentence_.size(); s++) {
+    for (size_t s=0; s < source_sentence_.size(); s++) {
 
       if ((s% 10000) == 0)
 	std::cerr << "sentence pair #" << s << std::endl;
@@ -6132,14 +6126,14 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
       Math2D::NamedMatrix<long double> swap_move_prob(curJ,curJ,MAKENAME(swap_move_prob));
       Math2D::NamedMatrix<long double> expansion_move_prob(curJ,curI+1,MAKENAME(expansion_move_prob));
 
-      timeval tHillclimbStart, tHillclimbEnd;
-      gettimeofday(&tHillclimbStart,0);
+      std::clock_t tHillclimbStart, tHillclimbEnd;
+      tHillclimbStart = std::clock();
       
       const long double best_prob = update_alignment_by_hillclimbing(s,sum_iter,fertility,
 								     expansion_move_prob,swap_move_prob);
       max_perplexity -= std::log(best_prob);
 
-      gettimeofday(&tHillclimbEnd,0);
+      tHillclimbEnd = std::clock();
 
       hillclimbtime += diff_seconds(tHillclimbEnd,tHillclimbStart);
 
@@ -6305,8 +6299,8 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
 	}
       }
 
-      timeval tCountCollectStart, tCountCollectEnd;
-      gettimeofday(&tCountCollectStart,0);
+      std::clock_t tCountCollectStart, tCountCollectEnd;
+      tCountCollectStart = std::clock();
 
       /**** update distortion counts *****/
       NamedStorage1D<std::set<int> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
@@ -6567,7 +6561,7 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
 	}
       }
       
-      gettimeofday(&tCountCollectEnd,0);
+      tCountCollectEnd = std::clock();
       countcollecttime += diff_seconds(tCountCollectEnd,tCountCollectStart);
     }
 
@@ -6586,7 +6580,7 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
     //DEBUG
     uint nZeroAlignments = 0;
     uint nAlignments = 0;
-    for (uint s=0; s < source_sentence_.size(); s++) {
+    for (size_t s=0; s < source_sentence_.size(); s++) {
 
       nAlignments += source_sentence_[s].size();
 
@@ -6786,7 +6780,7 @@ void IBM4Trainer::train_viterbi(uint nIter) {
 
     max_perplexity = 0.0;
 
-    for (uint s=0; s < source_sentence_.size(); s++) {
+    for (size_t s=0; s < source_sentence_.size(); s++) {
 
       if ((s% 10000) == 0)
 	std::cerr << "sentence pair #" << s << std::endl;
@@ -6803,14 +6797,14 @@ void IBM4Trainer::train_viterbi(uint nIter) {
       Math2D::NamedMatrix<long double> swap_move_prob(curJ,curJ,MAKENAME(swap_move_prob));
       Math2D::NamedMatrix<long double> expansion_move_prob(curJ,curI+1,MAKENAME(expansion_move_prob));
 
-      timeval tHillclimbStart, tHillclimbEnd;
-      gettimeofday(&tHillclimbStart,0);
+      std::clock_t tHillclimbStart, tHillclimbEnd;
+      tHillclimbStart = std::clock();
       
       const long double best_prob = update_alignment_by_hillclimbing(s,sum_iter,fertility,
 								     expansion_move_prob,swap_move_prob);
       max_perplexity -= std::log(best_prob);
 
-      gettimeofday(&tHillclimbEnd,0);
+      tHillclimbEnd = std::clock();
 
       const long double sentence_prob = best_prob;
 
@@ -6959,7 +6953,7 @@ void IBM4Trainer::train_viterbi(uint nIter) {
     //DEBUG
     uint nZeroAlignments = 0;
     uint nAlignments = 0;
-    for (uint s=0; s < source_sentence_.size(); s++) {
+    for (size_t s=0; s < source_sentence_.size(); s++) {
 
       nAlignments += source_sentence_[s].size();
 

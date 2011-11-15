@@ -39,12 +39,12 @@ double ibm1_perplexity( const Storage1D<Storage1D<uint> >& source,
 
   double sum = 0.0;
 
-  const uint nSentences = target.size();
+  const size_t nSentences = target.size();
   assert(slookup.size() == nSentences);
 
   uint nActualSentences = nSentences;
 
-  for (uint s=0; s < nSentences; s++) {
+  for (size_t s=0; s < nSentences; s++) {
 
     const Storage1D<uint>& cur_source = source[s];
     const Storage1D<uint>& cur_target = target[s];
@@ -262,7 +262,7 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
   assert(cooc.size() == nTargetWords);
   dict.resize_dirty(nTargetWords);
 
-  const uint nSentences = source.size();
+  const size_t nSentences = source.size();
   assert(nSentences == target.size());
 
   double dict_weight_sum = 0.0;
@@ -284,7 +284,7 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
   dict[0].set_constant(1.0 / dict[0].size());
 
 #if 0
-  for (uint s=0; s < nSentences; s++) {
+  for (size_t s=0; s < nSentences; s++) {
 
     const Storage1D<uint>& cur_source = source[s];
     const Storage1D<uint>& cur_target = target[s];
@@ -322,7 +322,7 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
       fcount[i].set_constant(0.0);
     }
 
-    for (uint s=0; s < nSentences; s++) {
+    for (size_t s=0; s < nSentences; s++) {
 
       const Storage1D<uint>& cur_source = source[s];
       const Storage1D<uint>& cur_target = target[s];
@@ -417,7 +417,7 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
       double nErrors = 0.0;
       uint nContributors = 0;
 
-      for (uint s=0; s < nSentences; s++) {
+      for (size_t s=0; s < nSentences; s++) {
 
 	if (possible_ref_alignments.find(s+1) != possible_ref_alignments.end()) {
 
@@ -461,7 +461,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
   assert(cooc.size() == nTargetWords);
   dict.resize_dirty(nTargetWords);
 
-  const uint nSentences = source.size();
+  const size_t nSentences = source.size();
   assert(nSentences == target.size());
   
   //prepare dictionary
@@ -480,7 +480,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
     dict[i].set_constant(0.0);
   }
 
-  for (uint s=0; s < nSentences; s++) {
+  for (size_t s=0; s < nSentences; s++) {
     
     const Storage1D<uint>& cur_source = source[s];
     const Storage1D<uint>& cur_target = target[s];
@@ -540,7 +540,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
       dict_grad[i].set_constant(0.0);
     }
     
-    for (uint s=0; s < nSentences; s++) {
+    for (size_t s=0; s < nSentences; s++) {
       
       const Storage1D<uint>& cur_source = source[s];
       const Storage1D<uint>& cur_target = target[s];
@@ -681,7 +681,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
       double nErrors = 0.0;
       uint nContributors = 0;
 
-      for (uint s=0; s < nSentences; s++) {
+      for (size_t s=0; s < nSentences; s++) {
 
 	if (possible_ref_alignments.find(s+1) != possible_ref_alignments.end()) {
 
@@ -727,14 +727,14 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
 
   Storage1D<Math1D::Vector<uint> > viterbi_alignment(source.size());
 
-  const uint nSentences = source.size();
+  const size_t nSentences = source.size();
   assert(nSentences == target.size());
   
   //prepare dictionary
   dict.resize(nTargetWords);
   for (uint i=0; i < nTargetWords; i++) {
     
-    const uint size = cooc[i].size();
+    const size_t size = cooc[i].size();
     dict[i].resize_dirty(size);
     dict[i].set_constant(1.0 / ((double) size));
   }
@@ -744,7 +744,7 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
   for (uint i=1; i < nTargetWords; i++) {
     dict[i].set_constant(0.0);
   }
-  for (uint s=0; s < nSentences; s++) {
+  for (size_t s=0; s < nSentences; s++) {
 
     const Storage1D<uint>& cur_source = source[s];
     const Storage1D<uint>& cur_target = target[s];
@@ -775,7 +775,7 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
   }
 
   double energy_offset = 0.0;
-  for (uint s=0; s < nSentences; s++) {
+  for (size_t s=0; s < nSentences; s++) {
     
     const Storage1D<uint>& cur_source = source[s];
     const Storage1D<uint>& cur_target = target[s];
@@ -798,7 +798,7 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
 
     double sum = 0.0;
 
-    for (uint s=0; s < nSentences; s++) {
+    for (size_t s=0; s < nSentences; s++) {
 
       const Storage1D<uint>& cur_source = source[s];
       const Storage1D<uint>& cur_target = target[s];
@@ -896,7 +896,7 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
        	dict_sum[k] = dcount[k].sum();
       
 
-      for (uint s=0; s < nSentences; s++) {
+      for (size_t s=0; s < nSentences; s++) {
 
 	if ((s%12500) == 0)
 	  std::cerr << "s: " << s << std::endl;
@@ -1051,7 +1051,7 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
       double nErrors = 0.0;
       uint nContributors = 0;
 
-      for (uint s=0; s < nSentences; s++) {
+      for (size_t s=0; s < nSentences; s++) {
 
 	if (possible_ref_alignments.find(s+1) != possible_ref_alignments.end()) {
 

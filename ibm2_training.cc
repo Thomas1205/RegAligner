@@ -25,10 +25,10 @@ double ibm2_perplexity( const Storage1D<Storage1D<uint> >& source,
 
   double sum = 0.0;
 
-  const uint nSentences = target.size();
+  const size_t nSentences = target.size();
   assert(slookup.size() == nSentences);
 
-  for (uint s=0; s < nSentences; s++) {
+  for (size_t s=0; s < nSentences; s++) {
 
     const Storage1D<uint>& cur_source = source[s];
     const Storage1D<uint>& cur_target = target[s];
@@ -79,7 +79,7 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
   assert(wcooc.size() == nTargetWords);
   //NOTE: the dicitionary is assumed to be initialized
 
-  const uint nSentences = source.size();
+  const size_t nSentences = source.size();
   assert(nSentences == target.size());
 
   //initialize alignment model
@@ -129,7 +129,7 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
       }
     }
     
-    for (uint s=0; s < nSentences; s++) {
+    for (size_t s=0; s < nSentences; s++) {
       
       const Storage1D<uint>& cur_source = source[s];
       const Storage1D<uint>& cur_target = target[s];
@@ -246,7 +246,7 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
       double nErrors = 0.0;
       uint nContributors = 0;
 
-      for (uint s=0; s < nSentences; s++) {
+      for (size_t s=0; s < nSentences; s++) {
 
 	if (possible_ref_alignments.find(s+1) != possible_ref_alignments.end()) {
 
@@ -298,10 +298,10 @@ double reduced_ibm2_perplexity( const Storage1D<Storage1D<uint> >& source,
 
   double sum = 0.0;
 
-  const uint nSentences = target.size();
+  const size_t nSentences = target.size();
   assert(slookup.size() == nSentences);
 
-  for (uint s=0; s < nSentences; s++) {
+  for (size_t s=0; s < nSentences; s++) {
 
     const Storage1D<uint>& cur_source = source[s];
     const Storage1D<uint>& cur_target = target[s];
@@ -346,7 +346,7 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
   assert(wcooc.size() == nTargetWords);
   //NOTE: the dicitionary is assumed to be initialized
 
-  const uint nSentences = source.size();
+  const size_t nSentences = source.size();
   assert(nSentences == target.size());
 
   //initialize alignment model
@@ -394,7 +394,7 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
 	facount[I].set_constant(0.0);
     }
     
-    for (uint s=0; s < nSentences; s++) {
+    for (size_t s=0; s < nSentences; s++) {
       
       const Storage1D<uint>& cur_source = source[s];
       const Storage1D<uint>& cur_target = target[s];
@@ -495,7 +495,7 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
       double nErrors = 0.0;
       uint nContributors = 0;
 
-      for (uint s=0; s < nSentences; s++) {
+      for (size_t s=0; s < nSentences; s++) {
 
 	if (possible_ref_alignments.find(s+1) != possible_ref_alignments.end()) {
 
@@ -562,12 +562,12 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
     }
   }
 
-  const uint nSentences = source.size();
+  const size_t nSentences = source.size();
   assert(nSentences == target.size());
   
   Storage1D<Math1D::Vector<uint> > viterbi_alignment(source.size());
 
-  for (uint s=0; s < nSentences; s++) {
+  for (size_t s=0; s < nSentences; s++) {
     
     const Storage1D<uint>& cur_source = source[s];
     
@@ -597,7 +597,7 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
 
     double sum = 0.0;
 
-    for (uint s=0; s < nSentences; s++) {
+    for (size_t s=0; s < nSentences; s++) {
 
       //std::cerr << "s: " << s << std::endl;
 
@@ -715,7 +715,7 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
 	}
       }
       
-      for (uint s=0; s < nSentences; s++) {
+      for (size_t s=0; s < nSentences; s++) {
 
 	const Storage1D<uint>& cur_source = source[s];
 	const Storage1D<uint>& cur_target = target[s];
@@ -942,7 +942,7 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
       uint nContributors = 0;
 
 
-      for (uint s=0; s < nSentences; s++) {
+      for (size_t s=0; s < nSentences; s++) {
 
 	if (possible_ref_alignments.find(s+1) != possible_ref_alignments.end()) {
 

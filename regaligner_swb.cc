@@ -91,20 +91,20 @@ int main(int argc, char** argv) {
 
   double l0_fertpen = convert<double>(app.getParam("-fertpen"));
 
-  timeval tStartRead, tEndRead;
-  gettimeofday(&tStartRead,0);
+  std::clock_t tStartRead, tEndRead;
+  tStartRead = std::clock();
 
   read_monolingual_corpus(app.getParam("-s"), source_sentence);
   read_monolingual_corpus(app.getParam("-t"), target_sentence);
 
-  gettimeofday(&tEndRead,0);
+  tEndRead = std::clock();
   std::cerr << "reading the corpus took " << diff_seconds(tEndRead,tStartRead) << " seconds." << std::endl;
 
   assert(source_sentence.size() == target_sentence.size());
 
   uint nSentences = source_sentence.size();
 
-  for (uint s=0; s < source_sentence.size(); s++) {
+  for (size_t s=0; s < source_sentence.size(); s++) {
 
     uint curJ = source_sentence[s].size();
     uint curI = target_sentence[s].size();
@@ -118,7 +118,7 @@ int main(int argc, char** argv) {
   uint nSourceWords = 0;
   uint nTargetWords = 0;
 
-  for (uint s=0; s < source_sentence.size(); s++) {
+  for (size_t s=0; s < source_sentence.size(); s++) {
 
     for (uint k=0; k < source_sentence[s].size(); k++)
       nSourceWords = std::max(nSourceWords,source_sentence[s][k]+1);
@@ -139,9 +139,6 @@ int main(int argc, char** argv) {
   Math1D::Vector<double> hmm_init_params;
   Math1D::Vector<double> hmm_dist_params;
   double hmm_dist_grouping_param = -1.0;
-
-  timeval startProcess, endProcess;
-  gettimeofday(&startProcess,0);
 
   std::cerr << "finding cooccuring words" << std::endl;
   find_cooccuring_words(source_sentence, target_sentence, nSourceWords, nTargetWords, wcooc);
@@ -208,7 +205,7 @@ int main(int argc, char** argv) {
       distribution_weight.set_constant(dict_regularity);
     }
     else {
-      for (uint s=0; s < target_sentence.size(); s++) {
+      for (size_t s=0; s < target_sentence.size(); s++) {
 	
 	for (uint i=0; i < target_sentence[s].size(); i++) {
 	  distribution_weight[target_sentence[s][i]] += 1.0;
@@ -380,7 +377,7 @@ int main(int argc, char** argv) {
 
     Storage1D<uint> viterbi_alignment;
 
-    for (uint s = 0; s < nSentences; s++) {
+    for (size_t s = 0; s < nSentences; s++) {
 
       const uint curI = target_sentence[s].size();
 

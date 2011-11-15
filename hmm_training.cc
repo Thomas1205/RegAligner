@@ -27,9 +27,9 @@ double extended_hmm_perplexity(const Storage1D<Storage1D<uint> >& source,
 
   double sum = 0.0;
 
-  const uint nSentences = target.size();
+  const size_t nSentences = target.size();
   
-  for (uint s=0; s < nSentences; s++) {
+  for (size_t s=0; s < nSentences; s++) {
     
     const Storage1D<uint>& cur_source = source[s];
     const Storage1D<uint>& cur_target = target[s];
@@ -557,14 +557,14 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
   assert(wcooc.size() == nTargetWords);
   //NOTE: the dictionary is assumed to be initialized
 
-  const uint nSentences = source.size();
+  const size_t nSentences = source.size();
   assert(nSentences == target.size());
 
   std::set<uint> seenIs;
 
   uint maxI = 5;
   uint maxJ = 0;
-  for (uint s=0; s < nSentences; s++) {
+  for (size_t s=0; s < nSentences; s++) {
     const uint curI = target[s].size();
     const uint curJ = source[s].size();
 
@@ -649,7 +649,7 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
     //transfer IBM1 => HMM
     //note that it is not possible to estimate conditional alignment probabilities from IBM1 
     // due to its independence assumption. Instead we estimate the probabilities for the empty word 
-    for (uint s=0; s < nSentences; s++) {
+    for (size_t s=0; s < nSentences; s++) {
       
       const Storage1D<uint>& cur_source = source[s];
       const Storage1D<uint>& cur_target = target[s];
@@ -726,7 +726,7 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       init_count.set_constant(0.0);
     }
 
-    for (uint s=0; s < nSentences; s++) {
+    for (size_t s=0; s < nSentences; s++) {
 
       //std::cerr << "s: " << s << std::endl;
 
@@ -1066,7 +1066,7 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       double nErrors = 0.0;
       uint nContributors = 0;
 
-      for (uint s=0; s < nSentences; s++) {
+      for (size_t s=0; s < nSentences; s++) {
 
 	if (possible_ref_alignments.find(s+1) != possible_ref_alignments.end()) {
 
@@ -1148,14 +1148,14 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
   assert(wcooc.size() == nTargetWords);
   //NOTE: the dicitionary is assumed to be initialized
 
-  const uint nSentences = source.size();
+  const size_t nSentences = source.size();
   assert(nSentences == target.size());
 
   std::set<uint> seenIs;
 
   uint maxI = 5;
   uint maxJ = 0;
-  for (uint s=0; s < nSentences; s++) {
+  for (size_t s=0; s < nSentences; s++) {
     const uint curI = target[s].size();
     const uint curJ = source[s].size();
 
@@ -1246,7 +1246,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
     //transfer IBM1 => HMM
     //note that it is not possible to estimate conditional alignment probabilities from IBM1 
     // due to its independence assumption. Instead we estimate the probabilities for the empty word 
-    for (uint s=0; s < nSentences; s++) {
+    for (size_t s=0; s < nSentences; s++) {
       
       const Storage1D<uint>& cur_source = source[s];
       const Storage1D<uint>& cur_target = target[s];
@@ -1370,7 +1370,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
     /******** 1. calculate gradients **********/
 
-    for (uint s=0; s < nSentences; s++) {
+    for (size_t s=0; s < nSentences; s++) {
 
       //std::cerr << "s: " << s << std::endl;
 
@@ -1922,7 +1922,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
       double nErrors = 0.0;
       uint nContributors = 0;
 
-      for (uint s=0; s < nSentences; s++) {
+      for (size_t s=0; s < nSentences; s++) {
 
 	if (possible_ref_alignments.find(s+1) != possible_ref_alignments.end()) {
 
@@ -1994,12 +1994,12 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
     TODO("HmmInitPar");
   }
 
-  const uint nSentences = source.size();
+  const size_t nSentences = source.size();
   assert(nSentences == target.size());
 
   Storage1D<Math1D::Vector<uint> > viterbi_alignment(source.size());
 
-  for (uint s=0; s < nSentences; s++) {
+  for (size_t s=0; s < nSentences; s++) {
     
     const Storage1D<uint>& cur_source = source[s];
     viterbi_alignment[s].resize(cur_source.size());
@@ -2017,7 +2017,7 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
   uint maxI = 0;
   uint maxJ = 0;
-  for (uint s=0; s < nSentences; s++) {
+  for (size_t s=0; s < nSentences; s++) {
     const uint curI = target[s].size();
     const uint curJ = source[s].size();
 
@@ -2061,7 +2061,7 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
   //transfer IBM1 => HMM
   //note that it is not possible to estimate conditional alignment probabilities from IBM1 
   // due to its independence assumption. Instead we estimate the probabilities for the empty word 
-  for (uint s=0; s < nSentences; s++) {
+  for (size_t s=0; s < nSentences; s++) {
 
     const Storage1D<uint>& cur_source = source[s];
     const Storage1D<uint>& cur_target = target[s];
@@ -2169,7 +2169,7 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       dist_count.set_constant(0.0);      
     }
 
-    for (uint s=0; s < nSentences; s++) {
+    for (size_t s=0; s < nSentences; s++) {
 
       const Storage1D<uint>& cur_source = source[s];
       const Storage1D<uint>& cur_target = target[s];
@@ -2338,7 +2338,7 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
     for (uint k=0; k < dcount.size(); k++)
       dict_sum[k] = dcount[k].sum();
 
-    for (uint s=0; s < nSentences; s++) {
+    for (size_t s=0; s < nSentences; s++) {
 
       const uint curJ = source[s].size();
       const uint curI = target[s].size();
@@ -2884,7 +2884,7 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       double nErrors = 0.0;
       uint nContributors = 0;
 
-      for (uint s=0; s < nSentences; s++) {
+      for (size_t s=0; s < nSentences; s++) {
 
 	if (possible_ref_alignments.find(s+1) != possible_ref_alignments.end()) {
 
