@@ -59,6 +59,30 @@ protected:
 };
 
 
+template<typename T>
+class NamedStorage3D : public Storage3D<T> {
+public:
+
+  NamedStorage3D();
+
+  NamedStorage3D(std::string name);
+  
+  NamedStorage3D(size_t xDim, size_t yDim, size_t zDim, std::string name);
+  
+  NamedStorage3D(size_t xDim, size_t yDim, size_t zDim, T default_value, std::string name);
+
+  virtual const std::string& name() const;
+
+  inline void operator=(const Storage3D<T>& toCopy);
+
+  //NOTE: the name is NOT copied
+  inline void operator=(const NamedStorage3D<T>& toCopy);
+
+protected:
+  std::string name_;
+};
+
+
 /******************************************** implementation **************************************************/
 template<typename T>
 /*static*/ const std::string Storage3D<T>::stor3D_name_ = "unnamed Storage3D";
@@ -114,7 +138,7 @@ OPTINLINE T& Storage3D<T>::operator()(size_t x, size_t y, size_t z) const {
 #ifdef SAFE_MODE
   if (x >= xDim_ || y >= yDim_ || z >= zDim_) {
     INTERNAL_ERROR << "     invalid access on element (" << x << "," << y << "," << z << ") of 3D-storage \"" 
-		   << this->name() << "\":" << std::endl;
+		   << this->name() << "\" of type " << typeid(T).name() << ":" << std::endl;
     std::cerr << "     dimensions " << xDim_ << "x" << yDim_ << "x" << zDim_ << " exceeded. Exiting..." << std::endl;
     exit(1);
   }
@@ -262,3 +286,37 @@ void Storage3D<T>::resize_dirty(size_t newxDim, size_t newyDim, size_t newzDim) 
 
   data_ = new T[size_];
 }
+
+
+/***********************/
+
+template<typename T>
+NamedStorage3D<T>::NamedStorage3D() : Storage3D<T>(), name_("yyy") {}
+
+template<typename T>
+NamedStorage3D<T>::NamedStorage3D(std::string name) : Storage3D<T>(), name_(name) {}
+
+template<typename T>
+NamedStorage3D<T>::NamedStorage3D(size_t xDim, size_t yDim, size_t zDim, std::string name) : 
+  Storage3D<T>(xDim,yDim,zDim), name_(name) {}
+
+template<typename T>
+NamedStorage3D<T>::NamedStorage3D(size_t xDim, size_t yDim, size_t zDim, T default_value, std::string name) 
+  : Storage3D<T>(xDim,yDim,zDim,default_value), name_(name) {}
+
+template<typename T>
+/*virtual*/ const std::string& NamedStorage3D<T>::name() const {
+  return name_;
+}
+
+template<typename T>
+inline void NamedStorage3D<T>::operator=(const Storage3D<T>& toCopy) {
+  Storage3D<T>::operator=(toCopy);
+}
+
+//NOTE: the name is NOT copied
+template<typename T>
+inline void NamedStorage3D<T>::operator=(const NamedStorage3D<T>& toCopy) {
+  Storage3D<T>::operator=(static_cast<Storage3D<T> >(toCopy));
+}
+

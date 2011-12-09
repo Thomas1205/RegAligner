@@ -191,7 +191,7 @@ OPTINLINE T& Storage2D<T>::operator()(size_t x, size_t y) const {
   if (x >= xDim_ || y >= yDim_) {
     INTERNAL_ERROR << "    access on element(" << x << "," << y 
 		   << ") exceeds storage dimensions of (" << xDim_ << "," << yDim_ << ")" << std::endl;
-    std::cerr << "   in 2Dstorage \"" << this->name() << "\". exiting." << std::endl;  
+    std::cerr << "   in 2Dstorage \"" << this->name() << "\" of type " << typeid(T).name() << ". exiting." << std::endl;  
     exit(1);
   }
 #endif

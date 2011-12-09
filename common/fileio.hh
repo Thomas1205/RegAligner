@@ -64,7 +64,7 @@ char read_until(FILE* fptr, char* allowed_chars, size_t nCharsListed)
   throw (FileTruncatedException);
 
 
-
+bool is_gzip_file(std::string filename);
 
 
 

@@ -10,6 +10,7 @@
 #include <string>
 #include <iomanip>
 #include <cstdlib> //includes the exit-function
+#include <typeinfo>
 
 #ifdef WIN32
 namespace {

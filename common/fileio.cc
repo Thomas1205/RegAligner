@@ -69,4 +69,17 @@ char read_until(FILE* fptr, char* allowed_chars, size_t nCharsListed)
 }
 
 
+bool is_gzip_file(std::string filename) {
+
+  FILE* fp = fopen(filename.c_str(),"r");
+
+  uchar start[2];
+  fread((char*)  start,2,1,fp);
+
+  fclose(fp);
+
+  //should give same results on little- and big endian systems
+  return (start[0] == 31 && start[1] == 139);
+}
+
 

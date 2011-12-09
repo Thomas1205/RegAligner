@@ -82,6 +82,63 @@ protected:
   std::string name_;
 };
 
+template<typename T>
+std::ostream& operator<<(std::ostream& s, const Storage1D<T>& v);
+
+template<typename T>
+bool operator==(const Storage1D<T>& v1, const Storage1D<T>& v2);
+
+
+/***********************/
+
+//this class is meant to replace std::vector with its push_back() functionality.
+// It has slightly less functionality, though. E.g. erase() is not available.
+template<typename T>
+class FlexibleStorage1D {
+public:
+
+  FlexibleStorage1D();
+
+  FlexibleStorage1D(size_t reserved_size);
+
+  //copy constructor
+  FlexibleStorage1D(const FlexibleStorage1D<T>& toCopy);
+
+  ~FlexibleStorage1D();
+
+  virtual const std::string& name() const;
+  
+  OPTINLINE T& operator[](size_t i) const;
+
+  void resize(size_t size, bool exact_fit = false);
+
+  void set_constant(T val);
+
+  void operator=(const FlexibleStorage1D<T>& toCopy);
+
+  size_t append(T val);
+
+  size_t size() const;
+
+  size_t reserved_size() const;
+
+  T* direct_access();
+
+protected:
+
+  T* data_;
+  size_t size_;
+  size_t reserved_size_;
+  static const std::string flex_stor1D_name_;
+};
+
+template<typename T>
+std::ostream& operator<<(std::ostream& s, const FlexibleStorage1D<T>& v);
+
+template<typename T>
+bool operator==(const FlexibleStorage1D<T>& v1, const FlexibleStorage1D<T>& v2);
+
+
 /********************************************** implementation ************************************/
 
 /******* implementation of Storage1D *********/
@@ -188,8 +245,8 @@ OPTINLINE T& Storage1D<T>::operator[](size_t i) const {
 #ifdef SAFE_MODE
   if (i >= size_) {
     INTERNAL_ERROR << "    invalid access on element " << i 
-	      << " for object \"" << this->name() << "\" with " 
-	      << size_ << " elements. exiting." << std::endl;
+		   << " for Storage1D " <<  "\"" << this->name() << "\" of type " << typeid(T).name()
+		   << " with " << size_ << " elements. exiting." << std::endl;
     exit(1);  
   }
 #endif
@@ -325,5 +382,201 @@ inline void NamedStorage1D<T>::operator=(const NamedStorage1D<T>& toCopy) {
 }
 
 
+template<typename T>
+std::ostream& operator<<(std::ostream& s, const Storage1D<T>& v) {
+
+  s << "[ ";
+  for (int i=0; i < ((int) v.size()) - 1; i++)
+    s << v[i] << ",";
+  if (v.size() > 0)
+    s << v[v.size()-1];
+  s << " ]";
+  
+  return s;
+}
+
+template<typename T>
+bool operator==(const Storage1D<T>& v1, const Storage1D<T>& v2) {
+
+  if (v1.size() != v2.size())
+    return false;
+  
+  for (size_t k=0; k < v1.size(); k++) {
+    if (v1[k] != v2[k])
+      return false;
+  }
+  return true;
+}
+
+
+/******* implementation of DynamicStorage1D *********/
+
+template<typename T>
+/*static*/ const std::string FlexibleStorage1D<T>::flex_stor1D_name_ = "unnamed flexible 1Dstorage";
+
+template<typename T>
+FlexibleStorage1D<T>::FlexibleStorage1D() : size_(0) {
+  reserved_size_ = 8;
+  data_ = new T[reserved_size_];
+}
+
+template<typename T>
+FlexibleStorage1D<T>::FlexibleStorage1D(size_t reserved_size)  : size_(0), reserved_size_(reserved_size) {
+  data_ = new T[reserved_size_];
+}
+
+//copy constructor
+template<typename T>
+FlexibleStorage1D<T>::FlexibleStorage1D(const FlexibleStorage1D<T>& toCopy) {
+
+  size_ = toCopy.reserved_size();
+  reserved_size_ = toCopy.reserved_size();
+  
+  data_ = new T[reserved_size_];
+  for (uint k=0; k < toCopy.size(); k++)
+    data_[k] = toCopy[k];
+}
+
+template<typename T>
+void FlexibleStorage1D<T>::operator=(const FlexibleStorage1D<T>& toCopy) {
+
+  size_ = toCopy.reserved_size();
+  uint new_res = toCopy.reserved_size();
+  if (new_res != reserved_size_) {
+    reserved_size_ = new_res;
+
+    if (data_ != 0)
+      delete[] data_;
+    data_ = new T[reserved_size_];
+  }
+
+  for (uint k=0; k < toCopy.size(); k++)
+    data_[k] = toCopy[k];
+}
+
+template<typename T>
+/*virtual*/ const std::string& FlexibleStorage1D<T>::name() const {
+  return flex_stor1D_name_;
+}
+
+template<typename T>
+FlexibleStorage1D<T>::~FlexibleStorage1D()  {
+  delete [] data_;
+}
+
+template<typename T>
+void FlexibleStorage1D<T>::set_constant(T val) {
+
+  for (size_t k=0; k < size_; k++)
+    data_[k] = val;
+}
+
+template<typename T>
+size_t FlexibleStorage1D<T>::size() const {
+  return size_;
+}
+
+template<typename T>
+size_t FlexibleStorage1D<T>::reserved_size() const {
+  return reserved_size_;
+}
+
+template<typename T>
+size_t FlexibleStorage1D<T>::append(T val) {
+
+  if (size_ == reserved_size_) {
+
+    reserved_size_ = size_t(1.2 * reserved_size_) + 8;
+
+    T* new_data = new T[reserved_size_];
+    for (uint k=0; k < size_; k++)
+      new_data[k] = data_[k];
+
+    delete[] data_;
+    data_ = new_data;
+  }
+
+  const uint k = size_;
+  data_[k] = val;
+
+  size_++;
+
+  return k;
+}
+
+template<typename T>
+void FlexibleStorage1D<T>::resize(size_t size, bool exact_fit) {
+
+  if (size > reserved_size_ || size < (reserved_size_ / 3) ) {
+    
+    reserved_size_ = size;
+    T* new_data = new T[reserved_size_];
+    for (uint k=0; k < std::min(size_,size); k++)
+      new_data[k] = data_[k];
+    
+    delete[] data_;
+    data_ = new_data;    
+  }
+
+  if (size < size_)
+    size_ = size;
+  
+  if (exact_fit && size_ != reserved_size_) {
+
+    reserved_size_ = size_;
+    T* new_data = new T[reserved_size_];
+    for (uint k=0; k < size_; k++)
+      new_data[k] = data_[k];
+    
+    delete[] data_;
+    data_ = new_data;      
+  }
+}
+
+template<typename T>
+OPTINLINE T& FlexibleStorage1D<T>::operator[](size_t i) const {
+
+#ifdef SAFE_MODE
+  if (i >= size_) {
+    INTERNAL_ERROR << "    invalid access on element " << i 
+		   << " for FlexibleStorage1D " <<  "\"" << this->name() << "\" of type " << typeid(T).name()
+		   << " with " << size_ << " (valid) elements. exiting." << std::endl;
+    exit(1);  
+  }
+#endif
+  return data_[i];
+}
+
+template<typename T>
+T* FlexibleStorage1D<T>::direct_access() {
+
+  return data_;
+}
+
+template<typename T>
+std::ostream& operator<<(std::ostream& s, const FlexibleStorage1D<T>& v) {
+
+  s << "[ ";
+  for (int i=0; i < ((int) v.size()) - 1; i++)
+    s << v[i] << ",";
+  if (v.size() > 0)
+    s << v[v.size()-1];
+  s << " ]";
+  
+  return s;
+}
+
+template<typename T>
+bool operator==(const FlexibleStorage1D<T>& v1, const FlexibleStorage1D<T>& v2) {
+
+  if (v1.size() != v2.size())
+    return false;
+
+  for (size_t k=0; k < v1.size(); k++) {
+    if (v1[k] != v2[k])
+      return false;
+  }
+  return true;
+}
 
 #endif
