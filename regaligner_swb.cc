@@ -22,24 +22,24 @@ int main(int argc, char** argv) {
   if (argc == 1 || strings_equal(argv[1],"-h")) {
     
     std::cerr << "USAGE: " << argv[0] << std::endl
-	      << " -s <file> : source file (coded as indices)" << std::endl
-	      << " -t <file> : target file (coded as indices)" << std::endl
-	      << " [-refa <file>] : file containing gold alignments (sure and possible)" << std::endl
-	      << " [-invert-biling-data] : switch source and target for prior dict and gold alignments" << std::endl
-	      << " -method ( em | gd | viterbi ) : use EM, gradient descent or Viterbi training (default EM) " << std::endl
-	      << " [-dict-regularity <double>] : regularity weight for L0 or L1 regularization" << std::endl
-	      << " [-sparse-reg] : activate L1-regularity only for rarely occuring target words" << std::endl
-	      << " [-fertpen <double>]: regularity weight for fertilities in IBM3&4" << std::endl
-	      << " [-prior-dict <file>] : file for index pairs that occur in a dictionary" << std::endl
-	      << " [-hmm-iter <uint> ]: iterations for the HMM model (default 20)" << std::endl
-	      << " [-ibm1-iter <uint> ]: iterations for the IBM-1 model (default 10)" << std::endl
-	      << " [-ibm2-iter <uint> ]: iterations for the IBM-2 model (default 0)" << std::endl
-	      << " [-ibm3-iter <uint> ]: iterations for the IBM-3 model (default 0)" << std::endl
-	      << " [-ibm4-iter <uint> ]: iterations for the IBM-4 model (default 0)" << std::endl
-	      << " [-constraint-mode (unconstrained | itg | ibm) " << std::endl
-	      << " -o <file>  : the determined dictionary is written to this file" << std::endl
-	      << " -oa <file> : the determined alignment is written to this file" << std::endl
-	      << std::endl;
+              << " -s <file> : source file (coded as indices)" << std::endl
+              << " -t <file> : target file (coded as indices)" << std::endl
+              << " [-refa <file>] : file containing gold alignments (sure and possible)" << std::endl
+              << " [-invert-biling-data] : switch source and target for prior dict and gold alignments" << std::endl
+              << " -method ( em | gd | viterbi ) : use EM, gradient descent or Viterbi training (default EM) " << std::endl
+              << " [-dict-regularity <double>] : regularity weight for L0 or L1 regularization" << std::endl
+              << " [-sparse-reg] : activate L1-regularity only for rarely occuring target words" << std::endl
+              << " [-fertpen <double>]: regularity weight for fertilities in IBM3&4" << std::endl
+              << " [-prior-dict <file>] : file for index pairs that occur in a dictionary" << std::endl
+              << " [-hmm-iter <uint> ]: iterations for the HMM model (default 20)" << std::endl
+              << " [-ibm1-iter <uint> ]: iterations for the IBM-1 model (default 10)" << std::endl
+              << " [-ibm2-iter <uint> ]: iterations for the IBM-2 model (default 0)" << std::endl
+              << " [-ibm3-iter <uint> ]: iterations for the IBM-3 model (default 0)" << std::endl
+              << " [-ibm4-iter <uint> ]: iterations for the IBM-4 model (default 0)" << std::endl
+              << " [-constraint-mode (unconstrained | itg | ibm) " << std::endl
+              << " -o <file>  : the determined dictionary is written to this file" << std::endl
+              << " -oa <file> : the determined alignment is written to this file" << std::endl
+              << std::endl;
 
     std::cerr << "this program estimates p(s|t)" << std::endl;;
 
@@ -48,14 +48,14 @@ int main(int argc, char** argv) {
 
   const int nParams = 17;
   ParamDescr  params[nParams] = {{"-s",mandInFilename,0,""},{"-t",mandInFilename,0,""},
-				 {"-o",optOutFilename,0,""},{"-oa",mandOutFilename,0,""},
-				 {"-refa",optInFilename,0,""},{"-invert-biling-data",flag,0,""},
-				 {"-dict-regularity",optWithValue,1,"0.0"},
-				 {"-sparse-reg",flag,0,""},{"-prior-dict",optInFilename,0,""},
-				 {"-hmm-iter",optWithValue,1,"20"},{"-method",optWithValue,1,"em"},
-				 {"-ibm1-iter",optWithValue,1,"10"},{"-ibm2-iter",optWithValue,1,"0"},
-				 {"-ibm3-iter",optWithValue,0,""},{"-ibm4-iter",optWithValue,0,""},
-				 {"-fertpen",optWithValue,1,"0.0"},{"-constraint-mode",optWithValue,1,"unconstrained"}};
+                                 {"-o",optOutFilename,0,""},{"-oa",mandOutFilename,0,""},
+                                 {"-refa",optInFilename,0,""},{"-invert-biling-data",flag,0,""},
+                                 {"-dict-regularity",optWithValue,1,"0.0"},
+                                 {"-sparse-reg",flag,0,""},{"-prior-dict",optInFilename,0,""},
+                                 {"-hmm-iter",optWithValue,1,"20"},{"-method",optWithValue,1,"em"},
+                                 {"-ibm1-iter",optWithValue,1,"10"},{"-ibm2-iter",optWithValue,1,"0"},
+                                 {"-ibm3-iter",optWithValue,0,""},{"-ibm4-iter",optWithValue,0,""},
+                                 {"-fertpen",optWithValue,1,"0.0"},{"-constraint-mode",optWithValue,1,"unconstrained"}};
 
   Application app(argc,argv,params,nParams);
 
@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
 
   if (app.is_set("-refa")) {
     read_reference_alignment(app.getParam("-refa"), sure_ref_alignments, possible_ref_alignments,
-			     app.is_set("-invert-biling-data"));
+                             app.is_set("-invert-biling-data"));
   }
 
   uint ibm1_iter = convert<uint>(app.getParam("-ibm1-iter")); 
@@ -180,18 +180,18 @@ int main(int argc, char** argv) {
       uint sword = it->second;
       
       if (tword >= wcooc.size()) {
-	std::cerr << "tword out of range: " << tword << std::endl;
+        std::cerr << "tword out of range: " << tword << std::endl;
       }
 
       uint pos = std::lower_bound(wcooc[tword].direct_access(), wcooc[tword].direct_access() + wcooc[tword].size(), sword) - 
-	wcooc[tword].direct_access();
+        wcooc[tword].direct_access();
 
       if (pos < wcooc[tword].size()) {
-	prior_weight[tword][pos] = 0.0;
+        prior_weight[tword][pos] = 0.0;
       }
       else {
-	nIgnored++;
-	//std::cerr << "WARNING: ignoring entry of prior dictionary" << std::endl;
+        nIgnored++;
+        //std::cerr << "WARNING: ignoring entry of prior dictionary" << std::endl;
       }
     }
     
@@ -207,22 +207,22 @@ int main(int argc, char** argv) {
     else {
       for (size_t s=0; s < target_sentence.size(); s++) {
 	
-	for (uint i=0; i < target_sentence[s].size(); i++) {
-	  distribution_weight[target_sentence[s][i]] += 1.0;
-	}
+        for (uint i=0; i < target_sentence[s].size(); i++) {
+          distribution_weight[target_sentence[s][i]] += 1.0;
+        }
       }
       
       uint cutoff = 6;
       
       uint nSparse = 0;
       for (uint i=0; i < nTargetWords; i++) {
-	if (distribution_weight[i] >= cutoff+1) 
-	  distribution_weight[i] = 0.0;
-	else {
-	  nSparse++;
-	    //std::cerr << "sparse word: " << distribution_weight[i] << std::endl;
-	  distribution_weight[i] = (cutoff+1) - distribution_weight[i];
-	}
+        if (distribution_weight[i] >= cutoff+1) 
+          distribution_weight[i] = 0.0;
+        else {
+          nSparse++;
+          //std::cerr << "sparse word: " << distribution_weight[i] << std::endl;
+          distribution_weight[i] = (cutoff+1) - distribution_weight[i];
+        }
       }
       distribution_weight[0] = 0.0;
       distribution_weight *= dict_regularity;
@@ -244,18 +244,18 @@ int main(int argc, char** argv) {
   if (method == "em") {
 
     train_ibm1(source_sentence, slookup, target_sentence, wcooc, nSourceWords, nTargetWords, dict, ibm1_iter,
-	       sure_ref_alignments, possible_ref_alignments, prior_weight);
+               sure_ref_alignments, possible_ref_alignments, prior_weight);
 
   }
   else if (method == "gd") {
 
     train_ibm1_gd_stepcontrol(source_sentence, slookup, target_sentence, wcooc, nSourceWords, nTargetWords, dict, ibm1_iter,
-			      sure_ref_alignments, possible_ref_alignments, prior_weight); 
+                              sure_ref_alignments, possible_ref_alignments, prior_weight); 
   }
   else {
 
     ibm1_viterbi_training(source_sentence, slookup, target_sentence, wcooc, nSourceWords, nTargetWords, dict, 
-			  ibm1_iter, sure_ref_alignments, possible_ref_alignments, prior_weight);
+                          ibm1_iter, sure_ref_alignments, possible_ref_alignments, prior_weight);
 
   }
 
@@ -268,21 +268,21 @@ int main(int argc, char** argv) {
     if (method == "em") {
 
       train_reduced_ibm2(source_sentence,  slookup, target_sentence, wcooc, lcooc,
-			 nSourceWords, nTargetWords, reduced_ibm2align_model, dict, ibm2_iter,
-			 sure_ref_alignments, possible_ref_alignments);
+                         nSourceWords, nTargetWords, reduced_ibm2align_model, dict, ibm2_iter,
+                         sure_ref_alignments, possible_ref_alignments);
     }
     else if (method == "gd") {
 
       std::cerr << "WARNING: IBM-2 is not available with gradient descent" << std::endl;
       train_reduced_ibm2(source_sentence,  slookup, target_sentence, wcooc, lcooc,
-			 nSourceWords, nTargetWords, reduced_ibm2align_model, dict, ibm2_iter,
-			 sure_ref_alignments, possible_ref_alignments);
+                         nSourceWords, nTargetWords, reduced_ibm2align_model, dict, ibm2_iter,
+                         sure_ref_alignments, possible_ref_alignments);
     }
     else {
 
       ibm2_viterbi_training(source_sentence, slookup, target_sentence, wcooc, lcooc, nSourceWords, nTargetWords, 
-			    reduced_ibm2align_model, dict, ibm2_iter, sure_ref_alignments, possible_ref_alignments, 
-			    prior_weight);
+                            reduced_ibm2align_model, dict, ibm2_iter, sure_ref_alignments, possible_ref_alignments, 
+                            prior_weight);
     }
   }
 
@@ -291,23 +291,23 @@ int main(int argc, char** argv) {
   if (method == "em") {
 
     train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, nSourceWords, nTargetWords,
-		       hmmalign_model, hmm_dist_params, hmm_dist_grouping_param, source_fert,
-		       initial_prob, hmm_init_params, dict, hmm_iter, HmmInitPar, HmmAlignProbReducedpar,
-		       sure_ref_alignments, possible_ref_alignments, prior_weight);
+                       hmmalign_model, hmm_dist_params, hmm_dist_grouping_param, source_fert,
+                       initial_prob, hmm_init_params, dict, hmm_iter, HmmInitPar, HmmAlignProbReducedpar,
+                       sure_ref_alignments, possible_ref_alignments, prior_weight);
   }
   else if (method == "gd") {
 
     train_extended_hmm_gd_stepcontrol(source_sentence, slookup, target_sentence, wcooc, nSourceWords, nTargetWords,
-				      hmmalign_model, hmm_dist_params, hmm_dist_grouping_param, source_fert,
-				      initial_prob, hmm_init_params, dict, 50, HmmInitPar, HmmAlignProbReducedpar,
-				      sure_ref_alignments, possible_ref_alignments, prior_weight); 
+                                      hmmalign_model, hmm_dist_params, hmm_dist_grouping_param, source_fert,
+                                      initial_prob, hmm_init_params, dict, 50, HmmInitPar, HmmAlignProbReducedpar,
+                                      sure_ref_alignments, possible_ref_alignments, prior_weight); 
   }
   else {
 
     viterbi_train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, nSourceWords, nTargetWords,
-			       hmmalign_model, hmm_dist_params, hmm_dist_grouping_param, source_fert,
-			       initial_prob, hmm_init_params, dict, hmm_iter, HmmInitFix, HmmAlignProbFullpar, false,  
-			       sure_ref_alignments, possible_ref_alignments, prior_weight);
+                               hmmalign_model, hmm_dist_params, hmm_dist_grouping_param, source_fert,
+                               initial_prob, hmm_init_params, dict, hmm_iter, HmmInitFix, HmmAlignProbFullpar, false,  
+                               sure_ref_alignments, possible_ref_alignments, prior_weight);
   }
   
   /*** IBM-3 ***/
@@ -315,9 +315,9 @@ int main(int argc, char** argv) {
   std::cerr << "handling IBM-3" << std::endl;
 
   IBM3Trainer ibm3_trainer(source_sentence, slookup, target_sentence, 
-			   sure_ref_alignments, possible_ref_alignments,
-			   dict, wcooc, nSourceWords, nTargetWords, prior_weight, 
-			   true, true, false, l0_fertpen);
+                           sure_ref_alignments, possible_ref_alignments,
+                           dict, wcooc, nSourceWords, nTargetWords, prior_weight, 
+                           true, true, false, l0_fertpen);
   
   ibm3_trainer.init_from_hmm(hmmalign_model,initial_prob);
 
@@ -328,15 +328,15 @@ int main(int argc, char** argv) {
       std::string constraint_mode = app.getParam("-constraint-mode");
 
       if (constraint_mode == "unconstrained") {
-	ibm3_trainer.train_unconstrained(ibm3_iter);
+        ibm3_trainer.train_unconstrained(ibm3_iter);
       }
       else if (constraint_mode == "itg") 
-	ibm3_trainer.train_with_itg_constraints(ibm3_iter,true);
+        ibm3_trainer.train_with_itg_constraints(ibm3_iter,true);
       else if (constraint_mode == "ibm") 
-	ibm3_trainer.train_with_ibm_constraints(ibm3_iter,5,3);
+        ibm3_trainer.train_with_ibm_constraints(ibm3_iter,5,3);
       else {
-	USER_ERROR << "unknown constraint mode: \"" << constraint_mode << "\". Exiting" << std::endl;
-	exit(1);
+        USER_ERROR << "unknown constraint mode: \"" << constraint_mode << "\". Exiting" << std::endl;
+        exit(1);
       }
     }
     else
@@ -350,9 +350,9 @@ int main(int argc, char** argv) {
   std::cerr << "handling IBM-4" << std::endl;
   
   IBM4Trainer ibm4_trainer(source_sentence, slookup, target_sentence, 
-			   sure_ref_alignments, possible_ref_alignments,
-			   dict, wcooc, nSourceWords, nTargetWords, prior_weight, true, true, true,
-			   IBM4FIRST);
+                           sure_ref_alignments, possible_ref_alignments,
+                           dict, wcooc, nSourceWords, nTargetWords, prior_weight, true, true, true,
+                           IBM4FIRST);
   ibm4_trainer.init_from_ibm3(ibm3_trainer);
 
   if (ibm4_iter > 0) {
@@ -383,24 +383,24 @@ int main(int argc, char** argv) {
 
       if (hmm_iter > 0) {
 	
-	compute_ehmm_viterbi_alignment(source_sentence[s],slookup[s], target_sentence[s], 
-				       dict, hmmalign_model[curI-1], initial_prob[curI-1], viterbi_alignment);
+        compute_ehmm_viterbi_alignment(source_sentence[s],slookup[s], target_sentence[s], 
+                                       dict, hmmalign_model[curI-1], initial_prob[curI-1], viterbi_alignment);
       }
       else if (ibm2_iter > 0) {
 	
-	const Math2D::Matrix<double>& cur_align_model = reduced_ibm2align_model[curI];
+        const Math2D::Matrix<double>& cur_align_model = reduced_ibm2align_model[curI];
 
-	compute_ibm2_viterbi_alignment(source_sentence[s], slookup[s], target_sentence[s], dict, 
-				       cur_align_model, viterbi_alignment);
+        compute_ibm2_viterbi_alignment(source_sentence[s], slookup[s], target_sentence[s], dict, 
+                                       cur_align_model, viterbi_alignment);
       }
       else {
 
-	compute_ibm1_viterbi_alignment(source_sentence[s], slookup[s], target_sentence[s], dict, viterbi_alignment);
+        compute_ibm1_viterbi_alignment(source_sentence[s], slookup[s], target_sentence[s], dict, viterbi_alignment);
       }
 
 
       for (uint j=0; j < viterbi_alignment.size(); j++) 
-	alignment_stream << viterbi_alignment[j] << " ";
+        alignment_stream << viterbi_alignment[j] << " ";
       alignment_stream << std::endl;
     }
 
@@ -413,8 +413,8 @@ int main(int argc, char** argv) {
     std::ofstream out(app.getParam("-o").c_str());
     for (uint j=0; j < nTargetWords; j++) {
       for (uint k=0; k < dict[j].size(); k++) {
-	if (dict[j][k] > 1e-7)
-	  out << j << " " << wcooc[j][k] << " " << dict[j][k] << std::endl;
+        if (dict[j][k] > 1e-7)
+          out << j << " " << wcooc[j][k] << " " << dict[j][k] << std::endl;
       }
     }
     out.close();

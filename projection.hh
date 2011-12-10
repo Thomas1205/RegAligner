@@ -26,9 +26,9 @@ inline void projection_on_simplex(T* data, const uint nData) {
     if ((iter % 5) == 0) {
 
       while (data[start] == 0.0)
-	start++;
+        start++;
       while(data[end] == 0.0)
-	end--;
+        end--;
     }
     //END_TEST
 
@@ -56,14 +56,14 @@ inline void projection_on_simplex(T* data, const uint nData) {
       T temp = data[k];
 
       if (first_iter || temp != 0.0) {
-	temp -= mean_dev;
+        temp -= mean_dev;
 
-	if (temp < 1e-12) {
-	  all_pos = false;
-	  temp = 0.0;
-	  nNonZeros--;
-	}
-	data[k] = temp;
+        if (temp < 1e-12) {
+          all_pos = false;
+          temp = 0.0;
+          nNonZeros--;
+        }
+        data[k] = temp;
       }
     }
 
@@ -94,16 +94,16 @@ inline void projection_on_simplex_with_slack(double* data, double& slack, uint n
       slack -= mean_dev;
 
       if (slack < 0.0)
-	all_pos = false;
+        all_pos = false;
     }
 
     for (uint k=0; k < nData; k++) {
       
       if (nNonZeros == (nData+1) || data[k] != 0.0) {
-	data[k] -= mean_dev;
+        data[k] -= mean_dev;
 	
-	if (data[k] < 0.0)
-	  all_pos = false;
+        if (data[k] < 0.0)
+          all_pos = false;
       }
     }
     
@@ -120,8 +120,8 @@ inline void projection_on_simplex_with_slack(double* data, double& slack, uint n
     for (uint k=0; k < nData; k++) {
 	
       if (data[k] < 1e-8) {
-	data[k] = 0.0;
-	nNonZeros--;
+        data[k] = 0.0;
+        nNonZeros--;
       }
     }
   }

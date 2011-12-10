@@ -4,10 +4,10 @@
 #include "hmm_forward_backward.hh"
 
 void compute_ibm1_viterbi_alignment(const Storage1D<uint>& source_sentence,
-				    const Math2D::Matrix<uint>& slookup,
-				    const Storage1D<uint>& target_sentence,
-				    const SingleWordDictionary& dict,
-				    Storage1D<uint>& viterbi_alignment) {
+                                    const Math2D::Matrix<uint>& slookup,
+                                    const Storage1D<uint>& target_sentence,
+                                    const SingleWordDictionary& dict,
+                                    Storage1D<uint>& viterbi_alignment) {
 
 
   const uint J = source_sentence.size();
@@ -24,8 +24,8 @@ void compute_ibm1_viterbi_alignment(const Storage1D<uint>& source_sentence,
       double cur_prob = dict[target_sentence[i]][slookup(j,i)];
       
       if (cur_prob > max_prob) {
-	max_prob = cur_prob;
-	arg_max = i+1;
+        max_prob = cur_prob;
+        arg_max = i+1;
       }
     }
 
@@ -34,11 +34,11 @@ void compute_ibm1_viterbi_alignment(const Storage1D<uint>& source_sentence,
 }
 
 void compute_ibm2_viterbi_alignment(const Storage1D<uint>& source_sentence,
-				    const Math2D::Matrix<uint>& slookup,
-				    const Storage1D<uint>& target_sentence,
-				    const SingleWordDictionary& dict,
-				    const Math2D::Matrix<double>& align_prob,
-				    Storage1D<uint>& viterbi_alignment) {
+                                    const Math2D::Matrix<uint>& slookup,
+                                    const Storage1D<uint>& target_sentence,
+                                    const SingleWordDictionary& dict,
+                                    const Math2D::Matrix<double>& align_prob,
+                                    Storage1D<uint>& viterbi_alignment) {
 
   const uint J = source_sentence.size();
   const uint I = target_sentence.size();
@@ -54,8 +54,8 @@ void compute_ibm2_viterbi_alignment(const Storage1D<uint>& source_sentence,
       double cur_prob = dict[target_sentence[i]][slookup(j,i)] * align_prob(j,i);
       
       if (cur_prob > max_prob) {
-	max_prob = cur_prob;
-	arg_max = i+1;
+        max_prob = cur_prob;
+        arg_max = i+1;
       }
     }
 
@@ -65,27 +65,27 @@ void compute_ibm2_viterbi_alignment(const Storage1D<uint>& source_sentence,
 }
 
 void compute_fullhmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
-				       const Math2D::Matrix<uint>& slookup,
-				       const Storage1D<uint>& target_sentence,
-				       const SingleWordDictionary& dict,
-				       const Math2D::Matrix<double>& align_prob,
-				       Storage1D<uint>& viterbi_alignment) {
+                                       const Math2D::Matrix<uint>& slookup,
+                                       const Storage1D<uint>& target_sentence,
+                                       const SingleWordDictionary& dict,
+                                       const Math2D::Matrix<double>& align_prob,
+                                       Storage1D<uint>& viterbi_alignment) {
 
   const uint I = target_sentence.size();
 
   Math1D::Vector<double> start_prob(2*I, 1.0 / (2*I));
   compute_ehmm_viterbi_alignment(source_sentence,slookup,target_sentence,dict,align_prob,start_prob,
-				 viterbi_alignment);  
+                                 viterbi_alignment);  
 }
 
 
 double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
-				      const Math2D::Matrix<uint>& slookup,
-				      const Storage1D<uint>& target_sentence,
-				      const SingleWordDictionary& dict,
-				      const Math2D::Matrix<double>& align_prob,
-				      const Math1D::Vector<double>& initial_prob,
-				      Storage1D<uint>& viterbi_alignment, bool internal_mode) {
+                                      const Math2D::Matrix<uint>& slookup,
+                                      const Storage1D<uint>& target_sentence,
+                                      const SingleWordDictionary& dict,
+                                      const Math2D::Matrix<double>& align_prob,
+                                      const Math1D::Vector<double>& initial_prob,
+                                      Storage1D<uint>& viterbi_alignment, bool internal_mode) {
 
   const uint J = source_sentence.size();
   const uint I = target_sentence.size();
@@ -128,27 +128,27 @@ double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
       uint arg_max = MAX_UINT;
       
       for (uint i_prev = 0; i_prev < I; i_prev++) {
-	double hyp_score = prev_score[i_prev] * align_prob(i,i_prev);
+        double hyp_score = prev_score[i_prev] * align_prob(i,i_prev);
 
-	if (hyp_score > max_score) {
-	  max_score = hyp_score;
-	  arg_max = i_prev;
-	}
+        if (hyp_score > max_score) {
+          max_score = hyp_score;
+          arg_max = i_prev;
+        }
       }
       for (uint i_prev = I; i_prev < 2*I; i_prev++) {
-	double hyp_score = prev_score[i_prev] * align_prob(i,i_prev-I);
+        double hyp_score = prev_score[i_prev] * align_prob(i,i_prev-I);
 
-	if (hyp_score > max_score) {
-	  max_score = hyp_score;
-	  arg_max = i_prev;
-	}
+        if (hyp_score > max_score) {
+          max_score = hyp_score;
+          arg_max = i_prev;
+        }
       }
 
-//       if (arg_max == MAX_UINT) {
-// 	std::cerr << "ERROR: j=" << j << ", J=" << J << ", I=" << I << std::endl;
-//       }
+      //       if (arg_max == MAX_UINT) {
+      // 	std::cerr << "ERROR: j=" << j << ", J=" << J << ", I=" << I << std::endl;
+      //       }
 
-//       assert(arg_max != MAX_UINT);
+      //       assert(arg_max != MAX_UINT);
 
       double dict_entry = std::max(1e-15,dict[target_sentence[i]][slookup(j,i)]);
 
@@ -162,8 +162,8 @@ double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
 
       double hyp_score = prev_score[i-I];
       if (hyp_score > max_score) {
-	max_score = hyp_score;
-	arg_max = i-I;
+        max_score = hyp_score;
+        arg_max = i-I;
       }
 
       double dict_entry = dict[0][source_sentence[j]-1];
@@ -227,12 +227,12 @@ double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
 
 
 void compute_ehmm_optmarginal_alignment(const Storage1D<uint>& source_sentence,
-					const Math2D::Matrix<uint>& slookup,
-					const Storage1D<uint>& target_sentence,
-					const SingleWordDictionary& dict,
-					const Math2D::Matrix<double>& align_prob,
-					const Math1D::Vector<double>& initial_prob,
-					Storage1D<uint>& optmarginal_alignment) {
+                                        const Math2D::Matrix<uint>& slookup,
+                                        const Storage1D<uint>& target_sentence,
+                                        const SingleWordDictionary& dict,
+                                        const Math2D::Matrix<double>& align_prob,
+                                        const Math1D::Vector<double>& initial_prob,
+                                        Storage1D<uint>& optmarginal_alignment) {
 
   const uint J = source_sentence.size();
   const uint I = target_sentence.size();
@@ -243,10 +243,10 @@ void compute_ehmm_optmarginal_alignment(const Storage1D<uint>& source_sentence,
   Math2D::NamedMatrix<long double> backward(2*I,J,MAKENAME(backward));
 
   calculate_hmm_forward(source_sentence, target_sentence, slookup, dict, align_prob,
-			initial_prob, forward);
+                        initial_prob, forward);
 
   calculate_hmm_backward(source_sentence, target_sentence, slookup, dict, align_prob,
-			 initial_prob, backward);
+                         initial_prob, backward);
 
   for (uint j=0; j < J; j++) {
 
@@ -262,13 +262,13 @@ void compute_ehmm_optmarginal_alignment(const Storage1D<uint>& source_sentence,
       long double hyp_marginal = 0.0;
 
       if (dict[t_idx][slookup(j,i)] > 0.0) {
-	hyp_marginal = forward(i,j) * backward(i,j) / dict[t_idx][slookup(j,i)];
+        hyp_marginal = forward(i,j) * backward(i,j) / dict[t_idx][slookup(j,i)];
       }
 
       if (hyp_marginal > max_marginal) {
 
-	max_marginal = hyp_marginal;
-	arg_max = i;
+        max_marginal = hyp_marginal;
+        arg_max = i;
       }
     }
 
@@ -277,13 +277,13 @@ void compute_ehmm_optmarginal_alignment(const Storage1D<uint>& source_sentence,
       long double hyp_marginal = 0.0;
 
       if (dict[0][s_idx-1] > 0.0) {
-	hyp_marginal = forward(i,j) * backward(i,j) / dict[0][s_idx-1];
+        hyp_marginal = forward(i,j) * backward(i,j) / dict[0][s_idx-1];
       }
 
       if (hyp_marginal > max_marginal) {
 
-	max_marginal = hyp_marginal;
-	arg_max = i;
+        max_marginal = hyp_marginal;
+        arg_max = i;
       }      
     }
 

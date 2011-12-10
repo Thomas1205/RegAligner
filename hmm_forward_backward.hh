@@ -8,34 +8,34 @@
 
 template<typename T>
 void calculate_hmm_forward(const Storage1D<uint>& source_sentence,
-			   const Storage1D<uint>& target_sentence,
-			   const Math2D::Matrix<uint>& slookup,
-			   const SingleWordDictionary& dict,
-			   const Math2D::Matrix<double>& align_model,
-			   const Math1D::Vector<double>& start_prob,
-			   Math2D::Matrix<T>& forward);
+                           const Storage1D<uint>& target_sentence,
+                           const Math2D::Matrix<uint>& slookup,
+                           const SingleWordDictionary& dict,
+                           const Math2D::Matrix<double>& align_model,
+                           const Math1D::Vector<double>& start_prob,
+                           Math2D::Matrix<T>& forward);
 
 template<typename T>
 void calculate_hmm_backward(const Storage1D<uint>& source_sentence,
-			    const Storage1D<uint>& target_sentence,
-			    const Math2D::Matrix<uint>& slookup,
-			    const SingleWordDictionary& dict,
-			    const Math2D::Matrix<double>& align_model,
-			    const Math1D::Vector<double>& start_prob,
-			    Math2D::Matrix<T>& backward,
-			    bool include_start_alignment = true);
+                            const Storage1D<uint>& target_sentence,
+                            const Math2D::Matrix<uint>& slookup,
+                            const SingleWordDictionary& dict,
+                            const Math2D::Matrix<double>& align_model,
+                            const Math1D::Vector<double>& start_prob,
+                            Math2D::Matrix<T>& backward,
+                            bool include_start_alignment = true);
 
 
 /************ implementation **********/
 
 template<typename T>
 void calculate_hmm_forward(const Storage1D<uint>& source,
-			   const Storage1D<uint>& target,
-			   const Math2D::Matrix<uint>& slookup,
-			   const SingleWordDictionary& dict,
-			   const Math2D::Matrix<double>& align_model,
-			   const Math1D::Vector<double>& start_prob,
-			   Math2D::Matrix<T>& forward) {
+                           const Storage1D<uint>& target,
+                           const Math2D::Matrix<uint>& slookup,
+                           const SingleWordDictionary& dict,
+                           const Math2D::Matrix<double>& align_model,
+                           const Math1D::Vector<double>& start_prob,
+                           Math2D::Matrix<T>& forward) {
 
   const uint I = target.size();
   const uint J = source.size();
@@ -64,12 +64,12 @@ void calculate_hmm_forward(const Storage1D<uint>& source,
       T sum = 0.0;
 
       for (uint i_prev=0; i_prev < I; i_prev++)
-	sum += align_model(i,i_prev) * (forward(i_prev,j_prev) + forward(i_prev+I,j_prev));
+        sum += align_model(i,i_prev) * (forward(i_prev,j_prev) + forward(i_prev+I,j_prev));
 
-//       for (uint i_prev=0; i_prev < I; i_prev++)
-// 	sum += forward(i_prev,j_prev) * align_model(i,i_prev);
-//       for (uint i_prev = I; i_prev < 2*I; i_prev++)
-// 	sum += forward(i_prev,j_prev) * align_model(i,i_prev-I);
+      //       for (uint i_prev=0; i_prev < I; i_prev++)
+      // 	sum += forward(i_prev,j_prev) * align_model(i,i_prev);
+      //       for (uint i_prev = I; i_prev < 2*I; i_prev++)
+      // 	sum += forward(i_prev,j_prev) * align_model(i,i_prev-I);
       
       forward(i,j) = sum * dict[target[i]][slookup(j,i)];
     }
@@ -90,13 +90,13 @@ void calculate_hmm_forward(const Storage1D<uint>& source,
 
 template<typename T>
 void calculate_hmm_backward(const Storage1D<uint>& source,
-			    const Storage1D<uint>& target,
-			    const Math2D::Matrix<uint>& slookup,
-			    const SingleWordDictionary& dict,
-			    const Math2D::Matrix<double>& align_model,
-			    const Math1D::Vector<double>& start_prob,
-			    Math2D::Matrix<T>& backward,
-			    bool include_start_alignment) {
+                            const Storage1D<uint>& target,
+                            const Math2D::Matrix<uint>& slookup,
+                            const SingleWordDictionary& dict,
+                            const Math2D::Matrix<double>& align_model,
+                            const Math1D::Vector<double>& start_prob,
+                            Math2D::Matrix<T>& backward,
+                            bool include_start_alignment) {
 
   const uint I = target.size();
   const uint J = source.size();
@@ -119,7 +119,7 @@ void calculate_hmm_backward(const Storage1D<uint>& source,
 
       T sum = 0.0;
       for (uint i_next = 0; i_next < I; i_next++)
-	sum += backward(i_next,j_next) * align_model(i_next,i);
+        sum += backward(i_next,j_next) * align_model(i_next,i);
       sum += backward(i+I,j_next) * align_model(I,i);
 
       backward(i,j) = sum * dict[target[i]][slookup(j,i)];
@@ -131,7 +131,7 @@ void calculate_hmm_backward(const Storage1D<uint>& source,
 
       T sum = 0.0;
       for (uint i_next = 0; i_next < I; i_next++)
-	sum += backward(i_next,j_next) * align_model(i_next,i-I);
+        sum += backward(i_next,j_next) * align_model(i_next,i-I);
       sum += backward(i,j_next) * align_model(I,i-I);
 	  
       backward(i,j) = sum * cur_emptyword_prob;

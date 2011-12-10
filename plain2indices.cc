@@ -11,7 +11,7 @@ int main(int argc, char** argv) {
 
   const int nParams = 3;
   ParamDescr  params[nParams] = {{"-i",mandInFilename,0,""},{"-voc",mandInFilename,0,""},
-				 {"-o",mandOutFilename,0,""}};
+                                 {"-o",mandOutFilename,0,""}};
 
   Application app(argc,argv,params,nParams);
 
@@ -44,13 +44,13 @@ int main(int argc, char** argv) {
 
       std::map<std::string,uint>::iterator it = vocabulary.find(tokens[i]);
       if (it != vocabulary.end())
-	out_stream << it->second;
+        out_stream << it->second;
       else {
-	oov_words = true;
-	out_stream << "OOV[" << tokens[i] << "]";
+        oov_words = true;
+        out_stream << "OOV[" << tokens[i] << "]";
       }
       if (i+1 < tokens.size())
-	out_stream << " ";
+        out_stream << " ";
     }
 
     out_stream << std::endl;

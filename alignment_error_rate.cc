@@ -6,9 +6,9 @@
 #include <fstream>
 
 void read_reference_alignment(std::string filename, 
-			      std::map<uint,std::set<std::pair<uint,uint> > >& sure_alignments,
-			      std::map<uint,std::set<std::pair<uint,uint> > >& possible_alignments, 
-			      bool invert) {
+                              std::map<uint,std::set<std::pair<uint,uint> > >& sure_alignments,
+                              std::map<uint,std::set<std::pair<uint,uint> > >& possible_alignments, 
+                              bool invert) {
 
   std::ifstream astream(filename.c_str());
 
@@ -31,29 +31,29 @@ void read_reference_alignment(std::string filename,
       uint cur_line_num = convert<uint>(tokens[0].substr(1,tokens[0].size()-1));
 
       for (uint i=1; i < tokens.size(); i++) {
-	tokenize(tokens[i],mini_tokens,'-');
-	if (mini_tokens.size() != 2) {
-	  std::cerr << "WARNING: ignoring invalid entry \"" << tokens[i] << "\" in line " << nLines << std::endl;
-	}
+        tokenize(tokens[i],mini_tokens,'-');
+        if (mini_tokens.size() != 2) {
+          std::cerr << "WARNING: ignoring invalid entry \"" << tokens[i] << "\" in line " << nLines << std::endl;
+        }
 
-	bool sure = (mini_tokens[0][0] != 'P' && mini_tokens[0][0] != 'p');
+        bool sure = (mini_tokens[0][0] != 'P' && mini_tokens[0][0] != 'p');
 
-	uint source = (sure) ? convert<uint>(mini_tokens[0]) : 
-	  convert<uint>(mini_tokens[0].substr(1,mini_tokens[0].size()));
-	uint target = convert<uint>(mini_tokens[1]);
+        uint source = (sure) ? convert<uint>(mini_tokens[0]) : 
+          convert<uint>(mini_tokens[0].substr(1,mini_tokens[0].size()));
+        uint target = convert<uint>(mini_tokens[1]);
 
-	std::pair<uint,uint> new_alignment;
+        std::pair<uint,uint> new_alignment;
 
-	if (!invert) 
-	  new_alignment = std::make_pair(source,target);
-	else
-	  new_alignment = std::make_pair(target,source);
+        if (!invert) 
+          new_alignment = std::make_pair(source,target);
+        else
+          new_alignment = std::make_pair(target,source);
 
-	if (sure) 
-	  sure_alignments[cur_line_num].insert(new_alignment);
+        if (sure) 
+          sure_alignments[cur_line_num].insert(new_alignment);
 
-	//sure alignments are also possible alignments
-	possible_alignments[cur_line_num].insert(new_alignment);
+        //sure alignments are also possible alignments
+        possible_alignments[cur_line_num].insert(new_alignment);
       }
     }
     
@@ -62,9 +62,9 @@ void read_reference_alignment(std::string filename,
 }
 
 void write_reference_alignment(std::string filename, 
-			       std::map<uint, std::set<std::pair<uint,uint> > >& sure_alignments,
-			       std::map<uint, std::set<std::pair<uint,uint> > >& possible_alignments,
-			       bool invert) {
+                               std::map<uint, std::set<std::pair<uint,uint> > >& sure_alignments,
+                               std::map<uint, std::set<std::pair<uint,uint> > >& possible_alignments,
+                               bool invert) {
 
   std::ofstream astream(filename.c_str());
   
@@ -77,14 +77,14 @@ void write_reference_alignment(std::string filename,
 
       astream << sent_num << " ";
       if (invert)
-	astream << it2->second  << " " << it2->first << " ";
+        astream << it2->second  << " " << it2->first << " ";
       else
-	astream << it2->first  << " " << it2->second << " ";
+        astream << it2->first  << " " << it2->second << " ";
 
       if (sure_alignments[sent_num].find(*it2) == sure_alignments[sent_num].end())
-	astream << "P";
+        astream << "P";
       else 
-	astream << "S";
+        astream << "S";
    
       astream << std::endl;
     }
@@ -94,8 +94,8 @@ void write_reference_alignment(std::string filename,
 
 
 double AER(const Storage1D<uint>& singleword_alignment, 
-	   const std::set<std::pair<uint,uint> >& sure_ref_alignments,
-	   const std::set<std::pair<uint,uint> >& possible_ref_alignments) {
+           const std::set<std::pair<uint,uint> >& sure_ref_alignments,
+           const std::set<std::pair<uint,uint> >& possible_ref_alignments) {
 
   std::set<std::pair<uint,uint> > given_alignment;
   for (uint j=0; j < singleword_alignment.size(); j++) {
@@ -109,8 +109,8 @@ double AER(const Storage1D<uint>& singleword_alignment,
 }
 
 double AER(const std::set<std::pair<uint,uint> >& mt_alignment, 
-	   const std::set<std::pair<uint,uint> >& sure_ref_alignments,
-	   const std::set<std::pair<uint,uint> >& possible_ref_alignments) {
+           const std::set<std::pair<uint,uint> >& sure_ref_alignments,
+           const std::set<std::pair<uint,uint> >& possible_ref_alignments) {
 
 
   uint A = mt_alignment.size();
@@ -140,9 +140,9 @@ double AER(const std::set<std::pair<uint,uint> >& mt_alignment,
 //f-measure as in [Fraser and Marcu 07] for a single sentence pair
 // assuming a single-word alignment
 double f_measure(const Storage1D<uint>& singleword_alignment, 
-		 const std::set<std::pair<uint,uint> >& sure_ref_alignments,
-		 const std::set<std::pair<uint,uint> >& possible_ref_alignments,
-		 double alpha) {
+                 const std::set<std::pair<uint,uint> >& sure_ref_alignments,
+                 const std::set<std::pair<uint,uint> >& possible_ref_alignments,
+                 double alpha) {
 
 
   std::set<std::pair<uint,uint> > given_alignment;
@@ -159,9 +159,9 @@ double f_measure(const Storage1D<uint>& singleword_alignment,
 //f-measure as in [Fraser and Marcu 2003] for a single sentence pair
 // assuming a general alignment
 double f_measure(const std::set<std::pair<uint,uint> >& mt_alignment, 
-		 const std::set<std::pair<uint,uint> >& sure_ref_alignments,
-		 const std::set<std::pair<uint,uint> >& possible_ref_alignments,
-		 double alpha) {
+                 const std::set<std::pair<uint,uint> >& sure_ref_alignments,
+                 const std::set<std::pair<uint,uint> >& possible_ref_alignments,
+                 double alpha) {
 
 
   uint A = mt_alignment.size();
@@ -196,8 +196,8 @@ double f_measure(const std::set<std::pair<uint,uint> >& mt_alignment,
 // number of definite alignment errors (missing sure, present but impossible links) for a single sentence pair
 // assuming a single-word alignment
 uint nDefiniteAlignmentErrors(const Storage1D<uint>& singleword_alignment, 
-			      const std::set<std::pair<uint,uint> >& sure_ref_alignments,
-			      const std::set<std::pair<uint,uint> >& possible_ref_alignments) {
+                              const std::set<std::pair<uint,uint> >& sure_ref_alignments,
+                              const std::set<std::pair<uint,uint> >& possible_ref_alignments) {
 
   std::set<std::pair<uint,uint> > given_alignment;
   for (uint j=0; j < singleword_alignment.size(); j++) {
@@ -213,8 +213,8 @@ uint nDefiniteAlignmentErrors(const Storage1D<uint>& singleword_alignment,
 // number of definite alignment errors (missing sure, present but impossible links) for a single sentence pair
 // assuming a general alignment
 uint nDefiniteAlignmentErrors(const std::set<std::pair<uint,uint> >& mt_alignment,
-			      const std::set<std::pair<uint,uint> >& sure_ref_alignments,
-			      const std::set<std::pair<uint,uint> >& possible_ref_alignments) {
+                              const std::set<std::pair<uint,uint> >& sure_ref_alignments,
+                              const std::set<std::pair<uint,uint> >& possible_ref_alignments) {
 
   uint nErrors = 0;
 

@@ -78,10 +78,10 @@ void read_monolingual_corpus(std::string filename, Storage1D<Storage1D<uint> > &
 
     for (uint k=0; k < tokens.size(); k++) {
       if (tokens[k].size() > 3 && tokens[k].substr(0,3) == "OOV") {
-	TODO("handling of OOVs");
+        TODO("handling of OOVs");
       }
       else {
-	cur_line.push_back(convert<uint>(tokens[k]));
+        cur_line.push_back(convert<uint>(tokens[k]));
       }
     }
   }
@@ -207,13 +207,13 @@ void read_idx_dict(std::string filename, SingleWordDictionary& dict, CooccuringW
 
     if (tidx != last_tidx) {
       if (last_tidx < nTargetWords) {
-	dict[last_tidx].resize_dirty(cur_cooc.size());
-	cooc[last_tidx].resize_dirty(cur_cooc.size());
+        dict[last_tidx].resize_dirty(cur_cooc.size());
+        cooc[last_tidx].resize_dirty(cur_cooc.size());
 
-	for (uint k=0; k < cur_cooc.size(); k++) {
-	  cooc[last_tidx][k] = cur_cooc[k];
-	  dict[last_tidx][k] = cur_dict[k];
-	}
+        for (uint k=0; k < cur_cooc.size(); k++) {
+          cooc[last_tidx][k] = cur_cooc[k];
+          dict[last_tidx][k] = cur_dict[k];
+        }
       }
       cur_cooc.clear();
       cur_dict.clear();

@@ -16,10 +16,10 @@
 #include "projection.hh"
 
 double ibm2_perplexity( const Storage1D<Storage1D<uint> >& source,
-			const Storage1D<Math2D::Matrix<uint> >& slookup,
-			const Storage1D< Storage1D<uint> >& target,
-			const IBM2AlignmentModel& align_model,
-			const SingleWordDictionary& dict) {
+                        const Storage1D<Math2D::Matrix<uint> >& slookup,
+                        const Storage1D< Storage1D<uint> >& target,
+                        const IBM2AlignmentModel& align_model,
+                        const SingleWordDictionary& dict) {
 
   std::cerr << "calculating IBM 2 perplexity" << std::endl;
 
@@ -40,7 +40,7 @@ double ibm2_perplexity( const Storage1D<Storage1D<uint> >& source,
     uint k=0;
     for (; k < align_model[curI].size(); k++) {
       if (align_model[curI][k].xDim() == curJ)
-	break;
+        break;
     }
 
     assert(k < align_model[curI].size());
@@ -52,8 +52,8 @@ double ibm2_perplexity( const Storage1D<Storage1D<uint> >& source,
       double cur_sum = cur_align_model(j,0)*dict[0][s_idx-1];
 
       for (uint i=0; i < curI; i++) {
-	uint t_idx = cur_target[i];
-	cur_sum += cur_align_model(j,i+1)*dict[t_idx][cur_lookup(j,i)];
+        uint t_idx = cur_target[i];
+        cur_sum += cur_align_model(j,i+1)*dict[t_idx][cur_lookup(j,i)];
       }
       sum -= std::log(cur_sum);
     }
@@ -63,16 +63,16 @@ double ibm2_perplexity( const Storage1D<Storage1D<uint> >& source,
 }
 
 void train_ibm2(const Storage1D<Storage1D<uint> >& source, 
-		const Storage1D<Math2D::Matrix<uint> >& slookup,
-		const Storage1D<Storage1D<uint> >& target,
-		const CooccuringWordsType& wcooc,
-		const CooccuringLengthsType& lcooc,
-		uint nSourceWords, uint nTargetWords,
-		IBM2AlignmentModel& alignment_model,
-		SingleWordDictionary& dict,
-		uint nIterations,
-		std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
-		std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments) {
+                const Storage1D<Math2D::Matrix<uint> >& slookup,
+                const Storage1D<Storage1D<uint> >& target,
+                const CooccuringWordsType& wcooc,
+                const CooccuringLengthsType& lcooc,
+                uint nSourceWords, uint nTargetWords,
+                IBM2AlignmentModel& alignment_model,
+                SingleWordDictionary& dict,
+                uint nIterations,
+                std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
+                std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments) {
 
   std::cerr << "starting IBM 2 training" << std::endl;
 
@@ -125,7 +125,7 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
       uint cur_length = lcooc[I].size();
       
       for (uint k=0; k < cur_length; k++) {
-	facount[I][k].set_constant(0.0);
+        facount[I][k].set_constant(0.0);
       }
     }
     
@@ -139,8 +139,8 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
 
       uint k=0;
       for(; k < alignment_model[curI].size(); k++) {
-	if (alignment_model[curI][k].xDim() == curJ)
-	  break;
+        if (alignment_model[curI][k].xDim() == curJ)
+          break;
       }
 
       assert(k < alignment_model[curI].size());
@@ -149,36 +149,36 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
 
       for (uint j=0; j < curJ; j++) {
 
-	const uint s_idx = cur_source[j];
+        const uint s_idx = cur_source[j];
 
-	double coeff = dict[0][s_idx-1]*cur_align_model(j,0);
+        double coeff = dict[0][s_idx-1]*cur_align_model(j,0);
 
-	for (uint i=0; i < curI; i++) {
-	  const uint t_idx = cur_target[i];
-	  coeff += dict[t_idx][slookup[s](j,i)] * cur_align_model(j,i+1);
-	}
+        for (uint i=0; i < curI; i++) {
+          const uint t_idx = cur_target[i];
+          coeff += dict[t_idx][slookup[s](j,i)] * cur_align_model(j,i+1);
+        }
 
-	coeff = 1.0 / coeff;
-	assert(!isnan(coeff));
+        coeff = 1.0 / coeff;
+        assert(!isnan(coeff));
 
-	double addon;
-	addon = coeff*dict[0][s_idx-1]*cur_align_model(j,0);
+        double addon;
+        addon = coeff*dict[0][s_idx-1]*cur_align_model(j,0);
 
-	fwcount[0][s_idx-1] += addon;
-	cur_facount(j,0) += addon;
+        fwcount[0][s_idx-1] += addon;
+        cur_facount(j,0) += addon;
 
-	for (uint i=0; i < curI; i++) {
-	  const uint t_idx = cur_target[i];
-	  const uint l = slookup[s](j,i);
+        for (uint i=0; i < curI; i++) {
+          const uint t_idx = cur_target[i];
+          const uint l = slookup[s](j,i);
 
-	  addon = coeff*dict[t_idx][l]*cur_align_model(j,i+1);
+          addon = coeff*dict[t_idx][l]*cur_align_model(j,i+1);
 	  
-	  //update dict
-	  fwcount[t_idx][l] += addon;
+          //update dict
+          fwcount[t_idx][l] += addon;
 	  
-	  //update alignment
-	  cur_facount(j,i+1) += addon;
-	}
+          //update alignment
+          cur_facount(j,i+1) += addon;
+        }
       }
     }
 
@@ -187,22 +187,22 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
 
       const double sum = fwcount[i].sum();
       if (sum > 1e-307) {
-	const double inv_sum = 1.0 / sum;
+        const double inv_sum = 1.0 / sum;
       
-	if (isnan(inv_sum)) {
-	  std::cerr << "invsum " << inv_sum << " for target word #" << i << std::endl;
-	  std::cerr << "sum = " << fwcount[i].sum() << std::endl;
-	  std::cerr << "number of cooccuring source words: " << fwcount[i].size() << std::endl;
-	}
+        if (isnan(inv_sum)) {
+          std::cerr << "invsum " << inv_sum << " for target word #" << i << std::endl;
+          std::cerr << "sum = " << fwcount[i].sum() << std::endl;
+          std::cerr << "number of cooccuring source words: " << fwcount[i].size() << std::endl;
+        }
 	
-	assert(!isnan(inv_sum));
+        assert(!isnan(inv_sum));
 	
-	for (uint k=0; k < fwcount[i].size(); k++) {
-	  dict[i][k] = fwcount[i][k] * inv_sum;
-	}
+        for (uint k=0; k < fwcount[i].size(); k++) {
+          dict[i][k] = fwcount[i][k] * inv_sum;
+        }
       }
       else {
-	std::cerr << "WARNING : did not update dictionary entries because sum is " << sum << std::endl;
+        std::cerr << "WARNING : did not update dictionary entries because sum is " << sum << std::endl;
       }
     }
 
@@ -210,32 +210,32 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
     for (uint I=0; I < alignment_model.size(); I++) {
 
       for (uint k=0; k < alignment_model[I].size(); k++) {
-	uint J = alignment_model[I][k].xDim();
-	assert(alignment_model[I][k].yDim() == (I+1));
+        uint J = alignment_model[I][k].xDim();
+        assert(alignment_model[I][k].yDim() == (I+1));
 
-	for (uint j=0; j < J; j++) {
+        for (uint j=0; j < J; j++) {
 
-	  double sum = 0.0;
-	  for (uint i=0; i <= I; i++)
-	    sum += facount[I][k](j,i);
+          double sum = 0.0;
+          for (uint i=0; i <= I; i++)
+            sum += facount[I][k](j,i);
 
-	  if ( sum > 1e-307) {
-	    sum = 1.0 / sum;
-	    assert(!isnan(sum));
+          if ( sum > 1e-307) {
+            sum = 1.0 / sum;
+            assert(!isnan(sum));
 	    
-	    for (uint i=0; i <= I; i++)
-	      alignment_model[I][k](j,i) = sum * facount[I][k](j,i);
-	  }
-	  else {
-	    std::cerr << "WARNING : did not update alignment prob because sum is " << sum << std::endl;
-	  }
-	}
+            for (uint i=0; i <= I; i++)
+              alignment_model[I][k](j,i) = sum * facount[I][k](j,i);
+          }
+          else {
+            std::cerr << "WARNING : did not update alignment prob because sum is " << sum << std::endl;
+          }
+        }
       }
     }
     
     std::cerr << "IBM 2 perplexity after iteration #" << iter << ": "
-	      << ibm2_perplexity(source, slookup, target, alignment_model, dict)
-	      << std::endl;
+              << ibm2_perplexity(source, slookup, target, alignment_model, dict)
+              << std::endl;
 
 
     /************* compute alignment error rate ****************/
@@ -248,32 +248,32 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
 
       for (size_t s=0; s < nSentences; s++) {
 
-	if (possible_ref_alignments.find(s+1) != possible_ref_alignments.end()) {
+        if (possible_ref_alignments.find(s+1) != possible_ref_alignments.end()) {
 
-	  nContributors++;
+          nContributors++;
 
-	  const uint curJ = source[s].size();
-	  const uint curI = target[s].size();
+          const uint curJ = source[s].size();
+          const uint curI = target[s].size();
 	  
-	  uint k=0;
-	  for(; k < alignment_model[curI].size(); k++) {
-	    if (alignment_model[curI][k].xDim() == curJ)
-	      break;
-	  }
+          uint k=0;
+          for(; k < alignment_model[curI].size(); k++) {
+            if (alignment_model[curI][k].xDim() == curJ)
+              break;
+          }
 	  
-	  assert(k < alignment_model[curI].size());
-	  const Math2D::Matrix<double>& cur_align_model = alignment_model[curI][k];
+          assert(k < alignment_model[curI].size());
+          const Math2D::Matrix<double>& cur_align_model = alignment_model[curI][k];
 
-	  //compute viterbi alignment
-	  Storage1D<uint> viterbi_alignment;
-	  compute_ibm2_viterbi_alignment(source[s], slookup[s], target[s], dict, cur_align_model,
-					 viterbi_alignment);
+          //compute viterbi alignment
+          Storage1D<uint> viterbi_alignment;
+          compute_ibm2_viterbi_alignment(source[s], slookup[s], target[s], dict, cur_align_model,
+                                         viterbi_alignment);
   
-	  //add alignment error rate
-	  sum_aer += AER(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
-	  sum_fmeasure += f_measure(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
-	  nErrors += nDefiniteAlignmentErrors(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
-	}
+          //add alignment error rate
+          sum_aer += AER(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
+          sum_fmeasure += f_measure(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
+          nErrors += nDefiniteAlignmentErrors(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
+        }
       }
 
       sum_aer *= 100.0 / nContributors;
@@ -289,10 +289,10 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
 
 
 double reduced_ibm2_perplexity( const Storage1D<Storage1D<uint> >& source,
-				const Storage1D<Math2D::Matrix<uint> >& slookup,
-				const Storage1D< Storage1D<uint> >& target,
-				const ReducedIBM2AlignmentModel& align_model,
-				const SingleWordDictionary& dict) {
+                                const Storage1D<Math2D::Matrix<uint> >& slookup,
+                                const Storage1D< Storage1D<uint> >& target,
+                                const ReducedIBM2AlignmentModel& align_model,
+                                const SingleWordDictionary& dict) {
 
   std::cerr << "calculating reduced IBM 2 perplexity" << std::endl;
 
@@ -318,8 +318,8 @@ double reduced_ibm2_perplexity( const Storage1D<Storage1D<uint> >& source,
       double cur_sum = cur_align_model(j,0)*dict[0][s_idx-1];
 
       for (uint i=0; i < curI; i++) {
-	uint t_idx = cur_target[i];
-	cur_sum += cur_align_model(j,i+1)*dict[t_idx][cur_lookup(j,i)];
+        uint t_idx = cur_target[i];
+        cur_sum += cur_align_model(j,i+1)*dict[t_idx][cur_lookup(j,i)];
       }
       sum -= std::log(cur_sum);
     }
@@ -330,16 +330,16 @@ double reduced_ibm2_perplexity( const Storage1D<Storage1D<uint> >& source,
 
 
 void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
-			const Storage1D<Math2D::Matrix<uint> >& slookup,
-			const Storage1D<Storage1D<uint> >& target,
-			const CooccuringWordsType& wcooc,
-			const CooccuringLengthsType& lcooc,
-			uint nSourceWords, uint nTargetWords,
-			ReducedIBM2AlignmentModel& alignment_model,
-			SingleWordDictionary& dict,
-			uint nIterations,
-			std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
-			std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments) {
+                        const Storage1D<Math2D::Matrix<uint> >& slookup,
+                        const Storage1D<Storage1D<uint> >& target,
+                        const CooccuringWordsType& wcooc,
+                        const CooccuringLengthsType& lcooc,
+                        uint nSourceWords, uint nTargetWords,
+                        ReducedIBM2AlignmentModel& alignment_model,
+                        SingleWordDictionary& dict,
+                        uint nIterations,
+                        std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
+                        std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments) {
 
   std::cerr << "starting reduced IBM 2 training" << std::endl;
 
@@ -357,7 +357,7 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
     for (uint k=0; k < lcooc[I].size(); k++) {
       uint curJ = lcooc[I][k];
       if (curJ > maxJ)
-	maxJ = curJ;
+        maxJ = curJ;
     }
 
     if (maxJ > 0) {
@@ -391,7 +391,7 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
     }
     for (uint I=0; I < lcooc.size(); I++) {
       if (facount[I].xDim() > 0)
-	facount[I].set_constant(0.0);
+        facount[I].set_constant(0.0);
     }
     
     for (size_t s=0; s < nSentences; s++) {
@@ -411,36 +411,36 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
 
       for (uint j=0; j < curJ; j++) {
 
-	const uint s_idx = cur_source[j];
+        const uint s_idx = cur_source[j];
 
-	double coeff = dict[0][s_idx-1]*cur_align_model(j,0);
+        double coeff = dict[0][s_idx-1]*cur_align_model(j,0);
 
-	for (uint i=0; i < curI; i++) {
-	  const uint t_idx = cur_target[i];
-	  coeff += dict[t_idx][slookup[s](j,i)] * cur_align_model(j,i+1);
-	}
+        for (uint i=0; i < curI; i++) {
+          const uint t_idx = cur_target[i];
+          coeff += dict[t_idx][slookup[s](j,i)] * cur_align_model(j,i+1);
+        }
 
-	coeff = 1.0 / coeff;
-	assert(!isnan(coeff));
+        coeff = 1.0 / coeff;
+        assert(!isnan(coeff));
 
-	double addon;
-	addon = coeff*dict[0][s_idx-1]*cur_align_model(j,0);
+        double addon;
+        addon = coeff*dict[0][s_idx-1]*cur_align_model(j,0);
 
-	fwcount[0][s_idx-1] += addon;
-	cur_facount(j,0) += addon;
+        fwcount[0][s_idx-1] += addon;
+        cur_facount(j,0) += addon;
 
-	for (uint i=0; i < curI; i++) {
-	  const uint t_idx = cur_target[i];
-	  const uint l = slookup[s](j,i);
+        for (uint i=0; i < curI; i++) {
+          const uint t_idx = cur_target[i];
+          const uint l = slookup[s](j,i);
 
-	  addon = coeff*dict[t_idx][l]*cur_align_model(j,i+1);
+          addon = coeff*dict[t_idx][l]*cur_align_model(j,i+1);
 	  
-	  //update dict
-	  fwcount[t_idx][l] += addon;
+          //update dict
+          fwcount[t_idx][l] += addon;
 	  
-	  //update alignment
-	  cur_facount(j,i+1) += addon;
-	}
+          //update alignment
+          cur_facount(j,i+1) += addon;
+        }
       }
     }
     
@@ -449,15 +449,15 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
       double inv_sum = 1.0 / fwcount[i].sum();
       
       if (isnan(inv_sum)) {
-	std::cerr << "invsum " << inv_sum << " for target word #" << i << std::endl;
-	std::cerr << "sum = " << fwcount[i].sum() << std::endl;
-	std::cerr << "number of cooccuring source words: " << fwcount[i].size() << std::endl;
+        std::cerr << "invsum " << inv_sum << " for target word #" << i << std::endl;
+        std::cerr << "sum = " << fwcount[i].sum() << std::endl;
+        std::cerr << "number of cooccuring source words: " << fwcount[i].size() << std::endl;
       }
       
       assert(!isnan(inv_sum));
 
       for (uint k=0; k < fwcount[i].size(); k++) {
-	dict[i][k] = fwcount[i][k] * inv_sum;
+        dict[i][k] = fwcount[i][k] * inv_sum;
       }
     }
 
@@ -466,26 +466,26 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
 
       uint J = alignment_model[I].xDim();
       if (J > 0) {
-	assert(alignment_model[I].yDim() == (I+1));
+        assert(alignment_model[I].yDim() == (I+1));
 	
-	for (uint j=0; j < J; j++) {
+        for (uint j=0; j < J; j++) {
 	  
-	  double sum = 0.0;
-	  for (uint i=0; i <= I; i++)
-	    sum += facount[I](j,i);
+          double sum = 0.0;
+          for (uint i=0; i <= I; i++)
+            sum += facount[I](j,i);
 	  
-	  sum = 1.0 / sum;
-	  assert(!isnan(sum));
+          sum = 1.0 / sum;
+          assert(!isnan(sum));
 	  
-	  for (uint i=0; i <= I; i++)
-	    alignment_model[I](j,i) = sum * facount[I](j,i);
-	}
+          for (uint i=0; i <= I; i++)
+            alignment_model[I](j,i) = sum * facount[I](j,i);
+        }
       }
     }
 
     std::cerr << "reduced IBM 2 perplexity after iteration #" << iter << ": "
-	      << reduced_ibm2_perplexity(source, slookup, target, alignment_model, dict)
-	      << std::endl;    
+              << reduced_ibm2_perplexity(source, slookup, target, alignment_model, dict)
+              << std::endl;    
 
     /************* compute alignment error rate ****************/
     if (!possible_ref_alignments.empty()) {
@@ -497,23 +497,23 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
 
       for (size_t s=0; s < nSentences; s++) {
 
-	if (possible_ref_alignments.find(s+1) != possible_ref_alignments.end()) {
+        if (possible_ref_alignments.find(s+1) != possible_ref_alignments.end()) {
 
-	  nContributors++;
+          nContributors++;
 
-	  const uint curI = target[s].size();
-	  const Math2D::Matrix<double>& cur_align_model = alignment_model[curI];
+          const uint curI = target[s].size();
+          const Math2D::Matrix<double>& cur_align_model = alignment_model[curI];
 
-	  //compute viterbi alignment
-	  Storage1D<uint> viterbi_alignment;
-	  compute_ibm2_viterbi_alignment(source[s], slookup[s], target[s], dict, cur_align_model,
-					 viterbi_alignment);
+          //compute viterbi alignment
+          Storage1D<uint> viterbi_alignment;
+          compute_ibm2_viterbi_alignment(source[s], slookup[s], target[s], dict, cur_align_model,
+                                         viterbi_alignment);
   
-	  //add alignment error rate
-	  sum_aer += AER(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
-	  sum_fmeasure += f_measure(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
-	  nErrors += nDefiniteAlignmentErrors(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
-	}
+          //add alignment error rate
+          sum_aer += AER(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
+          sum_fmeasure += f_measure(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
+          nErrors += nDefiniteAlignmentErrors(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
+        }
       }
 
       sum_aer *= 100.0 / nContributors;
@@ -530,17 +530,17 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
 
 
 void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source, 
-			   const Storage1D<Math2D::Matrix<uint> >& slookup,
-			   const Storage1D<Storage1D<uint> >& target,
-			   const CooccuringWordsType& wcooc,
-			   const CooccuringLengthsType& lcooc,
-			   uint nSourceWords, uint nTargetWords,
-			   ReducedIBM2AlignmentModel& alignment_model,
-			   SingleWordDictionary& dict,
-			   uint nIterations,
-			   std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
-			   std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments,
-			   const floatSingleWordDictionary& prior_weight) {
+                           const Storage1D<Math2D::Matrix<uint> >& slookup,
+                           const Storage1D<Storage1D<uint> >& target,
+                           const CooccuringWordsType& wcooc,
+                           const CooccuringLengthsType& lcooc,
+                           uint nSourceWords, uint nTargetWords,
+                           ReducedIBM2AlignmentModel& alignment_model,
+                           SingleWordDictionary& dict,
+                           uint nIterations,
+                           std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
+                           std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments,
+                           const floatSingleWordDictionary& prior_weight) {
 
   //initialize alignment model
   alignment_model.resize_dirty(lcooc.size());
@@ -552,7 +552,7 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
     for (uint k=0; k < lcooc[I].size(); k++) {
       uint curJ = lcooc[I][k];
       if (curJ > maxJ)
-	maxJ = curJ;
+        maxJ = curJ;
     }
 
     if (maxJ > 0) {
@@ -612,77 +612,77 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
       
       for (uint j=0; j < nCurSourceWords; j++) {
 	
-	const uint s_idx = source[s][j];
+        const uint s_idx = source[s][j];
 
-	double min = 1e50;
-	uint arg_min = MAX_UINT;
+        double min = 1e50;
+        uint arg_min = MAX_UINT;
 
-	if (iter == 1) {
+        if (iter == 1) {
 
-	  min = -std::log(dict[0][s_idx-1])* cur_align_model(j,0);
-	  arg_min = 0;
+          min = -std::log(dict[0][s_idx-1])* cur_align_model(j,0);
+          arg_min = 0;
 
-	  for (uint i=0; i < nCurTargetWords; i++) {
+          for (uint i=0; i < nCurTargetWords; i++) {
 
-	    double hyp = -std::log(dict[cur_target[i]][cur_lookup(j,i)]*cur_align_model(j,i+1) );
+            double hyp = -std::log(dict[cur_target[i]][cur_lookup(j,i)]*cur_align_model(j,i+1) );
 
-	    //std::cerr << "hyp: " << hyp << ", min: " << min << std::endl;
+            //std::cerr << "hyp: " << hyp << ", min: " << min << std::endl;
 	    
-	    if (hyp < min) {
-	      min = hyp;
-	      arg_min = i+1;
-	    }
-	  }
-	}
-	else {
+            if (hyp < min) {
+              min = hyp;
+              arg_min = i+1;
+            }
+          }
+        }
+        else {
 	  
-	  if (dict[0][s_idx-1] == 0.0 || cur_align_model(j,0) == 0.0) {
+          if (dict[0][s_idx-1] == 0.0 || cur_align_model(j,0) == 0.0) {
 	
-	    min = 1e20;
-	  }
-	  else {
+            min = 1e20;
+          }
+          else {
 	    
-	    min = -std::log(dict[0][s_idx-1] * cur_align_model(j,0) );
-	  }
-	  arg_min = 0;
+            min = -std::log(dict[0][s_idx-1] * cur_align_model(j,0) );
+          }
+          arg_min = 0;
 	  
-	  for (uint i=0; i < nCurTargetWords; i++) {
+          for (uint i=0; i < nCurTargetWords; i++) {
 	    
-	    double hyp;
+            double hyp;
 	    
-	    if (dict[cur_target[i]][cur_lookup(j,i)] == 0.0 || cur_align_model(j,i+1) == 0) {
+            if (dict[cur_target[i]][cur_lookup(j,i)] == 0.0 || cur_align_model(j,i+1) == 0) {
 	      
-	      hyp = 1e20;
-	    }
-	    else {
+              hyp = 1e20;
+            }
+            else {
 	      
-	      hyp = -std::log( dict[cur_target[i]][cur_lookup(j,i)] * cur_align_model(j,i+1));
-	    }
+              hyp = -std::log( dict[cur_target[i]][cur_lookup(j,i)] * cur_align_model(j,i+1));
+            }
 	    
-	    //std::cerr << "hyp: " << hyp << ", min: " << min << std::endl;
+            //std::cerr << "hyp: " << hyp << ", min: " << min << std::endl;
 
-	    if (hyp < min) {
-	      min = hyp;
-	      arg_min = i+1;
-	    }
+            if (hyp < min) {
+              min = hyp;
+              arg_min = i+1;
+            }
 	    
-	  }
-	}
+          }
+        }
 
-	//std::cerr << "arg_min: " << arg_min << std::endl;
+        //std::cerr << "arg_min: " << arg_min << std::endl;
 
-	sum += min;
+        sum += min;
 	
-	viterbi_alignment[s][j] = arg_min;
+        viterbi_alignment[s][j] = arg_min;
 
-	if (arg_min == 0) {
-	  dcount[0][s_idx-1]++;
-	  acount[nCurTargetWords](j,0)++;
-	}
-	else {
-	  dcount[cur_target[arg_min-1]][cur_lookup(j,arg_min-1)]++;
-	  acount[nCurTargetWords](j,arg_min)++;
-	}
+        if (arg_min == 0) {
+          dcount[0][s_idx-1]++;
+          acount[nCurTargetWords](j,0)++;
+        }
+        else {
+          dcount[cur_target[arg_min-1]][cur_lookup(j,arg_min-1)]++;
+          acount[nCurTargetWords](j,arg_min)++;
+        }
       }
     }
    
@@ -695,7 +695,7 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
 
       Math1D::Vector<double> dict_sum(dcount.size());
       for (uint k=0; k < dcount.size(); k++)
-	dict_sum[k] = dcount[k].sum();
+        dict_sum[k] = dcount[k].sum();
 
 
       Math1D::Vector<double> w_cur_contrib(nTargetWords,0.0);
@@ -704,152 +704,152 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
 
       for (uint w=0; w < w_cur_contrib.size(); w++) {
 
-	for (uint k=0; k < dcount[w].size(); k++) {
+        for (uint k=0; k < dcount[w].size(); k++) {
 	  
-	  if (dcount[w][k] > 0) {
-	    w_cur_contrib[w] += dcount[w][k] * (-std::log(dcount[w][k] / dict_sum[w] ));
-	    w_inc_contrib[w] += dcount[w][k] * (-std::log(dcount[w][k] / (dict_sum[w]+1.0) ));
-	    if (dict_sum[w] > 1.0)
-	      w_dec_contrib[w] += dcount[w][k] * (-std::log(dcount[w][k] / (dict_sum[w]-1.0) ));
-	  }
-	}
+          if (dcount[w][k] > 0) {
+            w_cur_contrib[w] += dcount[w][k] * (-std::log(dcount[w][k] / dict_sum[w] ));
+            w_inc_contrib[w] += dcount[w][k] * (-std::log(dcount[w][k] / (dict_sum[w]+1.0) ));
+            if (dict_sum[w] > 1.0)
+              w_dec_contrib[w] += dcount[w][k] * (-std::log(dcount[w][k] / (dict_sum[w]-1.0) ));
+          }
+        }
       }
       
       for (size_t s=0; s < nSentences; s++) {
 
-	const Storage1D<uint>& cur_source = source[s];
-	const Storage1D<uint>& cur_target = target[s];
+        const Storage1D<uint>& cur_source = source[s];
+        const Storage1D<uint>& cur_target = target[s];
 	
-	const uint curJ = source[s].size();
-	const uint curI = target[s].size();
+        const uint curJ = source[s].size();
+        const uint curI = target[s].size();
 	
-	const Math2D::Matrix<uint>& cur_lookup = slookup[s];
-	const Math2D::Matrix<double>& cur_acount = acount[curI];
+        const Math2D::Matrix<uint>& cur_lookup = slookup[s];
+        const Math2D::Matrix<double>& cur_acount = acount[curI];
 	
-	for (uint j=0; j < curJ; j++) {
+        for (uint j=0; j < curJ; j++) {
 	  
-	  for (uint i=0; i <= curI; i++) {
+          for (uint i=0; i <= curI; i++) {
 	    
-	    //note: cur_aj can change during the loop over i
-	    uint cur_aj = viterbi_alignment[s][j];
+            //note: cur_aj can change during the loop over i
+            uint cur_aj = viterbi_alignment[s][j];
 	    
-	    if (i != cur_aj) {
+            if (i != cur_aj) {
 	      
-	      uint cur_dict_num = (cur_aj == 0) ? 0 : target[s][cur_aj-1];
+              uint cur_dict_num = (cur_aj == 0) ? 0 : target[s][cur_aj-1];
 	      
-	      Math1D::Vector<double>& cur_dictcount = dcount[cur_dict_num]; 
-	      double cur_dictsum = dict_sum[cur_dict_num]; 
+              Math1D::Vector<double>& cur_dictcount = dcount[cur_dict_num]; 
+              double cur_dictsum = dict_sum[cur_dict_num]; 
 	      
-	      uint cur_idx = (cur_aj == 0) ? source[s][j]-1 : cur_lookup(j,cur_aj-1);
-	      uint hyp_dict_num = (i == 0) ? 0 : target[s][i-1];
+              uint cur_idx = (cur_aj == 0) ? source[s][j]-1 : cur_lookup(j,cur_aj-1);
+              uint hyp_dict_num = (i == 0) ? 0 : target[s][i-1];
 	      
-	      Math1D::Vector<double>& hyp_dictcount = dcount[hyp_dict_num];
-	      double hyp_dictsum = dict_sum[hyp_dict_num]; 
+              Math1D::Vector<double>& hyp_dictcount = dcount[hyp_dict_num];
+              double hyp_dictsum = dict_sum[hyp_dict_num]; 
 	    
-	      uint hyp_idx = (i == 0) ? source[s][j]-1 : cur_lookup(j,i-1);;
+              uint hyp_idx = (i == 0) ? source[s][j]-1 : cur_lookup(j,i-1);;
 	      
-	      double change = 0.0;
+              double change = 0.0;
 
-	      uint cur_target_word = (cur_aj == 0) ? 0 : cur_target[cur_aj-1];
-	      uint new_target_word = (i == 0) ? 0 : cur_target[i-1];
+              uint cur_target_word = (cur_aj == 0) ? 0 : cur_target[cur_aj-1];
+              uint new_target_word = (i == 0) ? 0 : cur_target[i-1];
 
-	      assert(cur_acount(j,cur_aj) > 0);
+              assert(cur_acount(j,cur_aj) > 0);
 	      
-	      if (cur_acount(j,i) != 0)
-		change -= -cur_acount(j,i) * std::log(cur_acount(j,i));
-	      change -= -cur_acount(j,cur_aj) * std::log(cur_acount(j,cur_aj));
+              if (cur_acount(j,i) != 0)
+                change -= -cur_acount(j,i) * std::log(cur_acount(j,i));
+              change -= -cur_acount(j,cur_aj) * std::log(cur_acount(j,cur_aj));
 	      
-	      change += -(cur_acount(j,i)+1) * std::log(cur_acount(j,i)+1);
-	      if (cur_acount(j,cur_aj) > 1)
-		change += -(cur_acount(j,cur_aj)-1) * std::log(cur_acount(j,cur_aj)-1);
+              change += -(cur_acount(j,i)+1) * std::log(cur_acount(j,i)+1);
+              if (cur_acount(j,cur_aj) > 1)
+                change += -(cur_acount(j,cur_aj)-1) * std::log(cur_acount(j,cur_aj)-1);
 
-	      assert(!isnan(change));
+              assert(!isnan(change));
 
-	      if (cur_target_word != new_target_word) {
-		change -= w_cur_contrib[cur_target_word];
+              if (cur_target_word != new_target_word) {
+                change -= w_cur_contrib[cur_target_word];
 		
-		if (cur_dictsum > 1.0) {
-		  change += w_dec_contrib[cur_target_word];
-		  change -= (cur_dictcount[cur_idx]) * (-std::log((cur_dictcount[cur_idx]) / (cur_dictsum-1.0)));
+                if (cur_dictsum > 1.0) {
+                  change += w_dec_contrib[cur_target_word];
+                  change -= (cur_dictcount[cur_idx]) * (-std::log((cur_dictcount[cur_idx]) / (cur_dictsum-1.0)));
 		  
-		  if (cur_dictcount[cur_idx] > 1) {
-		    change += (cur_dictcount[cur_idx]-1) * (-std::log((cur_dictcount[cur_idx]-1) / (cur_dictsum-1.0)));
-		  }
-		  else
-		    change -= prior_weight[cur_dict_num][cur_idx];
-		}
+                  if (cur_dictcount[cur_idx] > 1) {
+                    change += (cur_dictcount[cur_idx]-1) * (-std::log((cur_dictcount[cur_idx]-1) / (cur_dictsum-1.0)));
+                  }
+                  else
+                    change -= prior_weight[cur_dict_num][cur_idx];
+                }
 		
-		change -= w_cur_contrib[new_target_word]; 
-		change += w_inc_contrib[new_target_word]; 
+                change -= w_cur_contrib[new_target_word]; 
+                change += w_inc_contrib[new_target_word]; 
 		
-		if (dcount[new_target_word][hyp_idx] > 0)
-		  change -= dcount[new_target_word][hyp_idx] * 
-		    (-std::log(dcount[new_target_word][hyp_idx] / (dict_sum[new_target_word]+1.0)));
-		else
-		  change += prior_weight[cur_dict_num][cur_idx]; 
-		change += (dcount[new_target_word][hyp_idx]+1) * 
-		  (-std::log((dcount[new_target_word][hyp_idx]+1.0) / (dict_sum[new_target_word]+1.0)));
-	      }
+                if (dcount[new_target_word][hyp_idx] > 0)
+                  change -= dcount[new_target_word][hyp_idx] * 
+                    (-std::log(dcount[new_target_word][hyp_idx] / (dict_sum[new_target_word]+1.0)));
+                else
+                  change += prior_weight[cur_dict_num][cur_idx]; 
+                change += (dcount[new_target_word][hyp_idx]+1) * 
+                  (-std::log((dcount[new_target_word][hyp_idx]+1.0) / (dict_sum[new_target_word]+1.0)));
+              }
 
-	      assert(!isnan(change));
+              assert(!isnan(change));
 	      
-	      if (change < -1e-2) {
+              if (change < -1e-2) {
 		
-		nSwitches++;
+                nSwitches++;
 
-		uint prev_word = cur_target_word; 
-		uint new_word = new_target_word;
+                uint prev_word = cur_target_word; 
+                uint new_word = new_target_word;
 		
-		viterbi_alignment[s][j] = i;
+                viterbi_alignment[s][j] = i;
 
-		if (cur_target_word != new_target_word) {
+                if (cur_target_word != new_target_word) {
 
-		  cur_dictcount[cur_idx] -= 1.0;
-		  hyp_dictcount[hyp_idx] += 1.0;
-		  dict_sum[cur_dict_num] -= 1.0;
-		  dict_sum[hyp_dict_num] += 1.0;
+                  cur_dictcount[cur_idx] -= 1.0;
+                  hyp_dictcount[hyp_idx] += 1.0;
+                  dict_sum[cur_dict_num] -= 1.0;
+                  dict_sum[hyp_dict_num] += 1.0;
 		  
-		  //recompute the stored values for the two affected words
-		  w_cur_contrib[new_word] = 0.0;
-		  w_inc_contrib[new_word] = 0.0; 
-		  w_dec_contrib[new_word] = 0.0; 
-		  for (uint k=0; k < dcount[new_word].size(); k++) {
+                  //recompute the stored values for the two affected words
+                  w_cur_contrib[new_word] = 0.0;
+                  w_inc_contrib[new_word] = 0.0; 
+                  w_dec_contrib[new_word] = 0.0; 
+                  for (uint k=0; k < dcount[new_word].size(); k++) {
 		    
-		    if (dcount[new_word][k] > 0) {
-		      w_cur_contrib[new_word] += dcount[new_word][k] * 
-			(-std::log(dcount[new_word][k] / dict_sum[new_word] ));
-		      w_inc_contrib[new_word] += dcount[new_word][k] * 
-			(-std::log(dcount[new_word][k] / (dict_sum[new_word]+1.0) ));
-		      if (dict_sum[new_word] > 1.0)
-			w_dec_contrib[new_word] += dcount[new_word][k] * 
-			  (-std::log(dcount[new_word][k] / (dict_sum[new_word]-1.0) ));
-		    }
-		  }
-		  w_cur_contrib[prev_word] = 0.0;
-		  w_inc_contrib[prev_word] = 0.0; 
-		  w_dec_contrib[prev_word] = 0.0; 
-		  for (uint k=0; k < dcount[prev_word].size(); k++) {
+                    if (dcount[new_word][k] > 0) {
+                      w_cur_contrib[new_word] += dcount[new_word][k] * 
+                        (-std::log(dcount[new_word][k] / dict_sum[new_word] ));
+                      w_inc_contrib[new_word] += dcount[new_word][k] * 
+                        (-std::log(dcount[new_word][k] / (dict_sum[new_word]+1.0) ));
+                      if (dict_sum[new_word] > 1.0)
+                        w_dec_contrib[new_word] += dcount[new_word][k] * 
+                          (-std::log(dcount[new_word][k] / (dict_sum[new_word]-1.0) ));
+                    }
+                  }
+                  w_cur_contrib[prev_word] = 0.0;
+                  w_inc_contrib[prev_word] = 0.0; 
+                  w_dec_contrib[prev_word] = 0.0; 
+                  for (uint k=0; k < dcount[prev_word].size(); k++) {
 		    
-		    if (dcount[prev_word][k] > 0) {
-		      w_cur_contrib[prev_word] += dcount[prev_word][k] * 
-			(-std::log(dcount[prev_word][k] / dict_sum[prev_word] ));
-		      w_inc_contrib[prev_word] += dcount[prev_word][k] * 
-			(-std::log(dcount[prev_word][k] / (dict_sum[prev_word]+1.0) ));
-		      if (dict_sum[prev_word] > 1.0)
-			w_dec_contrib[prev_word] += dcount[prev_word][k] * 
-			  (-std::log(dcount[prev_word][k] / (dict_sum[prev_word]-1.0) ));
+                    if (dcount[prev_word][k] > 0) {
+                      w_cur_contrib[prev_word] += dcount[prev_word][k] * 
+                        (-std::log(dcount[prev_word][k] / dict_sum[prev_word] ));
+                      w_inc_contrib[prev_word] += dcount[prev_word][k] * 
+                        (-std::log(dcount[prev_word][k] / (dict_sum[prev_word]+1.0) ));
+                      if (dict_sum[prev_word] > 1.0)
+                        w_dec_contrib[prev_word] += dcount[prev_word][k] * 
+                          (-std::log(dcount[prev_word][k] / (dict_sum[prev_word]-1.0) ));
 		      
-		    }
-		  }
-		}
+                    }
+                  }
+                }
 
-		acount[curI](j,cur_aj)--;
-		acount[curI](j,i)++;		
-	      }
+                acount[curI](j,cur_aj)--;
+                acount[curI](j,i)++;		
+              }
 	      
-	    }
-	  }
-	}
+            }
+          }
+        }
       }
       
       std::cerr << nSwitches << " switches in ICM" << std::endl;
@@ -859,8 +859,8 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
 
     for (uint i=0; i < nTargetWords; i++) {      
       for (uint k=0; k < dcount[i].size(); k++) {
-	if (dcount[i][k] < count_count.size())
-	  count_count[dcount[i][k]]++;
+        if (dcount[i][k] < count_count.size())
+          count_count[dcount[i][k]]++;
       }
     }
 
@@ -882,22 +882,22 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
 
       if (sum > 1e-307) {
 
-	energy += sum * std::log(sum);
+        energy += sum * std::log(sum);
 
-	const double inv_sum = 1.0 / sum;
-	assert(!isnan(inv_sum));
+        const double inv_sum = 1.0 / sum;
+        assert(!isnan(inv_sum));
 	
-	for (uint k=0; k < dcount[i].size(); k++) {
-	  dict[i][k] = dcount[i][k] * inv_sum;
+        for (uint k=0; k < dcount[i].size(); k++) {
+          dict[i][k] = dcount[i][k] * inv_sum;
 
-	  if (dcount[i][k] > 0) {
-	    energy -= dcount[i][k] * std::log(dcount[i][k]);
-	    energy += prior_weight[i][k]; //dict_penalty; 
-	  }
-	}
+          if (dcount[i][k] > 0) {
+            energy -= dcount[i][k] * std::log(dcount[i][k]);
+            energy += prior_weight[i][k]; //dict_penalty; 
+          }
+        }
       }
       else {
-	//std::cerr << "WARNING : did not update dictionary entries because sum is " << sum << std::endl;
+        //std::cerr << "WARNING : did not update dictionary entries because sum is " << sum << std::endl;
       }
     }
 
@@ -907,26 +907,26 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
 
       uint J = alignment_model[I].xDim();
       if (J > 0) {
-	assert(alignment_model[I].yDim() == (I+1));
+        assert(alignment_model[I].yDim() == (I+1));
 	
-	for (uint j=0; j < J; j++) {
+        for (uint j=0; j < J; j++) {
 	  
-	  double sum = 0.0;
-	  for (uint i=0; i <= I; i++)
-	    sum += acount[I](j,i);
+          double sum = 0.0;
+          for (uint i=0; i <= I; i++)
+            sum += acount[I](j,i);
 
-	  if (sum > 1e-305) {
-	    double inv_sum = 1.0 / sum;
-	    assert(!isnan(sum));
+          if (sum > 1e-305) {
+            double inv_sum = 1.0 / sum;
+            assert(!isnan(sum));
 	    
-	    for (uint i=0; i <= I; i++) {
-	      alignment_model[I](j,i) = inv_sum * acount[I](j,i);
+            for (uint i=0; i <= I; i++) {
+              alignment_model[I](j,i) = inv_sum * acount[I](j,i);
 	      
-	      if (acount[I](j,i) > 0.0)
-		energy -= acount[I](j,i) * std::log( acount[I](j,i) / sum );
-	    }
-	  }
-	}
+              if (acount[I](j,i) > 0.0)
+                energy -= acount[I](j,i) * std::log( acount[I](j,i) / sum );
+            }
+          }
+        }
       }
     }
     
@@ -944,15 +944,15 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
 
       for (size_t s=0; s < nSentences; s++) {
 
-	if (possible_ref_alignments.find(s+1) != possible_ref_alignments.end()) {
+        if (possible_ref_alignments.find(s+1) != possible_ref_alignments.end()) {
 
-	  nContributors++;
+          nContributors++;
 
-	  //add alignment error rate
-	  sum_aer += AER(viterbi_alignment[s],sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
-	  sum_fmeasure += f_measure(viterbi_alignment[s],sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
-	  nErrors += nDefiniteAlignmentErrors(viterbi_alignment[s],sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
-	}
+          //add alignment error rate
+          sum_aer += AER(viterbi_alignment[s],sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
+          sum_fmeasure += f_measure(viterbi_alignment[s],sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
+          nErrors += nDefiniteAlignmentErrors(viterbi_alignment[s],sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
+        }
       }
 
       sum_aer *= 100.0 / nContributors;

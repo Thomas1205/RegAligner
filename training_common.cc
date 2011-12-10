@@ -8,9 +8,9 @@
 #include <algorithm>
 
 void find_cooccuring_words(const Storage1D<Storage1D<uint> >& source, 
-			   const Storage1D<Storage1D<uint> >& target,
-			   uint nSourceWords, uint nTargetWords,
-			   CooccuringWordsType& cooc) {
+                           const Storage1D<Storage1D<uint> >& target,
+                           uint nSourceWords, uint nTargetWords,
+                           CooccuringWordsType& cooc) {
   
   Storage1D<Storage1D<uint> > additional_source;
   Storage1D<Storage1D<uint> > additional_target;
@@ -20,11 +20,11 @@ void find_cooccuring_words(const Storage1D<Storage1D<uint> >& source,
 
 
 void find_cooccuring_words(const Storage1D<Storage1D<uint> >& source, 
-			   const Storage1D<Storage1D<uint> >& target,
-			   const Storage1D<Storage1D<uint> >& additional_source, 
-			   const Storage1D<Storage1D<uint> >& additional_target,
-			   uint nSourceWords, uint nTargetWords,
-			   CooccuringWordsType& cooc) {
+                           const Storage1D<Storage1D<uint> >& target,
+                           const Storage1D<Storage1D<uint> >& additional_source, 
+                           const Storage1D<Storage1D<uint> >& additional_target,
+                           uint nSourceWords, uint nTargetWords,
+                           CooccuringWordsType& cooc) {
 
   NamedStorage1D<std::set<uint> > coocset(nTargetWords,MAKENAME(coocset));
   for (uint j=0; j < nSourceWords-1; j++)
@@ -53,10 +53,10 @@ void find_cooccuring_words(const Storage1D<Storage1D<uint> >& source,
       std::set<uint>& cur_set = coocset[t_idx];
 
       for (uint j=0; j < nCurSourceWords; j++) {
-	uint s_idx = cur_source[j]; 
-	assert(s_idx < nSourceWords);
+        uint s_idx = cur_source[j]; 
+        assert(s_idx < nSourceWords);
 	
-	cur_set.insert(s_idx);
+        cur_set.insert(s_idx);
       }
     }
   }
@@ -82,10 +82,10 @@ void find_cooccuring_words(const Storage1D<Storage1D<uint> >& source,
       std::set<uint>& cur_set = coocset[t_idx];
 
       for (uint j=0; j < nCurSourceWords; j++) {
-	uint s_idx = cur_source[j]; 
-	assert(s_idx < nSourceWords);
+        uint s_idx = cur_source[j]; 
+        assert(s_idx < nSourceWords);
 	
-	cur_set.insert(s_idx);
+        cur_set.insert(s_idx);
       }
     }
   }
@@ -111,7 +111,7 @@ void find_cooccuring_words(const Storage1D<Storage1D<uint> >& source,
 
 
 void find_cooc_monolingual_pairs(const Storage1D<Storage1D<uint> >& sentence,
-				 uint voc_size, Storage1D<Storage1D<uint> >& cooc) {
+                                 uint voc_size, Storage1D<Storage1D<uint> >& cooc) {
 
 
   const uint nSentences = sentence.size();
@@ -137,17 +137,17 @@ void find_cooc_monolingual_pairs(const Storage1D<Storage1D<uint> >& sentence,
 
       for (uint i2 = i1+1; i2 < curI; i2++) {
 
-	uint w2 =  cur_sentence[i2];
+        uint w2 =  cur_sentence[i2];
 
-	uint l=0;
-	for ( ; l < cooc[w1].size() && cooc[w1][l] != w2; l++) {
-	  ;
-	}
+        uint l=0;
+        for ( ; l < cooc[w1].size() && cooc[w1][l] != w2; l++) {
+          ;
+        }
 
-	if (l >= cooc[w1].size()) {
-	  cooc[w1].resize(cooc[w1].size()+1);
-	  cooc[w1][l] = w2;
-	}
+        if (l >= cooc[w1].size()) {
+          cooc[w1].resize(cooc[w1].size()+1);
+          cooc[w1][l] = w2;
+        }
       }
     }
   }
@@ -158,7 +158,7 @@ void find_cooc_monolingual_pairs(const Storage1D<Storage1D<uint> >& sentence,
 }
 
 void monolingual_pairs_cooc_count(const Storage1D<Storage1D<uint> >& sentence,
-				  const Storage1D<Storage1D<uint> >&t_cooc, Storage1D<Storage1D<uint> >&t_cooc_count) {
+                                  const Storage1D<Storage1D<uint> >&t_cooc, Storage1D<Storage1D<uint> >&t_cooc_count) {
 
   t_cooc_count.resize(t_cooc.size());
   for (uint k=0; k < t_cooc.size(); k++)
@@ -180,12 +180,12 @@ void monolingual_pairs_cooc_count(const Storage1D<Storage1D<uint> >& sentence,
 
       for (uint i2 = i1+1; i2 < curI; i2++) {
 
-	uint w2 =  cur_sentence[i2];
+        uint w2 =  cur_sentence[i2];
 
-	uint* ptr = std::lower_bound(t_cooc[w1].direct_access(),t_cooc[w1].direct_access()+t_cooc[w1].size(), w2);
+        uint* ptr = std::lower_bound(t_cooc[w1].direct_access(),t_cooc[w1].direct_access()+t_cooc[w1].size(), w2);
 
-	uint k = ptr - t_cooc[w1].direct_access();
-	t_cooc_count[w1][k] += 1;
+        uint k = ptr - t_cooc[w1].direct_access();
+        t_cooc_count[w1][k] += 1;
       }
     }
   }
@@ -194,9 +194,9 @@ void monolingual_pairs_cooc_count(const Storage1D<Storage1D<uint> >& sentence,
 
 
 void find_cooc_target_pairs_and_source_words(const Storage1D<Storage1D<uint> >& source, 
-					     const Storage1D<Storage1D<uint> >& target,
-					     const Storage1D<Storage1D<uint> >& target_cooc,
-					     Storage1D<Storage1D<Storage1D<uint> > >& st_cooc) {
+                                             const Storage1D<Storage1D<uint> >& target,
+                                             const Storage1D<Storage1D<uint> >& target_cooc,
+                                             Storage1D<Storage1D<Storage1D<uint> > >& st_cooc) {
 
   st_cooc.resize(target_cooc.size());
   for (uint i=0; i < target_cooc.size(); i++)
@@ -222,34 +222,34 @@ void find_cooc_target_pairs_and_source_words(const Storage1D<Storage1D<uint> >& 
 
       for (uint i2 = start_i2; i2 <= curI; i2++) {
 
-	uint t2 = (i2 == 0) ? 0 : cur_target[i2-1];
+        uint t2 = (i2 == 0) ? 0 : cur_target[i2-1];
 
-	const uint* ptr = std::lower_bound(cur_tcooc.direct_access(), cur_tcooc.direct_access() + cur_tcooc.size(), t2);
+        const uint* ptr = std::lower_bound(cur_tcooc.direct_access(), cur_tcooc.direct_access() + cur_tcooc.size(), t2);
 
-	assert(*ptr == t2);
+        assert(*ptr == t2);
 
-	assert(ptr >= cur_tcooc.direct_access());
-	assert(ptr < cur_tcooc.direct_access() + cur_tcooc.size());
+        assert(ptr >= cur_tcooc.direct_access());
+        assert(ptr < cur_tcooc.direct_access() + cur_tcooc.size());
 
-	uint diff = ptr - cur_tcooc.direct_access();
+        uint diff = ptr - cur_tcooc.direct_access();
 
-	Storage1D<uint>& cur_scooc = st_cooc[t1][diff];
+        Storage1D<uint>& cur_scooc = st_cooc[t1][diff];
 
-	for (uint j=0; j < curJ; j++) {
+        for (uint j=0; j < curJ; j++) {
 
-	  uint s_idx = cur_source[j];
+          uint s_idx = cur_source[j];
 
-	  uint l=0;
-	  for ( ; l < cur_scooc.size() && cur_scooc[l] != s_idx; l++) {
-	    ;
-	  }
+          uint l=0;
+          for ( ; l < cur_scooc.size() && cur_scooc[l] != s_idx; l++) {
+            ;
+          }
 
-	  if (l >= cur_scooc.size()) {
+          if (l >= cur_scooc.size()) {
 
-	    cur_scooc.resize(cur_scooc.size()+1);
-	    cur_scooc[l] = s_idx;
-	  }
-	}
+            cur_scooc.resize(cur_scooc.size()+1);
+            cur_scooc[l] = s_idx;
+          }
+        }
       }
     }
   }  
@@ -262,8 +262,8 @@ void find_cooc_target_pairs_and_source_words(const Storage1D<Storage1D<uint> >& 
 
 
 void find_cooc_target_pairs_and_source_words(const Storage1D<Storage1D<uint> >& source, 
-					     const Storage1D<Storage1D<uint> >& target,
-					     std::map<std::pair<uint,uint>, std::set<uint> >& cooc) {
+                                             const Storage1D<Storage1D<uint> >& target,
+                                             std::map<std::pair<uint,uint>, std::set<uint> >& cooc) {
 
 
   const uint nSentences = source.size();
@@ -287,12 +287,12 @@ void find_cooc_target_pairs_and_source_words(const Storage1D<Storage1D<uint> >& 
       uint start_i2 = (i1 == 0) ? 0 : i1+1;
       for (uint i2 = start_i2; i2 <= curI; i2++) {
 
-	const uint t2 = (i2 == 0) ? 0 : cur_target[i2-1];
+        const uint t2 = (i2 == 0) ? 0 : cur_target[i2-1];
 	
-	std::pair<uint,uint> tpair = std::make_pair(t1,t2);
+        std::pair<uint,uint> tpair = std::make_pair(t1,t2);
 	
-	for (uint j=0; j < curJ; j++)
-	  cooc[tpair].insert(cur_source[j]);
+        for (uint j=0; j < curJ; j++)
+          cooc[tpair].insert(cur_source[j]);
       }
     }
   }
@@ -301,9 +301,9 @@ void find_cooc_target_pairs_and_source_words(const Storage1D<Storage1D<uint> >& 
 
 
 void find_cooc_target_pairs_and_source_words(const Storage1D<Storage1D<uint> >& source, 
-					     const Storage1D<Storage1D<uint> >& target,
-					     uint nSourceWords, uint nTargetWords,
-					     Storage1D<Storage1D<std::pair<uint,Storage1D<uint> > > >& cooc) {
+                                             const Storage1D<Storage1D<uint> >& target,
+                                             uint nSourceWords, uint nTargetWords,
+                                             Storage1D<Storage1D<std::pair<uint,Storage1D<uint> > > >& cooc) {
 
   cooc.resize(nTargetWords);
 
@@ -328,39 +328,39 @@ void find_cooc_target_pairs_and_source_words(const Storage1D<Storage1D<uint> >& 
       uint start_i2 = (i1 == 0) ? 0 : i1+1;
       for (uint i2 = start_i2; i2 <= curI; i2++) {
 
-	const uint t2 = (i2 == 0) ? 0 : cur_target[i2-1];
+        const uint t2 = (i2 == 0) ? 0 : cur_target[i2-1];
 	
-	uint t2_cooc_idx = MAX_UINT;
-	for (uint k=0; k < cooc[t1].size(); k++) {
-	  if (cooc[t1][k].first == t2) {
-	    t2_cooc_idx = k;
-	    break;
-	  }
-	}
+        uint t2_cooc_idx = MAX_UINT;
+        for (uint k=0; k < cooc[t1].size(); k++) {
+          if (cooc[t1][k].first == t2) {
+            t2_cooc_idx = k;
+            break;
+          }
+        }
 
-	if (t2_cooc_idx == MAX_UINT) {
-	  t2_cooc_idx = cooc[t1].size();
-	  cooc[t1].resize(cooc[t1].size()+1);
-	  cooc[t1][t2_cooc_idx].first = t2;
-	}
+        if (t2_cooc_idx == MAX_UINT) {
+          t2_cooc_idx = cooc[t1].size();
+          cooc[t1].resize(cooc[t1].size()+1);
+          cooc[t1][t2_cooc_idx].first = t2;
+        }
 
- 	for (uint j=0; j < curJ; j++) {
+        for (uint j=0; j < curJ; j++) {
 
-	  uint j_cooc_idx = MAX_UINT;
-	  for (uint k=0; k < cooc[t1][t2_cooc_idx].second.size(); k++) {
+          uint j_cooc_idx = MAX_UINT;
+          for (uint k=0; k < cooc[t1][t2_cooc_idx].second.size(); k++) {
 
-	    if (cooc[t1][t2_cooc_idx].second[k] == cur_source[j]) {
-	      j_cooc_idx = k;
-	      break;
-	    }
-	  }
+            if (cooc[t1][t2_cooc_idx].second[k] == cur_source[j]) {
+              j_cooc_idx = k;
+              break;
+            }
+          }
 
-	  if (j_cooc_idx == MAX_UINT) {
-	    j_cooc_idx = cooc[t1][t2_cooc_idx].second.size();
-	    cooc[t1][t2_cooc_idx].second.resize(cooc[t1][t2_cooc_idx].second.size()+1);
-	    cooc[t1][t2_cooc_idx].second[j_cooc_idx] = cur_source[j];
-	  }
-	}
+          if (j_cooc_idx == MAX_UINT) {
+            j_cooc_idx = cooc[t1][t2_cooc_idx].second.size();
+            cooc[t1][t2_cooc_idx].second.resize(cooc[t1][t2_cooc_idx].second.size()+1);
+            cooc[t1][t2_cooc_idx].second[j_cooc_idx] = cur_source[j];
+          }
+        }
       }
     }
   }
@@ -368,8 +368,8 @@ void find_cooc_target_pairs_and_source_words(const Storage1D<Storage1D<uint> >& 
 
 
 void count_cooc_target_pairs_and_source_words(const Storage1D<Storage1D<uint> >& source, 
-					      const Storage1D<Storage1D<uint> >& target,
-					      std::map<std::pair<uint,uint>, std::map<uint,uint> >& cooc_count) {
+                                              const Storage1D<Storage1D<uint> >& target,
+                                              std::map<std::pair<uint,uint>, std::map<uint,uint> >& cooc_count) {
 
 
   const uint nSentences = source.size();
@@ -393,12 +393,12 @@ void count_cooc_target_pairs_and_source_words(const Storage1D<Storage1D<uint> >&
       uint start_i2 = (i1 == 0) ? 0 : i1+1;
       for (uint i2 = start_i2; i2 <= curI; i2++) {
 
-	const uint t2 = (i2 == 0) ? 0 : cur_target[i2-1];
+        const uint t2 = (i2 == 0) ? 0 : cur_target[i2-1];
 	
-	std::pair<uint,uint> tpair = std::make_pair(t1,t2);
+        std::pair<uint,uint> tpair = std::make_pair(t1,t2);
 	
-	for (uint j=0; j < curJ; j++)
-	  cooc_count[tpair][cur_source[j]]++;
+        for (uint j=0; j < curJ; j++)
+          cooc_count[tpair][cur_source[j]]++;
       }
     }
   }
@@ -407,10 +407,10 @@ void count_cooc_target_pairs_and_source_words(const Storage1D<Storage1D<uint> >&
 
 
 bool operator<(const std::pair<uint,Storage1D<std::pair<uint,uint> > >& x1, 
-	       const std::pair<uint,Storage1D<std::pair<uint,uint> > >& x2) {
+               const std::pair<uint,Storage1D<std::pair<uint,uint> > >& x2) {
 
-//   if (x1.first == x2.first)
-//     std::cerr << "identical: " << x1.first << std::endl;
+  //   if (x1.first == x2.first)
+  //     std::cerr << "identical: " << x1.first << std::endl;
 
   assert(x1.first != x2.first);
 
@@ -427,9 +427,9 @@ bool operator<(const std::pair<uint,uint>& x1, const std::pair<uint,uint>& x2) {
 
 
 void count_cooc_target_pairs_and_source_words(const Storage1D<Storage1D<uint> >& source, 
-					      const Storage1D<Storage1D<uint> >& target,
-					      uint nSourceWords, uint nTargetWords,
-					      Storage1D<Storage1D<std::pair<uint,Storage1D<std::pair<uint,uint> > > > >& cooc) {
+                                              const Storage1D<Storage1D<uint> >& target,
+                                              uint nSourceWords, uint nTargetWords,
+                                              Storage1D<Storage1D<std::pair<uint,Storage1D<std::pair<uint,uint> > > > >& cooc) {
 
 
   cooc.resize(nTargetWords);
@@ -462,21 +462,21 @@ void count_cooc_target_pairs_and_source_words(const Storage1D<Storage1D<uint> >&
 
       for (uint i2 = i1+1; i2 <= curI; i2++) {
 
-	const uint t2 = cur_target[i2-1];
+        const uint t2 = cur_target[i2-1];
 	
-	uint t2_cooc_idx = MAX_UINT;
-	for (uint k=0; k < cur_cooc.size(); k++) {
-	  if (cur_cooc[k].first == t2) {
-	    t2_cooc_idx = k;
-	    break;
-	  }
-	}
+        uint t2_cooc_idx = MAX_UINT;
+        for (uint k=0; k < cur_cooc.size(); k++) {
+          if (cur_cooc[k].first == t2) {
+            t2_cooc_idx = k;
+            break;
+          }
+        }
 
-	if (t2_cooc_idx == MAX_UINT) {
-	  t2_cooc_idx = cur_cooc.size();
-	  cur_cooc.resize(cooc[t1].size()+1);
-	  cur_cooc[t2_cooc_idx].first = t2;
-	}
+        if (t2_cooc_idx == MAX_UINT) {
+          t2_cooc_idx = cur_cooc.size();
+          cur_cooc.resize(cooc[t1].size()+1);
+          cur_cooc[t2_cooc_idx].first = t2;
+        }
       }
     }
   }
@@ -508,51 +508,51 @@ void count_cooc_target_pairs_and_source_words(const Storage1D<Storage1D<uint> >&
       uint start_i2 = (i1 == 0) ? 0 : i1+1;
       for (uint i2 = start_i2; i2 <= curI; i2++) {
 
-	const uint t2 = (i2 == 0) ? 0 : cur_target[i2-1];
+        const uint t2 = (i2 == 0) ? 0 : cur_target[i2-1];
 	
-	uint t2_cooc_idx = MAX_UINT;
-	if (i1 == 0)
-	  t2_cooc_idx = t2;
-	else {
-	  for (uint k=0; k < cur_cooc.size(); k++) {
-	    if (cur_cooc[k].first == t2) {
-	      t2_cooc_idx = k;
-	      break;
-	    }
-	  }
-	}
+        uint t2_cooc_idx = MAX_UINT;
+        if (i1 == 0)
+          t2_cooc_idx = t2;
+        else {
+          for (uint k=0; k < cur_cooc.size(); k++) {
+            if (cur_cooc[k].first == t2) {
+              t2_cooc_idx = k;
+              break;
+            }
+          }
+        }
 
-	if (t2_cooc_idx == MAX_UINT) {
-	  assert(false);
-	  t2_cooc_idx = cur_cooc.size();
-	  cur_cooc.resize(cur_cooc.size()+1);
-	  cur_cooc[t2_cooc_idx].first = t2;
-	}
+        if (t2_cooc_idx == MAX_UINT) {
+          assert(false);
+          t2_cooc_idx = cur_cooc.size();
+          cur_cooc.resize(cur_cooc.size()+1);
+          cur_cooc[t2_cooc_idx].first = t2;
+        }
 
-	//std::pair<uint,Storage1D<std::pair<uint,uint> > >& cur_pair = cur_cooc[t2_cooc_idx];
+        //std::pair<uint,Storage1D<std::pair<uint,uint> > >& cur_pair = cur_cooc[t2_cooc_idx];
 
-	Storage1D<std::pair<uint,uint> >& cur_vec = cur_cooc[t2_cooc_idx].second;
+        Storage1D<std::pair<uint,uint> >& cur_vec = cur_cooc[t2_cooc_idx].second;
 
- 	for (uint j=0; j < curJ; j++) {
+        for (uint j=0; j < curJ; j++) {
 
-	  const uint s_idx = cur_source[j];
+          const uint s_idx = cur_source[j];
 
-	  uint j_cooc_idx = MAX_UINT;
-	  for (uint k=0; k < cur_vec.size(); k++) {
+          uint j_cooc_idx = MAX_UINT;
+          for (uint k=0; k < cur_vec.size(); k++) {
 
-	    if (cur_vec[k].first == s_idx) {
-	      j_cooc_idx = k;
-	      break;
-	    }
-	  }
+            if (cur_vec[k].first == s_idx) {
+              j_cooc_idx = k;
+              break;
+            }
+          }
 
-	  if (j_cooc_idx == MAX_UINT) {
-	    j_cooc_idx = cur_vec.size();
-	    cur_vec.resize(cur_vec.size()+1);
-	    cur_vec[j_cooc_idx] = std::make_pair(s_idx,0);
-	  }
-	  cur_vec[j_cooc_idx].second++;
-	}
+          if (j_cooc_idx == MAX_UINT) {
+            j_cooc_idx = cur_vec.size();
+            cur_vec.resize(cur_vec.size()+1);
+            cur_vec[j_cooc_idx] = std::make_pair(s_idx,0);
+          }
+          cur_vec[j_cooc_idx].second++;
+        }
       }
     }
   }
@@ -567,8 +567,8 @@ void count_cooc_target_pairs_and_source_words(const Storage1D<Storage1D<uint> >&
 
 
 void find_cooccuring_lengths(const Storage1D<Storage1D<uint> >& source, 
-			     const Storage1D<Storage1D<uint> >& target,
-			     CooccuringLengthsType& cooc) {
+                             const Storage1D<Storage1D<uint> >& target,
+                             CooccuringLengthsType& cooc) {
 
   std::map<uint, std::set<uint> > coocvec;
 
@@ -596,9 +596,9 @@ void find_cooccuring_lengths(const Storage1D<Storage1D<uint> >& source,
 }
 
 void generate_wordlookup(const Storage1D<Storage1D<uint> >& source, 
-			 const Storage1D<Storage1D<uint> >& target,
-			 const CooccuringWordsType& cooc,
-			 Storage1D<Math2D::Matrix<uint> >& slookup) {
+                         const Storage1D<Storage1D<uint> >& target,
+                         const CooccuringWordsType& cooc,
+                         Storage1D<Math2D::Matrix<uint> >& slookup) {
 
   const uint nSentences = source.size();
   slookup.resize_dirty(nSentences);
@@ -616,13 +616,13 @@ void generate_wordlookup(const Storage1D<Storage1D<uint> >& source,
       uint tidx = cur_target[i];
       for (uint j=0; j < nCurSourceWords; j++) {
 	
-	uint sidx = cur_source[j];
-	uint* ptr = std::lower_bound(cooc[tidx].direct_access(), cooc[tidx].direct_access()+cooc[tidx].size(),sidx);
-	assert((*ptr) == sidx);
+        uint sidx = cur_source[j];
+        uint* ptr = std::lower_bound(cooc[tidx].direct_access(), cooc[tidx].direct_access()+cooc[tidx].size(),sidx);
+        assert((*ptr) == sidx);
 	
-	uint idx = ptr - cooc[tidx].direct_access();
-	assert(idx < cooc[tidx].size());
-	slookup[s](j,i) = idx;
+        uint idx = ptr - cooc[tidx].direct_access();
+        assert(idx < cooc[tidx].size());
+        slookup[s](j,i) = idx;
       }
     }
   }

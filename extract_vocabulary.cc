@@ -10,8 +10,8 @@ int main(int argc, char** argv) {
   if (argc == 1 || (argc == 2 && strings_equal(argv[1],"-h"))) {
 
     std::cerr << "USAGE: " << argv[0] << std::endl
-	      << "-i <file> : list of sentences " << std::endl
-	      << "-o <file> : output for extracted vocabulary" << std::endl;
+              << "-i <file> : list of sentences " << std::endl
+              << "-o <file> : output for extracted vocabulary" << std::endl;
   }
 
   const int nParams = 2;
