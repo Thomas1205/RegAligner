@@ -31,6 +31,10 @@
 #include "CbcHeuristic.hpp"
 #endif
 
+#ifdef HAS_GZSTREAM
+#include "gzstream.h"
+#endif
+
 #include <fstream>
 #include <set>
 
@@ -827,18 +831,29 @@ void FertilityModelTrainer::compute_coverage_states() {
 
 void FertilityModelTrainer::write_alignments(const std::string filename) const {
 
-  std::ofstream out(filename.c_str());
+  std::ostream* out;
+
+#ifdef HAS_GZSTREAM
+  if (string_ends_with(filename,".gz")) {
+    out = new ogzstream(filename.c_str());
+  }
+  else {
+#else
+  if (true) {
+#endif
+    out = new std::ofstream(filename.c_str());
+  }
 
   for (size_t s=0; s < source_sentence_.size(); s++) {
 
     const uint curJ = source_sentence_[s].size();
 
     for (uint j=0; j < curJ; j++)
-      out << best_known_alignment_[s][j] << " ";
-    out << std::endl;
+      (*out) << best_known_alignment_[s][j] << " ";
+    (*out) << std::endl;
   }
 
-  out.close();
+  delete out;
 }
 
 /************************** implementation of IBM3Trainer *********************/
@@ -1111,7 +1126,7 @@ void IBM3Trainer::par2nonpar_distortion(ReducedIBM3DistortionModel& prob) {
         assert(!isnan(inv_sum));
 
         for (uint j=0; j < J+1; j++)
-          prob[J](j,i) = inv_sum * distortion_param_(j,i);
+          prob[J](j,i) = std::max(1e-8,inv_sum * distortion_param_(j,i));
       }
     }
   }
@@ -2308,8 +2323,10 @@ void IBM3Trainer::train_unconstrained(uint nIter) {
       
       std::cerr << "#### IBM3-AER in between iterations #" << (iter-1) << " and " << iter << ": " << AER() << std::endl;
       
-      std::cerr << "#### IBM3-AER for Viterbi in between iterations #" << (iter-1) << " and " << iter << ": " 
-                << AER(viterbi_alignment) << std::endl;
+      if (viterbi_ilp_) {
+	std::cerr << "#### IBM3-AER for Viterbi in between iterations #" << (iter-1) << " and " << iter << ": " 
+		  << AER(viterbi_alignment) << std::endl;
+      }
       std::cerr << "#### IBM3-fmeasure in between iterations #" << (iter-1) << " and " << iter << ": " << f_measure() << std::endl;
       std::cerr << "#### IBM3-DAE/S in between iterations #" << (iter-1) << " and " << iter << ": " 
                 << DAE_S() << std::endl;

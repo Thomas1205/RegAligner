@@ -17,6 +17,10 @@
 
 #include <fstream>
 
+#ifdef HAS_GZSTREAM
+#include "gzstream.h"
+#endif
+
 int main(int argc, char** argv) {
 
   if (argc == 1 || strings_equal(argv[1],"-h")) {
@@ -319,7 +323,8 @@ int main(int argc, char** argv) {
                            dict, wcooc, nSourceWords, nTargetWords, prior_weight, 
                            true, true, false, l0_fertpen);
   
-  ibm3_trainer.init_from_hmm(hmmalign_model,initial_prob);
+  if (ibm3_iter+ibm4_iter > 0)
+    ibm3_trainer.init_from_hmm(hmmalign_model,initial_prob);
 
   if (ibm3_iter > 0) {
 
@@ -353,9 +358,10 @@ int main(int argc, char** argv) {
                            sure_ref_alignments, possible_ref_alignments,
                            dict, wcooc, nSourceWords, nTargetWords, prior_weight, true, true, true,
                            IBM4FIRST);
-  ibm4_trainer.init_from_ibm3(ibm3_trainer);
 
   if (ibm4_iter > 0) {
+    ibm4_trainer.init_from_ibm3(ibm3_trainer);
+
     if (method == "viterbi")
       ibm4_trainer.train_viterbi(ibm4_iter);
     else
@@ -373,7 +379,20 @@ int main(int argc, char** argv) {
   }
   else {
 
-    std::ofstream alignment_stream(app.getParam("-oa").c_str());
+    std::ostream* alignment_stream;
+
+#ifdef HAS_GZSTREAM
+    if (string_ends_with(app.getParam("-oa"),".gz")) {
+      alignment_stream = new ogzstream(app.getParam("-oa").c_str());
+    }
+    else {
+#else
+    if (true) {
+#endif
+      alignment_stream = new std::ofstream(app.getParam("-oa").c_str());
+    }
+
+    //std::ofstream alignment_stream(app.getParam("-oa").c_str());
 
     Storage1D<uint> viterbi_alignment;
 
@@ -400,11 +419,12 @@ int main(int argc, char** argv) {
 
 
       for (uint j=0; j < viterbi_alignment.size(); j++) 
-        alignment_stream << viterbi_alignment[j] << " ";
-      alignment_stream << std::endl;
+        (*alignment_stream) << viterbi_alignment[j] << " ";
+      (*alignment_stream) << std::endl;
     }
 
-    alignment_stream.close();
+    //alignment_stream.close();
+    delete alignment_stream;
   }
 
   /*** write dictionary ***/

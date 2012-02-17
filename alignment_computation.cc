@@ -103,10 +103,10 @@ double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
   uint last_idx = 1;
 
   for (uint i=0; i < I; i++) {
-    score[0][i] = dict[target_sentence[i]][slookup(0,i)] * initial_prob[i];
+    score[0][i] = std::max(1e-15,dict[target_sentence[i]][slookup(0,i)]) * initial_prob[i];
   }
   for (uint i=I; i < 2*I; i++)
-    score[0][i] = dict[0][source_sentence[0]-1] * initial_prob[i];
+    score[0][i] = std::max(1e-15,dict[0][source_sentence[0]-1]) * initial_prob[i];
 
   //to keep the numbers inside double precision
   double correction_factor = score[0].max();
