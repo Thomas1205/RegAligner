@@ -1458,6 +1458,8 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
   swap_prob.resize(curJ,curJ);
   expansion_prob.resize(curJ,curI+1);
+  swap_prob.set_constant(0.0);
+  expansion_prob.set_constant(0.0);
 
 
   //DEBUG
@@ -4964,6 +4966,9 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(uint s, uint& nIter, M
 
   swap_prob.resize(curJ,curJ);
   expansion_prob.resize(curJ,curI+1);
+  swap_prob.set_constant(0.0);
+  expansion_prob.set_constant(0.0);
+
 
   //DEBUG
   uint count_iter = 0;
