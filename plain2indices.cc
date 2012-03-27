@@ -105,4 +105,5 @@ int main(int argc, char** argv) {
     std::cerr << "WARNING: there are OOV words" << std::endl;
 
   delete plain_stream;
+  delete out_stream;
 }

@@ -28,6 +28,8 @@ int main(int argc, char** argv) {
     std::cerr << "USAGE: " << argv[0] << std::endl
               << " -s <file> : source file (coded as indices)" << std::endl
               << " -t <file> : target file (coded as indices)" << std::endl
+              << " -ds <file> : additional source file (word indices) " << std::endl
+              << " -dt <file> : additional target file (word indices) " << std::endl
               << " [-refa <file>] : file containing gold alignments (sure and possible)" << std::endl
               << " [-invert-biling-data] : switch source and target for prior dict and gold alignments" << std::endl
               << " -method ( em | gd | viterbi ) : use EM, gradient descent or Viterbi training (default EM) " << std::endl
@@ -35,6 +37,7 @@ int main(int argc, char** argv) {
               << " [-sparse-reg] : activate L1-regularity only for rarely occuring target words" << std::endl
               << " [-fertpen <double>]: regularity weight for fertilities in IBM3&4" << std::endl
               << " [-prior-dict <file>] : file for index pairs that occur in a dictionary" << std::endl
+              << " [-l0-beta <double>]" << std::endl
               << " [-hmm-iter <uint> ]: iterations for the HMM model (default 20)" << std::endl
               << " [-ibm1-iter <uint> ]: iterations for the IBM-1 model (default 10)" << std::endl
               << " [-ibm2-iter <uint> ]: iterations for the IBM-2 model (default 0)" << std::endl
@@ -50,8 +53,9 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  const int nParams = 17;
+  const int nParams = 20;
   ParamDescr  params[nParams] = {{"-s",mandInFilename,0,""},{"-t",mandInFilename,0,""},
+                                 {"-ds",optInFilename,0,""},{"-dt",optInFilename,0,""},
                                  {"-o",optOutFilename,0,""},{"-oa",mandOutFilename,0,""},
                                  {"-refa",optInFilename,0,""},{"-invert-biling-data",flag,0,""},
                                  {"-dict-regularity",optWithValue,1,"0.0"},
@@ -59,13 +63,17 @@ int main(int argc, char** argv) {
                                  {"-hmm-iter",optWithValue,1,"20"},{"-method",optWithValue,1,"em"},
                                  {"-ibm1-iter",optWithValue,1,"10"},{"-ibm2-iter",optWithValue,1,"0"},
                                  {"-ibm3-iter",optWithValue,0,""},{"-ibm4-iter",optWithValue,0,""},
-                                 {"-fertpen",optWithValue,1,"0.0"},{"-constraint-mode",optWithValue,1,"unconstrained"}};
+                                 {"-fertpen",optWithValue,1,"0.0"},{"-constraint-mode",optWithValue,1,"unconstrained"},
+				 {"-l0-beta",optWithValue,1,"-1.0"}};
 
   Application app(argc,argv,params,nParams);
 
   NamedStorage1D<Storage1D<uint> > source_sentence(MAKENAME(source_sentence));
   NamedStorage1D<Storage1D<uint> > target_sentence(MAKENAME(target_sentence));
-  
+
+  NamedStorage1D<Storage1D<uint> > dev_source_sentence(MAKENAME(dev_source_sentence));
+  NamedStorage1D<Storage1D<uint> > dev_target_sentence(MAKENAME(dev_target_sentence));  
+
   std::map<uint,std::set<std::pair<uint,uint> > > sure_ref_alignments;
   std::map<uint,std::set<std::pair<uint,uint> > > possible_ref_alignments;
 
@@ -95,11 +103,25 @@ int main(int argc, char** argv) {
 
   double l0_fertpen = convert<double>(app.getParam("-fertpen"));
 
+  double l0_beta = convert<double>(app.getParam("-l0-beta"));
+  bool em_l0 = (l0_beta > 0);
+
   std::clock_t tStartRead, tEndRead;
   tStartRead = std::clock();
 
   read_monolingual_corpus(app.getParam("-s"), source_sentence);
   read_monolingual_corpus(app.getParam("-t"), target_sentence);
+
+  if (app.is_set("-ds") != app.is_set("-dt")) {
+    std::cerr << "WARNING: you need to specify both -ds and -dt . Ignoring additional sentences" << std::endl;
+  }
+
+  bool dev_present = app.is_set("-ds") && app.is_set("-dt");
+
+  if (dev_present) {
+    read_monolingual_corpus(app.getParam("-ds"), dev_source_sentence);
+    read_monolingual_corpus(app.getParam("-dt"), dev_target_sentence);
+  }
 
   tEndRead = std::clock();
   std::cerr << "reading the corpus took " << diff_seconds(tEndRead,tStartRead) << " seconds." << std::endl;
@@ -108,10 +130,14 @@ int main(int argc, char** argv) {
 
   uint nSentences = source_sentence.size();
 
+  uint maxI = 0;
+
   for (size_t s=0; s < source_sentence.size(); s++) {
 
     uint curJ = source_sentence[s].size();
     uint curI = target_sentence[s].size();
+
+    maxI = std::max<uint>(maxI,curI);
 
     if (9*curJ < curI || 9*curI < curJ) {
 
@@ -144,8 +170,13 @@ int main(int argc, char** argv) {
   Math1D::Vector<double> hmm_dist_params;
   double hmm_dist_grouping_param = -1.0;
 
+  HmmAlignProbType train_dist_mode = HmmAlignProbReducedpar;
+  if (method == "viterbi")
+    train_dist_mode = HmmAlignProbFullpar;
+
   std::cerr << "finding cooccuring words" << std::endl;
-  find_cooccuring_words(source_sentence, target_sentence, nSourceWords, nTargetWords, wcooc);
+  find_cooccuring_words(source_sentence, target_sentence, dev_source_sentence, dev_target_sentence, 
+                        nSourceWords, nTargetWords, wcooc);
   
   std::cerr << "generating lookup table" << std::endl;
   Storage1D<Math2D::Matrix<uint> > slookup;
@@ -248,13 +279,13 @@ int main(int argc, char** argv) {
   if (method == "em") {
 
     train_ibm1(source_sentence, slookup, target_sentence, wcooc, nSourceWords, nTargetWords, dict, ibm1_iter,
-               sure_ref_alignments, possible_ref_alignments, prior_weight);
+               sure_ref_alignments, possible_ref_alignments, prior_weight, em_l0, l0_beta);
 
   }
   else if (method == "gd") {
 
     train_ibm1_gd_stepcontrol(source_sentence, slookup, target_sentence, wcooc, nSourceWords, nTargetWords, dict, ibm1_iter,
-                              sure_ref_alignments, possible_ref_alignments, prior_weight); 
+                              sure_ref_alignments, possible_ref_alignments, prior_weight, em_l0, l0_beta); 
   }
   else {
 
@@ -296,21 +327,21 @@ int main(int argc, char** argv) {
 
     train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, nSourceWords, nTargetWords,
                        hmmalign_model, hmm_dist_params, hmm_dist_grouping_param, source_fert,
-                       initial_prob, hmm_init_params, dict, hmm_iter, HmmInitPar, HmmAlignProbReducedpar,
-                       sure_ref_alignments, possible_ref_alignments, prior_weight);
+                       initial_prob, hmm_init_params, dict, hmm_iter, HmmInitPar, train_dist_mode,
+                       sure_ref_alignments, possible_ref_alignments, prior_weight, em_l0, l0_beta);
   }
   else if (method == "gd") {
 
     train_extended_hmm_gd_stepcontrol(source_sentence, slookup, target_sentence, wcooc, nSourceWords, nTargetWords,
                                       hmmalign_model, hmm_dist_params, hmm_dist_grouping_param, source_fert,
-                                      initial_prob, hmm_init_params, dict, 50, HmmInitPar, HmmAlignProbReducedpar,
-                                      sure_ref_alignments, possible_ref_alignments, prior_weight); 
+                                      initial_prob, hmm_init_params, dict, 50, HmmInitPar, train_dist_mode,
+                                      sure_ref_alignments, possible_ref_alignments, prior_weight, em_l0, l0_beta); 
   }
   else {
 
     viterbi_train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, nSourceWords, nTargetWords,
                                hmmalign_model, hmm_dist_params, hmm_dist_grouping_param, source_fert,
-                               initial_prob, hmm_init_params, dict, hmm_iter, HmmInitFix, HmmAlignProbFullpar, false,  
+                               initial_prob, dict, hmm_iter, HmmInitFix, train_dist_mode, false,  
                                sure_ref_alignments, possible_ref_alignments, prior_weight);
   }
   
@@ -321,10 +352,10 @@ int main(int argc, char** argv) {
   IBM3Trainer ibm3_trainer(source_sentence, slookup, target_sentence, 
                            sure_ref_alignments, possible_ref_alignments,
                            dict, wcooc, nSourceWords, nTargetWords, prior_weight, 
-                           true, true, false, l0_fertpen);
+                           true, true, false, l0_fertpen, em_l0, l0_beta);
   
   if (ibm3_iter+ibm4_iter > 0)
-    ibm3_trainer.init_from_hmm(hmmalign_model,initial_prob);
+    ibm3_trainer.init_from_hmm(hmmalign_model,initial_prob,train_dist_mode);
 
   if (ibm3_iter > 0) {
 
@@ -357,7 +388,7 @@ int main(int argc, char** argv) {
   IBM4Trainer ibm4_trainer(source_sentence, slookup, target_sentence, 
                            sure_ref_alignments, possible_ref_alignments,
                            dict, wcooc, nSourceWords, nTargetWords, prior_weight, true, true, true,
-                           IBM4FIRST);
+                           IBM4FIRST, em_l0, l0_beta);
 
   if (ibm4_iter > 0) {
     ibm4_trainer.init_from_ibm3(ibm3_trainer);
@@ -370,12 +401,227 @@ int main(int argc, char** argv) {
     //ibm4_trainer.update_alignments_unconstrained();
   }
 
+  Storage1D<Math2D::Matrix<uint> > dev_slookup;
+  if (dev_present) {
+    generate_wordlookup(dev_source_sentence, dev_target_sentence, wcooc, dev_slookup);
+  }
+
   /*** write alignments ***/
+
+  int max_devJ = 0;
+  int max_devI = 0;
+
+  std::set<uint> dev_seenIs;
+
+  std::string dev_file = app.getParam("-oa") + ".dev";
+  if (string_ends_with(app.getParam("-oa"),".gz"))
+    dev_file += ".gz";
+
+  if (dev_present) {
+    for (size_t s = 0; s < dev_source_sentence.size(); s++) {
+
+      const int curI = dev_target_sentence[s].size();
+      const int curJ = dev_source_sentence[s].size();
+
+      dev_seenIs.insert(curI);
+
+      max_devJ = std::max(max_devJ,curJ);
+      max_devI = std::max(max_devI,curI);	
+
+      //dev_lengthJ[curJ] = std::max(curI,dev_lengthJ[curJ]);
+      //dev_lengthI[curI] = std::max(curJ,dev_lengthI[curI]);
+    }
+  }
+
+  Math1D::Vector<double> dev_hmm_init_params(max_devI,0.0);
+  Math1D::Vector<double> dev_hmm_dist_params(std::max(2*max_devI-1,0),0.0);
+  FullHMMAlignmentModel dev_hmmalign_model(MAKENAME(dev_hmmalign_model));
+  InitialAlignmentProbability dev_initial_prob(MAKENAME(dev_initial_prob));
+
+  uint dev_zero_offset = max_devI - 1;
+
+  if (dev_present) {
+
+    HmmAlignProbType dev_dist_mode = HmmAlignProbReducedpar;
+
+    //if (app.is_set("-viterbi"))
+    if (hmm_dist_grouping_param < 0.0) {
+      dev_dist_mode = HmmAlignProbFullpar;
+    }
+
+    //std::cerr << "AA" << std::endl;
+
+    //handle case where init and/or distance parameters were not estimated above for _train_
+    if (hmm_init_params.size() == 0) {
+
+      hmm_init_params.resize(maxI,0.0);
+
+      for (uint k=0; k < initial_prob.size(); k++) {
+
+	for (uint l=0; l < initial_prob[k].size(); l++) {
+	  if (l < hmm_init_params.size()) 
+	    hmm_init_params[l] += initial_prob[k][l];
+	}
+      }
+
+      double sum = hmm_init_params.sum();
+      assert(sum > 0.0);
+      hmm_init_params *= 1.0 / sum;
+    }
+
+    //std::cerr << "BB" << std::endl;
+
+    if (hmm_dist_params.size() == 0) {
+
+      dev_dist_mode = HmmAlignProbFullpar;
+      hmm_dist_grouping_param = -1.0;
+
+      hmm_dist_params.resize(2*maxI-1,0.0);
+
+      source_fert.resize(2);
+      source_fert.set_constant(0.0);
+    }
+
+    //std::cerr << "CC" << std::endl;
+      
+    uint train_zero_offset = maxI - 1;
+
+    for (uint i=0; i < std::min<uint>(max_devI,hmm_init_params.size()); i++) {
+      dev_hmm_init_params[i] = hmm_init_params[i];	
+	
+      dev_hmm_dist_params[dev_zero_offset - i] = hmm_dist_params[train_zero_offset - i];
+      dev_hmm_dist_params[dev_zero_offset + i] = hmm_dist_params[train_zero_offset + i];
+    }
+
+    //std::cerr << "DD" << std::endl;
+
+    dev_hmmalign_model.resize(max_devI+1);
+    dev_initial_prob.resize(max_devI+1);
+
+    for (std::set<uint>::iterator it = dev_seenIs.begin(); it != dev_seenIs.end(); it++) {
+
+      uint I = *it;
+
+      dev_hmmalign_model[I-1].resize(I+1,I,0.0); //because of empty words
+      dev_initial_prob[I-1].resize(2*I,0.0);
+    }
+
+    //std::cerr << "EE" << std::endl;
+      
+    par2nonpar_hmm_init_model(dev_hmm_init_params, source_fert, HmmInitPar, dev_initial_prob);
+      
+    //std::cerr << "FF" << std::endl;
+
+    par2nonpar_hmm_alignment_model(dev_hmm_dist_params, dev_zero_offset, hmm_dist_grouping_param, source_fert,
+				   dev_dist_mode, dev_hmmalign_model);
+
+    for (uint e=0; e < dict.size(); e++) {
+      if (dict[e].sum() == 0.0)
+	dict[e].set_constant(1e-5);
+    }
+  }
+
+
+
   if (ibm4_iter > 0) {
     ibm4_trainer.write_alignments(app.getParam("-oa"));
+
+    if (dev_present) {
+      
+      std::cerr << "dev sentences present" << std::endl;
+      
+      Storage1D<uint> uint_viterbi_alignment;
+      Math1D::Vector<ushort> viterbi_alignment;
+      
+      std::ostream* dev_alignment_stream;
+      
+#ifdef HAS_GZSTREAM
+      if (string_ends_with(app.getParam("-oa"),".gz")) {
+	dev_alignment_stream = new ogzstream(dev_file.c_str());
+      }
+      else {
+#else
+      if (true) {
+#endif
+        dev_alignment_stream = new std::ofstream(dev_file.c_str());
+      }
+
+      for (size_t s = 0; s < dev_source_sentence.size(); s++) {
+	
+	//std::cerr << "s: " << s << std::endl;
+	
+	const uint curI = dev_target_sentence[s].size();
+	
+	//initialize by HMM
+	compute_ehmm_viterbi_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
+				       dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
+				       uint_viterbi_alignment, false);
+	
+	viterbi_alignment.resize(uint_viterbi_alignment.size());
+	
+	for (uint k=0; k < uint_viterbi_alignment.size(); k++)
+	  viterbi_alignment[k] = uint_viterbi_alignment[k];
+	
+	ibm4_trainer.compute_external_alignment(dev_source_sentence[s],dev_target_sentence[s],dev_slookup[s],
+						viterbi_alignment);
+	
+	for (uint j=0; j < viterbi_alignment.size(); j++) { 
+	  if (viterbi_alignment[j] > 0)
+	    (*dev_alignment_stream) << (viterbi_alignment[j]-1) << " " << j << " ";
+	}
+	
+	(*dev_alignment_stream) << std::endl;
+      }
+      delete dev_alignment_stream;
+    }
   }
   else if (ibm3_iter > 0) {
     ibm3_trainer.write_alignments(app.getParam("-oa"));
+
+    if (dev_present) {
+
+      Storage1D<uint> uint_viterbi_alignment;
+      Math1D::Vector<ushort> viterbi_alignment;
+      
+      std::ostream* dev_alignment_stream;
+      
+#ifdef HAS_GZSTREAM
+      if (string_ends_with(app.getParam("-oa"),".gz")) {
+	dev_alignment_stream = new ogzstream(dev_file.c_str());
+      }
+      else {
+#else
+      if (true) {
+#endif
+        dev_alignment_stream = new std::ofstream(dev_file.c_str());
+      }
+
+      for (size_t s = 0; s < dev_source_sentence.size(); s++) {
+	  
+	const uint curI = dev_target_sentence[s].size();
+	
+	//initialize by HMM
+	compute_ehmm_viterbi_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
+				       dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
+				       uint_viterbi_alignment,false);
+
+	viterbi_alignment.resize(uint_viterbi_alignment.size());
+	
+	for (uint k=0; k < uint_viterbi_alignment.size(); k++)
+	  viterbi_alignment[k] = uint_viterbi_alignment[k];
+	
+	ibm3_trainer.compute_external_alignment(dev_source_sentence[s],dev_target_sentence[s],dev_slookup[s],
+						viterbi_alignment);
+	
+	for (uint j=0; j < viterbi_alignment.size(); j++) { 
+	  if (viterbi_alignment[j] > 0)
+	    (*dev_alignment_stream) << (viterbi_alignment[j]-1) << " " << j << " ";
+	}
+	
+	(*dev_alignment_stream) << std::endl;
+      }
+      delete dev_alignment_stream;
+    }  
   }
   else {
 
@@ -391,8 +637,6 @@ int main(int argc, char** argv) {
 #endif
       alignment_stream = new std::ofstream(app.getParam("-oa").c_str());
     }
-
-    //std::ofstream alignment_stream(app.getParam("-oa").c_str());
 
     Storage1D<uint> viterbi_alignment;
 
@@ -417,14 +661,64 @@ int main(int argc, char** argv) {
         compute_ibm1_viterbi_alignment(source_sentence[s], slookup[s], target_sentence[s], dict, viterbi_alignment);
       }
 
+      for (uint j=0; j < viterbi_alignment.size(); j++) { 
+	if (viterbi_alignment[j] > 0)
+	    (*alignment_stream) << (viterbi_alignment[j]-1) << " " << j << " ";
+      }
 
-      for (uint j=0; j < viterbi_alignment.size(); j++) 
-        (*alignment_stream) << viterbi_alignment[j] << " ";
       (*alignment_stream) << std::endl;
     }
 
-    //alignment_stream.close();
     delete alignment_stream;
+    
+    if (dev_present) {
+      
+      std::ostream* dev_alignment_stream;
+      
+#ifdef HAS_GZSTREAM
+      if (string_ends_with(app.getParam("-oa"),".gz")) {
+	dev_alignment_stream = new ogzstream(dev_file.c_str());
+      }
+      else {
+#else
+      if (true) {
+#endif
+        dev_alignment_stream = new std::ofstream(dev_file.c_str());
+      }
+	
+	
+      for (size_t s = 0; s < dev_source_sentence.size(); s++) {
+          
+	const uint curI = dev_target_sentence[s].size();
+        
+	if (hmm_iter > 0) {
+	  
+	  compute_ehmm_viterbi_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
+					 dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
+					 viterbi_alignment, false);
+	}
+	else if (ibm2_iter > 0) {
+	    
+	  if (s == 0) 
+	    std::cerr << "Warning: derivation of alignments for IBM-2 is currently only supported on the training set" 
+		      << std::endl;
+	}
+	else {
+	  
+	  compute_ibm1_viterbi_alignment(dev_source_sentence[s], dev_slookup[s], 
+					 dev_target_sentence[s], dict, viterbi_alignment);
+	}
+
+	for (uint j=0; j < viterbi_alignment.size(); j++) { 
+	  if (viterbi_alignment[j] > 0)
+	    (*dev_alignment_stream) << (viterbi_alignment[j]-1) << " " << j << " ";
+	}
+	
+	(*dev_alignment_stream) << std::endl;
+      }
+      
+      delete dev_alignment_stream;
+    }    
   }
 
   /*** write dictionary ***/
@@ -439,6 +733,5 @@ int main(int argc, char** argv) {
     }
     out.close();
   }
-
 
 }

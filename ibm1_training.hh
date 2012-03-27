@@ -22,7 +22,8 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
                 uint nIterations,
                 std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
                 std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments,
-                const floatSingleWordDictionary& prior_weight);
+                const floatSingleWordDictionary& prior_weight,
+                bool smoothed_l0 = false, double l0_beta = 1.0);
 
 void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source, 
                                const Storage1D<Math2D::Matrix<uint> >& slookup,
@@ -33,11 +34,13 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
                                uint nIterations,
                                std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
                                std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments,
-                               const floatSingleWordDictionary& prior_weight);
+                               const floatSingleWordDictionary& prior_weight,
+                               bool smoothed_l0 = false, double l0_beta = 1.0);
 
 void dict_m_step(const SingleWordDictionary& fdict_count, 
                  const floatSingleWordDictionary& prior_weight,
-                 SingleWordDictionary& dict, double alpha, uint nIter = 100);
+                 SingleWordDictionary& dict, double alpha, uint nIter = 100,
+                 bool smoothed_l0 = false, double l0_beta = 1.0);
 
 
 
@@ -51,6 +54,10 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
                            std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
                            std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments,
                            const floatSingleWordDictionary& prior_weight);
+
+double prob_penalty(double x, double beta);
+
+double prob_pen_prime(double x, double beta);
 
 
 #endif

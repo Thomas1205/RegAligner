@@ -108,11 +108,11 @@ public:
               const floatSingleWordDictionary& prior_weight,
               bool parametric_distortion = false,
               bool och_ney_empty_word = true,
-              bool viterbi_ilp = false,
-              double l0_fertpen = 0.0);
+              bool viterbi_ilp = false, double l0_fertpen = 0.0,
+              bool smoothed_l0 = false, double l0_beta = 1.0);
   
   void init_from_hmm(const FullHMMAlignmentModel& align_model,
-                     const InitialAlignmentProbability& initial_prob);
+                     const InitialAlignmentProbability& initial_prob, HmmAlignProbType align_type);
 
   //training without constraints on maximal fertility or uncovered positions.
   //This is based on the EM-algorithm, where the E-step uses heuristics
@@ -130,6 +130,12 @@ public:
 
   double p_zero() const;
 
+  double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+                                    const Math2D::Matrix<uint>& lookup,
+                                    Math1D::Vector<ushort>& alignment, bool ilp=false);
+
+  void release_memory();
+  
 protected:
 
   void par2nonpar_distortion(ReducedIBM3DistortionModel& prob);
@@ -146,9 +152,8 @@ protected:
 
   //improves the currently best known alignment using hill climbing and
   // returns the probability of the resulting alignment
-  long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target,
-                                               const Math2D::Matrix<uint>& lookup,
-                                               uint& nIter, Math1D::Vector<uint>& fertility,
+  long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
+                                               const Math2D::Matrix<uint>& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
                                                Math2D::Matrix<long double>& expansion_prob,
                                                Math2D::Matrix<long double>& swap_prob, Math1D::Vector<ushort>& alignment);
 
@@ -156,7 +161,7 @@ protected:
 
   //@param time_limit: maximum amount of seconds spent in the ILP-solver.
   //          values <= 0 indicate that no time limit is set
-  long double compute_viterbi_alignment_ilp(const Storage1D<uint>& source, const Storage1D<uint>& target,
+  long double compute_viterbi_alignment_ilp(const Storage1D<uint>& source, const Storage1D<uint>& target, 
                                             const Math2D::Matrix<uint>& lookup, uint max_fertility,
                                             Math1D::Vector<ushort>& alignment, double time_limit = -1.0);
 
@@ -175,6 +180,8 @@ protected:
   double l0_fertpen_;
   bool parametric_distortion_;
   bool viterbi_ilp_;
+  bool smoothed_l0_;
+  double l0_beta_;
 };
 
 enum IBM4CeptStartMode { IBM4CENTER, IBM4FIRST, IBM4LAST, IBM4UNIFORM };
@@ -194,10 +201,11 @@ public:
               bool och_ney_empty_word = false,
               bool use_sentence_start_prob = false,
               bool no_factorial = true,
-              IBM4CeptStartMode cept_start_mode = IBM4CENTER);
+              IBM4CeptStartMode cept_start_mode = IBM4CENTER,
+              bool smoothed_l0 = false, double l0_beta = 1.0);
 
 
-  void init_from_ibm3(IBM3Trainer& ibm3trainer);
+  void init_from_ibm3(IBM3Trainer& ibm3trainer, bool clear_ibm3 = true);
 
   //training without constraints on maximal fertility or uncovered positions.
   //This is based on the EM-algorithm where the E-step uses heuristics
@@ -208,23 +216,55 @@ public:
 
   void update_alignments_unconstrained();
 
+  double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+                                    const Math2D::Matrix<uint>& lookup,
+                                    Math1D::Vector<ushort>& alignment);
+
 protected:
+
+  long double alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
+                             const Math2D::Matrix<uint>& lookup, const Math1D::Vector<ushort>& alignment) const;
 
   long double alignment_prob(uint s, const Math1D::Vector<ushort>& alignment) const;
 
-  long double alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target,
-                             const Math2D::Matrix<uint>& lookup, const Math1D::Vector<ushort>& alignment) const;
-
-  long double update_alignment_by_hillclimbing(uint s, uint& nIter, Math1D::Vector<uint>& fertility,
+  long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
+                                               const Math2D::Matrix<uint>& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
                                                Math2D::Matrix<long double>& expansion_prob,
-                                               Math2D::Matrix<long double>& swap_prob);
+                                               Math2D::Matrix<long double>& swap_prob, Math1D::Vector<ushort>& alignment);
+
+  void par2nonpar_inter_distortion();
+
+  void par2nonpar_intra_distortion();
+
+  void par2nonpar_start_prob();
+
+  double inter_distortion_m_step_energy(const Storage1D<Storage2D<Math2D::Matrix<double> > >& inter_distort_count,
+                                        const Math3D::Tensor<double>& inter_param, uint class1 = 0, uint class2 = 0);
+
+  double intra_distortion_m_step_energy(const Storage1D<Math3D::Tensor<double> >& intra_distort_count,
+                                        const Math2D::Matrix<double>& intra_param, uint word_class = 0);
+
+  void inter_distortion_m_step(const Storage1D<Storage2D<Math2D::Matrix<double> > >& inter_distort_count,
+                               uint class1 = 0, uint class2 = 0);
+
+  void intra_distortion_m_step(const Storage1D<Math3D::Tensor<double> >& intra_distort_count,
+                               uint word_class = 0);
+
+  double start_prob_m_step_energy(const Storage1D<Math1D::Vector<double> >& start_count, Math1D::Vector<double>& param);
+
+  void start_prob_m_step(const Storage1D<Math1D::Vector<double> >& start_count);
+
 
   //indexed by (target word class idx, source word class idx, displacement)
   IBM4CeptStartModel cept_start_prob_; //note: displacements of 0 are possible here (the center of a cept need not be an aligned word)
   //indexed by (source word class, displacement)
   IBM4WithinCeptModel within_cept_prob_; //note: displacements of 0 are impossible
 
-  Math1D::NamedVector<double> sentence_start_prob_;
+  Math1D::NamedVector<double> sentence_start_parameters_;
+  Storage1D<Math1D::Vector<double> > sentence_start_prob_;
+
+  Storage1D<Storage2D<Math2D::Matrix<double> > > inter_distortion_prob_;
+  Storage1D<Math3D::Tensor<double> > intra_distortion_prob_;
 
   uint displacement_offset_;
 
@@ -236,6 +276,8 @@ protected:
   bool use_sentence_start_prob_;
   bool no_factorial_;
   const floatSingleWordDictionary& prior_weight_;
+  bool smoothed_l0_;
+  double l0_beta_;
 };
 
 

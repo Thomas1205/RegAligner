@@ -81,10 +81,18 @@ to the command line.
 to activate the penalization of mass as in [Schoenemann, IJCNLP 2011],
 add 
 
--sparse-reg -dict-regularity 5.0
+-sparse-reg -dict-regularity 2.5
 
 (or any other value) to the command line. Make sure that you are NOT using
 Viterbi training (e.g. that -method gets the default value of "em").
+
+***** Activating EM-Training with L0-terms ***
+
+to do this, add
+
+-dict-regularity 5.0 -l0-beta 0.1
+
+(or comparable values)
 
 ***** Viterbi-training with or without L0-terms ****
 
@@ -96,7 +104,7 @@ To activate Viterbi training (with ICM-stages as in [Schoenemann, CoNLL
 to the command line. If you further wish to activate the L0-regularity (which
 is recommended for Viterbi training), add 
 
--dict-regularity 2.5
+-dict-regularity 5.0
 
 (or any other value) to the command line.
 

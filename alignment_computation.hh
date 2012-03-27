@@ -31,7 +31,8 @@ double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
                                       const SingleWordDictionary& dict,
                                       const Math2D::Matrix<double>& align_prob,
                                       const Math1D::Vector<double>& initial_prob,
-                                      Storage1D<uint>& viterbi_alignment, bool internal_mode = false);
+                                      Storage1D<uint>& viterbi_alignment, 
+				      bool internal_mode = false, bool verbose = false);
 
 void compute_ehmm_optmarginal_alignment(const Storage1D<uint>& source_sentence,
                                         const Math2D::Matrix<uint>& slookup,
@@ -40,7 +41,6 @@ void compute_ehmm_optmarginal_alignment(const Storage1D<uint>& source_sentence,
                                         const Math2D::Matrix<double>& align_prob,
                                         const Math1D::Vector<double>& initial_prob,
                                         Storage1D<uint>& optmarginal_alignment);
-
 
 
 #endif

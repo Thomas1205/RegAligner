@@ -4,13 +4,30 @@
 #include "stringprocessing.hh"
 #include "alignment_error_rate.hh"
 #include <fstream>
+#include "fileio.hh"
+
+#ifdef HAS_GZSTREAM
+#include "gzstream.h"
+#endif
 
 void read_reference_alignment(std::string filename, 
                               std::map<uint,std::set<std::pair<uint,uint> > >& sure_alignments,
                               std::map<uint,std::set<std::pair<uint,uint> > >& possible_alignments, 
                               bool invert) {
 
-  std::ifstream astream(filename.c_str());
+  std::istream* astream;
+#ifdef HAS_GZSTREAM
+  if (is_gzip_file(filename)) {
+    igzstream* new_stream= new igzstream;
+    new_stream->open(filename.c_str());
+    astream = new_stream;
+  }
+  else {
+    astream = new std::ifstream(filename.c_str());
+  }
+#else
+  astream = new std::ifstream(filename.c_str());
+#endif
 
   char cline[65536];
   std::string line;
@@ -19,11 +36,15 @@ void read_reference_alignment(std::string filename,
 
   uint nLines = 1;
 
-  while (astream.getline(cline,65536)) {
+  while (astream->getline(cline,65536)) {
+    //std::cerr << "line: " << line << std::endl;
+
     line = cline;
     tokenize(line,tokens,' ');
     
-    if (tokens[0][0] != '#') {
+    //std::cerr << tokens.size() << " tokens" << std::endl;
+
+    if (tokens.size() == 0 || tokens[0].size() == 0 || tokens[0][0] != '#') {
       std::cerr << "WARNING: no line number given in line " << nLines << ". line is ignored" << std::endl;
     }
     else {
@@ -59,6 +80,8 @@ void read_reference_alignment(std::string filename,
     
     nLines++;
   }
+
+  delete astream;
 }
 
 void write_reference_alignment(std::string filename, 

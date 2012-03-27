@@ -23,7 +23,8 @@ double extended_hmm_perplexity(const Storage1D<Storage1D<uint> >& source,
                                const Storage1D<Storage1D<uint> >& target,
                                const FullHMMAlignmentModel& align_model,
                                const InitialAlignmentProbability& initial_prob,
-                               const SingleWordDictionary& dict) {
+                               const SingleWordDictionary& dict,
+			       HmmAlignProbType align_type = HmmAlignProbNonpar) {
 
   double sum = 0.0;
 
@@ -44,18 +45,19 @@ double extended_hmm_perplexity(const Storage1D<Storage1D<uint> >& source,
 
     Math2D::NamedMatrix<double> forward(2*curI,curJ,MAKENAME(forward));
 
-    calculate_hmm_forward(cur_source,cur_target,cur_lookup, dict,
-                          cur_align_model, initial_prob[curI-1], forward);
-      
-    const uint start_s_idx = cur_source[0];
-    
+    if (align_type == HmmAlignProbReducedpar) {
+
+      calculate_hmm_forward_with_tricks(cur_source, cur_target, cur_lookup, dict, cur_align_model,
+					initial_prob[curI-1], forward);
+    }
+    else {
+
+      calculate_hmm_forward(cur_source, cur_target, cur_lookup, dict, cur_align_model,
+			    initial_prob[curI-1], forward);
+    }
+
     double sentence_prob = 0.0;
     for (uint i=0; i < 2*curI; i++) {
-      
-      // 	if (!(forward(i,curJ-1) >= 0.0)) {
-	  
-      // 	  std::cerr << "s=" << s << ", I=" << curI << ", i= " << i << ", value " << forward(i,curJ-1) << std::endl;
-      // 	}
       
       assert(forward(i,curJ-1) >= 0.0);
       sentence_prob += forward(i,curJ-1);
@@ -77,7 +79,8 @@ double extended_hmm_energy(const Storage1D<Storage1D<uint> >& source,
                            const FullHMMAlignmentModel& align_model,
                            const InitialAlignmentProbability& initial_prob,
                            const SingleWordDictionary& dict,
-                           const floatSingleWordDictionary& prior_weight) {
+                           const floatSingleWordDictionary& prior_weight,
+			   HmmAlignProbType align_type = HmmAlignProbNonpar) {
   
   double energy = 0.0;
 
@@ -86,19 +89,15 @@ double extended_hmm_energy(const Storage1D<Storage1D<uint> >& source,
       energy += prior_weight[i][k] * dict[i][k];
     }
 
-  //std::cerr << "before dividing: " << energy << std::endl;
-
   energy /= source.size();
 
-  //std::cerr << "before adding perplexity: " << energy << std::endl;
-
-  energy += extended_hmm_perplexity(source,slookup,target,align_model,initial_prob,dict);
+  energy += extended_hmm_perplexity(source,slookup,target,align_model,initial_prob,dict,align_type);
 
   return energy;
 }
 
-double ehmm_m_step_energy(const FullHMMAlignmentModel& facount, const Math1D::Vector<double>& dist_params, uint zero_offset,
-                          double grouping_param = -1.0) {
+double ehmm_m_step_energy(const FullHMMAlignmentModel& facount, const Math1D::Vector<double>& dist_params, 
+                          uint zero_offset, double grouping_param = -1.0) {
 
   double energy = 0.0;
 
@@ -255,7 +254,6 @@ void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& d
     //std::cerr << "gradient: " << m_dist_grad << std::endl;
 
     //go in gradient direction
-    //double alpha  = 0.0001;
     double alpha  = 0.001;
 
     for (uint k=0; k < dist_params.size(); k++)
@@ -263,23 +261,16 @@ void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& d
 
     new_grouping_param = grouping_param - alpha * m_grouping_grad;
 
-    //std::cerr << "new params before projection: " << new_dist_params << std::endl;
-
     // reproject
     if (grouping_param < 0.0)      
       projection_on_simplex(new_dist_params.direct_access(),dist_params.size());
     else
       projection_on_simplex_with_slack(new_dist_params.direct_access()+zero_offset-5,new_grouping_param,11);
 
-    //std::cerr << "new params after projection: " << new_dist_params << std::endl;
-    //std::cerr << "new params: " << new_dist_params << std::endl;
-
     //find step-size
 
     double best_energy = ehmm_m_step_energy(facount, new_dist_params, zero_offset, new_grouping_param);
     
-    //std::cerr << "fullstep energy: " << hyp_energy << std::endl;
-
     double lambda = 1.0;
     double line_reduction_factor = 0.5;
     double best_lambda = lambda;
@@ -316,8 +307,6 @@ void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& d
       else {
         decreasing = false;
       }
-
-      //std::cerr << "hyp energy: " << new_energy << std::endl;      
     }
 
     if (nIter > 15) 
@@ -333,8 +322,6 @@ void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& d
 
     if (grouping_param >= 0.0) 
       grouping_param = best_lambda * new_grouping_param + neg_best_lambda * grouping_param;
-
-    //std::cerr << "updated params: " << dist_params << std::endl;
   }  
 
 }
@@ -408,8 +395,6 @@ void ehmm_init_m_step(const InitialAlignmentProbability& init_acount, Math1D::Ve
       }
     }    
 
-    //std::cerr << "gradient calculated" << std::endl;
-
     double alpha  = 0.0001;
 
     for (uint k=0; k < init_params.size(); k++) {
@@ -417,17 +402,11 @@ void ehmm_init_m_step(const InitialAlignmentProbability& init_acount, Math1D::Ve
       assert(!isnan(new_init_params[k]));
     }
 
-    //std::cerr << "projecting " << new_init_params << std::endl;
-
     // reproject
     projection_on_simplex(new_init_params.direct_access(),init_params.size());
 
-    //std::cerr << "projection done" << std::endl;
-
     //find step-size
     double hyp_energy = ehmm_init_m_step_energy(init_acount, new_init_params);
-    
-    //std::cerr << "fullstep energy: " << hyp_energy << std::endl;
 
     double lambda = 1.0;
     double line_reduction_factor = 0.5;
@@ -443,7 +422,6 @@ void ehmm_init_m_step(const InitialAlignmentProbability& init_acount, Math1D::Ve
       
       hyp_energy = ehmm_init_m_step_energy(init_acount, hyp_init_params);
 
-      //std::cerr << "hyp energy: " << hyp_energy << std::endl;
     }
 
     energy = hyp_energy;
@@ -534,9 +512,12 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
                         uint nIterations, HmmInitProbType init_type, HmmAlignProbType align_type,
                         std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
                         std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments,
-                        const floatSingleWordDictionary& prior_weight) {
+                        const floatSingleWordDictionary& prior_weight,
+                        bool smoothed_l0, double l0_beta) {
 
   std::cerr << "starting Extended HMM EM-training" << std::endl;
+
+  dist_grouping_param = -1.0;
 
   double dict_weight_sum = 0.0;
   for (uint i=0; i < nTargetWords; i++) {
@@ -580,7 +561,6 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
   Math1D::NamedVector<double> dist_count(0,MAKENAME(dist_count));
 
-  dist_grouping_param = -1.0;
   double dist_grouping_count = -1.0;
 
   Math1D::Vector<double> source_fert_count(0);
@@ -746,18 +726,21 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
       Math2D::NamedMatrix<long double> forward(2*curI,curJ,MAKENAME(forward));
 
-      calculate_hmm_forward(cur_source,cur_target,cur_lookup, dict,
-                            cur_align_model, initial_prob[curI-1], forward);
+      if (align_type == HmmAlignProbReducedpar) {
+
+       	calculate_hmm_forward_with_tricks(cur_source, cur_target, cur_lookup, dict, cur_align_model,
+       					  initial_prob[curI-1], forward);
+      }
+      else {
+
+	calculate_hmm_forward(cur_source, cur_target, cur_lookup, dict, cur_align_model,
+			      initial_prob[curI-1], forward);
+      }
 
       const uint start_s_idx = cur_source[0];
 
       long double sentence_prob = 0.0;
       for (uint i=0; i < 2*curI; i++) {
-
-        // 	if (!(forward(i,curJ-1) >= 0.0)) {
-	  
-        // 	  std::cerr << "s=" << s << ", I=" << curI << ", i= " << i << ", value " << forward(i,curJ-1) << std::endl;
-        // 	}
 
         assert(forward(i,curJ-1) >= 0.0);
         sentence_prob += forward(i,curJ-1);
@@ -774,10 +757,18 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       assert(sentence_prob > 0.0);
       
       Math2D::NamedMatrix<long double> backward(2*curI,curJ,MAKENAME(backward));
-      calculate_hmm_backward(cur_source,cur_target,cur_lookup, dict,
-                             cur_align_model, initial_prob[curI-1], backward,true);
 
-      //const uint end_s_idx = cur_source[curJ-1];
+      if (align_type == HmmAlignProbReducedpar) {
+  
+	calculate_hmm_backward_with_tricks(cur_source, cur_target, cur_lookup, dict, cur_align_model,
+					   initial_prob[curI-1], backward);
+	
+      }
+      else {
+
+	calculate_hmm_backward(cur_source, cur_target, cur_lookup, dict, cur_align_model,
+			       initial_prob[curI-1], backward, true);
+      }
 
       long double bwd_sentence_prob = 0.0;
       for (uint i=0; i < 2*curI; i++)
@@ -882,8 +873,6 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
         }
       }
 
-      //std::cerr << "dist_params: " << dist_params << std::endl;
-
       if (align_type == HmmAlignProbFullpar) {
 
         if (iter <= 10) {
@@ -906,11 +895,6 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
           dist_params *= 1.0 / norm;
           dist_grouping_param = dist_grouping_count / norm;
         }
-
-        //DEBUG
-        //dist_params.set_constant(0.9 / 11.0);
-        //dist_grouping_param = 0.1;
-        //END_DEBUG
 
         //call m-step
         ehmm_m_step(facount, dist_params, zero_offset, 25, dist_grouping_param);
@@ -953,31 +937,34 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
     if (dict_weight_sum > 0.0) {
 
-      for (uint i=0; i < nTargetWords; i++) {
+      //if (iter <= 10) {
+      if (true) {
+        for (uint i=0; i < nTargetWords; i++) {
 	  
-        double prev_sum = dict[i].sum();
-        double sum = fwcount[i].sum();
-        if (sum >= 1e-50) {
+          double prev_sum = dict[i].sum();
+          double sum = fwcount[i].sum();
+          if (sum >= 1e-50) {
 	    
-          const double inv_sum = 1.0 / fwcount[i].sum();
+            const double inv_sum = 1.0 / fwcount[i].sum();
 	    
-          if (isnan(inv_sum)) {
-            std::cerr << "invsum " << inv_sum << " for target word #" << i << std::endl;
-            std::cerr << "sum = " << fwcount[i].sum() << std::endl;
-            std::cerr << "number of cooccuring source words: " << fwcount[i].size() << std::endl;
-          }
-	  
-          assert(!isnan(inv_sum));
-	  
-          for (uint k=0; k < fwcount[i].size(); k++) {
-            dict[i][k] = fwcount[i][k] * prev_sum * inv_sum;
+            if (isnan(inv_sum)) {
+              std::cerr << "invsum " << inv_sum << " for target word #" << i << std::endl;
+              std::cerr << "sum = " << fwcount[i].sum() << std::endl;
+              std::cerr << "number of cooccuring source words: " << fwcount[i].size() << std::endl;
+            }
+	    
+            assert(!isnan(inv_sum));
+	    
+            for (uint k=0; k < fwcount[i].size(); k++) {
+              dict[i][k] = fwcount[i][k] * prev_sum * inv_sum;
+            }
           }
         }
       }
 
       double alpha = 1.0;
 
-      dict_m_step(fwcount, prior_weight, dict, alpha, 45);
+      dict_m_step(fwcount, prior_weight, dict, alpha, 45, smoothed_l0, l0_beta);
     }
     else {
 
@@ -985,7 +972,8 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 	
         double sum = fwcount[i].sum();
         if (sum <= 1e-150) {
-          std::cerr << "WARNING: sum of dictionary counts is almost 0" << std::endl;
+	  if (dict[i].size() > 0)
+	    std::cerr << "WARNING: sum of dictionary counts is almost 0" << std::endl;
         }
         else {
           const double inv_sum = 1.0 / fwcount[i].sum();
@@ -1104,7 +1092,8 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       sum_fmeasure /= nContributors;
       
       std::cerr << "#### EHMM energy after iteration # " << iter << ": " 
-                <<  extended_hmm_energy(source, slookup, target, align_model, initial_prob, dict, prior_weight) << std::endl;
+                <<  extended_hmm_energy(source, slookup, target, align_model, initial_prob, dict, prior_weight, align_type) 
+		<< std::endl;
       std::cerr << "#### EHMM Viterbi-AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
       std::cerr << "---- EHMM Marginal-AER : " << sum_marg_aer << " %" << std::endl;
       std::cerr << "#### EHMM Viterbi-fmeasure after iteration #" << iter << ": " << sum_fmeasure << std::endl;
@@ -1129,9 +1118,12 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
                                        uint nIterations, HmmInitProbType init_type, HmmAlignProbType align_type,
                                        std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
                                        std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments,
-                                       const floatSingleWordDictionary& prior_weight) {
+                                       const floatSingleWordDictionary& prior_weight,
+                                       bool smoothed_l0, double l0_beta) {
 
   std::cerr << "starting Extended HMM GD-training" << std::endl;
+
+  dist_grouping_param = -1.0;
 
   if (init_type >= HmmInitInvalid) {
     
@@ -1184,7 +1176,6 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
   Math1D::Vector<double> empty_count(maxI,0.0);
   Math1D::Vector<double> real_count(maxI,0.0);
 
-  dist_grouping_param = 0.0;
   double dist_grouping_grad = 0.0;
   double new_dist_grouping_param = 0.0;
   double hyp_dist_grouping_param = 0.0;
@@ -1333,7 +1324,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
     new_slack_vector[i] = slack_val;
   }
 
-  double energy = extended_hmm_energy(source, slookup, target, align_model, initial_prob, dict, prior_weight);
+  double energy = extended_hmm_energy(source, slookup, target, align_model, initial_prob, dict, prior_weight, align_type);
 
 
   double line_reduction_factor = 0.5;
@@ -1342,8 +1333,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
   std::cerr << "start energy: " << energy << std::endl;
 
-  //double alpha = 0.005; //0.002;
-  double alpha = 0.001; //(align_type == HmmAlignProbReducedpar) ? 0.0025 : 0.001;
+  double alpha = 0.001; 
 
   for (uint iter = 1; iter <= nIterations; iter++) {
 
@@ -1388,17 +1378,21 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
       Math2D::NamedMatrix<long double> forward(2*curI,curJ,MAKENAME(forward));
 
-      calculate_hmm_forward(cur_source,cur_target,cur_lookup, dict,
-                            cur_align_model, initial_prob[curI-1], forward);      
+      if (align_type == HmmAlignProbReducedpar) {
 
+       	calculate_hmm_forward_with_tricks(cur_source, cur_target, cur_lookup, dict, cur_align_model,
+       					  initial_prob[curI-1], forward);
+      }
+      else {
+
+	calculate_hmm_forward(cur_source, cur_target, cur_lookup, dict, cur_align_model,
+			      initial_prob[curI-1], forward);
+      }
+      
       const uint start_s_idx = cur_source[0];
 
       long double sentence_prob = 0.0;
       for (uint i=0; i < 2*curI; i++) {
-
-        // 	if (!(forward(i,curJ-1) >= 0.0)) {	  
-        // 	  std::cerr << "s=" << s << ", I=" << curI << ", i= " << i << ", value " << forward(i,curJ-1) << std::endl;
-        // 	}
 
         assert(forward(i,curJ-1) >= 0.0);
         sentence_prob += forward(i,curJ-1);
@@ -1413,26 +1407,18 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
       assert(sentence_prob > 0.0);
       
       Math2D::NamedMatrix<long double> backward(2*curI,curJ,MAKENAME(backward));
-      //const uint end_s_idx = cur_source[curJ-1];
 
-      calculate_hmm_backward(cur_source,cur_target,cur_lookup, dict,
-                             cur_align_model, initial_prob[curI-1], backward, true);
-
-
-      //       long double bwd_sentence_prob = 0.0;
-      //       for (uint i=0; i < 2*curI; i++)
-      // 	bwd_sentence_prob += backward(i,0);
-
-      //       long double fwd_bwd_ratio = sentence_prob / bwd_sentence_prob;
-
-      //       if (fwd_bwd_ratio < 0.999 || fwd_bwd_ratio > 1.001) {
+      if (align_type == HmmAlignProbReducedpar) {
+  
+	calculate_hmm_backward_with_tricks(cur_source, cur_target, cur_lookup, dict, cur_align_model,
+					   initial_prob[curI-1], backward);
 	
-      // 	std::cerr << "fwd_bwd_ratio of " << fwd_bwd_ratio << " for sentence pair " << s << " with I=" << curI
-      // 		  << ", J= " << curJ << std::endl;
-      //       }
+      }
+      else {
 
-      //       assert(fwd_bwd_ratio < 1.001);
-      //       assert(fwd_bwd_ratio > 0.999);
+	calculate_hmm_backward(cur_source, cur_target, cur_lookup, dict, cur_align_model,
+			       initial_prob[curI-1], backward, true);
+      }
 
       const long double inv_sentence_prob = 1.0 / sentence_prob;
 
@@ -1448,7 +1434,10 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
         if (cur_dict_entry > 1e-300) {
 
-          dict_grad[t_idx][cur_lookup(0,i)] -= coeff / cur_dict_entry;
+          double addon = coeff / cur_dict_entry;
+          if (smoothed_l0)
+            addon *= prob_pen_prime(cur_dict_entry, l0_beta);
+          dict_grad[t_idx][cur_lookup(0,i)] -= addon;
         }
 
         if (initial_prob[curI-1][i] > 1e-300)
@@ -1458,8 +1447,15 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
         const double coeff = inv_sentence_prob * backward(i+curI,0);
 
-        if (dict[0][start_s_idx-1] > 1e-300) {
-          dict_grad[0][start_s_idx-1] -= coeff / dict[0][start_s_idx-1];
+        const double cur_dict_entry = dict[0][start_s_idx-1];
+
+        if (cur_dict_entry > 1e-300) {
+
+          double addon = coeff / cur_dict_entry;
+          if (smoothed_l0)
+            addon *= prob_pen_prime(cur_dict_entry, l0_beta);
+
+          dict_grad[0][start_s_idx-1] -= addon;
         }
 
         if (initial_prob[curI-1][i+curI] > 1e-300)
@@ -1479,8 +1475,13 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
           if (cur_dict_entry > 1e-70) {
 
-            dict_grad[t_idx][cur_lookup(j,i)] -= forward(i,j)*backward(i,j) 
+            double dict_addon = forward(i,j)*backward(i,j) 
               / (sentence_prob * cur_dict_entry * cur_dict_entry);
+
+            if (smoothed_l0)
+              dict_addon *= prob_pen_prime(cur_dict_entry, l0_beta);
+
+            dict_grad[t_idx][cur_lookup(j,i)] -= dict_addon;
 
             const long double bw = backward(i,j) / sentence_prob;
 
@@ -1507,8 +1508,17 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
           const long double bw = backward(i,j) * inv_sentence_prob;
 
-          if (dict[0][s_idx-1] > 1e-70)
-            dict_grad[0][s_idx-1] -= bw*forward(i,j) / (dict[0][s_idx-1] * dict[0][s_idx-1]);
+          const double cur_dict_entry = dict[0][s_idx-1];
+
+          if (cur_dict_entry > 1e-70) {
+
+            double addon = bw*forward(i,j) / (cur_dict_entry * cur_dict_entry);
+
+            if (smoothed_l0)
+              addon *= prob_pen_prime(cur_dict_entry, l0_beta);
+
+            dict_grad[0][s_idx-1] -= addon;
+          }
 
           const long double align_addon = bw * (forward(i,j_prev) + forward(i-curI,j_prev));
           if (align_type != HmmAlignProbNonpar) {
@@ -1537,7 +1547,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
             double cur_grad = init_grad[I-1][i];
             source_fert_grad[1] += cur_grad;
 
-            double factor = source_fert[1] / (sum * sum);
+            const double factor = source_fert[1] / (sum * sum);
 
             for (uint ii=0; ii < I; ii++) {
 	      
@@ -1722,8 +1732,6 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
       projection_on_simplex_with_slack(new_dict_prob[i].direct_access(),new_slack_vector[i],new_dict_prob[i].size());
     }
 
-    //std::cerr << "new params: " << new_dist_params << std::endl;
-
     for (uint I = 1; I <= maxI; I++) {
       projection_on_simplex(new_init_prob[I-1].direct_access(),new_init_prob[I-1].size());
 
@@ -1735,12 +1743,6 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
         }
       }
     }
-
-    //std::cerr << "previous source fert prob: " << source_fert << std::endl;
-    //std::cerr << "new source fert prob: " << new_source_fert << std::endl;
-
-    //     double hyp_energy = extended_hmm_energy(source, slookup, target, new_align_prob, 
-    // 					    new_init_prob, new_dict_prob, prior_weight); 
 
     double hyp_energy = 1e300;
 
@@ -1800,9 +1802,6 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
         par2nonpar_hmm_alignment_model(hyp_dist_params, zero_offset, hyp_dist_grouping_param, hyp_source_fert,
                                        align_type, hyp_align_prob);
 	
-
-        //std::cerr << "hyp_dist_params: " << hyp_dist_params << std::endl;
-        //std::cerr << "hyp source fert: " << hyp_source_fert << std::endl;
       }
       else {
 
@@ -1818,8 +1817,6 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
                                               hyp_init_prob, hyp_dict_prob, prior_weight);   
 
       std::cerr << "new: " << new_energy << ", prev: " << hyp_energy << std::endl;
-
-      //double prev_energy = hyp_energy;
 
       if (new_energy < hyp_energy) {
 
@@ -1975,7 +1972,6 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
                                 Math1D::Vector<double>& dist_params, double& dist_grouping_param,
                                 Math1D::Vector<double>& source_fert,
                                 InitialAlignmentProbability& initial_prob,
-                                Math1D::Vector<double>& init_params,
                                 SingleWordDictionary& dict, uint nIterations, 
                                 HmmInitProbType init_type, HmmAlignProbType align_type, bool deficient_parametric,
                                 std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
@@ -2008,7 +2004,6 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
   //NOTE: the dictionary is assumed to be initialized
 
   Math1D::Vector<double> source_fert_count(2,0.0);
-  //Math1D::Vector<double> source_fert(2);
   source_fert.resize(2);
   source_fert[0] = 0.02;
   source_fert[1] = 0.98;
@@ -2112,7 +2107,6 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
     }
   }
 
-  //Math1D::NamedVector<double> dist_params(0,MAKENAME(dist_params));
   Math1D::NamedVector<double> dist_count(0,MAKENAME(dist_count));
 
   dist_grouping_param = (align_type == HmmAlignProbReducedpar) ? 0.2 : -1.0; 
@@ -2130,7 +2124,6 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
         dist_params[zero_offset+k] = 0.8 / 11.0;
     }
 
-    ///if (deficient_parametric) {
     for (uint I = 1; I <= maxI; I++) {
       if (seenIs.find(I) != seenIs.end()) {
         align_model[I-1].resize_dirty(I+1,I); //because of empty words
@@ -2140,12 +2133,6 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
           align_model[I-1](I,y) = source_fert[0];
       }
     }
-    // }
-    // else {
-
-    //   par2nonpar_hmm_alignment_model(dist_params, zero_offset, dist_grouping_param, source_fert,
-    // 				     align_type, align_model);
-    // }
   }
 
   for (uint iter = 1; iter <= nIterations; iter++) {
@@ -2871,9 +2858,6 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
         }
       }
     }
-
-    //std::cerr << "align_model[35](36,34): " << align_model[35](36,34) << std::endl;
-
 
     /************* compute alignment error rate ****************/
     if (!possible_ref_alignments.empty()) {

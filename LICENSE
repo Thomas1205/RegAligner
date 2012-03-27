@@ -3,9 +3,11 @@ This software (except for the C++-Toolbox) was exclusively written by
 Thomas Schoenemann,
 
 in the following referred to as the copyright holder. The code was written in
-roughly equal parts in his freetime and at Lund University, Sweden. The
-package includes a recent (partial) version of the C++-Toolbox by Thomas
-Schoenemann, which received additional support from Petter Strandmark.
+roughly equal parts in his freetime and at Lund University, Sweden. A few
+extensions were made at the University of Pisa, Italy and at the University of
+Düsseldorf, Germany. The package includes a recent (partial) version of the
+C++-Toolbox by Thomas Schoenemann, which received additional support from
+Petter Strandmark.
 
 
 The copyright holder grants the user access to this software under the
@@ -40,6 +42,10 @@ allowed, but not required, to make these changes publicly available.
 - [T. Schoenemann, Regularizing Mono- and Bi-word Models for Word Alignment, IJCNLP 2011.]
 (relevant when using gradient descent or EM with regularity terms, 
 or when emphasis on the corrected HMM training is appropriate)
+
+- if you use L_0 in combination with EM:
+[A. Vaswani and L. Huang and D. Chiang, Smaller Alignment Models for Better
+Translations: Unsupervised Word Alignment with the L0-norm. ACL 2012.]
 
 6. The copyright holder maintains all rights on this software, and reserves
 the right to issue commercial licenses.

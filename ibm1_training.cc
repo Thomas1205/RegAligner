@@ -1,5 +1,5 @@
 /*** written by Thomas Schoenemann as a private person without employment, October 2009 
- *** and later by Thomas Schoenemann as employee of Lund University, 2010 ***/
+ *** and later by Thomas Schoenemann as an employee of Lund University, 2010 ***/
 
 
 #include "ibm1_training.hh"
@@ -17,17 +17,15 @@
 
 #include "projection.hh"
 
+double prob_penalty(double x, double beta) {
 
-double prob_penalty(double x) {
+  return 1.0 - std::exp(-x/beta);
 
-  //return 1-pow(1-x,2);
-  return x;
 }
 
-double prob_pen_prime(double x) {
+double prob_pen_prime(double x, double beta) {
   
-  //return 2*(1-x);
-  return 1.0;
+  return - prob_penalty(x,beta) / beta;
 }
 
 double ibm1_perplexity( const Storage1D<Storage1D<uint> >& source,
@@ -42,7 +40,7 @@ double ibm1_perplexity( const Storage1D<Storage1D<uint> >& source,
   const size_t nSentences = target.size();
   assert(slookup.size() == nSentences);
 
-  uint nActualSentences = nSentences;
+  size_t nActualSentences = nSentences;
 
   for (size_t s=0; s < nSentences; s++) {
 
@@ -66,7 +64,7 @@ double ibm1_perplexity( const Storage1D<Storage1D<uint> >& source,
       sum -= std::log(cur_sum);
     }
   }
-
+  
   return sum / nActualSentences;
 }
 
@@ -74,16 +72,20 @@ double ibm1_energy( const Storage1D<Storage1D<uint> >& source,
                     const Storage1D<Math2D::Matrix<uint> >& slookup,
                     const Storage1D< Storage1D<uint> >& target,
                     const SingleWordDictionary& dict,
-                    const floatSingleWordDictionary& prior_weight) {
+                    const floatSingleWordDictionary& prior_weight,
+                    bool smoothed_l0 = false, double l0_beta = 1.0) {
 
   double energy = 0.0; 
-    
+
   for (uint i=0; i < dict.size(); i++) {
 
     const uint size = dict[i].size();
     
     for (uint k=0; k < size; k++) {
-      energy += prior_weight[i][k] * prob_penalty(dict[i][k]);
+      if (smoothed_l0)
+        energy += prior_weight[i][k] * prob_penalty(dict[i][k],l0_beta);
+      else
+        energy += prior_weight[i][k] * dict[i][k];
     }
   }
 
@@ -96,13 +98,17 @@ double ibm1_energy( const Storage1D<Storage1D<uint> >& source,
 
 double single_dict_m_step_energy(const Math1D::Vector<double>& fdict_count, 
                                  const Math1D::Vector<float>& prior_weight,
-                                 const Math1D::Vector<double>& dict) {
+                                 const Math1D::Vector<double>& dict, bool smoothed_l0, double l0_beta) {
 
 
   double energy = 0.0;
 
   for (uint k=0; k < dict.size(); k++) {
-    energy += prior_weight[k] * dict[k];
+    if (!smoothed_l0)
+      energy += prior_weight[k] * dict[k];
+    else {
+      energy += prior_weight[k] * prob_penalty(dict[k],l0_beta);
+    }
 
     if (dict[k] > 1e-300)
       energy -= fdict_count[k] * std::log(dict[k]);
@@ -115,7 +121,8 @@ double single_dict_m_step_energy(const Math1D::Vector<double>& fdict_count,
 
 void single_dict_m_step(const Math1D::Vector<double>& fdict_count, 
                         const Math1D::Vector<float>& prior_weight,
-                        Math1D::Vector<double>& dict, double alpha, uint nIter) {
+                        Math1D::Vector<double>& dict, double alpha, uint nIter,
+                        bool smoothed_l0, double l0_beta) {
 
   if (prior_weight.max_abs() == 0.0) {
     
@@ -131,7 +138,7 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count,
   }
 
 
-  double energy = single_dict_m_step_energy(fdict_count,prior_weight,dict);
+  double energy = single_dict_m_step_energy(fdict_count,prior_weight,dict, smoothed_l0, l0_beta);
 
   Math1D::Vector<double> dict_grad = dict;
   Math1D::Vector<double> hyp_dict = dict;
@@ -148,7 +155,11 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count,
     for (uint k=0; k < prior_weight.size(); k++) {
       double cur_dict_entry = std::max(1e-15, dict[k]);
 
-      dict_grad[k] = prior_weight[k] - fdict_count[k] / cur_dict_entry;
+      if (!smoothed_l0)
+        dict_grad[k] = prior_weight[k] - fdict_count[k] / cur_dict_entry;
+      else
+        dict_grad[k] = prior_weight[k] * prob_pen_prime(cur_dict_entry,l0_beta) 
+          - fdict_count[k] / cur_dict_entry;
     }
 
     //go in neg. gradient direction
@@ -183,7 +194,7 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count,
         hyp_dict[k] = lambda * new_dict[k] + neg_lambda * dict[k];
       }
       
-      double new_energy = single_dict_m_step_energy(fdict_count,prior_weight,hyp_dict);
+      double new_energy = single_dict_m_step_energy(fdict_count,prior_weight,hyp_dict,smoothed_l0,l0_beta);
       //std::cerr << "lambda = " << lambda << ", hyp_energy = " << new_energy << std::endl;
 
       if (new_energy < hyp_energy) {
@@ -202,12 +213,6 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count,
 
       if (nTries >= 18)
         break;
-
-      //       if (iter > 2 && nTries >= 15)
-      // 	break;
-
-      //       if (nTries > 35)
-      // 	break;
     }
 
     if (hyp_energy > energy) {
@@ -240,10 +245,11 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count,
 //NOTE: the function to be minimized can be decomposed over the target words
 void dict_m_step(const SingleWordDictionary& fdict_count, 
                  const floatSingleWordDictionary& prior_weight,
-                 SingleWordDictionary& dict, double alpha, uint nIter) {
+                 SingleWordDictionary& dict, double alpha, uint nIter,
+                 bool smoothed_l0, double l0_beta) {
 
   for (uint k=0; k < dict.size(); k++)
-    single_dict_m_step(fdict_count[k],prior_weight[k],dict[k],alpha,nIter);    
+    single_dict_m_step(fdict_count[k],prior_weight[k],dict[k],alpha,nIter, smoothed_l0, l0_beta);    
 }
 
 
@@ -257,14 +263,14 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
                 uint nIter,
                 std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
                 std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments,
-                const floatSingleWordDictionary& prior_weight) {
+                const floatSingleWordDictionary& prior_weight, bool smoothed_l0, double l0_beta) {
   
   assert(cooc.size() == nTargetWords);
   dict.resize_dirty(nTargetWords);
 
   const size_t nSentences = source.size();
   assert(nSentences == target.size());
-
+  
   double dict_weight_sum = 0.0;
   for (uint i=0; i < nTargetWords; i++) {
     dict_weight_sum += fabs(prior_weight[i].sum());
@@ -384,7 +390,7 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
       if (iter > 5)
         alpha = 0.1;
 
-      dict_m_step(fcount, prior_weight, dict, alpha, 45);
+      dict_m_step(fcount, prior_weight, dict, alpha, 45, smoothed_l0, l0_beta);
     }
     else {
 
@@ -399,7 +405,7 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
             dict[i][k] = fcount[i][k] * inv_sum;
           }
         }
-        else {
+        else if (dict[i].size() > 0) {
           std::cerr << "WARNING : did not update dictionary entries for target word #" << i
                     << " because sum is " << sum << "( dict-size = " << dict[i].size() << " )" << std::endl;
         }
@@ -444,7 +450,7 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
     }
 
 
-  } //end for-loop (iter)
+  } //end for (iter)
 
 }
 
@@ -456,7 +462,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
                                SingleWordDictionary& dict, uint nIter,
                                std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
                                std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments,
-                               const floatSingleWordDictionary& prior_weight) {
+                               const floatSingleWordDictionary& prior_weight, bool smoothed_l0, double l0_beta) {
 
   assert(cooc.size() == nTargetWords);
   dict.resize_dirty(nTargetWords);
@@ -525,6 +531,8 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
 
   uint nSuccessiveReductions = 0;
 
+  double best_lower_bound = -1e300;
+
   for (uint iter = 1; iter <= nIter; iter++) {
     
     std::cerr << "starting IBM-1 gradient descent iteration #" << iter << std::endl;
@@ -571,9 +579,32 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
       const uint size = cooc[i].size();
       
       for (uint k=0; k < size; k++) {
-        dict_grad[i][k] += prior_weight[i][k] * prob_pen_prime(dict[i][k]);
+        if (smoothed_l0)
+          dict_grad[i][k] += prior_weight[i][k] * prob_pen_prime(dict[i][k],l0_beta);
+        else 
+          dict_grad[i][k] += prior_weight[i][k];
       }
     }
+
+    /*** compute lower bound ****/
+    
+    double lower_bound = energy;
+    for (uint i=0; i < nTargetWords; i++) {
+
+      //const uint size = cooc[i].size();
+
+      //if (regularity_weight != 0.0)
+      if (true)
+        lower_bound += std::min(0.0,dict_grad[i].min());
+      else
+        lower_bound += dict_grad[i].min();
+      lower_bound -= dict_grad[i] % dict[i];
+    }
+
+    best_lower_bound = std::max(best_lower_bound, lower_bound);
+    
+    std::cerr << "lower bound: " << lower_bound << ", best known: " << best_lower_bound << std::endl;
+
 
     /**** move in gradient direction ****/
     
@@ -583,14 +614,21 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
         new_dict[i][k] = dict[i][k] - alpha * dict_grad[i][k];
     }
     
-    new_slack_vector = slack_vector;
+    //if (regularity_weight != 0.0)
+    if (true)
+      new_slack_vector = slack_vector;
 
     /**** reproject on the simplices [Michelot 1986]****/
     for (uint i=0; i < nTargetWords; i++) {
 
       const uint nCurWords = new_dict[i].size();
 
-      projection_on_simplex_with_slack(new_dict[i].direct_access(),slack_vector[i],nCurWords);
+      //if (regularity_weight != 0.0)
+      if (true)
+        projection_on_simplex_with_slack(new_dict[i].direct_access(),slack_vector[i],nCurWords);
+      else
+        projection_on_simplex(new_dict[i].direct_access(),nCurWords);
+
     }
     
     double lambda = 1.0;
@@ -603,6 +641,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
     bool decreasing = true;
 
     while (hyp_energy > energy || decreasing) {
+      //while (true) {
 
       nInnerIter++;
 
@@ -622,7 +661,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
           hyp_dict[i][k] = inv_lambda * dict[i][k] + lambda * new_dict[i][k];
       }
       
-      double new_energy = ibm1_energy(source,slookup,target,hyp_dict,prior_weight); 
+      double new_energy = ibm1_energy(source,slookup,target,hyp_dict,prior_weight); //distribution_weight);//regularity_weight);
 
       std::cerr << "new hyp: " << new_energy << ", previous: " << hyp_energy << std::endl;
       
@@ -656,19 +695,16 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
       for (uint k=0; k < dict[i].size(); k++) 
         dict[i][k] = inv_lambda * dict[i][k] + best_lambda * new_dict[i][k];
 
-      slack_vector[i] = inv_lambda * slack_vector[i] + best_lambda * new_slack_vector[i];
+      //if (regularity_weight > 0.0)
+      if (true)
+        slack_vector[i] = inv_lambda * slack_vector[i] + best_lambda * new_slack_vector[i];
     }
 
-    double check_energy = ibm1_energy(source,slookup,target,dict,prior_weight);
+    double check_energy = ibm1_energy(source,slookup,target,dict,prior_weight);//distribution_weight);//regularity_weight);
 
     assert(fabs(check_energy - hyp_energy) < 0.0025);
 
     energy = hyp_energy;
-
-    //     if (best_lambda == 1.0)
-    //       alpha *= 1.5;
-    //     else
-    //       alpha *= 0.75;
 
     std::cerr << "energy: " << energy << std::endl;
 
@@ -734,7 +770,7 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
   dict.resize(nTargetWords);
   for (uint i=0; i < nTargetWords; i++) {
     
-    const size_t size = cooc[i].size();
+    const uint size = cooc[i].size();
     dict[i].resize_dirty(size);
     dict[i].set_constant(1.0 / ((double) size));
   }
@@ -993,16 +1029,16 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
       std::cerr << nSwitches << " switches in ICM" << std::endl;
     }
 
-    // Math1D::Vector<uint> count_count(6,0);
+    Math1D::Vector<uint> count_count(6,0);
 
-    // for (uint i=0; i < nTargetWords; i++) {      
-    //   for (uint k=0; k < dcount[i].size(); k++) {
-    // 	if (dcount[i][k] < count_count.size())
-    // 	  count_count[dcount[i][k]]++;
-    //   }
-    // }
+    for (uint i=0; i < nTargetWords; i++) {      
+      for (uint k=0; k < dcount[i].size(); k++) {
+        if (dcount[i][k] < count_count.size())
+          count_count[dcount[i][k]]++;
+      }
+    }
 
-    // std::cerr << "count count (lower end): " << count_count << std::endl;
+    std::cerr << "count count (lower end): " << count_count << std::endl;
 
     /*** recompute the dictionary ***/
     double energy = energy_offset;
@@ -1081,6 +1117,4 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
     }
   }
 }
-
-
 

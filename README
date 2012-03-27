@@ -6,7 +6,11 @@ and
 
 [Schoenemann, IJCNLP 2011]
 
-with additional features. At the same time, it is an adequate replacement for
+with additional features. It also reimplements the paper [Vaswani, Huang,
+Chiang ACL 2012], which uses L0-norms together with EM.
+
+
+At the same time, it is an adequate replacement for
 GIZA++ as the models IBM-1,2,3,4 and HMM are implemented. 
 
 There are a few restrictions however:
@@ -38,7 +42,8 @@ DEPENDENCIES
 There are no mandatory dependencies. However, if you want to be able to read zipped files,
 you need to download the gzstream classes from the University of North Carolina:
 http://www.cs.unc.edu/Research/compgeom/gzstream/ . To use this class, add -DHAS_GZSTREAM
-to the compiler options and link against gzstream.
+to the compiler options and link against gzstream. Make sure that you are
+using these classes in accordance with the respective license conditions.
 
 
 USING REGALIGNER

@@ -15,7 +15,7 @@ void read_vocabulary(std::string filename, std::vector<std::string>& voc_list) {
   std::ifstream infile;
   igzstream gzin;
 
-  bool zipped = string_ends_with(filename,".gz");
+  bool zipped = is_gzip_file(filename);
 
   if (zipped)
     gzin.open(filename.c_str());
@@ -44,7 +44,7 @@ void read_monolingual_corpus(std::string filename, Storage1D<Storage1D<uint> > &
   std::ifstream infile;
   igzstream gzin;
 
-  bool zipped = string_ends_with(filename,".gz");
+  bool zipped = is_gzip_file(filename);
 
   if (zipped)
     gzin.open(filename.c_str());
@@ -100,7 +100,7 @@ void read_monolingual_corpus(std::string filename, Storage1D<Storage1D<std::stri
   std::ifstream infile;
   igzstream gzin;
 
-  bool zipped = string_ends_with(filename,".gz");
+  bool zipped = is_gzip_file(filename);
 
   if (zipped)
     gzin.open(filename.c_str());
@@ -168,7 +168,7 @@ void read_idx_dict(std::string filename, SingleWordDictionary& dict, CooccuringW
   std::ifstream infile;
   igzstream gzin;
 
-  bool zipped = string_ends_with(filename,".gz");
+  bool zipped = is_gzip_file(filename);
 
   if (zipped)
     gzin.open(filename.c_str());
@@ -238,9 +238,24 @@ void read_idx_dict(std::string filename, SingleWordDictionary& dict, CooccuringW
 
 void read_prior_dict(std::string filename, std::set<std::pair<uint, uint> >& known_pairs, bool invert) {
 
+#ifdef HAS_GZSTREAM
+  std::ifstream infile;
+  igzstream gzin;
+
+  bool zipped = is_gzip_file(filename);
+
+  if (zipped)
+    gzin.open(filename.c_str());
+  else {
+    infile.open(filename.c_str());
+  }
+
+  std::istream* instream = (zipped) ? static_cast<std::istream*>(&gzin) : &infile;
+#else
   std::ifstream infile(filename.c_str());
 
   std::istream* instream = &infile;
+#endif
 
   uint i1,i2;
 
