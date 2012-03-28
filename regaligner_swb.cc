@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
               << " [-sparse-reg] : activate L1-regularity only for rarely occuring target words" << std::endl
               << " [-fertpen <double>]: regularity weight for fertilities in IBM3&4" << std::endl
               << " [-prior-dict <file>] : file for index pairs that occur in a dictionary" << std::endl
-              << " [-l0-beta <double>]" << std::endl
+              << " [-l0-beta <double>] : smoothing parameter for the L0-norm in EM-training" << std::endl
               << " [-hmm-iter <uint> ]: iterations for the HMM model (default 20)" << std::endl
               << " [-ibm1-iter <uint> ]: iterations for the IBM-1 model (default 10)" << std::endl
               << " [-ibm2-iter <uint> ]: iterations for the IBM-2 model (default 0)" << std::endl
