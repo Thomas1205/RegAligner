@@ -28,11 +28,11 @@ int main(int argc, char** argv) {
     std::cerr << "USAGE: " << argv[0] << std::endl
               << " -s <file> : source file (coded as indices)" << std::endl
               << " -t <file> : target file (coded as indices)" << std::endl
-              << " -ds <file> : additional source file (word indices) " << std::endl
-              << " -dt <file> : additional target file (word indices) " << std::endl
+              << " [-ds <file>] : additional source file (word indices) " << std::endl
+              << " [-dt <file>] : additional target file (word indices) " << std::endl
               << " [-refa <file>] : file containing gold alignments (sure and possible)" << std::endl
               << " [-invert-biling-data] : switch source and target for prior dict and gold alignments" << std::endl
-              << " -method ( em | gd | viterbi ) : use EM, gradient descent or Viterbi training (default EM) " << std::endl
+              << " [-method ( em | gd | viterbi )] : use EM, gradient descent or Viterbi training (default EM) " << std::endl
               << " [-dict-regularity <double>] : regularity weight for L0 or L1 regularization" << std::endl
               << " [-sparse-reg] : activate L1-regularity only for rarely occuring target words" << std::endl
               << " [-fertpen <double>]: regularity weight for fertilities in IBM3&4" << std::endl
@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
               << " [-ibm3-iter <uint> ]: iterations for the IBM-3 model (default 0)" << std::endl
               << " [-ibm4-iter <uint> ]: iterations for the IBM-4 model (default 0)" << std::endl
               << " [-constraint-mode (unconstrained | itg | ibm) " << std::endl
-              << " -o <file>  : the determined dictionary is written to this file" << std::endl
+              << " [-o <file>] : the determined dictionary is written to this file" << std::endl
               << " -oa <file> : the determined alignment is written to this file" << std::endl
               << std::endl;
 
