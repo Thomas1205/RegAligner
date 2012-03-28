@@ -76,6 +76,22 @@ target, add
 
 to the command line.
 
+***** Computing alignments on a development set *****
+
+It is possible to also compute alignments on a development set simultaneously
+with the training. To this end add
+
+-ds <source dev file> -dt <target dev file>
+
+to the command line, e.g. as here:
+
+regaligner_swb.opt.L64 -s de.idx -t en.idx -ds dev.de.idx -dt dev.en.idx  -oa alignments.final
+
+The alignments on the development sets will then be written to the file
+ alignments.final.dev
+
+CAREFUL: the training and development sets need to use the SAME set of word indices.
+
 ***** Activating Penalization of Mass ****
 
 to activate the penalization of mass as in [Schoenemann, IJCNLP 2011],
