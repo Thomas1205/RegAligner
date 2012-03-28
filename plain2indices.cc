@@ -38,7 +38,7 @@ int main(int argc, char** argv) {
     voc_stream = new std::ifstream(app.getParam("-voc").c_str());
   }
 #else
-  voc_stream = new std::ifstream(app.getParam("-voc").c_str())
+  voc_stream = new std::ifstream(app.getParam("-voc").c_str());
 #endif
 
   std::string word;
@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
     plain_stream = new std::ifstream(app.getParam("-i").c_str());
   }
 #else
-  plain_stream = new std::ifstream(app.getParam("-i").c_str())
+  plain_stream = new std::ifstream(app.getParam("-i").c_str());
 #endif
 
   std::ostream* out_stream;

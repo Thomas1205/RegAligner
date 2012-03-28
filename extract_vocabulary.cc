@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
     raw_stream = new std::ifstream(app.getParam("-i").c_str());
   }
 #else
-  raw_stream = new std::ifstream(app.getParam("-i").c_str())
+  raw_stream = new std::ifstream(app.getParam("-i").c_str());
 #endif
 
   std::string s;
