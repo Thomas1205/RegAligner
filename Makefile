@@ -7,11 +7,12 @@ INCLUDE += -I common/ -I $(CBCPATH)Clp/src/ -I $(CBCPATH)CoinUtils/src/ -I $(CBC
 #OPTFLAGS   += -DHAVE_CONFIG_H -DHAS_CBC
 #CBCLINK = $(CBCPATH)Clp/src/.libs/libClp.so $(CBCPATH)Cgl/src/.libs/libCgl.so $(CBCPATH)Cbc/src/.libs/libCbc.so $(CBCPATH)CoinUtils/src/.libs/libCoinUtils.so $(CBCPATH)/Clp/src/OsiClp/.libs/libOsiClp.so $(CBCPATH)Osi/src/Osi/.libs/libOsi.so $(CBCPATH)Osi/src/OsiGrb/.libs/libOsiGrb.so -llapack
 
-#if you don't have GZSTREAM, put comments around this this
-DEBUGFLAGS += -DHAS_GZSTREAM
-OPTFLAGS += -DHAS_GZSTREAM
-GZLINK = thirdparty/libgzstream.a -lz
-INCLUDE += -I thirdparty/
+
+#if you have GZSTREAM, outcomment these lines:
+#DEBUGFLAGS += -DHAS_GZSTREAM
+#OPTFLAGS += -DHAS_GZSTREAM
+#GZLINK = thirdparty/libgzstream.a -lz
+#INCLUDE += -I thirdparty/
 
 all : $(DEBUGDIR) $(OPTDIR) regaligner_swb.debug.L64 regaligner_swb.opt.L64 extractvoc.opt.L64 plain2indices.opt.L64
 
