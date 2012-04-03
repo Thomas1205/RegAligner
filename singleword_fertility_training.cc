@@ -950,7 +950,7 @@ void IBM3Trainer::init_from_hmm(const FullHMMAlignmentModel& align_model,
 
       for (uint j=0; j < curJ; j++) {
 	
-        if (dict_[t_idx][cur_lookup(j,i)] > 0.0) {
+        if (dict_[t_idx][cur_lookup(j,i)] > 1e-305) {
           double contrib = inv_sentence_prob * forward(i,j) * backward(i,j) 
             / dict_[t_idx][cur_lookup(j,i)];
 	  
@@ -963,7 +963,7 @@ void IBM3Trainer::init_from_hmm(const FullHMMAlignmentModel& align_model,
       for (uint j=0; j < curJ; j++) {
         const uint s_idx = cur_source[j];
 	
-        if (dict_[0][s_idx-1] > 0.0) {
+        if (dict_[0][s_idx-1] > 1e-305) {
           double contrib = inv_sentence_prob * forward(i,j) * backward(i,j) 
             / dict_[0][s_idx-1];
 	  
@@ -7107,7 +7107,7 @@ double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& source, co
                                           expansion_prob, swap_prob, alignment);
 }
 
-void IBM4Trainer::train_unconstrained(uint nIter) {
+void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
 
   std::cerr << "starting IBM4 training without constraints" << std::endl;
 
@@ -7202,8 +7202,15 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
       std::clock_t tHillclimbStart, tHillclimbEnd;
       tHillclimbStart = std::clock();
 
-      const long double best_prob = update_alignment_by_hillclimbing(cur_source,cur_target,cur_lookup,sum_iter,fertility,
-                                                                     expansion_move_prob,swap_move_prob,best_known_alignment_[s]);
+      long double best_prob;
+
+      if (ibm3 != 0)
+	best_prob = ibm3->update_alignment_by_hillclimbing(cur_source,cur_target,cur_lookup,sum_iter,fertility,
+							   expansion_move_prob,swap_move_prob,best_known_alignment_[s]);	
+      else
+	best_prob = update_alignment_by_hillclimbing(cur_source,cur_target,cur_lookup,sum_iter,fertility,
+						     expansion_move_prob,swap_move_prob,best_known_alignment_[s]);
+
       max_perplexity -= std::log(std::max<double>(best_prob,1e-300));
 
       tHillclimbEnd = std::clock();
@@ -7850,7 +7857,7 @@ void IBM4Trainer::train_unconstrained(uint nIter) {
 
 }
 
-void IBM4Trainer::train_viterbi(uint nIter) {
+void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 
 
   std::cerr << "starting IBM4 Viterbi-training without constraints" << std::endl;
@@ -7935,8 +7942,15 @@ void IBM4Trainer::train_viterbi(uint nIter) {
       std::clock_t tHillclimbStart, tHillclimbEnd;
       tHillclimbStart = std::clock();
       
-      const long double best_prob = update_alignment_by_hillclimbing(cur_source,cur_target,cur_lookup,sum_iter,fertility,
-                                                                     expansion_move_prob,swap_move_prob,best_known_alignment_[s]);
+      long double best_prob;
+
+      if (ibm3 != 0)
+	best_prob = ibm3->update_alignment_by_hillclimbing(cur_source,cur_target,cur_lookup,sum_iter,fertility,
+							   expansion_move_prob,swap_move_prob,best_known_alignment_[s]);
+      else
+	best_prob = update_alignment_by_hillclimbing(cur_source,cur_target,cur_lookup,sum_iter,fertility,
+						     expansion_move_prob,swap_move_prob,best_known_alignment_[s]);
+
       max_perplexity -= std::log(best_prob);
 
       tHillclimbEnd = std::clock();

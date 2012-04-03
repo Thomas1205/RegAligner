@@ -94,6 +94,8 @@ protected:
   std::map<uint,std::set<std::pair<uint,uint> > > possible_ref_alignments_;
 };
 
+class IBM4Trainer;
+
 class IBM3Trainer : public FertilityModelTrainer {
 public:
   
@@ -137,6 +139,8 @@ public:
   void release_memory();
   
 protected:
+
+  friend class IBM4Trainer;
 
   void par2nonpar_distortion(ReducedIBM3DistortionModel& prob);
 
@@ -209,10 +213,10 @@ public:
 
   //training without constraints on maximal fertility or uncovered positions.
   //This is based on the EM-algorithm where the E-step uses heuristics
-  void train_unconstrained(uint nIter);
+  void train_unconstrained(uint nIter, IBM3Trainer* ibm3 = 0);
 
   //unconstrained Viterbi training
-  void train_viterbi(uint nIter);
+  void train_viterbi(uint nIter, IBM3Trainer* ibm3 = 0);
 
   void update_alignments_unconstrained();
 
