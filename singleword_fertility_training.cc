@@ -5754,7 +5754,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
           double sum_j = 0.0;
           for (uint k=0; k < aligned_source_words[i].size(); k++)
             sum_j += aligned_source_words[i][k];
-          cept_center = (int) round(sum_j / aligned_source_words[i].size());
+          cept_center[i] = (int) round(sum_j / aligned_source_words[i].size());
           break;
         }
         case IBM4FIRST:
