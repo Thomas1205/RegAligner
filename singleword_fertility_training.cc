@@ -1374,7 +1374,7 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
     //END_DEBUG
     nIter++;
 
-    if (nIter > 50)
+    if (count_iter > 50)
       break;
 
     //std::cerr << "****************** starting new hillclimb iteration, current best prob: " << base_prob << std::endl;
@@ -4851,23 +4851,28 @@ void IBM4Trainer::par2nonpar_inter_distortion() {
 
     if (inter_distortion_prob_[J].size() > 0) {
 
-      for (int j1=0; j1 < J; j1++) {
+      for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++) {
+	for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++) {
 
-        double sum = 0.0;
-
-        for (int j2=0; j2 < J; j2++) {
-          sum += cept_start_prob_(0,0,j2-j1+displacement_offset_);
-        }
-
-        if (sum > 1e-305) {
-          for (int j2=0; j2 < J; j2++) {
-            inter_distortion_prob_[J](0,0)(j2,j1) = std::max(1e-8,cept_start_prob_(0,0,j2-j1+displacement_offset_) / sum);
-          }
-        }
-        else {
-	  if (J > 1)
-	    std::cerr << "WARNING: sum too small for inter prob " << j1 << ", not updating." << std::endl;
-        }
+	  for (int j1=0; j1 < J; j1++) {
+	    
+	    double sum = 0.0;
+	    
+	    for (int j2=0; j2 < J; j2++) {
+	      sum += cept_start_prob_(x,y,j2-j1+displacement_offset_);
+	    }
+	    
+	    if (sum > 1e-305) {
+	      for (int j2=0; j2 < J; j2++) {
+		inter_distortion_prob_[J](x,y)(j2,j1) = std::max(1e-8,cept_start_prob_(x,y,j2-j1+displacement_offset_) / sum);
+	      }
+	    }
+	    else {
+	      if (J > 1)
+		std::cerr << "WARNING: sum too small for inter prob " << j1 << ", not updating." << std::endl;
+	    }
+	  }
+	}
       }
     }
   }
@@ -4880,22 +4885,25 @@ void IBM4Trainer::par2nonpar_intra_distortion() {
 
     if (intra_distortion_prob_[J].size() > 0) {
 
-      for (int j1=0; j1 < J-1; j1++) {
+      for (uint x=0; x < within_cept_prob_.xDim(); x++) {
 
-        double sum = 0.0;
+	for (int j1=0; j1 < J-1; j1++) {
 
-        for (int j2=j1+1; j2 < J; j2++) {
-          sum += within_cept_prob_(0,j2-j1+displacement_offset_);
-        }
-
-        if (sum > 1e-305) {
-          for (int j2=j1+1; j2 < J; j2++) {
-            intra_distortion_prob_[J](0,j2,j1) = std::max(1e-8,within_cept_prob_(0,j2-j1+displacement_offset_) / sum);
-          }
-        }
-        else {
-          std::cerr << "WARNING: sum too small for intra prob " << j1 << ", J=" << J << ", not updating." << std::endl;
-        }
+	  double sum = 0.0;
+	  
+	  for (int j2=j1+1; j2 < J; j2++) {
+	    sum += within_cept_prob_(x,j2-j1+displacement_offset_);
+	  }
+	  
+	  if (sum > 1e-305) {
+	    for (int j2=j1+1; j2 < J; j2++) {
+	      intra_distortion_prob_[J](x,j2,j1) = std::max(1e-8,within_cept_prob_(x,j2-j1+displacement_offset_) / sum);
+	    }
+	  }
+	  else {
+	    std::cerr << "WARNING: sum too small for intra prob " << j1 << ", J=" << J << ", not updating." << std::endl;
+	  }
+	}
       }
     }
   }
@@ -5778,7 +5786,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
     //END_DEBUG
     nIter++;
 
-    if (nIter > 50)
+    if (count_iter > 50)
       break;
 
     //std::cerr << "****************** starting new hillclimb iteration, current best prob: " << base_prob << std::endl;
