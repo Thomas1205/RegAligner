@@ -43,6 +43,7 @@ int main(int argc, char** argv) {
               << " [-ibm2-iter <uint> ]: iterations for the IBM-2 model (default 0)" << std::endl
               << " [-ibm3-iter <uint> ]: iterations for the IBM-3 model (default 0)" << std::endl
               << " [-ibm4-iter <uint> ]: iterations for the IBM-4 model (default 0)" << std::endl
+	      << " [-ibm4-mode (first | center | last) ] : (default first)" << std::endl
               << " [-constraint-mode (unconstrained | itg | ibm) " << std::endl
               << " [-o <file>] : the determined dictionary is written to this file" << std::endl
               << " -oa <file> : the determined alignment is written to this file" << std::endl
@@ -53,7 +54,7 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  const int nParams = 20;
+  const int nParams = 21;
   ParamDescr  params[nParams] = {{"-s",mandInFilename,0,""},{"-t",mandInFilename,0,""},
                                  {"-ds",optInFilename,0,""},{"-dt",optInFilename,0,""},
                                  {"-o",optOutFilename,0,""},{"-oa",mandOutFilename,0,""},
@@ -64,7 +65,7 @@ int main(int argc, char** argv) {
                                  {"-ibm1-iter",optWithValue,1,"10"},{"-ibm2-iter",optWithValue,1,"0"},
                                  {"-ibm3-iter",optWithValue,0,""},{"-ibm4-iter",optWithValue,0,""},
                                  {"-fertpen",optWithValue,1,"0.0"},{"-constraint-mode",optWithValue,1,"unconstrained"},
-				 {"-l0-beta",optWithValue,1,"-1.0"}};
+				 {"-l0-beta",optWithValue,1,"-1.0"},{"-ibm4-mode",optWithValue,1,"first"}};
 
   Application app(argc,argv,params,nParams);
 
@@ -384,14 +385,28 @@ int main(int argc, char** argv) {
   /*** IBM-4 ***/
 
   std::cerr << "handling IBM-4" << std::endl;
+
+  IBM4CeptStartMode ibm4_cept_mode = IBM4FIRST;
+  std::string ibm4_mode = app.getParam("-ibm4-mode");
+  if (ibm4_mode == "first")
+    ibm4_cept_mode = IBM4FIRST;
+  else if (ibm4_mode == "center")
+    ibm4_cept_mode = IBM4CENTER;
+  else if (ibm4_mode == "last")
+    ibm4_cept_mode = IBM4LAST;
+  else {
+    USER_ERROR << "unknown ibm4 mode: \"" << ibm4_mode << "\"" << std::endl;
+    exit(1);
+  }
+
   
   IBM4Trainer ibm4_trainer(source_sentence, slookup, target_sentence, 
                            sure_ref_alignments, possible_ref_alignments,
                            dict, wcooc, nSourceWords, nTargetWords, prior_weight, true, true, true,
-                           IBM4FIRST, em_l0, l0_beta);
+                           ibm4_cept_mode, em_l0, l0_beta);
 
   if (ibm4_iter > 0) {
-    ibm4_trainer.init_from_ibm3(ibm3_trainer);
+    ibm4_trainer.init_from_ibm3(ibm3_trainer,true);
 
     if (method == "viterbi")
       ibm4_trainer.train_viterbi(ibm4_iter);

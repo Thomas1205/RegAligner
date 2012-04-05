@@ -1363,15 +1363,12 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
   swap_prob.set_constant(0.0);
   expansion_prob.set_constant(0.0);
 
-  //DEBUG
+
   uint count_iter = 0;
-  //END_DEBUG
 
   while (true) {    
 
-    //DEBUG
     count_iter++;
-    //END_DEBUG
     nIter++;
 
     if (count_iter > 50)
@@ -1381,7 +1378,7 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
     bool improvement = false;
 
-    double best_prob = base_prob;
+    long double best_prob = base_prob;
     bool best_change_is_move = false;
     uint best_move_j = MAX_UINT;
     uint best_move_aj = MAX_UINT;
@@ -5723,10 +5720,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
   swap_prob.set_constant(0.0);
   expansion_prob.set_constant(0.0);
 
-
-  //DEBUG
   uint count_iter = 0;
-  //END_DEBUG
 
   const Storage2D<Math2D::Matrix<double> >& cur_inter_distortion_prob =  inter_distortion_prob_[curJ];
   const Math3D::Tensor<double>& cur_intra_distortion_prob =  intra_distortion_prob_[curJ];
@@ -5781,9 +5775,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       }
     }
 
-    //DEBUG
     count_iter++;
-    //END_DEBUG
     nIter++;
 
     if (count_iter > 50)
@@ -5793,7 +5785,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
     bool improvement = false;
 
-    double best_prob = base_prob;
+    long double best_prob = base_prob;
     bool best_change_is_move = false;
     uint best_move_j = MAX_UINT;
     uint best_move_aj = MAX_UINT;
