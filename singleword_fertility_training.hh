@@ -139,7 +139,7 @@ public:
   void release_memory();
   
 protected:
-
+  
   friend class IBM4Trainer;
 
   void par2nonpar_distortion(ReducedIBM3DistortionModel& prob);
@@ -209,7 +209,8 @@ public:
               bool smoothed_l0 = false, double l0_beta = 1.0);
 
 
-  void init_from_ibm3(IBM3Trainer& ibm3trainer, bool clear_ibm3 = true);
+  void init_from_ibm3(IBM3Trainer& ibm3trainer, bool clear_ibm3 = true, 
+		      bool count_collection = false, bool viterbi = false);
 
   //training without constraints on maximal fertility or uncovered positions.
   //This is based on the EM-algorithm where the E-step uses heuristics
@@ -228,6 +229,9 @@ protected:
 
   long double alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
                              const Math2D::Matrix<uint>& lookup, const Math1D::Vector<ushort>& alignment) const;
+
+  void print_alignment_prob_factors(const Storage1D<uint>& source, const Storage1D<uint>& target, 
+				    const Math2D::Matrix<uint>& lookup, const Math1D::Vector<ushort>& alignment) const;
 
   long double alignment_prob(uint s, const Math1D::Vector<ushort>& alignment) const;
 

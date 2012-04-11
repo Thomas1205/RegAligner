@@ -406,9 +406,14 @@ int main(int argc, char** argv) {
                            ibm4_cept_mode, em_l0, l0_beta);
 
   if (ibm4_iter > 0) {
-    ibm4_trainer.init_from_ibm3(ibm3_trainer,true);
-
-    if (method == "viterbi")
+    bool collect_counts = false;
+    
+    ibm4_trainer.init_from_ibm3(ibm3_trainer,true,collect_counts,app.is_set("-viterbi"));
+    
+    if (collect_counts)
+      ibm4_iter--;
+    
+    if (app.is_set("-viterbi"))
       ibm4_trainer.train_viterbi(ibm4_iter);
     else
       ibm4_trainer.train_unconstrained(ibm4_iter);
