@@ -61,8 +61,8 @@ int main(int argc, char** argv) {
                                  {"-refa",optInFilename,0,""},{"-invert-biling-data",flag,0,""},
                                  {"-dict-regularity",optWithValue,1,"0.0"},
                                  {"-sparse-reg",flag,0,""},{"-prior-dict",optInFilename,0,""},
-                                 {"-hmm-iter",optWithValue,1,"20"},{"-method",optWithValue,1,"em"},
-                                 {"-ibm1-iter",optWithValue,1,"10"},{"-ibm2-iter",optWithValue,1,"0"},
+                                 {"-hmm-iter",optWithValue,1,"5"},{"-method",optWithValue,1,"em"},
+                                 {"-ibm1-iter",optWithValue,1,"5"},{"-ibm2-iter",optWithValue,1,"0"},
                                  {"-ibm3-iter",optWithValue,0,""},{"-ibm4-iter",optWithValue,0,""},
                                  {"-fertpen",optWithValue,1,"0.0"},{"-constraint-mode",optWithValue,1,"unconstrained"},
 				 {"-l0-beta",optWithValue,1,"-1.0"},{"-ibm4-mode",optWithValue,1,"first"}};

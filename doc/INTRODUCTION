@@ -24,7 +24,7 @@ that are included in RegAligner.
 
 ***** Default behavior ****
 
-By default, RegAligner runs 10 EM-iterations of the IBM-1, then 20
+By default, RegAligner runs 5 EM-iterations of the IBM-1, then 5
 EM-iterations of the HMM. By default no regularity terms are used.
 
 ***** Enabling reading of zipped files ****

@@ -4884,7 +4884,7 @@ void IBM4Trainer::par2nonpar_inter_distortion() {
 		inter_distortion_prob_[J](x,y)(j2,j1) = std::max(1e-8,cept_start_prob_(x,y,j2-j1+displacement_offset_) / sum);
 	      }
 	    }
-	    else {
+	    else if (j1 > 0) {
 	      std::cerr << "WARNING: sum too small for inter prob " << j1 << ", not updating." << std::endl;
 	    }
 	  }
@@ -7268,7 +7268,7 @@ double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& source, co
     }
   }
 
-  std::cerr << "calling the actual routine" << std::endl;
+  //std::cerr << "calling the actual routine" << std::endl;
 
   //create matrices
   Math2D::Matrix<long double> expansion_prob(J,I);
