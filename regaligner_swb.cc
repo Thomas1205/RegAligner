@@ -408,12 +408,12 @@ int main(int argc, char** argv) {
   if (ibm4_iter > 0) {
     bool collect_counts = false;
     
-    ibm4_trainer.init_from_ibm3(ibm3_trainer,true,collect_counts,app.is_set("-viterbi"));
+    ibm4_trainer.init_from_ibm3(ibm3_trainer,true,collect_counts,method == "viterbi");
     
     if (collect_counts)
       ibm4_iter--;
     
-    if (app.is_set("-viterbi"))
+    if (method == "viterbi")
       ibm4_trainer.train_viterbi(ibm4_iter);
     else
       ibm4_trainer.train_unconstrained(ibm4_iter);
@@ -464,7 +464,6 @@ int main(int argc, char** argv) {
 
     HmmAlignProbType dev_dist_mode = HmmAlignProbReducedpar;
 
-    //if (app.is_set("-viterbi"))
     if (hmm_dist_grouping_param < 0.0) {
       dev_dist_mode = HmmAlignProbFullpar;
     }
