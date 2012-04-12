@@ -307,8 +307,11 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
     }
   }
 
+
   for (uint i=1; i < nTargetWords; i++) {
-    dict[i] *= 1.0 / dict[i].sum();
+    double sum = dict[i].sum();
+    if (sum > 1e-305)
+      dict[i] *= 1.0 / sum;
   }
 #endif
       
@@ -504,7 +507,9 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
   }
 
   for (uint i=1; i < nTargetWords; i++) {
-    dict[i] *= 1.0 / dict[i].sum();
+    double sum = dict[i].sum();
+    if (sum > 1e-305)
+      dict[i] *= 1.0 / sum;
   }
 #endif
 
