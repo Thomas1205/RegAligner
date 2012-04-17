@@ -147,7 +147,6 @@ void calculate_hmm_forward_with_tricks(const Storage1D<uint>& source,
     //   the considered i_prev's. But it DOES depend on i_prev
 
 #if 0
-    //less efficient, but easier to understand:
     T prev_sum = 0.0;
     for (int i_prev=0; i_prev < I; i_prev++) {
 
@@ -199,6 +198,13 @@ void calculate_hmm_forward_with_tricks(const Storage1D<uint>& source,
         sum += align_model(i,i_prev) * (forward(i_prev,j_prev) + forward(i_prev+I,j_prev));
       }
       sum += prev_distant_sum;
+
+      //stability issues may arise here:
+      if (sum <= 0.0) {
+	sum = 0.0;
+	for (int i_prev= std::max(0,i-5); i_prev <= std::min(I-1,i+5); i_prev++) 
+	  sum += align_model(i,i_prev) * (forward(i_prev,j_prev) + forward(i_prev+I,j_prev));
+      }
 
       forward(i,j) = sum * dict[target[i]][slookup(j,i)];
     }
@@ -310,8 +316,6 @@ void calculate_hmm_backward_with_tricks(const Storage1D<uint>& source,
     const T cur_emptyword_prob = dict[0][s_idx-1];
 
 #if 0    
-    //less efficient, but easier to understand:
-
     T next_sum = 0.0;
     for (int i_next = 0; i_next < I; i_next++)
       next_sum += backward(i_next,j_next);
@@ -349,7 +353,7 @@ void calculate_hmm_backward_with_tricks(const Storage1D<uint>& source,
 
       sum += next_distant_sum * long_dist_align_prob[0];
       sum += backward(I,j_next) * align_model(I,0);
-      
+
       backward(0,j) = sum * dict[target[0]][slookup(j,0)];
 
       backward(I,j) = sum * cur_emptyword_prob;      
@@ -369,6 +373,13 @@ void calculate_hmm_backward_with_tricks(const Storage1D<uint>& source,
       }
       sum += next_distant_sum * long_dist_align_prob[i];
       sum += backward(i+I,j_next) * align_model(I,i);
+
+      //stability issues may arise here:
+      if (sum <= 0.0) {
+	sum = 0.0;
+	for (int i_next = std::max(0,i-5); i_next <= std::min(I-1,i+5); i_next++) 
+	  sum += backward(i_next,j_next) * align_model(i_next,i);
+      }      
       
       backward(i,j) = sum * dict[target[i]][slookup(j,i)];
 
