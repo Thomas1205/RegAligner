@@ -110,6 +110,11 @@ int main(int argc, char** argv) {
   std::clock_t tStartRead, tEndRead;
   tStartRead = std::clock();
 
+  if (app.getParam("-s") == app.getParam("-t")) {
+
+    std::cerr << "WARNING: files for source and target sentences are identical!" << std::endl;
+  }
+
   read_monolingual_corpus(app.getParam("-s"), source_sentence);
   read_monolingual_corpus(app.getParam("-t"), target_sentence);
 
@@ -120,6 +125,19 @@ int main(int argc, char** argv) {
   bool dev_present = app.is_set("-ds") && app.is_set("-dt");
 
   if (dev_present) {
+
+    if (app.getParam("-ds") == app.getParam("-dt")) {
+
+      std::cerr << "WARNING: dev-files for source and target sentences are identical!" << std::endl;
+    }
+
+    if (app.getParam("-s") == app.getParam("-ds")) {
+      std::cerr << "WARNING: same file for source part of main corpus and development corpus" << std::endl;
+    }
+    if (app.getParam("-t") == app.getParam("-dt")) {
+      std::cerr << "WARNING: same file for target part of main corpus and development corpus" << std::endl;
+    }
+
     read_monolingual_corpus(app.getParam("-ds"), dev_source_sentence);
     read_monolingual_corpus(app.getParam("-dt"), dev_target_sentence);
   }

@@ -2521,7 +2521,8 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
 
     for (size_t s=0; s < source_sentence_.size(); s++) {
 
-      if ((s% 1250) == 0)
+      //if ((s% 1250) == 0)
+      if ((s% 10000) == 0)
         std::cerr << "sentence pair #" << s << std::endl;
       
       const Storage1D<uint>& cur_source = source_sentence_[s];
@@ -2621,7 +2622,7 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
 
     for (size_t s=0; s < source_sentence_.size(); s++) {
 
-      if ((s% 5000) == 0)
+      if ((s% 10000) == 0)
         std::cerr << "ICM, sentence pair #" << s << std::endl;
       
       const Storage1D<uint>& cur_source = source_sentence_[s];
