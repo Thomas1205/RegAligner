@@ -47,8 +47,8 @@ FertilityModelTrainer::FertilityModelTrainer(const Storage1D<Storage1D<uint> >& 
                                              SingleWordDictionary& dict,
                                              const CooccuringWordsType& wcooc,
                                              uint nSourceWords, uint nTargetWords,
-                                             const std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
-                                             const std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments) :
+                                             const std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
+                                             const std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments) :
   uncovered_set_(MAKENAME(uncovered_sets_)), predecessor_sets_(MAKENAME(predecessor_sets_)), 
   nUncoveredPositions_(MAKENAME(nUncoveredPositions_)), j_before_end_skips_(MAKENAME(j_before_end_skips_)),
   first_set_(MAKENAME(first_set_)), next_set_idx_(0), coverage_state_(MAKENAME(coverage_state_)),
@@ -119,11 +119,7 @@ double FertilityModelTrainer::AER() {
       nContributors++;
       //compute viterbi alignment
       //add alignment error rate
-      Math1D::Vector<uint> uint_alignment(best_known_alignment_[s].size());
-      for (uint k=0; k < best_known_alignment_[s].size(); k++)
-        uint_alignment[k] = best_known_alignment_[s][k];
-
-      sum_aer += ::AER(uint_alignment,sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]);
+      sum_aer += ::AER(best_known_alignment_[s],sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]);
     }
   }
   
@@ -143,11 +139,7 @@ double FertilityModelTrainer::AER(const Storage1D<Math1D::Vector<ushort> >& alig
       nContributors++;
       //compute viterbi alignment
       //add alignment error rate
-      Math1D::Vector<uint> uint_alignment(alignments[s].size());
-      for (uint k=0; k < alignments[s].size(); k++)
-        uint_alignment[k] = alignments[s][k];
-
-      sum_aer += ::AER(uint_alignment,sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]);
+      sum_aer += ::AER(alignments[s],sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]);
     }
   }
   
@@ -168,9 +160,6 @@ double FertilityModelTrainer::f_measure(double alpha) {
       nContributors++;
       //compute viterbi alignment
       //add alignment error rate
-      Math1D::Vector<uint> uint_alignment(best_known_alignment_[s].size());
-      for (uint k=0; k < best_known_alignment_[s].size(); k++)
-        uint_alignment[k] = best_known_alignment_[s][k];
 
       // std::cerr << "s: " << s << ", " << ::f_measure(uint_alignment,sure_ref_alignments_[s+1],possible_ref_alignments_[s+1], alpha) << std::endl;
       // std::cerr << "precision: " << ::precision(uint_alignment,sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]) << std::endl;
@@ -180,7 +169,7 @@ double FertilityModelTrainer::f_measure(double alpha) {
       // std::cerr << "possible alignments: " << possible_ref_alignments_[s+1] << std::endl;
       // std::cerr << "computed alignment: " << uint_alignment << std::endl;
 
-      sum_fmeasure += ::f_measure(uint_alignment,sure_ref_alignments_[s+1],possible_ref_alignments_[s+1], alpha);
+      sum_fmeasure += ::f_measure(best_known_alignment_[s],sure_ref_alignments_[s+1],possible_ref_alignments_[s+1], alpha);
     }
   }
   
@@ -200,11 +189,9 @@ double FertilityModelTrainer::DAE_S() {
       nContributors++;
       //compute viterbi alignment
       //add alignment error rate
-      Math1D::Vector<uint> uint_alignment(best_known_alignment_[s].size());
-      for (uint k=0; k < best_known_alignment_[s].size(); k++)
-        uint_alignment[k] = best_known_alignment_[s][k];
 
-      sum_errors += ::nDefiniteAlignmentErrors(uint_alignment,sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]);
+      sum_errors += ::nDefiniteAlignmentErrors(best_known_alignment_[s],
+					       sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]);
     }
   }
   
@@ -331,7 +318,7 @@ void FertilityModelTrainer::compute_uncovered_sets(uint nMaxSkips) {
   
   for (uint state = 0; state < next_set_idx_; state++) {
 
-    std::vector<std::pair<uint,uint> > cur_predecessor_sets;
+    std::vector<std::pair<ushort,ushort> > cur_predecessor_sets;
 
     //     std::cerr << "processing state ";
     //     for (uint k=0; k < nMaxSkips; k++) {
@@ -630,7 +617,7 @@ void FertilityModelTrainer::compute_coverage_states() {
 
     //std::cerr << "state #" << state_num << std::endl;
 
-    std::vector<std::pair<uint,uint> > cur_predecessor_states;
+    std::vector<std::pair<ushort,ushort> > cur_predecessor_states;
 
     const uint highest_covered_source_pos = coverage_state_(1,state_num);
     const uint uncovered_set_idx = coverage_state_(0,state_num);
@@ -769,8 +756,8 @@ void FertilityModelTrainer::write_alignments(const std::string filename) const {
 IBM3Trainer::IBM3Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
 			 const Storage1D<Math2D::Matrix<uint> >& slookup,
                          const Storage1D<Storage1D<uint> >& target_sentence,
-                         const std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
-                         const std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments,
+                         const std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
+                         const std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
                          SingleWordDictionary& dict,
                          const CooccuringWordsType& wcooc,
                          uint nSourceWords, uint nTargetWords,
@@ -845,7 +832,7 @@ void IBM3Trainer::init_from_hmm(const FullHMMAlignmentModel& align_model,
     const uint curI = target_sentence_[s].size();
     const uint curJ = source_sentence_[s].size();
 
-    Math1D::Vector<uint> uint_alignment(curJ);
+    Math1D::Vector<ushort> uint_alignment(curJ);
 
     if (initial_prob.size() == 0) 
       compute_fullhmm_viterbi_alignment(source_sentence_[s],slookup_[s], target_sentence_[s], 
@@ -1831,8 +1818,8 @@ double IBM3Trainer::compute_external_alignment(const Storage1D<uint>& source, co
 
   if (distortion_prob_[J-1].yDim() < I) {
 
-    std::cerr << "extending" << std::endl;
-    std::cerr << "parametric distortion: " << parametric_distortion_ << std::endl;
+    //std::cerr << "extending" << std::endl;
+    //std::cerr << "parametric distortion: " << parametric_distortion_ << std::endl;
 
     uint oldXDim = distortion_prob_[J-1].xDim();
     uint oldYDim = distortion_prob_[J-1].yDim();
@@ -4788,8 +4775,8 @@ void IBM3Trainer::train_with_ibm_constraints(uint nIter, uint maxFertility, uint
 IBM4Trainer::IBM4Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
                          const Storage1D<Math2D::Matrix<uint> >& slookup,
                          const Storage1D<Storage1D<uint> >& target_sentence,
-                         const std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
-                         const std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments,
+                         const std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
+                         const std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
                          SingleWordDictionary& dict,
                          const CooccuringWordsType& wcooc,
                          uint nSourceWords, uint nTargetWords,

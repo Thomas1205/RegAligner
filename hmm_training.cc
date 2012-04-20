@@ -587,8 +587,8 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
                         Math1D::Vector<double>& init_params,
                         SingleWordDictionary& dict,
                         uint nIterations, HmmInitProbType init_type, HmmAlignProbType align_type,
-                        std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
-                        std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments,
+                        std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
+                        std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
                         const floatSingleWordDictionary& prior_weight,
                         bool smoothed_l0, double l0_beta) {
 
@@ -1272,7 +1272,7 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
           nContributors++;
           //compute viterbi alignment
 
-          Math1D::Vector<uint> viterbi_alignment;
+          Math1D::Vector<ushort> viterbi_alignment;
           const uint curI = target[s].size();
 	  
           compute_ehmm_viterbi_alignment(source[s],slookup[s], target[s], 
@@ -1287,7 +1287,7 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
           nErrors += nDefiniteAlignmentErrors(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
 
 
-          Storage1D<uint> marg_alignment;
+          Storage1D<ushort> marg_alignment;
 	  
           compute_ehmm_optmarginal_alignment(source[s],slookup[s], target[s], 
                                              dict, align_model[curI-1], initial_prob[curI-1],
@@ -1327,8 +1327,8 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
                                        Math1D::Vector<double>& init_params,
                                        SingleWordDictionary& dict,
                                        uint nIterations, HmmInitProbType init_type, HmmAlignProbType align_type,
-                                       std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
-                                       std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments,
+                                       std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
+                                       std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
                                        const floatSingleWordDictionary& prior_weight,
                                        bool smoothed_l0, double l0_beta) {
 
@@ -2166,7 +2166,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
           nContributors++;
           //compute viterbi alignment
 
-          Storage1D<uint> viterbi_alignment;
+          Storage1D<ushort> viterbi_alignment;
           const uint curI = target[s].size();
 	  
           compute_ehmm_viterbi_alignment(source[s],slookup[s], target[s], 
@@ -2178,7 +2178,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
           sum_fmeasure += f_measure(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
           nErrors += nDefiniteAlignmentErrors(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
 
-          Storage1D<uint> marg_alignment;
+          Storage1D<ushort> marg_alignment;
 	  
           compute_ehmm_optmarginal_alignment(source[s],slookup[s], target[s], 
                                              dict, align_model[curI-1], initial_prob[curI-1],
@@ -2214,8 +2214,8 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
                                 InitialAlignmentProbability& initial_prob, 
                                 SingleWordDictionary& dict, uint nIterations, 
                                 HmmInitProbType init_type, HmmAlignProbType align_type, bool deficient_parametric,
-                                std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
-                                std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments,
+                                std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
+                                std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
                                 const floatSingleWordDictionary& prior_weight) {
 
   std::cerr << "starting Viterbi Training for Extended HMM" << std::endl;
@@ -2233,7 +2233,7 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
   const size_t nSentences = source.size();
   assert(nSentences == target.size());
 
-  Storage1D<Math1D::Vector<uint> > viterbi_alignment(source.size());
+  Storage1D<Math1D::Vector<ushort> > viterbi_alignment(source.size());
 
   for (size_t s=0; s < nSentences; s++) {
     
@@ -2798,7 +2798,7 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
             //b) regarding succeeding pos
             if (j+1 < curJ && effective_cur_aj != effective_new_aj) {
 
-              uint next_aj = std::min(curI,viterbi_alignment[s][j+1]);
+              ushort next_aj = std::min<ushort>(curI,viterbi_alignment[s][j+1]);
 
               if (align_type == HmmAlignProbNonpar) {
                 int total_cur_count = 0;
@@ -2859,8 +2859,8 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
                 }
                 else {
 
-                  change -= -std::log(align_model[curI-1](std::min(next_aj,curI),effective_cur_aj));
-                  change += -std::log(align_model[curI-1](std::min(next_aj,curI),effective_new_aj));
+                  change -= -std::log(align_model[curI-1](std::min<ushort>(next_aj,curI),effective_cur_aj));
+                  change += -std::log(align_model[curI-1](std::min<ushort>(next_aj,curI),effective_new_aj));
                 }
               }
             }
@@ -3127,7 +3127,7 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
           nContributors++;
           //compute viterbi alignment
 
-          Storage1D<uint> viterbi_alignment;
+          Storage1D<ushort> viterbi_alignment;
           const uint curI = target[s].size();
 	  
           compute_ehmm_viterbi_alignment(source[s],slookup[s], target[s], 
@@ -3140,7 +3140,7 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
           nErrors += nDefiniteAlignmentErrors(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
 
 
-          Storage1D<uint> marg_alignment;
+          Storage1D<ushort> marg_alignment;
 	  
           compute_ehmm_optmarginal_alignment(source[s],slookup[s], target[s], 
                                              dict, align_model[curI-1], initial_prob[curI-1],
@@ -3163,243 +3163,5 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
     }
   } //end for (iter)
 
-}
-
-
-void derive_symEHMM_alignment(const Storage1D<uint>& source,
-                              const Math2D::Matrix<uint>& slookup,
-                              const Math2D::Matrix<uint>& tlookup,
-                              const Storage1D<uint>& target,		      
-                              FullHMMAlignmentModel& s2t_align_model, FullHMMAlignmentModel& t2s_align_model,
-                              InitialAlignmentProbability& s2t_initial_prob, InitialAlignmentProbability& t2s_initial_prob,
-                              SingleWordDictionary& s2t_dict, SingleWordDictionary& t2s_dict,
-                              std::set<std::pair<uint,uint> >& alignment,
-                              double threshold = 0.1) {
-
-  alignment.clear();
-
-  const uint curJ = source.size();
-  const uint curI = target.size();
-
-  Math2D::Matrix<double> marginal(curI,curJ,0.0);  
-
-  const Math2D::Matrix<double>& cur_s2t_align_model = s2t_align_model[curI-1];
-  const Math2D::Matrix<double>& cur_t2s_align_model = t2s_align_model[curJ-1];
-
-  
-  /*** 1.) s|t ***/
-
-
-  // a) forward
-  Math2D::NamedMatrix<long double> forward(2*curI,curJ,MAKENAME(forward));
-  
-  const uint start_s_idx = source[0];
-  for (uint i=0; i < curI; i++) {
-    forward(i,0) = s2t_initial_prob[curI-1][i] * s2t_dict[target[i]][slookup(0,i)];
-    assert(forward(i,0) >= 0.0);
-  }
-  for (uint i=curI; i < 2*curI; i++) {
-    forward(i,0) = s2t_initial_prob[curI-1][i] * s2t_dict[0][start_s_idx-1];
-    assert(forward(i,0) >= 0.0);
-  }
-  
-  for (uint j=1; j < curJ; j++) {
-    const uint j_prev = j-1;
-    const uint s_idx = source[j];
-      
-    for (uint i=0; i < curI; i++) {
-      
-      long double sum = 0.0;
-      for (uint i_prev=0; i_prev < curI; i_prev++)
-        sum += cur_s2t_align_model(i,i_prev) * (forward(i_prev,j_prev) + forward(i_prev+curI,j_prev));
-      
-      forward(i,j) = sum * s2t_dict[target[i]][slookup(j,i)];
-      assert(forward(i,j) >= 0.0);
-    }
-    
-    long double cur_emptyword_prob = s2t_dict[0][s_idx-1];
-    assert(cur_emptyword_prob >= 0.0);
-    
-    for (uint i=curI; i < 2*curI; i++) {
-	
-      long double sum = cur_s2t_align_model(curI,i-curI) * (forward(i,j_prev) + forward(i-curI,j_prev));
-      forward(i,j) = sum * cur_emptyword_prob;
-      
-      assert(forward(i,j) >= 0.0);
-    }
-  }
-    
-  long double sentence_prob = 0.0;
-  for (uint i=0; i < 2*curI; i++) {
-    
-    assert(forward(i,curJ-1) >= 0.0);
-    sentence_prob += forward(i,curJ-1);
-  }
-  long double inv_sentence_prob = 1.0 / sentence_prob;
-
-
-  //b) backward
-  
-  Math2D::NamedMatrix<long double> backward(2*curI,curJ,MAKENAME(backward));
-  const uint end_s_idx = source[curJ-1];
-  
-  for (uint i=0; i < curI; i++)
-    backward(i,curJ-1) = s2t_dict[target[i]][slookup(curJ-1,i)];
-  for (uint i=curI; i < 2*curI; i++)
-    backward(i,curJ-1) = s2t_dict[0][end_s_idx-1];
-  
-  for (int j=curJ-2; j >= 0; j--) {
-    const uint s_idx = source[j];
-    const uint j_next = j+1;
-    
-    for (uint i=0; i < curI; i++) {
-	
-      long double sum = 0.0;
-      for (uint i_next = 0; i_next < curI; i_next++)
-        sum += backward(i_next,j_next) * cur_s2t_align_model(i_next,i);
-      sum += backward(i+curI,j_next) * cur_s2t_align_model(curI,i);
-      
-      backward(i,j) = sum * s2t_dict[target[i]][slookup(j,i)];
-    }
-
-    long double cur_emptyword_prob = s2t_dict[0][s_idx-1];
-    
-    for (uint i=curI; i < 2*curI; i++) {
-	
-      long double sum = 0.0;
-      for (uint i_next = 0; i_next < curI; i_next++)
-        sum += backward(i_next,j_next) * cur_s2t_align_model(i_next,i-curI);
-      sum += backward(i,j_next) * cur_s2t_align_model(curI,i-curI);
-      
-      backward(i,j) = sum * cur_emptyword_prob;
-    }
-  }
-
-  //c) compute marginals
-  for (uint i=0; i < curI; i++) {
-    for (uint j=0; j < curJ; j++) {
-      
-      double cur_marg = 0.0;
-      if (s2t_dict[target[i]][slookup(j,i)] > 1e-305) {
-
-        cur_marg = inv_sentence_prob * forward(i,j) * backward(i,j) / s2t_dict[target[i]][slookup(j,i)];
-      }
-
-      marginal(i,j) += 0.5 * cur_marg;
-    }
-  }
-  
-
-  /***** 2.) t2s ***/
-
-  //a) forward
-  forward.resize(2*curJ,curI);
-  
-  const uint start_t_idx = target[0];
-  for (uint j=0; j < curJ; j++) {
-    forward(j,0) = t2s_initial_prob[curJ-1][j] * t2s_dict[source[j]][tlookup(0,j)];
-    assert(forward(j,0) >= 0.0);
-  }
-  for (uint j=curJ; j < 2*curJ; j++) {
-    forward(j,0) = t2s_initial_prob[curJ-1][j] * t2s_dict[0][start_t_idx-1];
-    assert(forward(j,0) >= 0.0);
-  }
-
-  for (uint i=1; i < curI; i++) {
-    const uint i_prev = i-1;
-    const uint t_idx = target[i];
-    
-    for (uint j=0; j < curJ; j++) {
-      
-      long double sum = 0.0;
-      for (uint j_prev=0; j_prev < curJ; j_prev++)
-        sum += cur_t2s_align_model(j,j_prev) * (forward(j_prev,i_prev) + forward(j_prev+curJ,i_prev));
-      
-      forward(j,i) = sum * t2s_dict[source[j]][tlookup(i,j)];
-      assert(forward(j,i) >= 0.0);
-    }
-
-    long double cur_emptyword_prob = t2s_dict[0][t_idx-1];
-    assert(cur_emptyword_prob >= 0.0);
-      
-    for (uint j=curJ; j < 2*curJ; j++) {
-      
-      long double sum = cur_t2s_align_model(curJ,j-curJ) * (forward(j,i_prev) + forward(j-curJ,i_prev));
-      forward(j,i) = sum * cur_emptyword_prob;
-      
-      assert(forward(j,i) >= 0.0);
-    }
-  }
-
-  sentence_prob = 0.0;
-  for (uint j=0; j < 2*curJ; j++) {
-    
-    assert(forward(j,curI-1) >= 0.0);
-    sentence_prob += forward(j,curI-1);
-  }
-
-  inv_sentence_prob = 1.0 / sentence_prob;
-
-  //std::cerr << "b)" << std::endl;
-  
-  //b) backward
-  backward.resize(2*curJ,curI);
-  
-  const uint end_t_idx = target[curI-1];
-    
-  for (uint j=0; j < curJ; j++)
-    backward(j,curI-1) = t2s_dict[source[j]][tlookup(curI-1,j)];
-  for (uint j=curJ; j < 2*curJ; j++)
-    backward(j,curI-1) = t2s_dict[0][end_t_idx-1];
-  
-    
-  for (int i=curI-2; i >= 0; i--) {
-    const uint t_idx = target[i];
-    const uint i_next = i+1;
-
-    for (uint j=0; j < curJ; j++) {
-	
-      long double sum = 0.0;
-      for (uint j_next = 0; j_next < curJ; j_next++)
-        sum += backward(j_next,i_next) * cur_t2s_align_model(j_next,j);
-      sum += backward(j+curJ,i_next) * cur_t2s_align_model(curJ,j);
-      
-      backward(j,i) = sum * t2s_dict[source[j]][tlookup(i,j)];
-    }
-      
-    long double cur_emptyword_prob = t2s_dict[0][t_idx-1];
-      
-    for (uint j=curJ; j < 2*curJ; j++) {
-
-      long double sum = 0.0;
-      for (uint j_next = 0; j_next < curJ; j_next++)
-        sum += backward(j_next,i_next) * cur_t2s_align_model(j_next,j-curJ);
-      sum += backward(j,i_next) * cur_t2s_align_model(curJ,j-curJ);
-      
-      backward(j,i) = sum * cur_emptyword_prob;
-    }
-  }
-  
-  //std::cerr << "c)" << std::endl;
-  
-  //c) compute marginals
-  for (uint i=0; i < curI; i++) {
-    for (uint j=0; j < curJ; j++) {
-      
-      double cur_marg = 0.0;
-      if (t2s_dict[source[j]][tlookup(i,j)] > 1e-305) {
-	
-        cur_marg = inv_sentence_prob * forward(j,i) * backward(j,i) / t2s_dict[source[j]][tlookup(i,j)];
-      }
-      
-      marginal(i,j) += 0.5 * cur_marg;
-    }
-  }
-  
-  for (uint j=0; j < curJ; j++) 
-    for (uint i=0; i < curI; i++) 
-      if (marginal(i,j) >= threshold)
-        alignment.insert(std::make_pair(j+1,i+1));
-  
 }
 

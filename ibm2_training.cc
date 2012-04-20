@@ -71,8 +71,8 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
                 IBM2AlignmentModel& alignment_model,
                 SingleWordDictionary& dict,
                 uint nIterations,
-                std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
-                std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments) {
+                std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
+                std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments) {
 
   std::cerr << "starting IBM 2 training" << std::endl;
 
@@ -265,7 +265,7 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
           const Math2D::Matrix<double>& cur_align_model = alignment_model[curI][k];
 
           //compute viterbi alignment
-          Storage1D<uint> viterbi_alignment;
+          Storage1D<ushort> viterbi_alignment;
           compute_ibm2_viterbi_alignment(source[s], slookup[s], target[s], dict, cur_align_model,
                                          viterbi_alignment);
   
@@ -338,8 +338,8 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
                         ReducedIBM2AlignmentModel& alignment_model,
                         SingleWordDictionary& dict,
                         uint nIterations,
-                        std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
-                        std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments) {
+                        std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
+                        std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments) {
 
   std::cerr << "starting reduced IBM 2 training" << std::endl;
 
@@ -505,7 +505,7 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
           const Math2D::Matrix<double>& cur_align_model = alignment_model[curI];
 
           //compute viterbi alignment
-          Storage1D<uint> viterbi_alignment;
+          Storage1D<ushort> viterbi_alignment;
           compute_ibm2_viterbi_alignment(source[s], slookup[s], target[s], dict, cur_align_model,
                                          viterbi_alignment);
   
@@ -538,8 +538,8 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
                            ReducedIBM2AlignmentModel& alignment_model,
                            SingleWordDictionary& dict,
                            uint nIterations,
-                           std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
-                           std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments,
+                           std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
+                           std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
                            const floatSingleWordDictionary& prior_weight) {
 
   //initialize alignment model
@@ -565,7 +565,7 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
   const size_t nSentences = source.size();
   assert(nSentences == target.size());
   
-  Storage1D<Math1D::Vector<uint> > viterbi_alignment(source.size());
+  Storage1D<Math1D::Vector<ushort> > viterbi_alignment(source.size());
 
   for (size_t s=0; s < nSentences; s++) {
     

@@ -21,8 +21,8 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
                 IBM2AlignmentModel& alignment_model,
                 SingleWordDictionary& dict,
                 uint nIterations,
-                std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
-                std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments);
+                std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
+                std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments);
 
 
 void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
@@ -34,8 +34,8 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
                         ReducedIBM2AlignmentModel& alignment_model,
                         SingleWordDictionary& dict,
                         uint nIterations,
-                        std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
-                        std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments);
+                        std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
+                        std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments);
 
 
 void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source, 
@@ -47,8 +47,8 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
                            ReducedIBM2AlignmentModel& alignment_model,
                            SingleWordDictionary& dict,
                            uint nIterations,
-                           std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
-                           std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments,
+                           std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
+                           std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
                            const floatSingleWordDictionary& prior_weight);
 
 #endif

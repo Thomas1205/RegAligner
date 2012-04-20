@@ -261,8 +261,8 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
                 uint nSourceWords, uint nTargetWords,
                 SingleWordDictionary& dict,
                 uint nIter,
-                std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
-                std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments,
+                std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
+                std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
                 const floatSingleWordDictionary& prior_weight, bool smoothed_l0, double l0_beta) {
   
   assert(cooc.size() == nTargetWords);
@@ -433,7 +433,7 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
           nContributors++;
 
           //compute viterbi alignment
-          Storage1D<uint> viterbi_alignment;
+          Storage1D<ushort> viterbi_alignment;
           compute_ibm1_viterbi_alignment(source[s], slookup[s], target[s], dict, viterbi_alignment);
   
           //add alignment error rate
@@ -463,8 +463,8 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
                                const CooccuringWordsType& cooc, 
                                uint nSourceWords, uint nTargetWords,
                                SingleWordDictionary& dict, uint nIter,
-                               std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
-                               std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments,
+                               std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
+                               std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
                                const floatSingleWordDictionary& prior_weight, bool smoothed_l0, double l0_beta) {
 
   assert(cooc.size() == nTargetWords);
@@ -729,7 +729,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
           nContributors++;
 
           //compute viterbi alignment
-          Storage1D<uint> viterbi_alignment;
+          Storage1D<ushort> viterbi_alignment;
           compute_ibm1_viterbi_alignment(source[s], slookup[s], target[s], dict, viterbi_alignment);
   
           //add alignment error rate
@@ -762,11 +762,11 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
                            const CooccuringWordsType& cooc, 
                            uint nSourceWords, uint nTargetWords,
                            SingleWordDictionary& dict, uint nIterations,
-                           std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
-                           std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments,
+                           std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
+                           std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
                            const floatSingleWordDictionary& prior_weight) {
 
-  Storage1D<Math1D::Vector<uint> > viterbi_alignment(source.size());
+  Storage1D<Math1D::Vector<ushort> > viterbi_alignment(source.size());
 
   const size_t nSentences = source.size();
   assert(nSentences == target.size());

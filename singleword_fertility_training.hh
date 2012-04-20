@@ -20,8 +20,8 @@ public:
                         SingleWordDictionary& dict,
                         const CooccuringWordsType& wcooc,
                         uint nSourceWords, uint nTargetWords,
-                        const std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
-                        const std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments
+                        const std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
+                        const std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments
                         );
 
   void write_alignments(const std::string filename) const;
@@ -90,8 +90,8 @@ protected:
 
   NamedStorage1D<Math1D::Vector<ushort> > best_known_alignment_;
 
-  std::map<uint,std::set<std::pair<uint,uint> > > sure_ref_alignments_;
-  std::map<uint,std::set<std::pair<uint,uint> > > possible_ref_alignments_;
+  std::map<uint,std::set<std::pair<ushort,ushort> > > sure_ref_alignments_;
+  std::map<uint,std::set<std::pair<ushort,ushort> > > possible_ref_alignments_;
 };
 
 class IBM4Trainer;
@@ -102,8 +102,8 @@ public:
   IBM3Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
               const Storage1D<Math2D::Matrix<uint> >& slookup,
               const Storage1D<Storage1D<uint> >& target_sentence,
-              const std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
-              const std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments,
+              const std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
+              const std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
               SingleWordDictionary& dict,
               const CooccuringWordsType& wcooc,
               uint nSourceWords, uint nTargetWords,
@@ -196,8 +196,8 @@ public:
   IBM4Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
               const Storage1D<Math2D::Matrix<uint> >& slookup,
               const Storage1D<Storage1D<uint> >& target_sentence,
-              const std::map<uint,std::set<std::pair<uint,uint> > >& sure_ref_alignments,
-              const std::map<uint,std::set<std::pair<uint,uint> > >& possible_ref_alignments,
+              const std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
+              const std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
               SingleWordDictionary& dict,
               const CooccuringWordsType& wcooc,
               uint nSourceWords, uint nTargetWords,

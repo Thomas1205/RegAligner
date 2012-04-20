@@ -75,8 +75,8 @@ int main(int argc, char** argv) {
   NamedStorage1D<Storage1D<uint> > dev_source_sentence(MAKENAME(dev_source_sentence));
   NamedStorage1D<Storage1D<uint> > dev_target_sentence(MAKENAME(dev_target_sentence));  
 
-  std::map<uint,std::set<std::pair<uint,uint> > > sure_ref_alignments;
-  std::map<uint,std::set<std::pair<uint,uint> > > possible_ref_alignments;
+  std::map<uint,std::set<std::pair<ushort,ushort> > > sure_ref_alignments;
+  std::map<uint,std::set<std::pair<ushort,ushort> > > possible_ref_alignments;
 
   if (app.is_set("-refa")) {
     read_reference_alignment(app.getParam("-refa"), sure_ref_alignments, possible_ref_alignments,
@@ -567,7 +567,6 @@ int main(int argc, char** argv) {
       
       std::cerr << "dev sentences present" << std::endl;
       
-      Storage1D<uint> uint_viterbi_alignment;
       Math1D::Vector<ushort> viterbi_alignment;
       
       std::ostream* dev_alignment_stream;
@@ -592,13 +591,8 @@ int main(int argc, char** argv) {
 	//initialize by HMM
 	compute_ehmm_viterbi_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
 				       dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
-				       uint_viterbi_alignment, false);
-	
-	viterbi_alignment.resize(uint_viterbi_alignment.size());
-	
-	for (uint k=0; k < uint_viterbi_alignment.size(); k++)
-	  viterbi_alignment[k] = uint_viterbi_alignment[k];
-	
+				       viterbi_alignment, false);
+		
 	ibm4_trainer.compute_external_alignment(dev_source_sentence[s],dev_target_sentence[s],dev_slookup[s],
 						viterbi_alignment);
 	
@@ -617,7 +611,6 @@ int main(int argc, char** argv) {
 
     if (dev_present) {
 
-      Storage1D<uint> uint_viterbi_alignment;
       Math1D::Vector<ushort> viterbi_alignment;
       
       std::ostream* dev_alignment_stream;
@@ -640,12 +633,7 @@ int main(int argc, char** argv) {
 	//initialize by HMM
 	compute_ehmm_viterbi_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
 				       dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
-				       uint_viterbi_alignment,false);
-
-	viterbi_alignment.resize(uint_viterbi_alignment.size());
-	
-	for (uint k=0; k < uint_viterbi_alignment.size(); k++)
-	  viterbi_alignment[k] = uint_viterbi_alignment[k];
+				       viterbi_alignment,false);
 	
 	ibm3_trainer.compute_external_alignment(dev_source_sentence[s],dev_target_sentence[s],dev_slookup[s],
 						viterbi_alignment);
@@ -675,7 +663,7 @@ int main(int argc, char** argv) {
       alignment_stream = new std::ofstream(app.getParam("-oa").c_str());
     }
 
-    Storage1D<uint> viterbi_alignment;
+    Storage1D<ushort> viterbi_alignment;
 
     for (size_t s = 0; s < nSentences; s++) {
 

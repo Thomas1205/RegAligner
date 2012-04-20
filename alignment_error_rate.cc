@@ -11,8 +11,8 @@
 #endif
 
 void read_reference_alignment(std::string filename, 
-                              std::map<uint,std::set<std::pair<uint,uint> > >& sure_alignments,
-                              std::map<uint,std::set<std::pair<uint,uint> > >& possible_alignments, 
+                              std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_alignments,
+                              std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_alignments, 
                               bool invert) {
 
   std::istream* astream;
@@ -63,7 +63,7 @@ void read_reference_alignment(std::string filename,
           convert<uint>(mini_tokens[0].substr(1,mini_tokens[0].size()));
         uint target = convert<uint>(mini_tokens[1]);
 
-        std::pair<uint,uint> new_alignment;
+        std::pair<ushort,ushort> new_alignment;
 
         if (!invert) 
           new_alignment = std::make_pair(source,target);
@@ -85,18 +85,18 @@ void read_reference_alignment(std::string filename,
 }
 
 void write_reference_alignment(std::string filename, 
-                               std::map<uint, std::set<std::pair<uint,uint> > >& sure_alignments,
-                               std::map<uint, std::set<std::pair<uint,uint> > >& possible_alignments,
+                               std::map<uint, std::set<std::pair<ushort,ushort> > >& sure_alignments,
+                               std::map<uint, std::set<std::pair<ushort,ushort> > >& possible_alignments,
                                bool invert) {
 
   std::ofstream astream(filename.c_str());
   
-  for (std::map<uint, std::set<std::pair<uint,uint> > >::iterator it = possible_alignments.begin(); 
+  for (std::map<uint, std::set<std::pair<ushort,ushort> > >::iterator it = possible_alignments.begin(); 
        it != possible_alignments.end(); it++) {
 
     uint sent_num = it->first;
     
-    for (std::set<std::pair<uint,uint> >::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++) {
+    for (std::set<std::pair<ushort,ushort> >::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++) {
 
       astream << sent_num << " ";
       if (invert)
@@ -116,11 +116,11 @@ void write_reference_alignment(std::string filename,
 
 
 
-double AER(const Storage1D<uint>& singleword_alignment, 
-           const std::set<std::pair<uint,uint> >& sure_ref_alignments,
-           const std::set<std::pair<uint,uint> >& possible_ref_alignments) {
+double AER(const Storage1D<ushort>& singleword_alignment, 
+           const std::set<std::pair<ushort,ushort> >& sure_ref_alignments,
+           const std::set<std::pair<ushort,ushort> >& possible_ref_alignments) {
 
-  std::set<std::pair<uint,uint> > given_alignment;
+  std::set<std::pair<ushort,ushort> > given_alignment;
   for (uint j=0; j < singleword_alignment.size(); j++) {
 
     if (singleword_alignment[j] > 0) {
@@ -131,9 +131,9 @@ double AER(const Storage1D<uint>& singleword_alignment,
   return AER(given_alignment, sure_ref_alignments, possible_ref_alignments);
 }
 
-double AER(const std::set<std::pair<uint,uint> >& mt_alignment, 
-           const std::set<std::pair<uint,uint> >& sure_ref_alignments,
-           const std::set<std::pair<uint,uint> >& possible_ref_alignments) {
+double AER(const std::set<std::pair<ushort,ushort> >& mt_alignment, 
+           const std::set<std::pair<ushort,ushort> >& sure_ref_alignments,
+           const std::set<std::pair<ushort,ushort> >& possible_ref_alignments) {
 
 
   uint A = mt_alignment.size();
@@ -147,7 +147,7 @@ double AER(const std::set<std::pair<uint,uint> >& mt_alignment,
     return 0.0;
   }
 
-  for (std::set<std::pair<uint,uint> >::const_iterator mt_it = mt_alignment.begin(); 
+  for (std::set<std::pair<ushort,ushort> >::const_iterator mt_it = mt_alignment.begin(); 
        mt_it != mt_alignment.end(); mt_it++) {
 
     if (possible_ref_alignments.find(*mt_it) != possible_ref_alignments.end())
@@ -162,13 +162,13 @@ double AER(const std::set<std::pair<uint,uint> >& mt_alignment,
 
 //f-measure as in [Fraser and Marcu 07] for a single sentence pair
 // assuming a single-word alignment
-double f_measure(const Storage1D<uint>& singleword_alignment, 
-                 const std::set<std::pair<uint,uint> >& sure_ref_alignments,
-                 const std::set<std::pair<uint,uint> >& possible_ref_alignments,
+double f_measure(const Storage1D<ushort>& singleword_alignment, 
+                 const std::set<std::pair<ushort,ushort> >& sure_ref_alignments,
+                 const std::set<std::pair<ushort,ushort> >& possible_ref_alignments,
                  double alpha) {
 
 
-  std::set<std::pair<uint,uint> > given_alignment;
+  std::set<std::pair<ushort,ushort> > given_alignment;
   for (uint j=0; j < singleword_alignment.size(); j++) {
 
     if (singleword_alignment[j] > 0) {
@@ -181,9 +181,9 @@ double f_measure(const Storage1D<uint>& singleword_alignment,
 
 //f-measure as in [Fraser and Marcu 2003] for a single sentence pair
 // assuming a general alignment
-double f_measure(const std::set<std::pair<uint,uint> >& mt_alignment, 
-                 const std::set<std::pair<uint,uint> >& sure_ref_alignments,
-                 const std::set<std::pair<uint,uint> >& possible_ref_alignments,
+double f_measure(const std::set<std::pair<ushort,ushort> >& mt_alignment, 
+                 const std::set<std::pair<ushort,ushort> >& sure_ref_alignments,
+                 const std::set<std::pair<ushort,ushort> >& possible_ref_alignments,
                  double alpha) {
 
 
@@ -193,7 +193,7 @@ double f_measure(const std::set<std::pair<uint,uint> >& mt_alignment,
   double precision = 0.0;
   double recall = 0.0;
 
-  for (std::set<std::pair<uint,uint> >::const_iterator mt_it = mt_alignment.begin(); 
+  for (std::set<std::pair<ushort,ushort> >::const_iterator mt_it = mt_alignment.begin(); 
        mt_it != mt_alignment.end(); mt_it++) {
 
     if (possible_ref_alignments.find(*mt_it) != possible_ref_alignments.end())
@@ -218,11 +218,11 @@ double f_measure(const std::set<std::pair<uint,uint> >& mt_alignment,
 
 // number of definite alignment errors (missing sure, present but impossible links) for a single sentence pair
 // assuming a single-word alignment
-uint nDefiniteAlignmentErrors(const Storage1D<uint>& singleword_alignment, 
-                              const std::set<std::pair<uint,uint> >& sure_ref_alignments,
-                              const std::set<std::pair<uint,uint> >& possible_ref_alignments) {
+uint nDefiniteAlignmentErrors(const Storage1D<ushort>& singleword_alignment, 
+                              const std::set<std::pair<ushort,ushort> >& sure_ref_alignments,
+                              const std::set<std::pair<ushort,ushort> >& possible_ref_alignments) {
 
-  std::set<std::pair<uint,uint> > given_alignment;
+  std::set<std::pair<ushort,ushort> > given_alignment;
   for (uint j=0; j < singleword_alignment.size(); j++) {
 
     if (singleword_alignment[j] > 0) {
@@ -235,20 +235,20 @@ uint nDefiniteAlignmentErrors(const Storage1D<uint>& singleword_alignment,
 
 // number of definite alignment errors (missing sure, present but impossible links) for a single sentence pair
 // assuming a general alignment
-uint nDefiniteAlignmentErrors(const std::set<std::pair<uint,uint> >& mt_alignment,
-                              const std::set<std::pair<uint,uint> >& sure_ref_alignments,
-                              const std::set<std::pair<uint,uint> >& possible_ref_alignments) {
+uint nDefiniteAlignmentErrors(const std::set<std::pair<ushort,ushort> >& mt_alignment,
+                              const std::set<std::pair<ushort,ushort> >& sure_ref_alignments,
+                              const std::set<std::pair<ushort,ushort> >& possible_ref_alignments) {
 
   uint nErrors = 0;
 
-  for (std::set<std::pair<uint,uint> >::const_iterator it = sure_ref_alignments.begin(); 
+  for (std::set<std::pair<ushort,ushort> >::const_iterator it = sure_ref_alignments.begin(); 
        it != sure_ref_alignments.end(); it++) {
 
     if (mt_alignment.find(*it) == mt_alignment.end())
       nErrors++;	
   }
 
-  for (std::set<std::pair<uint,uint> >::const_iterator it = mt_alignment.begin(); it != mt_alignment.end(); it++) {
+  for (std::set<std::pair<ushort,ushort> >::const_iterator it = mt_alignment.begin(); it != mt_alignment.end(); it++) {
     
     if (possible_ref_alignments.find(*it) == possible_ref_alignments.end())
       nErrors++;
