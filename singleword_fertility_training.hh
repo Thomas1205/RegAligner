@@ -1,5 +1,6 @@
-/*** written by Thomas Schoenemann as a private person without employment, November 2009 ***/
-
+/*** written by Thomas Schoenemann. Started as a private person without employment, November 2009 ***/
+/*** continued at Lund University, Sweden, January 2010 - March 2011, as a private person and ***/
+/*** at the University of Düsseldorf, Germany, January - April 2012 ***/
 
 #ifndef SINGLEWORD_FERTILITY_TRAINING_HH
 #define SINGLEWORD_FERTILITY_TRAINING_HH
@@ -229,6 +230,10 @@ protected:
 
   long double alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
                              const Math2D::Matrix<uint>& lookup, const Math1D::Vector<ushort>& alignment) const;
+
+  long double distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
+			      const Math1D::Vector<ushort>& alignment) const;
+
 
   void print_alignment_prob_factors(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 				    const Math2D::Matrix<uint>& lookup, const Math1D::Vector<ushort>& alignment) const;
