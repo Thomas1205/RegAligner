@@ -353,7 +353,7 @@ int main(int argc, char** argv) {
 
     train_extended_hmm_gd_stepcontrol(source_sentence, slookup, target_sentence, wcooc, nSourceWords, nTargetWords,
                                       hmmalign_model, hmm_dist_params, hmm_dist_grouping_param, source_fert,
-                                      initial_prob, hmm_init_params, dict, 50, HmmInitPar, train_dist_mode,
+                                      initial_prob, hmm_init_params, dict, hmm_iter, HmmInitPar, train_dist_mode,
                                       sure_ref_alignments, possible_ref_alignments, prior_weight, em_l0, l0_beta); 
   }
   else {

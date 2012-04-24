@@ -666,7 +666,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
           hyp_dict[i][k] = inv_lambda * dict[i][k] + lambda * new_dict[i][k];
       }
       
-      double new_energy = ibm1_energy(source,slookup,target,hyp_dict,prior_weight); //distribution_weight);//regularity_weight);
+      double new_energy = ibm1_energy(source,slookup,target,hyp_dict,prior_weight); 
 
       std::cerr << "new hyp: " << new_energy << ", previous: " << hyp_energy << std::endl;
       

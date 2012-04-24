@@ -38,7 +38,7 @@ inline void projection_on_simplex(T* data, const uint nData) {
     //for (uint k=0; k < nData; k++)
     for (uint k=start; k <= end; k++) {
       mean_dev += data[k];
-      assert(fabs(data[k] < 1e75));
+      assert(fabs(data[k]) < 1e75);
     }
     
     mean_dev /= nNonZeros;
@@ -82,7 +82,7 @@ inline void projection_on_simplex_with_slack(double* data, double& slack, uint n
     double mean_dev = - 1.0 + slack;
     for (uint k=0; k < nData; k++) {
       mean_dev += data[k];
-      assert(fabs(data[k] < 1e75));
+      assert(fabs(data[k]) < 1e75);
     }
     
     mean_dev /= nNonZeros;

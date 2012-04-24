@@ -1387,22 +1387,18 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
   Math1D::Vector<double> empty_count(maxI,0.0);
   Math1D::Vector<double> real_count(maxI,0.0);
 
-  //double dist_grouping_param = 0.0;
   double dist_grouping_grad = 0.0;
   double new_dist_grouping_param = 0.0;
   double hyp_dist_grouping_param = 0.0;
 
-  //Math1D::NamedVector<double> dist_params(0,MAKENAME(dist_params));
   Math1D::NamedVector<double> dist_grad(0,MAKENAME(dist_grad));
   Math1D::NamedVector<double> new_dist_params(0,MAKENAME(new_dist_params));
   Math1D::NamedVector<double> hyp_dist_params(0,MAKENAME(hyp_dist_params));
 
-  //Math1D::NamedVector<double> init_params(0,MAKENAME(init_params));
   Math1D::NamedVector<double> init_param_grad(0,MAKENAME(init_param_grad));
   Math1D::NamedVector<double> new_init_params(0,MAKENAME(new_init_params));
   Math1D::NamedVector<double> hyp_init_params(0,MAKENAME(hyp_init_params));
 
-  //Math1D::Vector<double> source_fert(0);
   Math1D::Vector<double> source_fert_grad(0);
   Math1D::Vector<double> new_source_fert(0);  
   Math1D::Vector<double> hyp_source_fert(0);
@@ -1652,7 +1648,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
       for (uint i=0; i < curI; i++) {
         const uint t_idx = cur_target[i];
 
-        const double coeff = inv_sentence_prob * backward(i,0);
+        const long double coeff = inv_sentence_prob * backward(i,0);
 
         const double cur_dict_entry = dict[t_idx][cur_lookup(0,i)];
 
@@ -1664,26 +1660,30 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
           dict_grad[t_idx][cur_lookup(0,i)] -= addon;
         }
 
-        if (initial_prob[curI-1][i] > 1e-300)
-          init_grad[curI-1][i] -= coeff / initial_prob[curI-1][i];
+        if (initial_prob[curI-1][i] > 1e-300) {
+          init_grad[curI-1][i] -= coeff / std::max(1e-15,initial_prob[curI-1][i]);
+	  assert(!isnan(init_grad[curI-1][i]));
+	}
       }
       for (uint i=0; i < curI; i++) {
 
-        const double coeff = inv_sentence_prob * backward(i+curI,0);
+        const long double coeff = inv_sentence_prob * backward(i+curI,0);
 
         const double cur_dict_entry = dict[0][start_s_idx-1];
 
         if (cur_dict_entry > 1e-300) {
 
-          double addon = coeff / cur_dict_entry;
+          double addon = coeff / std::max(1e-15,cur_dict_entry);
           if (smoothed_l0)
             addon *= prob_pen_prime(cur_dict_entry, l0_beta);
 
           dict_grad[0][start_s_idx-1] -= addon;
         }
 
-        if (initial_prob[curI-1][i+curI] > 1e-300)
-          init_grad[curI-1][i+curI] -= coeff / initial_prob[curI-1][i+curI];
+        if (initial_prob[curI-1][i+curI] > 1e-300) {
+          init_grad[curI-1][i+curI] -= coeff / std::max(1e-15,initial_prob[curI-1][i+curI]);
+	  assert(!isnan(init_grad[curI-1][i+curI]));
+	}
       }
 
       //mid-sentence
@@ -1700,7 +1700,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
           if (cur_dict_entry > 1e-70) {
 
             double dict_addon = forward(i,j)*backward(i,j) 
-              / (sentence_prob * cur_dict_entry * cur_dict_entry);
+              / (sentence_prob * std::max(1e-30,cur_dict_entry * cur_dict_entry));
 
             if (smoothed_l0)
               dict_addon *= prob_pen_prime(cur_dict_entry, l0_beta);
@@ -1736,7 +1736,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
           if (cur_dict_entry > 1e-70) {
 
-            double addon = bw*forward(i,j) / (cur_dict_entry * cur_dict_entry);
+            double addon = bw*forward(i,j) / std::max(1e-15,cur_dict_entry * cur_dict_entry);
 
             if (smoothed_l0)
               addon *= prob_pen_prime(cur_dict_entry, l0_beta);
@@ -1758,6 +1758,8 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
     if (init_type == HmmInitPar) {
 
+      
+      
       for (uint I = 1; I <= maxI; I++) {
 
         if (seenIs.find(I) != seenIs.end()) {
@@ -1870,6 +1872,8 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
     
     /******** 2. move in gradient direction *********/
 
+    //std::cerr << "A" << std::endl;
+
     if (align_type != HmmAlignProbNonpar || init_type == HmmInitPar) {
       
       for (uint i=0; i < 2; i++)
@@ -1878,6 +1882,8 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
       projection_on_simplex(new_source_fert.direct_access(), 2);
     }
 
+    //std::cerr << "B" << std::endl;
+
     if (init_type == HmmInitPar) {
 
       for (uint k=0; k < init_params.size(); k++)
@@ -1885,6 +1891,8 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
       projection_on_simplex(new_init_params.direct_access(), new_init_params.size());
     }
+
+    //std::cerr << "C" << std::endl;
 
     if (align_type == HmmAlignProbFullpar) {
 
@@ -1905,15 +1913,29 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
       projection_on_simplex_with_slack(new_dist_params.direct_access()+zero_offset-5,new_dist_grouping_param,11);
     }
 
-    for (uint i=0; i < nTargetWords; i++) {
-      projection_on_simplex_with_slack(new_dict_prob[i].direct_access(),new_slack_vector[i],new_dict_prob[i].size());
-    }
+    //std::cerr << "D" << std::endl;
+
+    // for (uint i=0; i < nTargetWords; i++) {
+    //   //std::cerr << "i: " << i << std::endl;
+    //   for (uint k=0; k < new_dict_prob[i].size(); k++) {
+    // 	if (new_dict_prob[i][k] < -1e75)
+    // 	  new_dict_prob[i][k] = -9e74;
+    // 	if (new_dict_prob[i][k] > 1e75)
+    // 	  new_dict_prob[i][k] = 9e74;
+    //   }
+      
+    //   projection_on_simplex_with_slack(new_dict_prob[i].direct_access(),new_slack_vector[i],new_dict_prob[i].size());
+    // }
+
+    //std::cerr << "E" << std::endl;
 
     for (uint i=0; i < nTargetWords; i++) {
 
       for (uint k=0; k < dict[i].size(); k++) 
         new_dict_prob[i][k] = dict[i][k] - alpha * dict_grad[i][k];
     }
+
+    //std::cerr << "params: " << new_init_params << std::endl;
 
     for (uint I = 1; I <= maxI; I++) {
 
@@ -1925,10 +1947,19 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
           for (uint k=0; k < I; k++)
             sum += new_init_params[k];
 
-          for (uint k=0; k < I; k++)
-            new_init_prob[I-1][k] = new_source_fert[1] * new_init_params[k] / sum;
-          for (uint k=I; k < 2*I; k++)
+	  if (sum > 1e-305) {
+	    for (uint k=0; k < I; k++) {
+	      new_init_prob[I-1][k] = new_source_fert[1] * new_init_params[k] / sum;
+	      assert(!isnan(new_init_prob[I-1][k]));
+	    }
+	  }
+	  else
+	    new_init_prob[I-1].set_constant(new_source_fert[1]/I);
+
+          for (uint k=I; k < 2*I; k++) {
             new_init_prob[I-1][k] = new_source_fert[0] / I;
+	    assert(!isnan(new_init_prob[I-1][k]));
+	  }
         }
         else {
           for (uint k=0; k < initial_prob[I-1].size(); k++) {
@@ -1953,22 +1984,61 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
     /******** 3. reproject on the simplices [Michelot 1986] *********/
 
     for (uint i=0; i < nTargetWords; i++) {
+
+      for (uint k=0; k < new_dict_prob[i].size(); k++) {
+	assert(!isnan(new_dict_prob[i][k]));
+	if (new_dict_prob[i][k] < -1e75)
+	  new_dict_prob[i][k] = -9e74;
+	if (new_dict_prob[i][k] > 1e75)
+	  new_dict_prob[i][k] = 9e74;
+      }
+
       projection_on_simplex_with_slack(new_dict_prob[i].direct_access(),new_slack_vector[i],new_dict_prob[i].size());
     }
 
     //std::cerr << "new params: " << new_dist_params << std::endl;
 
+    //std::cerr << "F" << std::endl;
+
     for (uint I = 1; I <= maxI; I++) {
+
+
+      if (init_type == HmmInitNonpar) {
+	for (uint k=0; k < new_init_prob[I-1].size(); k++) {
+	  if (new_init_prob[I-1][k] <= -1e75)
+	    new_init_prob[I-1][k] = -9e74;
+	  if (new_init_prob[I-1][k] >= 1e75)
+	    new_init_prob[I-1][k] = 9e74;
+	
+	  if (! (fabs(new_init_prob[I-1][k]) < 1e75) )
+	    std::cerr << "prob: " << new_init_prob[I-1][k] << std::endl;
+	  
+	  assert(fabs(new_init_prob[I-1][k]) < 1e75);
+	}
+      }
+
       projection_on_simplex(new_init_prob[I-1].direct_access(),new_init_prob[I-1].size());
 
       if (align_type == HmmAlignProbNonpar) {
+
+	for (uint k=0; k < new_align_prob[I-1].size(); k++) {
+	  if (new_align_prob[I-1].direct_access(k) <= -1e75)
+	    new_align_prob[I-1].direct_access(k) = -9e74;
+	  if (new_align_prob[I-1].direct_access(k) >= 1e75)
+	    new_align_prob[I-1].direct_access(k) = 9e74;
+
+	  assert(fabs(new_align_prob[I-1].direct_access(k)) < 1e75);
+	}
+
         for (uint y=0; y < align_model[I-1].yDim(); y++) {
-	  
+	 	  
           projection_on_simplex(new_align_prob[I-1].direct_access() + y*align_model[I-1].xDim(),
                                 align_model[I-1].xDim());
         }
       }
     }
+
+    //std::cerr << "G" << std::endl;
 
     //std::cerr << "previous source fert prob: " << source_fert << std::endl;
     //std::cerr << "new source fert prob: " << new_source_fert << std::endl;
