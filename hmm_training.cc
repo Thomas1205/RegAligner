@@ -85,13 +85,17 @@ double extended_hmm_energy(const Storage1D<Storage1D<uint> >& source,
                            const InitialAlignmentProbability& initial_prob,
                            const SingleWordDictionary& dict,
                            const floatSingleWordDictionary& prior_weight,
-			   HmmAlignProbType align_type = HmmAlignProbNonpar) {
+			   HmmAlignProbType align_type = HmmAlignProbNonpar,
+			   bool smoothed_l0 = false, double l0_beta = 1.0) {
   
   double energy = 0.0;
 
   for (uint i=0; i < dict.size(); i++)
     for (uint k=0; k < dict[i].size(); k++) {
-      energy += prior_weight[i][k] * dict[i][k];
+      if (smoothed_l0)
+	energy += prior_weight[i][k] * prob_penalty(dict[i][k],l0_beta);
+      else
+	energy += prior_weight[i][k] * dict[i][k];
     }
 
   //std::cerr << "before dividing: " << energy << std::endl;
@@ -1303,7 +1307,8 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       sum_fmeasure /= nContributors;
       
       std::cerr << "#### EHMM energy after iteration # " << iter << ": " 
-                <<  extended_hmm_energy(source, slookup, target, align_model, initial_prob, dict, prior_weight, align_type) 
+                <<  extended_hmm_energy(source, slookup, target, align_model, initial_prob, 
+					dict, prior_weight, align_type, smoothed_l0, l0_beta) 
 		<< std::endl;
       std::cerr << "#### EHMM Viterbi-AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
       std::cerr << "---- EHMM Marginal-AER : " << sum_marg_aer << " %" << std::endl;

@@ -207,7 +207,7 @@ public:
               bool use_sentence_start_prob = false,
               bool no_factorial = true,
               IBM4CeptStartMode cept_start_mode = IBM4CENTER,
-              bool smoothed_l0 = false, double l0_beta = 1.0);
+              bool smoothed_l0 = false, double l0_beta = 1.0, double l0_fertpen = 0.0);
 
 
   void init_from_ibm3(IBM3Trainer& ibm3trainer, bool clear_ibm3 = true, 
@@ -234,6 +234,8 @@ protected:
   long double distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 			      const Math1D::Vector<ushort>& alignment) const;
 
+  long double distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
+			      const Math1D::NamedVector<std::set<int> >& aligned_source_words) const;
 
   void print_alignment_prob_factors(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 				    const Math2D::Matrix<uint>& lookup, const Math1D::Vector<ushort>& alignment) const;
@@ -291,6 +293,7 @@ protected:
   const floatSingleWordDictionary& prior_weight_;
   bool smoothed_l0_;
   double l0_beta_;
+  double l0_fertpen_;
 };
 
 

@@ -421,7 +421,7 @@ int main(int argc, char** argv) {
   IBM4Trainer ibm4_trainer(source_sentence, slookup, target_sentence, 
                            sure_ref_alignments, possible_ref_alignments,
                            dict, wcooc, nSourceWords, nTargetWords, prior_weight, true, true, true,
-                           ibm4_cept_mode, em_l0, l0_beta);
+                           ibm4_cept_mode, em_l0, l0_beta, l0_fertpen);
 
   if (ibm4_iter > 0) {
     bool collect_counts = false;

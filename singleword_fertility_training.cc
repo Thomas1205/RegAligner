@@ -118,7 +118,7 @@ double FertilityModelTrainer::AER() {
     if (possible_ref_alignments_.find(s+1) != possible_ref_alignments_.end()) {
       
       nContributors++;
-
+      //add alignment error rate
       sum_aer += ::AER(best_known_alignment_[s],sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]);
     }
   }
@@ -137,7 +137,7 @@ double FertilityModelTrainer::AER(const Storage1D<Math1D::Vector<ushort> >& alig
     if (possible_ref_alignments_.find(s+1) != possible_ref_alignments_.end()) {
       
       nContributors++;
-
+      //add alignment error rate
       sum_aer += ::AER(alignments[s],sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]);
     }
   }
@@ -157,6 +157,15 @@ double FertilityModelTrainer::f_measure(double alpha) {
 	|| possible_ref_alignments_.find(s+1) != possible_ref_alignments_.end()) {
       
       nContributors++;
+      //add alignment error rate
+
+      // std::cerr << "s: " << s << ", " << ::f_measure(uint_alignment,sure_ref_alignments_[s+1],possible_ref_alignments_[s+1], alpha) << std::endl;
+      // std::cerr << "precision: " << ::precision(uint_alignment,sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]) << std::endl;
+      // std::cerr << "recall: " << ::recall(uint_alignment,sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]) << std::endl;
+      // std::cerr << "alpha: " << alpha << std::endl;
+      // std::cerr << "sure alignments: " << sure_ref_alignments_[s+1] << std::endl;
+      // std::cerr << "possible alignments: " << possible_ref_alignments_[s+1] << std::endl;
+      // std::cerr << "computed alignment: " << uint_alignment << std::endl;
 
       sum_fmeasure += ::f_measure(best_known_alignment_[s],sure_ref_alignments_[s+1],possible_ref_alignments_[s+1], alpha);
     }
@@ -176,6 +185,7 @@ double FertilityModelTrainer::DAE_S() {
     if (possible_ref_alignments_.find(s+1) != possible_ref_alignments_.end()) {
       
       nContributors++;
+      //add alignment error rate
 
       sum_errors += ::nDefiniteAlignmentErrors(best_known_alignment_[s],sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]);
     }
@@ -831,6 +841,8 @@ void FertilityModelTrainer::write_alignments(const std::string filename) const {
 
     const uint curJ = source_sentence_[s].size();
 
+    // for (uint j=0; j < curJ; j++)
+    //   (*out) << best_known_alignment_[s][j] << " ";
     for (uint j=0; j < curJ; j++) { 
       if (best_known_alignment_[s][j] > 0)
     	(*out) << (best_known_alignment_[s][j]-1) << " " << j << " ";
@@ -933,6 +945,10 @@ void IBM3Trainer::init_from_hmm(const FullHMMAlignmentModel& align_model,
                                      dict_, align_model[curI-1], initial_prob[curI-1],
                                      best_known_alignment_[s]);
     }
+
+    // best_known_alignment_[s].resize(curJ);
+    // for (uint j=0; j < curJ; j++)
+    //   best_known_alignment_[s][j] = uint_alignment[j];
 
     Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
 
@@ -1367,6 +1383,10 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
   //std::cerr << "start alignment: " << best_known_alignment_[s] << std::endl;
 
   double improvement_factor = 1.001;
+
+  //const Storage1D<uint>& cur_source = source; //source_sentence_[s];
+  //const Storage1D<uint>& cur_target = target; //target_sentence_[s];
+  //const Math2D::Matrix<uint>& cur_lookup = lookup;//slookup_[s];
   
   const uint curI = target.size();
   const uint curJ = source.size();
@@ -2021,6 +2041,7 @@ void IBM3Trainer::update_alignments_unconstrained() {
     Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
     
     uint nIter=0;
+    //update_alignment_by_hillclimbing(s,nIter,fertility,expansion_prob,swap_prob);
     update_alignment_by_hillclimbing(source_sentence_[s], target_sentence_[s], slookup_[s],nIter,fertility,
                                      expansion_prob,swap_prob, best_known_alignment_[s]);
   }
@@ -2070,6 +2091,8 @@ void IBM3Trainer::train_unconstrained(uint nIter) {
 
   for (uint iter=1; iter <= nIter; iter++) {
 
+    std::cerr << "******* IBM-3 EM-iteration #" << iter << std::endl;
+
     uint nViterbiBetter = 0;
     uint nViterbiWorse = 0;
   
@@ -2089,7 +2112,7 @@ void IBM3Trainer::train_unconstrained(uint nIter) {
     max_perplexity = 0.0;
 
     for (size_t s=0; s < source_sentence_.size(); s++) {
-
+      
       if ((s% 10000) == 0)
 	std::cerr << "sentence pair #" << s << std::endl;
       
@@ -2406,7 +2429,7 @@ void IBM3Trainer::train_unconstrained(uint nIter) {
           }
         }
         else {
-          std::cerr << "WARNING: did not update dictionary entries because the sum was " << sum << std::endl;
+          //std::cerr << "WARNING: did not update dictionary entries because the sum was " << sum << std::endl;
         }
       }
     }
@@ -2496,28 +2519,42 @@ void IBM3Trainer::train_unconstrained(uint nIter) {
         }
       }
       else {
-        std::cerr << "WARNING: did not update fertility count because sum was " << sum << std::endl;
+        //std::cerr << "WARNING: did not update fertility count because sum was " << sum << std::endl;
       }
     }
+
+    double reg_term = 0.0;
+    for (uint i=0; i < dict_.size(); i++)
+      for (uint k=0; k < dict_[i].size(); k++) {
+	if (smoothed_l0_)
+	  reg_term += prior_weight_[i][k] * prob_penalty(dict_[i][k],l0_beta_);
+	else
+	  reg_term += prior_weight_[i][k] * dict_[i][k];
+      }
     
+    max_perplexity += reg_term;
+    approx_sum_perplexity += reg_term;
+    viterbi_max_perplexity += reg_term;
+
     max_perplexity /= source_sentence_.size();
     approx_sum_perplexity /= source_sentence_.size();
     viterbi_max_perplexity /= source_sentence_.size();
 
 
-    std::cerr << "IBM3 max-perplexity in between iterations #" << (iter-1) << " and " << iter << ": "
+    std::cerr << "IBM3 max-perplex-energy in between iterations #" << (iter-1) << " and " << iter << ": "
               << max_perplexity << std::endl;
-    std::cerr << "IBM3 approx-sum-perplexity in between iterations #" << (iter-1) << " and " << iter << ": "
+    std::cerr << "IBM3 approx-sum-perplex-energy in between iterations #" << (iter-1) << " and " << iter << ": "
               << approx_sum_perplexity << std::endl;
 
 
     if (viterbi_ilp_) {
-      std::cerr << "IBM3 viterbi max-perplexity in between iterations #" << (iter-1) << " and " << iter << ": "
+      std::cerr << "IBM3 viterbi max-perplex-energy in between iterations #" << (iter-1) << " and " << iter << ": "
                 << viterbi_max_perplexity << std::endl;
 
       std::cerr << "Viterbi-ILP better in " << nViterbiBetter << ", worse in " << nViterbiWorse << " cases." << std::endl;
       
       std::cerr << "max-ratio: " << max_ratio << std::endl;
+      //std::cerr << "inv min-ratio: " << (1.0 / min_ratio) << std::endl;
     }
 
     if (possible_ref_alignments_.size() > 0) {
@@ -2595,6 +2632,8 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
 
   for (uint iter=1; iter <= nIter; iter++) {
 
+    std::cerr << "******* IBM-3 Viterbi-iteration #" << iter << std::endl;
+
     uint sum_iter = 0;
 
     fzero_count = 0.0;
@@ -2612,6 +2651,7 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
 
     for (size_t s=0; s < source_sentence_.size(); s++) {
 
+      //if ((s% 1250) == 0)
       if ((s% 10000) == 0)
         std::cerr << "sentence pair #" << s << std::endl;
       
@@ -2656,6 +2696,11 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
 
       max_perplexity -= std::log(best_prob);
       
+      //const long double sentence_prob = best_prob;
+
+      //const long double inv_sentence_prob = 1.0 / sentence_prob;
+      //assert(!isnan(inv_sentence_prob));
+
       //std::cerr << "updating counts " << std::endl;
 
       fzero_count += fertility[0];
@@ -2707,6 +2752,7 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
 
     for (size_t s=0; s < source_sentence_.size(); s++) {
 
+      //if ((s% 1250) == 0)
       if ((s% 10000) == 0)
         std::cerr << "ICM, sentence pair #" << s << std::endl;
       
@@ -2744,6 +2790,7 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
             allowed = false;
 
           if (allowed) {
+            //if (cur_aj != i && (i != 0 || 2*cur_fertilities[0]+2 <= curJ)) {
 
             uint new_target_word = (i == 0) ? 0 : cur_target[i-1];
 
@@ -2828,6 +2875,11 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
                 }
               }
               else {
+
+		//TODO: think about whether the factorial of the fertility  is handled correctly here
+
+		change -= - std::log(cur_fertilities[cur_aj]);
+
                 double c = ffert_count[cur_word][cur_fertilities[cur_aj]];
                 change -= -c * std::log(c);
                 if (c > 1)
@@ -2875,7 +2927,11 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
                 }
               }
               else {
+	
+		//TODO: think about whether the factorial of the fertility  is handled correctly here
 		
+		change += - std::log(cur_fertilities[i]+1);
+
                 double c = ffert_count[new_target_word][cur_fertilities[i]];
                 change -= -c * std::log(c);
                 if (c > 1)
@@ -3083,11 +3139,11 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
             fertility_prob_[i][f] = inv_sum * ffert_count[i][f];
         }
         else {
-          std::cerr << "WARNING: target word #" << i << " does not occur" << std::endl;
+          //std::cerr << "WARNING: target word #" << i << " does not occur" << std::endl;
         }
       }
       else {
-        std::cerr << "WARNING: did not update fertility count because sum was " << sum << std::endl;
+        //std::cerr << "WARNING: did not update fertility count because sum was " << sum << std::endl;
       }
     }
     
@@ -3470,6 +3526,7 @@ void IBM3Trainer::train_with_itg_constraints(uint nIter, bool extended_reorderin
 
   for (uint iter=1; iter <= nIter; iter++) {
 
+    std::cerr << "******* IBM-3 ITG-iteration #" << iter << std::endl;
 
     fzero_count = 0.0;
     fnonzero_count = 0.0;
@@ -3645,11 +3702,11 @@ void IBM3Trainer::train_with_itg_constraints(uint nIter, bool extended_reorderin
             fertility_prob_[i][f] = inv_sum * ffert_count[i][f];
         }
         else {
-          std::cerr << "WARNING: target word #" << i << " does not occur" << std::endl;
+          //std::cerr << "WARNING: target word #" << i << " does not occur" << std::endl;
         }
       }
       else {
-        std::cerr << "WARNING: did not update fertility count because sum was " << sum << std::endl;
+        //std::cerr << "WARNING: did not update fertility count because sum was " << sum << std::endl;
       }
     }
     
@@ -4678,6 +4735,8 @@ void IBM3Trainer::train_with_ibm_constraints(uint nIter, uint maxFertility, uint
 
   for (uint iter=1; iter <= nIter; iter++) {
 
+    std::cerr << "******* IBM-3 IBM-constraint-iteration #" << iter << std::endl;
+
     fzero_count = 0.0;
     fnonzero_count = 0.0;
 
@@ -4850,11 +4909,11 @@ void IBM3Trainer::train_with_ibm_constraints(uint nIter, uint maxFertility, uint
             fertility_prob_[i][f] = inv_sum * ffert_count[i][f];
         }
         else {
-          std::cerr << "WARNING: target word #" << i << " does not occur" << std::endl;
+          //std::cerr << "WARNING: target word #" << i << " does not occur" << std::endl;
         }
       }
       else {
-        std::cerr << "WARNING: did not update fertility count because sum was " << sum << std::endl;
+        //std::cerr << "WARNING: did not update fertility count because sum was " << sum << std::endl;
       }
     }
     
@@ -4891,7 +4950,7 @@ IBM4Trainer::IBM4Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
                          bool och_ney_empty_word,
                          bool use_sentence_start_prob,
                          bool no_factorial,
-                         IBM4CeptStartMode cept_start_mode, bool smoothed_l0, double l0_beta)
+                         IBM4CeptStartMode cept_start_mode, bool smoothed_l0, double l0_beta, double l0_fertpen)
   : FertilityModelTrainer(source_sentence,slookup,target_sentence,dict,wcooc,
                           nSourceWords,nTargetWords,sure_ref_alignments,possible_ref_alignments),
     cept_start_prob_(1,1,2*maxJ_-1,MAKENAME(cept_start_prob_)),
@@ -4899,7 +4958,7 @@ IBM4Trainer::IBM4Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
     sentence_start_parameters_(MAKENAME(sentence_start_parameters_)),
     och_ney_empty_word_(och_ney_empty_word), cept_start_mode_(cept_start_mode),
     use_sentence_start_prob_(use_sentence_start_prob), no_factorial_(no_factorial), 
-    prior_weight_(prior_weight), smoothed_l0_(smoothed_l0), l0_beta_(l0_beta)
+    prior_weight_(prior_weight), smoothed_l0_(smoothed_l0), l0_beta_(l0_beta), l0_fertpen_(l0_fertpen)
 {
 
   const uint nDisplacements = 2*maxJ_-1;
@@ -5635,7 +5694,7 @@ void IBM4Trainer::init_from_ibm3(IBM3Trainer& ibm3trainer, bool clear_ibm3,
     if (isinf(align_prob) || isnan(align_prob) || align_prob == 0.0) {
 
       std::cerr << "ERROR: initial align-prob for sentence " << s << " has prob " << align_prob << std::endl;
-      //exit(1);
+      exit(1);
     }
   }
   //END_DEBUG
@@ -5730,8 +5789,8 @@ long double IBM4Trainer::alignment_prob(const Storage1D<uint>& source, const Sto
         //int displacement = first_j - prev_cept_center;
         prob *= dict_[ti][lookup(first_j,i-1)];
         //DEBUG
-        // if (isnan(prob))
-        //   std::cerr << "prob nan after dict-prob, pc != -1, i=" << i << std::endl;
+        if (isnan(prob))
+          std::cerr << "prob nan after dict-prob, pc != -1, i=" << i << std::endl;
         //END_DEBUG
 
 
@@ -5740,8 +5799,8 @@ long double IBM4Trainer::alignment_prob(const Storage1D<uint>& source, const Sto
           //prob *= cept_start_prob_(0,0,displacement + displacement_offset_);
 
           //DEBUG
-          // if (isnan(prob))
-          //   std::cerr << "prob nan after inter-distort prob, i=" << i << std::endl;
+          if (isnan(prob))
+            std::cerr << "prob nan after inter-distort prob, i=" << i << std::endl;
           //END_DEBUG
         }
         else
@@ -5752,22 +5811,22 @@ long double IBM4Trainer::alignment_prob(const Storage1D<uint>& source, const Sto
 
         if (use_sentence_start_prob_) {
           //DEBUG
-          // if (isnan(prob))
-          //   std::cerr << "prob nan after dict-prob, pc == -1, i=" << i << std::endl;
+          if (isnan(prob))
+            std::cerr << "prob nan after dict-prob, pc == -1, i=" << i << std::endl;
           //END_DEBUG
 
           prob *= cur_sentence_start_prob[first_j];
 
           //DEBUG
-          // if (isnan(prob))
-          //   std::cerr << "prob nan after sent start prob, pc == -1, i=" << i << std::endl;
+          if (isnan(prob))
+            std::cerr << "prob nan after sent start prob, pc == -1, i=" << i << std::endl;
           //END_DEBUG
         }
         else {
 
           //DEBUG
-          // if (isnan(prob))
-          //   std::cerr << "prob nan after dict-prob, pc == -1, i=" << i << std::endl;
+          if (isnan(prob))
+            std::cerr << "prob nan after dict-prob, pc == -1, i=" << i << std::endl;
           //END_DEBUG
 
           prob *= 1.0 / curJ;
@@ -5783,8 +5842,8 @@ long double IBM4Trainer::alignment_prob(const Storage1D<uint>& source, const Sto
         prob *= dict_[ti][lookup(cur_j,i-1)] * cur_intra_distortion_prob(0,cur_j,prev_j);
 	
         //DEBUG
-        // if (isnan(prob))
-        //   std::cerr << "prob nan after combined body-prob, i=" << i << std::endl;
+        if (isnan(prob))
+          std::cerr << "prob nan after combined body-prob, i=" << i << std::endl;
         //END_DEBUG
 
         prev_j = cur_j;
@@ -5840,8 +5899,6 @@ long double IBM4Trainer::alignment_prob(const Storage1D<uint>& source, const Sto
 long double IBM4Trainer::distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 					 const Math1D::Vector<ushort>& alignment) const {
 
-  long double prob = 1.0;
-
   const uint curI = target.size();
   const uint curJ = source.size();
 
@@ -5849,15 +5906,27 @@ long double IBM4Trainer::distortion_prob(const Storage1D<uint>& source, const St
 
   Math1D::NamedVector<std::set<int> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
 
+  for (uint j=0; j < curJ; j++) {
+    const uint aj = alignment[j];
+    aligned_source_words[aj].insert(j);
+  }
+
+  return distortion_prob(source,target,aligned_source_words);
+}
+
+long double IBM4Trainer::distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
+					 const Math1D::NamedVector<std::set<int> >& aligned_source_words) const {
+
+  long double prob = 1.0;
+
+  const uint curI = target.size();
+  const uint curJ = source.size();
+
   const Storage2D<Math2D::Matrix<double> >& cur_inter_distortion_prob =  inter_distortion_prob_[curJ];
   const Math3D::Tensor<double>& cur_intra_distortion_prob =  intra_distortion_prob_[curJ];
 
   const Math1D::Vector<double>& cur_sentence_start_prob = sentence_start_prob_[curJ];
 
-  for (uint j=0; j < curJ; j++) {
-    const uint aj = alignment[j];
-    aligned_source_words[aj].insert(j);
-  }
   
   if (curJ < 2*aligned_source_words[0].size())
     return 0.0;
@@ -5902,16 +5971,18 @@ long double IBM4Trainer::distortion_prob(const Storage1D<uint>& source, const St
         prev_j = cur_j;
       }
 
-      //compute the center of this cept and store the result in prev_cept_center
-      double sum = 0.0;
-      for (std::set<int>::iterator ait = aligned_source_words[i].begin(); ait != aligned_source_words[i].end(); ait++) {
-        sum += *ait;
-      }
-
       switch (cept_start_mode_) {
-      case IBM4CENTER :
+      case IBM4CENTER : {
+
+	//compute the center of this cept and store the result in prev_cept_center
+	double sum = 0.0;
+	for (std::set<int>::iterator ait = aligned_source_words[i].begin(); ait != aligned_source_words[i].end(); ait++) {
+	  sum += *ait;
+	}
+
         prev_cept_center = (int) round(sum / aligned_source_words[i].size());
         break;
+      }
       case IBM4FIRST:
         prev_cept_center = first_j;
         break;
@@ -5919,7 +5990,7 @@ long double IBM4Trainer::distortion_prob(const Storage1D<uint>& source, const St
         prev_cept_center = prev_j;
         break;
       case IBM4UNIFORM:
-        prev_cept_center = (int) round(sum / aligned_source_words[i].size());
+        prev_cept_center = first_j;
         break;
       default:
         assert(false);
@@ -6167,6 +6238,16 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
 
   while (true) {    
+
+    //source words are listed in ascending order
+    // Math1D::NamedVector< std::vector<uint> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
+
+    // fertility.set_constant(0);
+    // for (uint j=0; j < curJ; j++) {
+    //   const uint aj = alignment[j];
+    //   fertility[aj]++;
+    //   aligned_source_words[aj].push_back(j);
+    // }
 
     Math1D::NamedVector<uint> prev_cept(curI+1,MAX_UINT,MAKENAME(prev_cept));
     Math1D::NamedVector<uint> next_cept(curI+1,MAX_UINT,MAKENAME(next_cept));
@@ -6831,7 +6912,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
           if (!incremental_calculation) {
             Math1D::Vector<ushort> hyp_alignment = alignment;
             hyp_alignment[j] = cand_aj;
-
+#if 1
 	    hyp_prob = base_prob * distortion_prob(source,target,hyp_alignment)
 	      / base_distortion_prob;
 
@@ -6935,6 +7016,9 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 	    else
 	      assert(hyp_prob == 0.0);
 #endif
+#else	    
+            hyp_prob = alignment_prob(source,target,lookup,hyp_alignment);
+#endif
           }
 	    
           expansion_prob(j,cand_aj) = hyp_prob;
@@ -6968,6 +7052,8 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
     }
 
     tEndExp = std::clock();
+    //if (curJ >= 45 && curI >= 45)
+    //std::cerr << "pair #" << s << ": spent " << diff_seconds(tEndExp,tStartExp) << " seconds on expansion moves" << std::endl;
 
     std::clock_t tStartSwap,tEndSwap;
     tStartSwap = std::clock();
@@ -6993,6 +7079,11 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
         else {
 
           long double hyp_prob = 0.0;
+
+          // 	  Math1D::Vector<uint> hyp_alignment = best_known_alignment_[s];
+          // 	  hyp_alignment[j1] = aj2;
+          // 	  hyp_alignment[j2] = aj1;
+          // 	  hyp_prob = alignment_prob(s,hyp_alignment);
 
           if (aj1 != 0 && aj2 != 0 && 
               cept_start_mode_ != IBM4UNIFORM &&
@@ -7053,9 +7144,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 	      
               //std::cerr << "--sim--" << std::endl;
 		
-              //int prev_diff = temp_j2 - temp_j1 + displacement_offset_;
-              //int new_diff =  temp_j1 - temp_j2 + displacement_offset_;
-	      
               leaving_prob *= cur_inter_distortion_prob(0,0)(temp_j2,temp_j1);
               incoming_prob *= cur_inter_distortion_prob(0,0)(temp_j1,temp_j2);
             }
@@ -7385,6 +7473,10 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
     }
 
     tEndSwap = std::clock();
+    // if (curJ >= 45 && curI >= 45)
+    //   std::cerr << "pair #" << s << ": spent " << diff_seconds(tEndSwap,tStartSwap) 
+    // 		<< " seconds on swap moves" << std::endl;
+
 
     //update alignment if a better one was found
     if (!improvement)
@@ -7512,6 +7604,9 @@ double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& source, co
       for (uint k=0; k < within_cept_prob_.yDim(); k++)
 	new_wi_model(c,k+ new_zero_offset - displacement_offset_) = within_cept_prob_(c,k);
     }
+
+    //within_cept_prob_.set_constant(1.0 / (nDisplacements-1));
+    //within_cept_prob_(0,j2-j1+displacement_offset_);
 
     within_cept_prob_ = new_wi_model;
 
@@ -7671,7 +7766,7 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
 
   for (uint iter=1; iter <= nIter; iter++) {
 
-    std::cerr << "******* iteration " << iter << std::endl;
+    std::cerr << "******* IBM-4 EM-iteration " << iter << std::endl;
 
     uint sum_iter = 0;
 
@@ -8009,7 +8104,6 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
           if (cur_prob > best_prob * 1e-11) {
 
             cur_prob *= inv_sentence_prob;
-
 	    
 	    //modifiy
             exp_aligned_source_words[cur_aj].erase(exp_j);
@@ -8234,7 +8328,7 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
           }
         }
         else {
-          std::cerr << "WARNING: did not update dictionary entries because the sum was " << sum << std::endl;
+          //std::cerr << "WARNING: did not update dictionary entries because the sum was " << sum << std::endl;
         }
       }
     }
@@ -8283,11 +8377,11 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
             fertility_prob_[i][f] = inv_sum * ffert_count[i][f];
         }
         else {
-          std::cerr << "WARNING: target word #" << i << " does not occur" << std::endl;
+          //std::cerr << "WARNING: target word #" << i << " does not occur" << std::endl;
         }
       }
       else {
-        std::cerr << "WARNING: did not update fertility count because sum was " << sum << std::endl;
+        //std::cerr << "WARNING: did not update fertility count because sum was " << sum << std::endl;
       }
     }
 
@@ -8364,14 +8458,27 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
       par2nonpar_start_prob();
     }
 
+    double reg_term = 0.0;
+    for (uint i=0; i < dict_.size(); i++)
+      for (uint k=0; k < dict_[i].size(); k++) {
+	if (smoothed_l0_)
+	  reg_term += prior_weight_[i][k] * prob_penalty(dict_[i][k],l0_beta_);
+	else
+	  reg_term += prior_weight_[i][k] * dict_[i][k];
+      }
+    
+    max_perplexity += reg_term;
+    approx_sum_perplexity += reg_term;
+
+
     max_perplexity /= source_sentence_.size();
     approx_sum_perplexity /= source_sentence_.size();
 
     std::string transfer = (ibm3 != 0 && iter == 1) ? " (transfer) " : ""; 
 
-    std::cerr << "IBM4 max-perplexity in between iterations #" << (iter-1) << " and " << iter << transfer << ": "
+    std::cerr << "IBM4 max-perplex-energy in between iterations #" << (iter-1) << " and " << iter << transfer << ": "
               << max_perplexity << std::endl;
-    std::cerr << "IBM4 approx-sum-perplexity in between iterations #" << (iter-1) << " and " << iter << transfer << ": "
+    std::cerr << "IBM4 approx-sum-perplex-energy in between iterations #" << (iter-1) << " and " << iter << transfer << ": "
               << approx_sum_perplexity << std::endl;
     
     if (possible_ref_alignments_.size() > 0) {
@@ -8433,6 +8540,8 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
   long double fnonzero_count;
 
   for (uint iter=1; iter <= nIter; iter++) {
+
+    std::cerr << "******* IBM-4 Viterbi-iteration #" << iter << std::endl;
 
     uint sum_iter = 0;
 
@@ -8614,7 +8723,7 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
         }
       }
 
-      // 1. handle viterbi alignment
+      // handle viterbi alignment
       for (uint i=1; i < curI; i++) {
 
         if (fertility[i] > 0) {
@@ -8650,7 +8759,6 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
         }
       }
     }
-
 
     /***** update probability models from counts *******/
 
@@ -8695,6 +8803,9 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 	
         for (uint k=0; k < fwcount[i].size(); k++) {
           dict_[i][k] = fwcount[i][k] * inv_sum;
+
+	  if (dict_[i][k] > 1e-8)
+	    max_perplexity += prior_weight_[i][k];
         }
       }
       else {
@@ -8720,11 +8831,11 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
             fertility_prob_[i][f] = inv_sum * ffert_count[i][f];
         }
         else {
-          std::cerr << "WARNING: target word #" << i << " does not occur" << std::endl;
+          //std::cerr << "WARNING: target word #" << i << " does not occur" << std::endl;
         }
       }
       else {
-        std::cerr << "WARNING: did not update fertility count because sum was " << sum << std::endl;
+        //std::cerr << "WARNING: did not update fertility count because sum was " << sum << std::endl;
       }
     }
 
@@ -8792,24 +8903,6 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
       par2nonpar_start_prob();
     }
 
-    max_perplexity /= source_sentence_.size();
-
-    std::string transfer = (ibm3 != 0 && iter == 1) ? " (transfer) " : ""; 
-
-    std::cerr << "IBM4 max-perplexity in between iterations #" << (iter-1) << " and " << iter << transfer << ": "
-              << max_perplexity << std::endl;
-    if (possible_ref_alignments_.size() > 0) {
-      
-      std::cerr << "#### IBM4-AER in between iterations #" << (iter-1) << " and " << iter << transfer << ": " << AER() << std::endl;
-      std::cerr << "#### IBM4-fmeasure in between iterations #" << (iter-1) << " and " << iter << transfer << ": " << f_measure() << std::endl;
-      std::cerr << "#### IBM4-DAE/S in between iterations #" << (iter-1) << " and " << iter << transfer << ": " 
-                << DAE_S() << std::endl;
-    }
-
-    std::cerr << (((double) sum_iter) / source_sentence_.size()) << " average hillclimbing iterations per sentence pair" 
-              << std::endl;     
-
-
     //DEBUG
     for (size_t s=0; s < source_sentence_.size(); s++) {
       
@@ -8826,6 +8919,300 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
     }
     //END_DEBUG
 
+    max_perplexity /= source_sentence_.size();
+
+    //ICM STAGE
+    std::cerr << "starting ICM" << std::endl;
+
+    Math1D::NamedVector<uint> dict_sum(fwcount.size(),MAKENAME(dict_sum));
+    for (uint k=0; k < fwcount.size(); k++)
+      dict_sum[k] = fwcount[k].sum();
+
+    uint nSwitches = 0;
+
+    for (size_t s=0; s < source_sentence_.size(); s++) {
+
+      if ((s% 10000) == 0)
+        std::cerr << "sentence pair #" << s << std::endl;
+
+      const Storage1D<uint>& cur_source = source_sentence_[s];
+      const Storage1D<uint>& cur_target = target_sentence_[s];
+      const Math2D::Matrix<uint>& cur_lookup = slookup_[s];
+      
+      const uint curI = cur_target.size();
+      const uint curJ = cur_source.size();
+      
+      Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
+
+      for (uint j=0; j < curJ; j++)
+	fertility[best_known_alignment_[s][j]]++;
+
+      double cur_distort_prob = distortion_prob(cur_source,cur_target,best_known_alignment_[s]);
+
+
+      for (uint j=0; j < curJ; j++) {
+
+	Math1D::Vector<ushort> hyp_alignment = best_known_alignment_[s];
+
+        for (uint i = 0; i <= curI; i++) {
+
+          uint cur_aj = best_known_alignment_[s][j];
+          uint cur_word = (cur_aj == 0) ? 0 : cur_target[cur_aj-1];
+
+          /**** dict ***/
+          //std::cerr << "i: " << i << ", cur_aj: " << cur_aj << std::endl;
+
+          bool allowed = (cur_aj != i && (i != 0 || 2*fertility[0]+2 <= curJ));
+
+          if (cur_aj > 0 && i > 0 && cur_target[cur_aj-1] == cur_target[i-1])
+            allowed = false;
+
+          if (allowed) {
+
+	    hyp_alignment[j] = i;
+
+            uint new_target_word = (i == 0) ? 0 : cur_target[i-1];
+
+            //std::cerr << "cur_word: " << cur_word << std::endl;
+            //std::cerr << "new_word: " << new_target_word << std::endl;
+
+            double change = 0.0;
+
+            Math1D::Vector<double>& cur_dictcount = fwcount[cur_word]; 
+            Math1D::Vector<double>& hyp_dictcount = fwcount[new_target_word]; 
+
+	    assert(cur_word != new_target_word);
+
+	    uint cur_idx = (cur_aj == 0) ? cur_source[j]-1 : cur_lookup(j,cur_aj-1);
+	    
+	    double cur_dictsum = dict_sum[cur_word];
+	    
+	    uint hyp_idx = (i == 0) ? cur_source[j]-1 : cur_lookup(j,i-1);
+	    
+	    if (dict_sum[new_target_word] > 0)
+	      change -= double(dict_sum[new_target_word]) * std::log( dict_sum[new_target_word] );
+	    change += double(dict_sum[new_target_word]+1.0) * std::log( dict_sum[new_target_word]+1.0 );
+	    
+	    if (fwcount[new_target_word][hyp_idx] > 0)
+	      change -= double(fwcount[new_target_word][hyp_idx]) * 
+		(-std::log(fwcount[new_target_word][hyp_idx]));
+	    else
+	      change += prior_weight_[new_target_word][hyp_idx]; 
+	    
+	    change += double(fwcount[new_target_word][hyp_idx]+1) * 
+	      (-std::log(fwcount[new_target_word][hyp_idx]+1.0));
+	    
+	    change -= double(cur_dictsum) * std::log(cur_dictsum);
+	    if (cur_dictsum > 1)
+	      change += double(cur_dictsum-1) * std::log(cur_dictsum-1.0);
+	    
+	    change -= - double(cur_dictcount[cur_idx]) * std::log(cur_dictcount[cur_idx]);
+	    
+	    if (cur_dictcount[cur_idx] > 1) {
+	      change += double(cur_dictcount[cur_idx]-1) * (-std::log(cur_dictcount[cur_idx]-1));
+	    }
+	    else
+	      change -= prior_weight_[cur_word][cur_idx];
+	    
+
+	    /***** fertilities (only affected if the old and new target word differ) ****/
+	    //std::cerr << "fert-part" << std::endl;
+	    
+	    //note: currently not updating f_zero / f_nonzero
+	    if (cur_aj == 0) {
+	      
+	      uint zero_fert = fertility[0];
+	      
+	      change -= - std::log(ldchoose(curJ-zero_fert,zero_fert));
+	      change -= -std::log(p_zero_);
+	      
+	      if (och_ney_empty_word_) {
+		change -= -std::log(((long double) zero_fert) / curJ);
+	      }
+	      
+	      uint new_zero_fert = zero_fert-1;
+	      change += - std::log(ldchoose(curJ-new_zero_fert,new_zero_fert));
+	      change += 2.0*(-std::log(p_nonzero_));
+	    }
+	    else {
+
+	      if (!no_factorial_)
+		change -= - std::log(fertility[cur_aj]);
+
+
+	      double c = ffert_count[cur_word][fertility[cur_aj]];
+	      change -= -c * std::log(c);
+	      if (c > 1)
+		change += -(c-1) * std::log(c-1);
+	      
+	      double c2 = ffert_count[cur_word][fertility[cur_aj]-1];
+		
+	      if (c2 > 0)
+		change -= -c2 * std::log(c2);
+	      change += -(c2+1) * std::log(c2+1);
+	    }
+	      
+	    //std::cerr << "----" << std::endl;
+
+	    if (i == 0) {
+
+	      uint zero_fert = fertility[0];
+
+	      change -= -std::log(ldchoose(curJ-zero_fert,zero_fert));
+	      change -= 2.0*(-std::log(p_nonzero_));
+	      
+	      uint new_zero_fert = zero_fert+1;
+	      change += - std::log(ldchoose(curJ-new_zero_fert,new_zero_fert));
+	      change += -std::log(p_zero_);
+	      
+	      if (och_ney_empty_word_) {
+		change += -std::log(((long double) new_zero_fert) / curJ);
+	      }
+	    }
+	    else {
+
+	      if (!no_factorial_)
+		change -= - std::log(fertility[i]+1);
+		
+	      double c = ffert_count[new_target_word][fertility[i]];
+	      change -= -c * std::log(c);
+	      if (c > 1)
+		change += -(c-1) * std::log(c-1);
+	      else
+		change -= l0_fertpen_;
+	      
+	      double c2 = ffert_count[new_target_word][fertility[i]+1];
+	      if (c2 > 0)
+		change -= -c2 * std::log(c2);
+	      else
+		change += l0_fertpen_;
+	      change += -(c2+1) * std::log(c2+1);
+	    }
+	  
+	    //std::cerr << "dist" << std::endl;
+	    
+	    /***** distortion ****/
+	    change -= - std::log(cur_distort_prob);
+
+	    const long double hyp_distort_prob = distortion_prob(cur_source,cur_target,hyp_alignment);
+	    change += - std::log(hyp_distort_prob);
+	    
+	    if (change < -0.01) {
+	      
+	      //std::cerr << "changing!!" << std::endl;
+	      
+	      best_known_alignment_[s][j] = i;
+	      nSwitches++;
+	      
+	      //std::cerr << "A" << std::endl;
+	      
+	      uint cur_idx = (cur_aj == 0) ? cur_source[j]-1 : cur_lookup(j,cur_aj-1);
+	      
+	      uint hyp_idx = (i == 0) ? cur_source[j]-1 : cur_lookup(j,i-1);
+	      
+	      //dict
+	      cur_dictcount[cur_idx] -= 1;
+	      hyp_dictcount[hyp_idx] += 1;
+	      dict_sum[cur_word] -= 1;
+	      dict_sum[new_target_word] += 1;
+	    
+	      //std::cerr << "B" << std::endl;
+
+	      //fert
+	      if (cur_word != 0) {
+		uint prev_fert = fertility[cur_aj];
+		assert(prev_fert != 0);
+		ffert_count[cur_word][prev_fert] -= 1;
+		ffert_count[cur_word][prev_fert-1] += 1;
+	      }
+	      if (new_target_word != 0) {
+		uint prev_fert = fertility[i];
+		ffert_count[new_target_word][prev_fert] -= 1;
+		ffert_count[new_target_word][prev_fert+1] += 1;
+	      }
+	      
+	      //std::cerr << "C" << std::endl;
+
+	      fertility[cur_aj]--;
+	      fertility[i]++;
+	      
+	      //std::cerr << "D" << std::endl;
+	      
+	      cur_distort_prob = hyp_distort_prob; //distortion_prob(cur_source,cur_target,best_known_alignment_[s]);
+	    }
+          }
+	}	
+
+      }
+    }
+    std::cerr << nSwitches << " changes in ICM stage" << std::endl;
+
+    //update dictionary
+    for (uint i=0; i < nTargetWords; i++) {
+
+      const double sum = fwcount[i].sum();
+      
+      if (sum > 1e-305) {
+        double inv_sum = 1.0 / sum;
+	
+        if (isnan(inv_sum)) {
+          std::cerr << "invsum " << inv_sum << " for target word #" << i << std::endl;
+          std::cerr << "sum = " << fwcount[i].sum() << std::endl;
+          std::cerr << "number of cooccuring source words: " << fwcount[i].size() << std::endl;
+        }
+	
+        assert(!isnan(inv_sum));
+	
+        for (uint k=0; k < fwcount[i].size(); k++) {
+          dict_[i][k] = fwcount[i][k] * inv_sum;
+        }
+      }
+      else {
+        //std::cerr << "WARNING: did not update dictionary entries because the sum was " << sum << std::endl;
+      }
+    }
+
+    //update fertility probabilities
+    for (uint i=1; i < nTargetWords; i++) {
+
+      //std::cerr << "i: " << i << std::endl;
+
+      const double sum = ffert_count[i].sum();
+
+      if (sum > 1e-305) {
+
+        if (fertility_prob_[i].size() > 0) {
+          assert(sum > 0.0);     
+          const double inv_sum = 1.0 / sum;
+          assert(!isnan(inv_sum));
+	  
+          for (uint f=0; f < fertility_prob_[i].size(); f++)
+            fertility_prob_[i][f] = inv_sum * ffert_count[i][f];
+        }
+        else {
+          //std::cerr << "WARNING: target word #" << i << " does not occur" << std::endl;
+        }
+      }
+      else {
+        //std::cerr << "WARNING: did not update fertility count because sum was " << sum << std::endl;
+      }
+    }
+
+
+    std::string transfer = (ibm3 != 0 && iter == 1) ? " (transfer) " : ""; 
+
+    std::cerr << "IBM4 max-perplex-energy in between iterations #" << (iter-1) << " and " << iter << transfer << ": "
+              << max_perplexity << std::endl;
+    if (possible_ref_alignments_.size() > 0) {
+      
+      std::cerr << "#### IBM4-AER in between iterations #" << (iter-1) << " and " << iter << transfer << ": " << AER() << std::endl;
+      std::cerr << "#### IBM4-fmeasure in between iterations #" << (iter-1) << " and " << iter << transfer << ": " << f_measure() << std::endl;
+      std::cerr << "#### IBM4-DAE/S in between iterations #" << (iter-1) << " and " << iter << transfer << ": " 
+                << DAE_S() << std::endl;
+    }
+
+    std::cerr << (((double) sum_iter) / source_sentence_.size()) << " average hillclimbing iterations per sentence pair" 
+              << std::endl;     
 
   }
 
