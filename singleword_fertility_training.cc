@@ -841,8 +841,6 @@ void FertilityModelTrainer::write_alignments(const std::string filename) const {
 
     const uint curJ = source_sentence_[s].size();
 
-    // for (uint j=0; j < curJ; j++)
-    //   (*out) << best_known_alignment_[s][j] << " ";
     for (uint j=0; j < curJ; j++) { 
       if (best_known_alignment_[s][j] > 0)
     	(*out) << (best_known_alignment_[s][j]-1) << " " << j << " ";
@@ -935,8 +933,6 @@ void IBM3Trainer::init_from_hmm(const FullHMMAlignmentModel& align_model,
     const uint curI = target_sentence_[s].size();
     const uint curJ = source_sentence_[s].size();
 
-    //Math1D::Vector<uint> uint_alignment(curJ);
-
     if (initial_prob.size() == 0) 
       compute_fullhmm_viterbi_alignment(source_sentence_[s],slookup_[s], target_sentence_[s], 
                                         dict_, align_model[curI-1], best_known_alignment_[s]);
@@ -945,10 +941,6 @@ void IBM3Trainer::init_from_hmm(const FullHMMAlignmentModel& align_model,
                                      dict_, align_model[curI-1], initial_prob[curI-1],
                                      best_known_alignment_[s]);
     }
-
-    // best_known_alignment_[s].resize(curJ);
-    // for (uint j=0; j < curJ; j++)
-    //   best_known_alignment_[s][j] = uint_alignment[j];
 
     Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
 
@@ -1383,10 +1375,6 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
   //std::cerr << "start alignment: " << best_known_alignment_[s] << std::endl;
 
   double improvement_factor = 1.001;
-
-  //const Storage1D<uint>& cur_source = source; //source_sentence_[s];
-  //const Storage1D<uint>& cur_target = target; //target_sentence_[s];
-  //const Math2D::Matrix<uint>& cur_lookup = lookup;//slookup_[s];
   
   const uint curI = target.size();
   const uint curJ = source.size();
@@ -2041,7 +2029,6 @@ void IBM3Trainer::update_alignments_unconstrained() {
     Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
     
     uint nIter=0;
-    //update_alignment_by_hillclimbing(s,nIter,fertility,expansion_prob,swap_prob);
     update_alignment_by_hillclimbing(source_sentence_[s], target_sentence_[s], slookup_[s],nIter,fertility,
                                      expansion_prob,swap_prob, best_known_alignment_[s]);
   }
@@ -2790,7 +2777,6 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
             allowed = false;
 
           if (allowed) {
-            //if (cur_aj != i && (i != 0 || 2*cur_fertilities[0]+2 <= curJ)) {
 
             uint new_target_word = (i == 0) ? 0 : cur_target[i-1];
 
@@ -2846,33 +2832,16 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
                 uint zero_fert = cur_fertilities[0];
 		
                 change -= - std::log(ldchoose(curJ-zero_fert,zero_fert));
-                // for (uint k=1; k <= zero_fert; k++)
-                //   change -= -std::log(p_zero_);
-                // for (uint k=1; k <= curJ-2*zero_fert; k++)
-                //   change -= -std::log(p_nonzero_);
 		change -= -std::log(p_zero_);
 		
                 if (och_ney_empty_word_) {
 		  
-                  // for (uint k=1; k<= zero_fert; k++)
-                  //   change -= -std::log(((long double) k) / curJ);
 		  change -= -std::log(((long double) zero_fert) / curJ);
                 }
 		
                 uint new_zero_fert = zero_fert-1;
                 change += - std::log(ldchoose(curJ-new_zero_fert,new_zero_fert));
-                // for (uint k=1; k <= new_zero_fert; k++)
-                //   change += -std::log(p_zero_);
-                // for (uint k=1; k <= curJ-2*new_zero_fert; k++)
-                //   change += -std::log(p_nonzero_);
 		change += 2.0*(-std::log(p_nonzero_));
-
-		
-                if (och_ney_empty_word_) {
-		  
-                  // for (uint k=1; k<= new_zero_fert; k++)
-                  //   change += -std::log(((long double) k) / curJ);
-                }
               }
               else {
 
@@ -2899,30 +2868,13 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
                 uint zero_fert = cur_fertilities[0];
 
                 change -= -std::log(ldchoose(curJ-zero_fert,zero_fert));
-                // for (uint k=1; k <= zero_fert; k++)
-                //   change -= -std::log(p_zero_);
-                // for (uint k=1; k <= curJ-2*zero_fert; k++)
-                //   change -= -std::log(p_nonzero_);
 		change -= 2.0*(-std::log(p_nonzero_));
-		
-                if (och_ney_empty_word_) {
-		  
-                  // for (uint k=1; k<= zero_fert; k++)
-                  //   change -= -std::log(((long double) k) / curJ);
-                }
 		
                 uint new_zero_fert = zero_fert+1;
                 change += - std::log(ldchoose(curJ-new_zero_fert,new_zero_fert));
-                // for (uint k=1; k <= new_zero_fert; k++)
-                //   change += -std::log(p_zero_);
-                // for (uint k=1; k <= curJ-2*new_zero_fert; k++)
-                //   change += -std::log(p_nonzero_);
 		change += -std::log(p_zero_);
 		
                 if (och_ney_empty_word_) {
-		
-                  // for (uint k=1; k<= new_zero_fert; k++)
-                  //   change += -std::log(((long double) k) / curJ);
 		  change += -std::log(((long double) new_zero_fert) / curJ);
                 }
               }
@@ -4556,7 +4508,6 @@ long double IBM3Trainer::compute_viterbi_alignment_ilp(const Storage1D<uint>& so
     //clp_interface.findIntegersAndSOS(false);
     clp_interface.setupForRepeatedUse();
     
-    //if (curI <= 30 || curJ <= 30) 
     cbc_model.messageHandler()->setLogLevel(0);
     cbc_model.setLogLevel(0);
 
@@ -5796,7 +5747,6 @@ long double IBM4Trainer::alignment_prob(const Storage1D<uint>& source, const Sto
 
         if (cept_start_mode_ != IBM4UNIFORM) {
           prob *= cur_inter_distortion_prob(0,0)(first_j,prev_cept_center); 
-          //prob *= cept_start_prob_(0,0,displacement + displacement_offset_);
 
           //DEBUG
           if (isnan(prob))
@@ -7080,11 +7030,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
           long double hyp_prob = 0.0;
 
-          // 	  Math1D::Vector<uint> hyp_alignment = best_known_alignment_[s];
-          // 	  hyp_alignment[j1] = aj2;
-          // 	  hyp_alignment[j2] = aj1;
-          // 	  hyp_prob = alignment_prob(s,hyp_alignment);
-
           if (aj1 != 0 && aj2 != 0 && 
               cept_start_mode_ != IBM4UNIFORM &&
               aligned_source_words[aj1].size() == 1 && aligned_source_words[aj2].size() == 1) {
@@ -7126,7 +7071,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
             // 2. leaving cept temp_aj1 and entering cept temp_aj2
             if (prev_cept[temp_aj2] != temp_aj1) {
 	      
-              //int prev_diff, new_diff;
               //a) leaving cept aj1
               uint next_i = next_cept[temp_aj1];
               if (next_i != MAX_UINT) {
@@ -7594,9 +7538,6 @@ double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& source, co
     cept_start_prob_ = new_param;
 
     //intra params
-
-    //const uint nNewDisplacements = 2*J-1;
-
     IBM4WithinCeptModel new_wi_model(within_cept_prob_.xDim(),2*J-1,0.0,MAKENAME(new_wi_model)); 
 
     for (uint c=0; c < new_wi_model.xDim(); c++) {
@@ -7604,9 +7545,6 @@ double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& source, co
       for (uint k=0; k < within_cept_prob_.yDim(); k++)
 	new_wi_model(c,k+ new_zero_offset - displacement_offset_) = within_cept_prob_(c,k);
     }
-
-    //within_cept_prob_.set_constant(1.0 / (nDisplacements-1));
-    //within_cept_prob_(0,j2-j1+displacement_offset_);
 
     within_cept_prob_ = new_wi_model;
 
