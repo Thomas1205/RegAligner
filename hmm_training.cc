@@ -1544,7 +1544,8 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
     new_slack_vector[i] = slack_val;
   }
 
-  double energy = extended_hmm_energy(source, slookup, target, align_model, initial_prob, dict, prior_weight, align_type);
+  double energy = extended_hmm_energy(source, slookup, target, align_model, initial_prob, 
+				      dict, prior_weight, align_type, smoothed_l0, l0_beta);
 
 
   double line_reduction_factor = 0.5;
@@ -2049,7 +2050,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
     //std::cerr << "new source fert prob: " << new_source_fert << std::endl;
 
     //     double hyp_energy = extended_hmm_energy(source, slookup, target, new_align_prob, 
-    // 					    new_init_prob, new_dict_prob, prior_weight); 
+    // 					    new_init_prob, new_dict_prob, prior_weight, align_type, smoothed_l0, l0_beta); 
 
     double hyp_energy = 1e300;
 
@@ -2124,7 +2125,8 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
       }
 
       double new_energy = extended_hmm_energy(source, slookup, target, hyp_align_prob, 
-                                              hyp_init_prob, hyp_dict_prob, prior_weight);   
+                                              hyp_init_prob, hyp_dict_prob, prior_weight, 
+					      align_type, smoothed_l0, l0_beta);   
 
       std::cerr << "new: " << new_energy << ", prev: " << hyp_energy << std::endl;
 
