@@ -47,11 +47,11 @@ void compute_ibm2_viterbi_alignment(const Storage1D<uint>& source_sentence,
 
   for (uint j=0; j < J; j++) {
 
-    double max_prob = dict[0][source_sentence[j]-1];
+    double max_prob = dict[0][source_sentence[j]-1] * align_prob(j,0);
     uint arg_max = 0;
     for (uint i=0; i < I; i++) {
 
-      double cur_prob = dict[target_sentence[i]][slookup(j,i)] * align_prob(j,i);
+      double cur_prob = dict[target_sentence[i]][slookup(j,i)] * align_prob(j,i+1);
       
       if (cur_prob > max_prob) {
         max_prob = cur_prob;
