@@ -416,7 +416,7 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
     }
 
     std::cerr << "IBM 1 energy after iteration #" << iter << ": " 
-              << ibm1_energy(source,slookup,target,dict,prior_weight) << std::endl;
+              << ibm1_energy(source,slookup,target,dict,prior_weight,smoothed_l0,l0_beta) << std::endl;
 
     /************* compute alignment error rate ****************/
     if (!possible_ref_alignments.empty()) {
@@ -513,7 +513,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
   }
 #endif
 
-  double energy = ibm1_energy(source,slookup,target,dict,prior_weight);
+  double energy = ibm1_energy(source,slookup,target,dict,prior_weight,smoothed_l0,l0_beta);
 
   std::cerr << "initial energy: " << energy  << std::endl;
   
@@ -639,7 +639,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
     double lambda = 1.0;
     double best_lambda = 1.0;
 
-    double hyp_energy = ibm1_energy(source,slookup,target,new_dict,prior_weight);
+    double hyp_energy = ibm1_energy(source,slookup,target,new_dict,prior_weight,smoothed_l0,l0_beta);
 
     uint nInnerIter = 0;
 
@@ -666,7 +666,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
           hyp_dict[i][k] = inv_lambda * dict[i][k] + lambda * new_dict[i][k];
       }
       
-      double new_energy = ibm1_energy(source,slookup,target,hyp_dict,prior_weight); 
+      double new_energy = ibm1_energy(source,slookup,target,hyp_dict,prior_weight,smoothed_l0,l0_beta); 
 
       std::cerr << "new hyp: " << new_energy << ", previous: " << hyp_energy << std::endl;
       
@@ -705,7 +705,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
         slack_vector[i] = inv_lambda * slack_vector[i] + best_lambda * new_slack_vector[i];
     }
 
-    double check_energy = ibm1_energy(source,slookup,target,dict,prior_weight);//distribution_weight);//regularity_weight);
+    double check_energy = ibm1_energy(source,slookup,target,dict,prior_weight,smoothed_l0,l0_beta);
 
     assert(fabs(check_energy - hyp_energy) < 0.0025);
 
