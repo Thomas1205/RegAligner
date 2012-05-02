@@ -921,7 +921,7 @@ void IBM3Trainer::init_from_hmm(const FullHMMAlignmentModel& align_model,
                                 const InitialAlignmentProbability& initial_prob,
 				HmmAlignProbType align_type) {
 
-  std::cerr << "initializing IBM3 from HMM" << std::endl;
+  std::cerr << "initializing IBM-3 from HMM" << std::endl;
 
   NamedStorage1D<Math1D::Vector<uint> > fert_count(nTargetWords_,MAKENAME(fert_count));
   for (uint i=0; i < nTargetWords_; i++) {
@@ -2037,7 +2037,7 @@ void IBM3Trainer::update_alignments_unconstrained() {
 
 void IBM3Trainer::train_unconstrained(uint nIter) {
 
-  std::cerr << "starting IBM3 training without constraints" << std::endl;
+  std::cerr << "starting IBM-3 training without constraints" << std::endl;
 
   double max_perplexity = 0.0;
   double approx_sum_perplexity = 0.0;
@@ -2528,14 +2528,14 @@ void IBM3Trainer::train_unconstrained(uint nIter) {
     viterbi_max_perplexity /= source_sentence_.size();
 
 
-    std::cerr << "IBM3 max-perplex-energy in between iterations #" << (iter-1) << " and " << iter << ": "
+    std::cerr << "IBM-3 max-perplex-energy in between iterations #" << (iter-1) << " and " << iter << ": "
               << max_perplexity << std::endl;
-    std::cerr << "IBM3 approx-sum-perplex-energy in between iterations #" << (iter-1) << " and " << iter << ": "
+    std::cerr << "IBM-3 approx-sum-perplex-energy in between iterations #" << (iter-1) << " and " << iter << ": "
               << approx_sum_perplexity << std::endl;
 
 
     if (viterbi_ilp_) {
-      std::cerr << "IBM3 viterbi max-perplex-energy in between iterations #" << (iter-1) << " and " << iter << ": "
+      std::cerr << "IBM-3 viterbi max-perplex-energy in between iterations #" << (iter-1) << " and " << iter << ": "
                 << viterbi_max_perplexity << std::endl;
 
       std::cerr << "Viterbi-ILP better in " << nViterbiBetter << ", worse in " << nViterbiWorse << " cases." << std::endl;
@@ -2595,7 +2595,7 @@ void IBM3Trainer::train_unconstrained(uint nIter) {
 
 void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
 
-  std::cerr << "starting IBM3 training without constraints" << std::endl;
+  std::cerr << "starting IBM-3 training without constraints" << std::endl;
 
   double max_perplexity = 0.0;
 
@@ -3110,7 +3110,7 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
 
     max_perplexity /= source_sentence_.size();
 
-    std::cerr << "IBM3 energy after iteration #" << iter << ": "
+    std::cerr << "IBM-3 energy after iteration #" << iter << ": "
               << max_perplexity << std::endl;
 
 
@@ -5464,7 +5464,7 @@ void IBM4Trainer::start_prob_m_step(const Storage1D<Math1D::Vector<double> >& st
 void IBM4Trainer::init_from_ibm3(IBM3Trainer& ibm3trainer, bool clear_ibm3, 
 				 bool collect_counts, bool viterbi) {
 
-  std::cerr << "******** initializing IBM4 from IBM3 *******" << std::endl;
+  std::cerr << "******** initializing IBM-4 from IBM-3 *******" << std::endl;
 
   fertility_prob_.resize(ibm3trainer.fertility_prob().size());
   for (uint k=0; k < fertility_prob_.size(); k++) {
@@ -6953,7 +6953,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 #ifndef NDEBUG
 	    long double check = alignment_prob(source,target,lookup,hyp_alignment);
 
-	    if (check > 0.0) {
+	    if (check > 1e-250) {
 
 	      if (! (check / hyp_prob <= 1.005 && check / hyp_prob >= 0.995)) {
 		std::cerr << "aj: " << aj << ", cand_aj: " << cand_aj << std::endl;
@@ -6963,8 +6963,22 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 	      assert(check / hyp_prob <= 1.005);
 	      assert(check / hyp_prob >= 0.995);
 	    }
-	    else
+	    else if (check > 0.0) {
+
+	      if (! (check / hyp_prob <= 1.5 && check / hyp_prob >= 0.666)) {
+		std::cerr << "aj: " << aj << ", cand_aj: " << cand_aj << std::endl;
+		std::cerr << "calculated: " << hyp_prob << ", should be: " << check << std::endl;
+	      }
+
+	      assert(check / hyp_prob <= 1.5);
+	      assert(check / hyp_prob >= 0.666);
+
+	    }
+	    else {
+	      if (!(hyp_prob) == 0.0)
+		std::cerr << "calculated: " << hyp_prob << ", should be: " << check << std::endl;
 	      assert(hyp_prob == 0.0);
+	    }
 #endif
 #else	    
             hyp_prob = alignment_prob(source,target,lookup,hyp_alignment);
@@ -7027,6 +7041,28 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
           swap_prob(j1,j2) = 0.0;
         }
         else {
+
+	  //EXPERIMENTAL (prune constellations with very unlikely translation probs.)
+	  if (aj1 != 0) {
+            const uint taj1 = target[aj1-1];
+	    if (dict_[taj1][lookup(j2,aj1-1)] < 1e-10)
+	      continue;
+	  }
+	  else {
+	    if (dict_[0][source[j2]-1] < 1e-10)
+	      continue;
+	  }
+	  if (aj2 != 0) {
+            const uint taj2 = target[aj2-1];
+	    if (dict_[taj2][lookup(j1,aj2-1)] < 1e-10)
+	      continue;
+	  }
+	  else {
+	    if (dict_[0][source[j1]-1] < 1e-10)
+	      continue;
+	  }
+	  //END_EXPERIMENTAL
+
 
           long double hyp_prob = 0.0;
 
@@ -7375,7 +7411,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 #ifndef NDEBUG
 	    long double check = alignment_prob(source,target,lookup,hyp_alignment);
 
-	    if (check > 0.0) {
+	    if (check > 1e-250) {
 
 	      if (! (check / hyp_prob <= 1.005 && check / hyp_prob >= 0.995)) {
 		std::cerr << "aj1: " << aj1 << ", aj2: " << aj2 << std::endl;
@@ -7385,8 +7421,21 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 	      assert(check / hyp_prob <= 1.005);
 	      assert(check / hyp_prob >= 0.995);
 	    }
-	    else
+	    else if (check > 0.0) {
+
+	      if (! (check / hyp_prob <= 1.5 && check / hyp_prob >= 0.666)) {
+		std::cerr << "aj1: " << aj1 << ", aj2: " << aj2 << std::endl;
+		std::cerr << "calculated: " << hyp_prob << ", should be: " << check << std::endl;
+	      }
+
+	      assert(check / hyp_prob <= 1.5);
+	      assert(check / hyp_prob >= 0.666);
+
+	    }
+	    else {
+	      std::cerr << "calculated: " << hyp_prob << ", should be: " << check << std::endl;
 	      assert(hyp_prob == 0.0);
+	    }
 #endif
 #else
 
@@ -7651,9 +7700,9 @@ double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& source, co
 
 void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
 
-  std::cerr << "starting IBM4 training without constraints";
+  std::cerr << "starting IBM-4 training without constraints";
   if (ibm3 != 0)
-    std::cerr << " (init from IBM3) ";
+    std::cerr << " (init from IBM-3) ";
   std::cerr << std::endl;
 
 
@@ -8414,16 +8463,16 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
 
     std::string transfer = (ibm3 != 0 && iter == 1) ? " (transfer) " : ""; 
 
-    std::cerr << "IBM4 max-perplex-energy in between iterations #" << (iter-1) << " and " << iter << transfer << ": "
+    std::cerr << "IBM-4 max-perplex-energy in between iterations #" << (iter-1) << " and " << iter << transfer << ": "
               << max_perplexity << std::endl;
-    std::cerr << "IBM4 approx-sum-perplex-energy in between iterations #" << (iter-1) << " and " << iter << transfer << ": "
+    std::cerr << "IBM-4 approx-sum-perplex-energy in between iterations #" << (iter-1) << " and " << iter << transfer << ": "
               << approx_sum_perplexity << std::endl;
     
     if (possible_ref_alignments_.size() > 0) {
       
-      std::cerr << "#### IBM4-AER in between iterations #" << (iter-1) << " and " << iter << ": " << AER() << std::endl;
-      std::cerr << "#### IBM4-fmeasure in between iterations #" << (iter-1) << " and " << iter << ": " << f_measure() << std::endl;
-      std::cerr << "#### IBM4-DAE/S in between iterations #" << (iter-1) << " and " << iter << ": " 
+      std::cerr << "#### IBM-4-AER in between iterations #" << (iter-1) << " and " << iter << ": " << AER() << std::endl;
+      std::cerr << "#### IBM-4-fmeasure in between iterations #" << (iter-1) << " and " << iter << ": " << f_measure() << std::endl;
+      std::cerr << "#### IBM-4-DAE/S in between iterations #" << (iter-1) << " and " << iter << ": " 
                 << DAE_S() << std::endl;
     }
 
@@ -8439,7 +8488,7 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
 void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 
 
-  std::cerr << "starting IBM4 Viterbi-training without constraints" << std::endl;
+  std::cerr << "starting IBM-4 Viterbi-training without constraints" << std::endl;
 
   double max_perplexity = 0.0;
 
@@ -9139,13 +9188,13 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 
     std::string transfer = (ibm3 != 0 && iter == 1) ? " (transfer) " : ""; 
 
-    std::cerr << "IBM4 max-perplex-energy in between iterations #" << (iter-1) << " and " << iter << transfer << ": "
+    std::cerr << "IBM-4 max-perplex-energy in between iterations #" << (iter-1) << " and " << iter << transfer << ": "
               << max_perplexity << std::endl;
     if (possible_ref_alignments_.size() > 0) {
       
-      std::cerr << "#### IBM4-AER in between iterations #" << (iter-1) << " and " << iter << transfer << ": " << AER() << std::endl;
-      std::cerr << "#### IBM4-fmeasure in between iterations #" << (iter-1) << " and " << iter << transfer << ": " << f_measure() << std::endl;
-      std::cerr << "#### IBM4-DAE/S in between iterations #" << (iter-1) << " and " << iter << transfer << ": " 
+      std::cerr << "#### IBM-4-AER in between iterations #" << (iter-1) << " and " << iter << transfer << ": " << AER() << std::endl;
+      std::cerr << "#### IBM-4-fmeasure in between iterations #" << (iter-1) << " and " << iter << transfer << ": " << f_measure() << std::endl;
+      std::cerr << "#### IBM-4-DAE/S in between iterations #" << (iter-1) << " and " << iter << transfer << ": " 
                 << DAE_S() << std::endl;
     }
 

@@ -33,7 +33,7 @@ double ibm1_perplexity( const Storage1D<Storage1D<uint> >& source,
                         const Storage1D< Storage1D<uint> >& target,
                         const SingleWordDictionary& dict) {
 
-  //std::cerr << "calculating IBM 1 perplexity" << std::endl;
+  //std::cerr << "calculating IBM-1 perplexity" << std::endl;
 
   double sum = 0.0;
 
@@ -323,7 +323,7 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
 
   for (uint iter = 1; iter <= nIter; iter++) {
 
-    std::cerr << "starting IBM 1 iteration #" << iter << std::endl;
+    std::cerr << "starting IBM-1 iteration #" << iter << std::endl;
 
     /*** a) compute fractional counts ***/
     
@@ -415,7 +415,7 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
       }
     }
 
-    std::cerr << "IBM 1 energy after iteration #" << iter << ": " 
+    std::cerr << "IBM-1 energy after iteration #" << iter << ": " 
               << ibm1_energy(source,slookup,target,dict,prior_weight,smoothed_l0,l0_beta) << std::endl;
 
     /************* compute alignment error rate ****************/
@@ -447,9 +447,9 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
       sum_fmeasure /= nContributors;
       nErrors /= nContributors;
 
-      std::cerr << "#### IBM1 Viterbi-AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
-      std::cerr << "#### IBM1 Viterbi-fmeasure after iteration #" << iter << ": " << sum_fmeasure << std::endl;
-      std::cerr << "#### IBM1 Viterbi-DAE/S after iteration #" << iter << ": " << nErrors << std::endl;
+      std::cerr << "#### IBM-1 Viterbi-AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
+      std::cerr << "#### IBM-1 Viterbi-fmeasure after iteration #" << iter << ": " << sum_fmeasure << std::endl;
+      std::cerr << "#### IBM-1 Viterbi-DAE/S after iteration #" << iter << ": " << nErrors << std::endl;
     }
 
 
@@ -743,9 +743,9 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
       sum_fmeasure /= nContributors;
       nErrors /= nContributors;
 
-      std::cerr << "#### IBM1 Viterbi-AER after gd-iteration #" << iter << ": " << sum_aer << " %" << std::endl;
-      std::cerr << "#### IBM1 Viterbi-fmeasure after gd-iteration #" << iter << ": " << sum_fmeasure << std::endl;
-      std::cerr << "#### IBM1 Viterbi-DAE/S after gd-iteration #" << iter << ": " << nErrors << std::endl;
+      std::cerr << "#### IBM-1 Viterbi-AER after gd-iteration #" << iter << ": " << sum_aer << " %" << std::endl;
+      std::cerr << "#### IBM-1 Viterbi-fmeasure after gd-iteration #" << iter << ": " << sum_fmeasure << std::endl;
+      std::cerr << "#### IBM-1 Viterbi-DAE/S after gd-iteration #" << iter << ": " << nErrors << std::endl;
     }
 
     std::cerr << "slack sum: " << slack_vector.sum() << std::endl;
@@ -1109,9 +1109,9 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
       sum_fmeasure /= nContributors;
       nErrors /= nContributors;
 
-      std::cerr << "#### IBM1 Viterbi-AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
-      std::cerr << "#### IBM1 Viterbi-fmeasure after iteration #" << iter << ": " << sum_fmeasure << std::endl;
-      std::cerr << "#### IBM1 Viterbi-DAE/S after iteration #" << iter << ": " << nErrors << std::endl;
+      std::cerr << "#### IBM-1 Viterbi-AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
+      std::cerr << "#### IBM-1 Viterbi-fmeasure after iteration #" << iter << ": " << sum_fmeasure << std::endl;
+      std::cerr << "#### IBM-1 Viterbi-DAE/S after iteration #" << iter << ": " << nErrors << std::endl;
 
       if (nSwitches == 0 && fabs(last_energy-energy) < 1e-4) {
         std::cerr << "LOCAL MINIMUM => break." << std::endl;
