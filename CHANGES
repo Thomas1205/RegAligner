@@ -1,0 +1,11 @@
+RegAligner Change History
+
+
+*** upcoming release
+- improved speed of hillclimbing in IBM-4
+- made ICM a little more extensive
+- speed-ups for ICM in IBM-4
+
+
+**** release version 0.9
+- first released version, May 02 2012

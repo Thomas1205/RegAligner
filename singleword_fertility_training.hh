@@ -137,7 +137,17 @@ public:
                                     const Math2D::Matrix<uint>& lookup,
                                     Math1D::Vector<ushort>& alignment, bool ilp=false);
 
+  // <code> start_alignment </code> is used as initialization for hillclimbing and later modified
+  // the extracted alignment is written to <code> postdec_alignment </code>
+  void compute_external_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+					  const Math2D::Matrix<uint>& lookup,
+					  Math1D::Vector<ushort>& start_alignment,
+					  std::set<std::pair<ushort,ushort> >& postdec_alignment,
+					  double threshold = 0.25);
+
   void release_memory();
+
+  void write_postdec_alignments(const std::string filename, double thresh);
   
 protected:
   
@@ -226,6 +236,17 @@ public:
                                     const Math2D::Matrix<uint>& lookup,
                                     Math1D::Vector<ushort>& alignment);
 
+  // <code> start_alignment </code> is used as initialization for hillclimbing and later modified
+  // the extracted alignment is written to <code> postdec_alignment </code>
+  void compute_external_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+					  const Math2D::Matrix<uint>& lookup,
+					  Math1D::Vector<ushort>& start_alignment,
+					  std::set<std::pair<ushort,ushort> >& postdec_alignment,
+					  double threshold = 0.25);
+
+
+  void write_postdec_alignments(const std::string filename, double thresh);
+
 protected:
 
   long double alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
@@ -236,6 +257,10 @@ protected:
 
   long double distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 			      const Math1D::NamedVector<std::set<int> >& aligned_source_words) const;
+
+  //NOTE: the vectors need to be sorted
+  long double distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
+			      const Math1D::NamedVector<std::vector<ushort> >& aligned_source_words) const;
 
   void print_alignment_prob_factors(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 				    const Math2D::Matrix<uint>& lookup, const Math1D::Vector<ushort>& alignment) const;

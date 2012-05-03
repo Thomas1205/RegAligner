@@ -409,8 +409,8 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
           }
         }
         else if (dict[i].size() > 0) {
-          std::cerr << "WARNING : did not update dictionary entries for target word #" << i
-                    << " because sum is " << sum << "( dict-size = " << dict[i].size() << " )" << std::endl;
+          // std::cerr << "WARNING : did not update dictionary entries for target word #" << i
+          //           << " because sum is " << sum << "( dict-size = " << dict[i].size() << " )" << std::endl;
         }
       }
     }
@@ -965,6 +965,7 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
 	    
             uint new_target_word = (i == 0) ? 0 : cur_target[i-1];
 
+	    //NOTE: IBM-1 scores don't change when the two words in question are identical
             if (cur_target_word != new_target_word) {
 	      
               uint hyp_idx = (i == 0) ? cur_source[j]-1 : cur_lookup(j,i-1);
