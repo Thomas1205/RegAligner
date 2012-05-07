@@ -22,8 +22,8 @@ public:
                         const CooccuringWordsType& wcooc,
                         uint nSourceWords, uint nTargetWords,
                         const std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
-                        const std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments
-                        );
+                        const std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
+                        uint fertility_limit = 10000);
 
   void write_alignments(const std::string filename) const;
 
@@ -38,6 +38,8 @@ public:
   const NamedStorage1D<Math1D::Vector<double> >& fertility_prob() const;
 
   const NamedStorage1D<Math1D::Vector<ushort> >& best_alignments() const;
+
+  void set_fertility_limit(uint new_limit);
 
 protected:
 
@@ -86,6 +88,8 @@ protected:
 
   uint maxJ_;
   uint maxI_;
+
+  uint fertility_limit_;
 
   NamedStorage1D<Math1D::Vector<double> > fertility_prob_;
 

@@ -45,6 +45,7 @@ int main(int argc, char** argv) {
               << " [-ibm4-iter <uint> ]: iterations for the IBM-4 model (default 0)" << std::endl
 	      << " [-ibm4-mode (first | center | last) ] : (default first)" << std::endl
               << " [-constraint-mode (unconstrained | itg | ibm) " << std::endl
+	      << " [-fert-limit <uint>]: fertility limit for IBM-3/4, default: 10000" << std::endl
               << " [-o <file>] : the determined dictionary is written to this file" << std::endl
               << " -oa <file> : the determined alignment is written to this file" << std::endl
               << std::endl;
@@ -54,7 +55,7 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  const int nParams = 21;
+  const int nParams = 22;
   ParamDescr  params[nParams] = {{"-s",mandInFilename,0,""},{"-t",mandInFilename,0,""},
                                  {"-ds",optInFilename,0,""},{"-dt",optInFilename,0,""},
                                  {"-o",optOutFilename,0,""},{"-oa",mandOutFilename,0,""},
@@ -65,7 +66,8 @@ int main(int argc, char** argv) {
                                  {"-ibm1-iter",optWithValue,1,"5"},{"-ibm2-iter",optWithValue,1,"0"},
                                  {"-ibm3-iter",optWithValue,0,""},{"-ibm4-iter",optWithValue,0,""},
                                  {"-fertpen",optWithValue,1,"0.0"},{"-constraint-mode",optWithValue,1,"unconstrained"},
-				 {"-l0-beta",optWithValue,1,"-1.0"},{"-ibm4-mode",optWithValue,1,"first"}};
+				 {"-l0-beta",optWithValue,1,"-1.0"},{"-ibm4-mode",optWithValue,1,"first"},
+				 {"-fert-limit",optWithValue,1,"10000"}};
 
   Application app(argc,argv,params,nParams);
 
@@ -106,6 +108,8 @@ int main(int argc, char** argv) {
 
   double l0_beta = convert<double>(app.getParam("-l0-beta"));
   bool em_l0 = (l0_beta > 0);
+
+  uint fert_limit = convert<uint>(app.getParam("-fert-limit"));
 
   std::clock_t tStartRead, tEndRead;
   tStartRead = std::clock();
@@ -372,6 +376,8 @@ int main(int argc, char** argv) {
                            sure_ref_alignments, possible_ref_alignments,
                            dict, wcooc, nSourceWords, nTargetWords, prior_weight, 
                            true, true, false, l0_fertpen, em_l0, l0_beta);
+
+  ibm3_trainer.set_fertility_limit(fert_limit);
   
   if (ibm3_iter+ibm4_iter > 0)
     ibm3_trainer.init_from_hmm(hmmalign_model,initial_prob,train_dist_mode);
@@ -422,6 +428,8 @@ int main(int argc, char** argv) {
                            sure_ref_alignments, possible_ref_alignments,
                            dict, wcooc, nSourceWords, nTargetWords, prior_weight, true, true, true,
                            ibm4_cept_mode, em_l0, l0_beta, l0_fertpen);
+
+  ibm4_trainer.set_fertility_limit(fert_limit);
 
   if (ibm4_iter > 0) {
     bool collect_counts = false;
