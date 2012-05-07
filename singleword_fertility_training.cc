@@ -1893,6 +1893,7 @@ void IBM3Trainer::compute_external_postdec_alignment(const Storage1D<uint>& sour
 						     std::set<std::pair<ushort,ushort> >& postdec_alignment,
 						     double threshold) {
 
+  postdec_alignment.clear();
 
   const uint J = source.size();
   const uint I = target.size();
@@ -2017,7 +2018,7 @@ void IBM3Trainer::compute_external_postdec_alignment(const Storage1D<uint>& sour
   const long double sentence_prob = best_prob + expansion_prob +  swap_prob;
   
   /**** calculate sums ***/
-  Math2D::Matrix<long double> marg(I+1,J,0.0);
+  Math2D::Matrix<long double> marg(J,I+1,0.0);
 
   for (uint j=0; j < J; j++) {
     marg(j, alignment[j]) += best_prob;
@@ -4931,9 +4932,9 @@ void IBM3Trainer::write_postdec_alignments(const std::string filename, double th
     for(std::set<std::pair<ushort,ushort> >::iterator it = postdec_alignment.begin(); 
 	it != postdec_alignment.end(); it++) {
       
-      (*out) << it->second << " " << it->first << " ";
+      (*out) << (it->second-1) << " " << (it->first-1) << " ";
     }
-
+    (*out) << std::endl;
   }
 }
 
@@ -7888,6 +7889,8 @@ void IBM4Trainer::compute_external_postdec_alignment(const Storage1D<uint>& sour
 
   //std::cerr << "compute external alignment" << std::endl;
 
+  postdec_alignment.clear();
+
   const uint J = source.size();
   const uint I = target.size();
 
@@ -8056,7 +8059,7 @@ void IBM4Trainer::compute_external_postdec_alignment(const Storage1D<uint>& sour
   const long double sentence_prob = best_prob + expansion_prob +  swap_prob;
   
   /**** calculate sums ***/
-  Math2D::Matrix<long double> marg(I+1,J,0.0);
+  Math2D::Matrix<long double> marg(J,I+1,0.0);
 
   for (uint j=0; j < J; j++) {
     marg(j, alignment[j]) += best_prob;
@@ -9648,9 +9651,9 @@ void IBM4Trainer::write_postdec_alignments(const std::string filename, double th
     for(std::set<std::pair<ushort,ushort> >::iterator it = postdec_alignment.begin(); 
 	it != postdec_alignment.end(); it++) {
       
-      (*out) << it->second << " " << it->first << " ";
+      (*out) << (it->second-1) << " " << (it->first-1) << " ";
     }
-
+    (*out) << std::endl;
   }
 }
 

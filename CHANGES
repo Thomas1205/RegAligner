@@ -1,7 +1,8 @@
 RegAligner Change History
 
 
-*** upcoming release
+*** upcoming release (probably 0.92)
+- can now specify a fertility limit for IBM-3/4
 - improved speed of hillclimbing in IBM-4
 - made ICM a little more extensive
 - speed-ups for ICM in IBM-4
