@@ -2175,7 +2175,7 @@ void IBM3Trainer::train_unconstrained(uint nIter) {
       long double viterbi_prob = 0.0;
       if (viterbi_ilp_) {
         viterbi_alignment[s] = best_known_alignment_[s];
-        long double viterbi_prob = compute_viterbi_alignment_ilp(cur_source,cur_target,cur_lookup,maxFert,viterbi_alignment[s]);
+        viterbi_prob = compute_viterbi_alignment_ilp(cur_source,cur_target,cur_lookup,maxFert,viterbi_alignment[s]);
         //OPTIONAL
         //best_known_alignment_[s] = viterbi_alignment[s];
         //best_prob = update_alignment_by_hillclimbing(s,sum_iter,fertility,
@@ -6397,8 +6397,8 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
     /**** scan neighboring alignments and keep track of the best one that is better 
      ****  than the current alignment  ****/
 
-    std::clock_t tStartExp,tEndExp;
-    tStartExp = std::clock();
+    //std::clock_t tStartExp,tEndExp;
+    //tStartExp = std::clock();
 
     //a) expansion moves
 
@@ -7183,12 +7183,12 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       }
     }
 
-    tEndExp = std::clock();
+    //tEndExp = std::clock();
     //if (curJ >= 45 && curI >= 45)
     //std::cerr << "pair #" << s << ": spent " << diff_seconds(tEndExp,tStartExp) << " seconds on expansion moves" << std::endl;
 
-    std::clock_t tStartSwap,tEndSwap;
-    tStartSwap = std::clock();
+    //std::clock_t tStartSwap,tEndSwap;
+    //tStartSwap = std::clock();
 
     //for now, to be sure:
     hyp_aligned_source_words = aligned_source_words;
@@ -7650,7 +7650,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       }
     }
 
-    tEndSwap = std::clock();
+    //tEndSwap = std::clock();
     // if (curJ >= 45 && curI >= 45)
     //   std::cerr << "pair #" << s << ": spent " << diff_seconds(tEndSwap,tStartSwap) 
     // 		<< " seconds on swap moves" << std::endl;
@@ -8988,9 +8988,8 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
       Math2D::NamedMatrix<long double> swap_move_prob(curJ,curJ,MAKENAME(swap_move_prob));
       Math2D::NamedMatrix<long double> expansion_move_prob(curJ,curI+1,MAKENAME(expansion_move_prob));
 
-      std::clock_t tHillclimbStart, tHillclimbEnd;
-      tHillclimbStart = std::clock();
-
+      //std::clock_t tHillclimbStart, tHillclimbEnd;
+      //tHillclimbStart = std::clock();
 
       long double best_prob = 0.0;
 
@@ -9030,10 +9029,9 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
       }
       //END_DEBUG
 
-      tHillclimbEnd = std::clock();
+      //tHillclimbEnd = std::clock();
 
-      const long double sentence_prob = best_prob;
-
+      //const long double sentence_prob = best_prob;
       // if (sentence_prob < 1e-305)
       //   continue;
 
