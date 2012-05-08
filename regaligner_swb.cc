@@ -476,9 +476,6 @@ int main(int argc, char** argv) {
 
       max_devJ = std::max(max_devJ,curJ);
       max_devI = std::max(max_devI,curI);	
-
-      //dev_lengthJ[curJ] = std::max(curI,dev_lengthJ[curJ]);
-      //dev_lengthI[curI] = std::max(curJ,dev_lengthI[curI]);
     }
   }
 
@@ -634,16 +631,6 @@ int main(int argc, char** argv) {
 	  }
 	  (*dev_alignment_stream) << std::endl;
 	}
-
-	// ibm4_trainer.compute_external_alignment(dev_source_sentence[s],dev_target_sentence[s],dev_slookup[s],
-	// 					viterbi_alignment);
-	
-	// for (uint j=0; j < viterbi_alignment.size(); j++) { 
-	//   if (viterbi_alignment[j] > 0)
-	//     (*dev_alignment_stream) << (viterbi_alignment[j]-1) << " " << j << " ";
-	// }
-	
-	// (*dev_alignment_stream) << std::endl;
       }
       delete dev_alignment_stream;
     }
@@ -706,16 +693,6 @@ int main(int argc, char** argv) {
 	  }
 	  (*dev_alignment_stream) << std::endl;  
 	}
-
-	// ibm3_trainer.compute_external_alignment(dev_source_sentence[s],dev_target_sentence[s],dev_slookup[s],
-	// 					viterbi_alignment);
-	
-	// for (uint j=0; j < viterbi_alignment.size(); j++) { 
-	//   if (viterbi_alignment[j] > 0)
-	//     (*dev_alignment_stream) << (viterbi_alignment[j]-1) << " " << j << " ";
-	// }
-	
-	// (*dev_alignment_stream) << std::endl;
       }
       delete dev_alignment_stream;
     }  
@@ -790,31 +767,6 @@ int main(int argc, char** argv) {
       }
 
       (*alignment_stream) << std::endl;
-
-
-      // if (hmm_iter > 0) {
-	
-      //   compute_ehmm_viterbi_alignment(source_sentence[s],slookup[s], target_sentence[s], 
-      //                                  dict, hmmalign_model[curI-1], initial_prob[curI-1], viterbi_alignment);
-      // }
-      // else if (ibm2_iter > 0) {
-	
-      //   const Math2D::Matrix<double>& cur_align_model = reduced_ibm2align_model[curI];
-
-      //   compute_ibm2_viterbi_alignment(source_sentence[s], slookup[s], target_sentence[s], dict, 
-      //                                  cur_align_model, viterbi_alignment);
-      // }
-      // else {
-
-      //   compute_ibm1_viterbi_alignment(source_sentence[s], slookup[s], target_sentence[s], dict, viterbi_alignment);
-      // }
-
-      // for (uint j=0; j < viterbi_alignment.size(); j++) { 
-      // 	if (viterbi_alignment[j] > 0)
-      // 	    (*alignment_stream) << (viterbi_alignment[j]-1) << " " << j << " ";
-      // }
-
-      // (*alignment_stream) << std::endl;
     }
 
     delete alignment_stream;

@@ -44,6 +44,17 @@ To this end, add
 
 (or any other filename) to the command line.
 
+***** Activating posterior decoding *****
+
+By default the written alignments are Viterbi alignments (modes of the
+distribution). To activate posterior decoding, add
+
+-postdec-thresh 0.25
+
+(or another positive value smaller than 1) to the command line. If the given
+threshold is <= 0.5 you may get several alignments for some source words, even
+though this violates the assumptions in the implemented models.
+
 ***** Changing the number of iterations ****
 
 To change the iterations, in particular activate IBM-3 and IBM-4, add the

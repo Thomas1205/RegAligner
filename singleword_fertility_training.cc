@@ -862,7 +862,10 @@ void IBM3Trainer::init_from_hmm(const FullHMMAlignmentModel& align_model,
       double uni_contrib = uni_weight / max_fert;
       for (uint f=0; f < max_fert; f++) {
 
-        fertility_prob_[i][f] = uni_contrib + count_weight * inv_fc_sum * fert_count[i][f];
+	if (f <= fertility_limit_)
+	  fertility_prob_[i][f] = uni_contrib + count_weight * inv_fc_sum * fert_count[i][f];
+	else
+	  fertility_prob_[i][f] = count_weight * inv_fc_sum * fert_count[i][f];
       }
     }
     else
@@ -5522,8 +5525,13 @@ void IBM4Trainer::init_from_ibm3(IBM3Trainer& ibm3trainer, bool clear_ibm3,
     fertility_prob_[k] = ibm3trainer.fertility_prob()[k];
 
     //EXPERIMENTAL
-    for (uint l=0; l < fertility_prob_[k].size(); l++)
-      fertility_prob_[k][l] = 0.95 * fertility_prob_[k][l] + 0.05 / fertility_prob_[k].size();
+    for (uint l=0; l < fertility_prob_[k].size(); l++) {
+      if (l <= fertility_limit_)
+	fertility_prob_[k][l] = 0.95 * fertility_prob_[k][l] 
+	  + 0.05 / std::min<uint>(fertility_prob_[k].size(),fertility_limit_);
+      else
+	fertility_prob_[k][l] = 0.95 * fertility_prob_[k][l];
+    }
     //END_EXPERIMENTAL
   }
 

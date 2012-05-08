@@ -51,17 +51,22 @@ void compute_ibm1_postdec_alignment(const Storage1D<uint>& source_sentence,
 
   for (uint j=0; j < J; j++) {
 
+    //std::cerr << "j:" << j << std::endl;
+
     double sum = dict[0][source_sentence[j]-1];
+    //std::cerr << "null-prob: " << dict[0][source_sentence[j]-1] << std::endl;
     for (uint i=0; i < I; i++) {
 
-      sum += dict[target_sentence[i]][slookup(j,i)];
+      //std::cerr << i << "-prob: " << dict[target_sentence[i]][slookup(j,i)] << std::endl;
+
+      sum += std::max(1e-15,dict[target_sentence[i]][slookup(j,i)]);
     }
 
     assert(sum > 1e-305);
 
     for (uint i=0; i < I; i++) {
 
-      double cur_prob = dict[target_sentence[i]][slookup(j,i)] / sum;
+      double cur_prob = std::max(1e-15,dict[target_sentence[i]][slookup(j,i)]) / sum;
       
       if (cur_prob >= threshold) {
 	postdec_alignment.insert(std::make_pair(j+1,i+1));
@@ -121,13 +126,13 @@ void compute_ibm2_postdec_alignment(const Storage1D<uint>& source_sentence,
     double sum = dict[0][source_sentence[j]-1] * align_prob(j,0); //CHECK: no alignment prob for alignments to 0??
 
     for (uint i=0; i < I; i++) 
-      sum += dict[target_sentence[i]][slookup(j,i)] * align_prob(j,i+1);
+      sum += std::max(1e-15,dict[target_sentence[i]][slookup(j,i)]) * align_prob(j,i+1);
 
     assert(sum > 1e-305);
 
     for (uint i=0; i < I; i++) {
 
-      double marg = dict[target_sentence[i]][slookup(j,i)] * align_prob(j,i+1) / sum;
+      double marg = std::max(1e-15,dict[target_sentence[i]][slookup(j,i)]) * align_prob(j,i+1) / sum;
 
       if (marg >= threshold) {
 
