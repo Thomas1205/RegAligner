@@ -1,7 +1,7 @@
 RegAligner Change History
 
 
-*** upcoming release (probably 0.92)
+*** release version 0.92 (released on May 08 2012)
 - can now specify a fertility limit for IBM-3/4
 - improved speed of hillclimbing in IBM-4
 - made ICM a little more extensive

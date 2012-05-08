@@ -4644,8 +4644,6 @@ long double IBM3Trainer::compute_viterbi_alignment_ilp(const Storage1D<uint>& so
     double max_val = 0.0;
     uint arg_max = MAX_UINT;
     
-    uint nNonIntegralVars = 0;
-
     for (uint i=0; i <= curI; i++) {
 
       double val = solution[j*(curI+1)+i];
