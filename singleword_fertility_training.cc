@@ -8452,7 +8452,7 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
       }
 
       // 1. handle viterbi alignment
-      for (uint i=1; i < curI; i++) {
+      for (uint i=1; i <= curI; i++) {
 
         const long double cur_prob = inv_sentence_prob * best_prob;
 	
@@ -9122,7 +9122,7 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
       }
 
       // handle viterbi alignment
-      for (uint i=1; i < curI; i++) {
+      for (uint i=1; i <= curI; i++) {
 
         if (fertility[i] > 0) {
 	  
@@ -9387,8 +9387,6 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 
             Math1D::Vector<double>& cur_dictcount = fwcount[cur_word]; 
             Math1D::Vector<double>& hyp_dictcount = fwcount[new_target_word]; 
-
-	    assert(cur_word != new_target_word);
 
 	    uint cur_idx = (cur_aj == 0) ? cur_source[j]-1 : cur_lookup(j,cur_aj-1);
 	    
