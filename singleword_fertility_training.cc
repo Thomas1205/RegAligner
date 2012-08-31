@@ -1,6 +1,6 @@
 /*** written by Thomas Schoenemann. Started as a private person without employment, November 2009 ***/
 /*** continued at Lund University, Sweden, January 2010 - March 2011, as a private person and ***/
-/*** at the University of Düsseldorf, Germany, January - April 2012 ***/
+/*** at the University of Düsseldorf, Germany, January - September 2012 ***/
 
 #include "singleword_fertility_training.hh"
 #include "alignment_computation.hh"
@@ -7013,6 +7013,8 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 	    hyp_prob = base_prob * distortion_prob(source,target,hyp_aligned_source_words)
 	      / base_distortion_prob;
 
+	    assert(cand_aj != 0); //since we handle this above
+	    
 	    const uint prev_ti = (aj != 0) ? target[aj-1] : 0;
 	    const uint new_ti = (cand_aj != 0) ? target[cand_aj-1] : 0;
 
@@ -7020,7 +7022,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 	    if (cand_aj != 0) 
 	      incoming_prob = dict_[new_ti][lookup(j,cand_aj-1)];
 	    else
-	      incoming_prob = dict_[prev_ti][source[j]-1];
+	      incoming_prob = dict_[0][source[j]-1];
 	    
 	    if (cand_aj != 0)
 	      incoming_prob *= fertility_prob_[new_ti][fertility[cand_aj]+1];
@@ -7710,7 +7712,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
     //std::cerr << "probability improved from " << base_prob << " to " << best_prob << std::endl;
     base_prob = best_prob;    
 
-    base_distortion_prob = distortion_prob(source,target,alignment);
+    base_distortion_prob = distortion_prob(source,target,aligned_source_words);
   }  
 
   return base_prob;
