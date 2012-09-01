@@ -216,8 +216,6 @@ uint FertilityModelTrainer::nUncoveredPositions(uint state) const {
 
 void FertilityModelTrainer::cover(uint level) {
 
-  //  std::cerr << "*****cover(" << level << ")" << std::endl;
-
   if (level == 0) {
     next_set_idx_++;
     return;
@@ -229,23 +227,9 @@ void FertilityModelTrainer::cover(uint level) {
   assert(next_set_idx_ <= uncovered_set_.yDim());
 
   const uint ref_j = uncovered_set_(level,ref_set_idx);
-  //std::cerr << "ref_j: " << ref_j << std::endl;
-  //std::cerr << "ref_line: ";
-  //   for (uint k=0; k < uncovered_set_.xDim(); k++) {
-
-  //     if (uncovered_set_(k,ref_set_idx) == MAX_USHORT)
-  //       std::cerr << "-";
-  //     else
-  //       std::cerr << uncovered_set_(k,ref_set_idx);
-  //     std::cerr << ",";
-  //   }
-  //   std::cerr << std::endl;
-  
 
   for (uint j=1; j < ref_j; j++) {
     
-    //std::cerr << "j: " << j << std::endl;
-
     assert(next_set_idx_ <= uncovered_set_.yDim());
     
     for (uint k=level; k < uncovered_set_.xDim(); k++)
@@ -309,26 +293,11 @@ void FertilityModelTrainer::compute_uncovered_sets(uint nMaxSkips) {
 
     std::vector<std::pair<ushort,ushort> > cur_predecessor_sets;
 
-    //     std::cerr << "processing state ";
-    //     for (uint k=0; k < nMaxSkips; k++) {
-
-    //       if (uncovered_set_(k,state) == MAX_USHORT)
-    // 	std::cerr << "-";
-    //       else
-    // 	std::cerr << uncovered_set_(k,state);
-    //       std::cerr << ",";
-    //     }
-    //     std::cerr << std::endl;
-
-    //uint maxUncoveredPos = uncovered_set_(nMaxSkips-1,state);
-
     //NOTE: a state is always its own predecessor state; to save memory we omit the entry
     bool limit_state = (uncovered_set_(0,state) != MAX_USHORT);
     //uint prev_candidate;
 
     if (limit_state) {
-      //       for (uint k=1; k < nMaxSkips; k++)
-      // 	assert(uncovered_set_(k,state) != MAX_USHORT);
 
       //predecessor states can only be states with less entries
 
@@ -374,40 +343,6 @@ void FertilityModelTrainer::compute_uncovered_sets(uint nMaxSkips) {
           }
         }
       }
-
-      // #if 0
-      //       assert(nMaxSkips >= 2); //TODO: handle the cases of nMaxSkips = 1 or 0
-
-      //       const uint highestUncoveredPos = uncovered_set_(nMaxSkips-1,state);
-      //       const uint secondHighestUncoveredPos = uncovered_set_(nMaxSkips-2,state);
-
-      //       bool is_predecessor;
-      //       for (prev_candidate = 0; prev_candidate < first_set_[secondHighestUncoveredPos+1]; prev_candidate++) {
-
-      // 	is_predecessor = true;
-      // 	if (uncovered_set_(0,prev_candidate) != MAX_USHORT)
-      // 	  is_predecessor = false;
-      // 	else {
-      // 	  const uint nCandidateSkips = nUncoveredPositions_[prev_candidate];
-      // 	  const uint nNewSkips = nMaxSkips-nCandidateSkips;
-	  
-      // 	  if (nNewSkips != nConsecutiveEndSkips)
-      // 	    is_predecessor = false;
-      // 	  else {
-      // 	    for (uint k=0; k < nCandidateSkips; k++) {
-      // 	      if (uncovered_set_(k+nNewSkips,prev_candidate) != uncovered_set_(k,state)) {
-      // 		is_predecessor = false;
-      // 		break;
-      // 	      }
-      // 	    }
-      // 	  }
-      // 	}
-
-      // 	if (is_predecessor) {
-      // 	  cur_predecessor_sets.push_back(std::make_pair(prev_candidate,highestUncoveredPos+1));
-      // 	}
-      //       }
-      // #endif
     }
     else {
 
@@ -460,70 +395,7 @@ void FertilityModelTrainer::compute_uncovered_sets(uint nMaxSkips) {
 	    
           }
         }
-
-        // #if 0
-        // 	bool match;
-	
-        // 	for (prev_candidate = 0; prev_candidate < first_set_[secondHighestUncoveredPos+1]; prev_candidate++) {
-
-        // 	  if (nUncoveredPositions_[prev_candidate] == nPrevSkips) {
-
-        // 	    //the candidate set has exactly one entry less
-        // 	    //now check if the sets match when the highest position is removed from the 
-
-        // 	    match = true;
-        // 	    for (uint k=nMaxSkips-nPrevSkips; k < nMaxSkips; k++) {
-        // 	      if (uncovered_set_(k-nConsecutiveEndSkips,state) != 
-        // 		  uncovered_set_(k,prev_candidate)) {
-        // 		match = false;
-        // 		break;
-        // 	      }
-        // 	    }
-
-        // 	    if (match)
-        // 	      cur_predecessor_sets.push_back(std::make_pair(prev_candidate,highestUncoveredPos+1));
-        // 	  }
-        // 	}
-        // #endif	
       }
-
-      // #if 0
-      //       //b) find states with exactly one entry more
-      //       for (prev_candidate = 1; prev_candidate < next_set_idx_; prev_candidate++) {
-
-      // 	if (nUncoveredPositions_[prev_candidate] == nUncoveredPositions+1) {
-
-      // 	  uint nContained = 0;
-      // 	  uint not_contained_pos = MAX_UINT;
-      // 	  bool contained;
-
-      // 	  uint k,l;
-
-      // 	  for (k= nMaxSkips-nUncoveredPositions-1; k < nMaxSkips; k++) {
-	    
-      // 	    const uint entry = uncovered_set_(k,prev_candidate);
-	    
-      // 	    contained = false;
-      // 	    for (l=nMaxSkips-nUncoveredPositions; l < nMaxSkips; l++) {
-      // 	      if (entry == uncovered_set_(l,state)) {
-      // 		contained = true;
-      // 		break;
-      // 	      }
-      // 	    }
-
-      // 	    if (contained) {
-      // 	      nContained++;
-      // 	    }
-      // 	    else
-      // 	      not_contained_pos = entry;
-      // 	  }
-	
-      // 	  if (nContained == nUncoveredPositions) {
-      // 	    cur_predecessor_sets.push_back(std::make_pair(prev_candidate,not_contained_pos));
-      // 	  }
-      // 	}
-      //       }
-      // #endif
     }
     
     const uint nCurPredecessors = cur_predecessor_sets.size();
@@ -556,8 +428,6 @@ void FertilityModelTrainer::compute_uncovered_sets(uint nMaxSkips) {
       for (uint erase_pos = 0; erase_pos < nUncoveredPositions; erase_pos++) {
         Math1D::NamedVector<uint> succ_uncovered(nUncoveredPositions-1,MAKENAME(succ_uncovered));
 
-        //std::cerr << "A" << std::endl;
-
         uint l=0;
         for (uint k=0; k < nUncoveredPositions; k++) {
           if (k != erase_pos) {
@@ -565,8 +435,6 @@ void FertilityModelTrainer::compute_uncovered_sets(uint nMaxSkips) {
             l++;
           }
         }
-
-        //std::cerr << "B" << std::endl;
 
         const uint last_uncovered_pos = succ_uncovered[nUncoveredPositions-2];
 
@@ -606,8 +474,6 @@ void FertilityModelTrainer::compute_uncovered_sets(uint nMaxSkips) {
     nTransitions += predecessor_sets_[s].yDim();
 
   std::cerr << nTransitions << " transitions" << std::endl;
-
-  //visualize_set_graph("stategraph.dot");
 }
 
 void FertilityModelTrainer::visualize_set_graph(std::string filename) {
@@ -763,20 +629,12 @@ void FertilityModelTrainer::compute_coverage_states() {
       //b) handle transitions where the uncovered set is changed
       const uint nPredecessorSets = predecessor_sets_[uncovered_set_idx].yDim();
       
-      //       std::cerr << "examining state (";
-      //       print_uncovered_set(uncovered_set_idx);
-      //       std::cerr << " ; " << highest_covered_source_pos << " )" << std::endl;
-
       for (uint p=0; p < nPredecessorSets; p++) {
 	
         const uint covered_source_pos = predecessor_sets_[uncovered_set_idx](1,p);
         if (covered_source_pos <= highest_covered_source_pos) {
           const uint predecessor_set = predecessor_sets_[uncovered_set_idx](0,p);
 
-          // 	  std::cerr << "predecessor set ";
-          // 	  print_uncovered_set(predecessor_set);
-          // 	  std::cerr << std::endl;
-	  
           uint prev_highest_covered = highest_covered_source_pos;
           if (covered_source_pos == highest_covered_source_pos) {
             if (nUncoveredPositions_[predecessor_set] < nUncoveredPositions_[uncovered_set_idx])
@@ -791,7 +649,6 @@ void FertilityModelTrainer::compute_coverage_states() {
           }
 
           if (prev_highest_covered != MAX_UINT) {
-            // 	    std::cerr << "prev_highest_covered: " << prev_highest_covered << std::endl;
 	    
             //find the index of the predecessor state
             const uint prev_idx = cov_state_num(predecessor_set,prev_highest_covered);
