@@ -51,13 +51,8 @@ void compute_ibm1_postdec_alignment(const Storage1D<uint>& source_sentence,
 
   for (uint j=0; j < J; j++) {
 
-    //std::cerr << "j:" << j << std::endl;
-
     double sum = dict[0][source_sentence[j]-1];
-    //std::cerr << "null-prob: " << dict[0][source_sentence[j]-1] << std::endl;
     for (uint i=0; i < I; i++) {
-
-      //std::cerr << i << "-prob: " << dict[target_sentence[i]][slookup(j,i)] << std::endl;
 
       sum += std::max(1e-15,dict[target_sentence[i]][slookup(j,i)]);
     }
@@ -159,14 +154,14 @@ void compute_fullhmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
 }
 
 
-double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
-                                      const Math2D::Matrix<uint>& slookup,
-                                      const Storage1D<uint>& target_sentence,
-                                      const SingleWordDictionary& dict,
-                                      const Math2D::Matrix<double>& align_prob,
-                                      const Math1D::Vector<double>& initial_prob,
-                                      Storage1D<ushort>& viterbi_alignment, bool internal_mode,
-				      bool verbose) {
+long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
+					   const Math2D::Matrix<uint>& slookup,
+					   const Storage1D<uint>& target_sentence,
+					   const SingleWordDictionary& dict,
+					   const Math2D::Matrix<double>& align_prob,
+					   const Math1D::Vector<double>& initial_prob,
+					   Storage1D<ushort>& viterbi_alignment, bool internal_mode,
+					   bool verbose) {
 
   const uint J = source_sentence.size();
   const uint I = target_sentence.size();
@@ -190,10 +185,9 @@ double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
     score[0][i] = std::max(1e-15,dict[0][source_sentence[0]-1]) * initial_prob[i];
 
   //to keep the numbers inside double precision
-  double correction_factor = score[0].max();
+  long double correction_factor = score[0].max();
   score[0] *= 1.0 / score[0].max();
 
-  //   if (J == 27 && I == 36)
   if (verbose)
     std::cerr << "initial score: " << score[0] << std::endl;
 
@@ -234,7 +228,7 @@ double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
       // 	std::cerr << "ERROR: j=" << j << ", J=" << J << ", I=" << I << std::endl;
       //       }
 
-      //       assert(arg_max != MAX_UINT);
+      assert(arg_max != MAX_UINT);
 
       double dict_entry = std::max(1e-15,dict[target_sentence[i]][slookup(j,i)]);
 
@@ -258,23 +252,8 @@ double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
       traceback(i,j) = arg_max;
     }
 
-    // if (J == 25 && I == 15) 
     if (verbose)
       std::cerr << "j=" << j << ", cur_score: " << cur_score << std::endl;
-
-    //DEBUG
-    //     if (J == 27 && I == 36) {
-    //       std::cerr << "j= " << j << ", score: " << cur_score << std::endl;
-    //       std::cerr << "zero-dict-prob: " << dict[0][source_sentence[j]-1] << std::endl;
-    //     }
-
-    //     if (isnan(cur_score.max())) {
-    //       std::cerr << "j= " << j << ", nan occurs: " << cur_score << std::endl;
-    //     }
-    //     if (cur_score.max()<= 0.0) {
-    //       std::cerr << "j= " << j << ", all zero: " << cur_score << std::endl;
-    //     }
-    //END_DEBUG
 
     //to keep the numbers inside double precision    
     correction_factor *= cur_score.max();
@@ -284,8 +263,6 @@ double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
   /*** now extract Viterbi alignment from the score and the traceback matrix ***/
   double max_score = 0.0;
   uint arg_max = MAX_UINT;
-
-  //std::cerr << "finding max" << std::endl;
 
   Math1D::Vector<double>& cur_score = score[cur_idx];
 
@@ -304,14 +281,10 @@ double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
     std::cerr << "align_model: " << align_prob << std::endl;
     std::cerr << "initial_prob: " << initial_prob << std::endl;
 
-    // for (uint i=0; i < I; i++) {
-    //   std::cerr << "dict for target word #" << i << dict[target_sentence[i]] << std::endl;
-    // }
     exit(1);
   }
 
   assert(arg_max != MAX_UINT);
-  //std::cerr << "traceback" << std::endl;
 
   if (internal_mode)
     viterbi_alignment[J-1] = arg_max;
@@ -339,8 +312,203 @@ double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
     }
   }
 
-  double prob =  max_score * correction_factor;
+  long double prob = ((long double) max_score) * correction_factor;
   return prob;
+}
+
+long double compute_ehmm_viterbi_alignment_with_tricks(const Storage1D<uint>& source_sentence,
+						       const Math2D::Matrix<uint>& slookup,
+						       const Storage1D<uint>& target_sentence,
+						       const SingleWordDictionary& dict,
+						       const Math2D::Matrix<double>& align_prob,
+						       const Math1D::Vector<double>& initial_prob,
+						       Storage1D<ushort>& viterbi_alignment, 
+						       bool internal_mode, bool verbose) {
+
+  const uint J = source_sentence.size();
+  const uint I = target_sentence.size();
+
+  viterbi_alignment.resize_dirty(J);
+  assert(align_prob.yDim() == I);
+
+  Math1D::Vector<double> score[2];
+  for (uint k=0; k < 2; k++)
+    score[k].resize_dirty(2*I);
+
+  Math2D::NamedMatrix<ushort> traceback(2*I,J,MAKENAME(traceback));
+
+  uint cur_idx = 0;
+  uint last_idx = 1;
+
+  for (uint i=0; i < I; i++) {
+    score[0][i] = std::max(1e-15,dict[target_sentence[i]][slookup(0,i)]) * initial_prob[i];
+  }
+  for (uint i=I; i < 2*I; i++)
+    score[0][i] = std::max(1e-15,dict[0][source_sentence[0]-1]) * initial_prob[i];
+
+  //to keep the numbers inside double precision
+  long double correction_factor = score[0].max();
+  score[0] *= 1.0 / score[0].max();
+
+  //   if (J == 27 && I == 36)
+  if (verbose)
+    std::cerr << "initial score: " << score[0] << std::endl;
+
+
+  for (uint j=1; j < J; j++) {
+
+    cur_idx = j % 2;
+    last_idx = 1 - cur_idx;
+
+    Math1D::Vector<double>& cur_score = score[cur_idx];
+    Math1D::Vector<double>& prev_score = score[last_idx];
+
+    
+    //find best prev
+    int arg_best_prev = -1;
+    double best_prev = 0.0;
+
+    for (uint i_prev=0; i_prev < 2*I; i_prev++) {
+      if (prev_score[i_prev] > best_prev) {
+	best_prev = prev_score[i_prev];
+	arg_best_prev = i_prev;
+      }
+    } 
+
+    assert(arg_best_prev >= 0);
+
+    int effective_best_prev = arg_best_prev;
+    if (effective_best_prev >= int(I))
+      effective_best_prev -= I;
+
+    //regular alignments
+    for (int i=0; i < int(I); i++) {
+
+      double max_score = 0.0;
+      uint arg_max = MAX_UINT;
+
+      if (abs(effective_best_prev-i) > 5) {
+	//in this case we only need to visit the positions inside the window
+	
+	arg_max = arg_best_prev;
+	max_score = best_prev * align_prob(i,effective_best_prev);
+
+	for (int i_prev = std::max<int>(0,i-5); i_prev <= std::min<int>(int(I)-1,i+5); i_prev++) {
+
+	  double hyp_score = std::max(prev_score[i_prev],prev_score[i_prev+I]) * align_prob(i,i_prev);
+	  
+	  if (hyp_score > max_score) {
+	    max_score = hyp_score;
+	    arg_max = i_prev;
+	    if (prev_score[i_prev] < prev_score[i_prev+I])
+	      arg_max += I;
+	  }
+	}
+      }
+      else {
+	//regular case, visit all positions
+	
+	for (uint i_prev = 0; i_prev < I; i_prev++) {
+	  double hyp_score = prev_score[i_prev] * align_prob(i,i_prev);
+	  
+	  if (hyp_score > max_score) {
+	    max_score = hyp_score;
+	    arg_max = i_prev;
+	  }
+	}
+	for (uint i_prev = I; i_prev < 2*I; i_prev++) {
+	  double hyp_score = prev_score[i_prev] * align_prob(i,i_prev-I);
+	  
+	  if (hyp_score > max_score) {
+	    max_score = hyp_score;
+	    arg_max = i_prev;
+	  }
+	}	
+      }
+      double dict_entry = std::max(1e-15,dict[target_sentence[i]][slookup(j,i)]);
+
+      cur_score[i] = max_score * dict_entry;
+      traceback(i,j) = arg_max;
+    }
+
+    //null alignments
+    for (uint i=I; i < 2*I; i++) {
+
+      double max_score = prev_score[i];
+      uint arg_max = i;
+
+      double hyp_score = prev_score[i-I];
+      if (hyp_score > max_score) {
+        max_score = hyp_score;
+        arg_max = i-I;
+      }
+
+      double dict_entry = std::max(1e-15,dict[0][source_sentence[j]-1]);
+
+      cur_score[i] = max_score * dict_entry * align_prob(I,i-I);
+      traceback(i,j) = arg_max;
+    }
+
+    //to keep the numbers inside double precision    
+    correction_factor *= cur_score.max();
+    cur_score *= 1.0 / cur_score.max();
+  }
+
+  /*** now extract Viterbi alignment from the score and the traceback matrix ***/
+  double max_score = 0.0;
+  uint arg_max = MAX_UINT;
+
+  Math1D::Vector<double>& cur_score = score[cur_idx];
+
+  for (uint i=0; i < 2*I; i++) {
+    if (cur_score[i] > max_score) {
+
+      max_score = cur_score[i];
+      arg_max = i;
+    }
+  }
+
+  if (arg_max == MAX_UINT) {
+
+    std::cerr << "error: no maximizer for J= " << J << ", I= " << I << std::endl;
+    std::cerr << "end-score: " << cur_score << std::endl;
+    std::cerr << "align_model: " << align_prob << std::endl;
+    std::cerr << "initial_prob: " << initial_prob << std::endl;
+
+    exit(1);
+  }
+
+  assert(arg_max != MAX_UINT);
+
+  if (internal_mode)
+    viterbi_alignment[J-1] = arg_max;
+  else
+    viterbi_alignment[J-1] = (arg_max < I) ? (arg_max+1) : 0;
+
+  for (int j=J-2; j >= 0; j--) {
+    arg_max = traceback(arg_max,j+1);
+
+    assert(arg_max != MAX_UINT);
+
+    if (internal_mode)
+      viterbi_alignment[j] = arg_max;
+    else
+      viterbi_alignment[j] = (arg_max < I) ? (arg_max+1): 0;
+  }
+
+  if (verbose && !internal_mode) {
+
+    for (uint j=1; j < J; j++) {
+
+      if (viterbi_alignment[j] > 0 && viterbi_alignment[j-1] > 0)
+	std::cerr << "p(" << viterbi_alignment[j] << "|" << viterbi_alignment[j-1] << "): "
+		  << align_prob(viterbi_alignment[j]-1,viterbi_alignment[j-1]-1) << std::endl;
+    }
+  }
+
+  long double prob = ((long double) max_score) * correction_factor;
+  return prob;
+  
 }
 
 

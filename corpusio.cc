@@ -266,3 +266,42 @@ void read_prior_dict(std::string filename, std::set<std::pair<uint, uint> >& kno
     known_pairs.insert(std::make_pair(i1,i2));
   }
 }
+
+void read_word_classes(std::string filename, Storage1D<WordClassType>& word_class) {
+
+#ifdef HAS_GZSTREAM
+  std::ifstream infile;
+  igzstream gzin;
+
+  bool zipped = is_gzip_file(filename);
+
+  if (zipped)
+    gzin.open(filename.c_str());
+  else {
+    infile.open(filename.c_str());
+  }
+
+  std::istream* instream = (zipped) ? static_cast<std::istream*>(&gzin) : &infile;
+#else
+  std::ifstream infile(filename.c_str());
+
+  std::istream* instream = &infile;
+#endif
+
+  WordClassType next_class;
+  uint next_word = 0;
+  while ((*instream) >> next_class) {
+    if (next_word >= word_class.size()) {
+      INTERNAL_ERROR << " more word classes given than there are words. Exiting.." << std::endl;
+      exit(1);
+    }
+
+    word_class[next_word] = next_class;
+    next_word++;
+  }
+
+  if (next_word != word_class.size()) {
+    std::cerr << "WARNING: less word classes given than there are words. Filling with standard values.." << std::endl;
+  }
+
+}

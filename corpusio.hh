@@ -22,4 +22,6 @@ void read_idx_dict(std::string filename, SingleWordDictionary& dict, CooccuringW
 
 void read_prior_dict(std::string filename, std::set<std::pair<uint, uint> >& known_pairs, bool invert = false);
 
+void read_word_classes(std::string filename, Storage1D<WordClassType>& word_class);
+
 #endif

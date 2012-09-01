@@ -35,4 +35,6 @@ enum HmmInitProbType {HmmInitFix, HmmInitNonpar, HmmInitPar, HmmInitInvalid};
 
 enum HmmAlignProbType {HmmAlignProbNonpar, HmmAlignProbFullpar, HmmAlignProbReducedpar, HmmAlignProbInvalid};
 
+typedef ushort WordClassType; 
+
 #endif

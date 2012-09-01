@@ -44,14 +44,23 @@ void compute_fullhmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
                                        const Math2D::Matrix<double>& align_prob,
                                        Storage1D<ushort>& viterbi_alignment);
 
-double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
-                                      const Math2D::Matrix<uint>& slookup,
-                                      const Storage1D<uint>& target_sentence,
-                                      const SingleWordDictionary& dict,
-                                      const Math2D::Matrix<double>& align_prob,
-                                      const Math1D::Vector<double>& initial_prob,
-                                      Storage1D<ushort>& viterbi_alignment, 
-				      bool internal_mode = false, bool verbose = false);
+long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
+					   const Math2D::Matrix<uint>& slookup,
+					   const Storage1D<uint>& target_sentence,
+					   const SingleWordDictionary& dict,
+					   const Math2D::Matrix<double>& align_prob,
+					   const Math1D::Vector<double>& initial_prob,
+					   Storage1D<ushort>& viterbi_alignment, 
+					   bool internal_mode = false, bool verbose = false);
+
+long double compute_ehmm_viterbi_alignment_with_tricks(const Storage1D<uint>& source_sentence,
+						       const Math2D::Matrix<uint>& slookup,
+						       const Storage1D<uint>& target_sentence,
+						       const SingleWordDictionary& dict,
+						       const Math2D::Matrix<double>& align_prob,
+						       const Math1D::Vector<double>& initial_prob,
+						       Storage1D<ushort>& viterbi_alignment, 
+						       bool internal_mode = false, bool verbose = false);
 
 void compute_ehmm_optmarginal_alignment(const Storage1D<uint>& source_sentence,
                                         const Math2D::Matrix<uint>& slookup,
