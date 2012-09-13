@@ -1,4 +1,8 @@
-/*** written by Thomas Schoenemann as a private person without employment, September 2009 ***/
+/*-*-c++-*-*/ 
+/*** first version written by Thomas Schoenemann as a private person without employment, September 2009 ***/
+/*** much refined by Thomas Schoenemann  at Lund University, Sweden, the University of Pisa, Italy, ***
+ *** and the University of Düsseldorf, Germany 2010 - 2011 **/
+/*** if you desire the checked version, make sure your compiler defines the option SAFE_MODE on the command line ***/
 
 #include "makros.hh"
 
@@ -221,26 +225,29 @@ template<typename T>
 void Storage3D<T>::resize(size_t newxDim, size_t newyDim, size_t newzDim) {
 
   size_t new_size = newxDim*newyDim*newzDim;
-  T* new_data = new T[new_size];
 
-  if (data_ != 0) {
-    
-    //copy existing elements
-    for (size_t x=0; x < std::min(xDim_,newxDim); x++) {
-      for (size_t y=0; y < std::min(yDim_,newyDim); y++) {
-	for (size_t z=0; z < std::min(zDim_,newzDim); z++) {
-	  new_data[(y*newxDim+x)*newzDim+z] = data_[(y*xDim_+x)*zDim_+z];
-	}
+  if (newxDim != xDim_ || newyDim != yDim_ || newzDim != zDim_) {
+    T* new_data = new T[new_size];
+
+    if (data_ != 0) {
+      
+      //copy existing elements
+      for (size_t x=0; x < std::min(xDim_,newxDim); x++) {
+        for (size_t y=0; y < std::min(yDim_,newyDim); y++) {
+          for (size_t z=0; z < std::min(zDim_,newzDim); z++) {
+            new_data[(y*newxDim+x)*newzDim+z] = data_[(y*xDim_+x)*zDim_+z];
+          }
       }
+      }
+      
+      delete[] data_;
     }
-
-    delete[] data_;
+    data_ = new_data;
+    size_ = new_size;
+    xDim_ = newxDim;
+    yDim_ = newyDim;
+    zDim_ = newzDim;
   }
-  data_ = new_data;
-  size_ = new_size;
-  xDim_ = newxDim;
-  yDim_ = newyDim;
-  zDim_ = newzDim;
 }
 
 //existing positions are copied, new ones are uninitialized
@@ -248,43 +255,50 @@ template<typename T>
 void Storage3D<T>::resize(size_t newxDim, size_t newyDim, size_t newzDim, T default_value) {
 
   size_t new_size = newxDim*newyDim*newzDim;
-  T* new_data = new T[new_size];
-  for (size_t i=0; i < new_size; i++)
-    new_data[i] = default_value;
 
-  if (data_ != 0) {
+  if (newxDim != xDim_ || newyDim != yDim_ || newzDim != zDim_) {
+
+    T* new_data = new T[new_size];
+    for (size_t i=0; i < new_size; i++)
+      new_data[i] = default_value;
     
-    //copy existing elements
-    for (size_t x=0; x < std::min(xDim_,newxDim); x++) {
-      for (size_t y=0; y < std::min(yDim_,newyDim); y++) {
-	for (size_t z=0; z < std::min(zDim_,newzDim); z++) {
-	  new_data[(y*newxDim+x)*newzDim+z] = data_[(y*xDim_+x)*zDim_+z];
-	}
+    if (data_ != 0) {
+      
+      //copy existing elements
+      for (size_t x=0; x < std::min(xDim_,newxDim); x++) {
+        for (size_t y=0; y < std::min(yDim_,newyDim); y++) {
+          for (size_t z=0; z < std::min(zDim_,newzDim); z++) {
+            new_data[(y*newxDim+x)*newzDim+z] = data_[(y*xDim_+x)*zDim_+z];
+          }
+        }
       }
+      
+      delete[] data_;
     }
-
-    delete[] data_;
+    data_ = new_data;
+    size_ = new_size;
+    xDim_ = newxDim;
+    yDim_ = newyDim;
+    zDim_ = newzDim;
   }
-  data_ = new_data;
-  size_ = new_size;
-  xDim_ = newxDim;
-  yDim_ = newyDim;
-  zDim_ = newzDim;
 }
 
 //all elements are uninitialized after this operation
 template<typename T>
 void Storage3D<T>::resize_dirty(size_t newxDim, size_t newyDim, size_t newzDim) {
 
-  if (data_ != 0)
-    delete[] data_;
-
-  xDim_ = newxDim;
-  yDim_ = newyDim;
-  zDim_ = newzDim;
-  size_ = xDim_*yDim_*zDim_;
-
-  data_ = new T[size_];
+  if (newxDim != xDim_ || newyDim != yDim_ || newzDim != zDim_) {
+    
+    if (data_ != 0)
+      delete[] data_;
+    
+    xDim_ = newxDim;
+    yDim_ = newyDim;
+    zDim_ = newzDim;
+    size_ = xDim_*yDim_*zDim_;
+    
+    data_ = new T[size_];
+  }
 }
 
 

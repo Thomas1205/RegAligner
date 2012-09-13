@@ -1,4 +1,5 @@
 /*** written by Thomas Schoenemann as a private person without employment, October 2009 ***/
+/*** additions at the University of Düsseldorf, Germany, 2012 ***/
 
 #ifndef CORPUSIO_HH
 #define CORPUSIO_HH

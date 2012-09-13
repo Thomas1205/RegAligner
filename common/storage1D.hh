@@ -1,5 +1,7 @@
 /*-*-c++-*-*/ 
-/*** written by Thomas Schoenemann as a private person without employment, September 2009 ***/
+/*** first version written by Thomas Schoenemann as a private person without employment, September 2009 ***/
+/*** much refined by Thomas Schoenemann  at Lund University, Sweden, the University of Pisa, Italy, ***
+ *** and the University of Düsseldorf, Germany 2010 - 2011 **/
 /*** if you desire the checked version, make sure your compiler defines the option SAFE_MODE on the command line ***/
 
 #ifndef STORAGE1D_HH
@@ -88,6 +90,9 @@ std::ostream& operator<<(std::ostream& s, const Storage1D<T>& v);
 template<typename T>
 bool operator==(const Storage1D<T>& v1, const Storage1D<T>& v2);
 
+template<typename T>
+bool operator!=(const Storage1D<T>& v1, const Storage1D<T>& v2);
+
 
 /***********************/
 
@@ -118,11 +123,17 @@ public:
 
   size_t append(T val);
 
+  void append(Storage1D<T>& toAppend);
+
+  void append(FlexibleStorage1D<T>& toAppend);
+
   size_t size() const;
 
   size_t reserved_size() const;
 
   T* direct_access();
+
+  const T* direct_access() const;
 
 protected:
 
@@ -138,6 +149,32 @@ std::ostream& operator<<(std::ostream& s, const FlexibleStorage1D<T>& v);
 template<typename T>
 bool operator==(const FlexibleStorage1D<T>& v1, const FlexibleStorage1D<T>& v2);
 
+
+template<typename T>
+class NamedFlexibleStorage1D : public FlexibleStorage1D<T> {
+public:
+
+  NamedFlexibleStorage1D();
+
+  NamedFlexibleStorage1D(const std::string& name);
+
+  NamedFlexibleStorage1D(size_t reserved_size, const std::string& name);
+
+  //copy constructors
+  NamedFlexibleStorage1D(const NamedFlexibleStorage1D<T>& toCopy);
+
+  NamedFlexibleStorage1D(const FlexibleStorage1D<T>& toCopy);
+
+  virtual const std::string& name() const;
+
+  //operators
+  void operator=(const NamedFlexibleStorage1D<T>& toCopy);
+
+  void operator=(const FlexibleStorage1D<T>& toCopy);
+
+protected:
+  std::string name_;
+};
 
 /********************************************** implementation ************************************/
 
@@ -296,7 +333,7 @@ void Storage1D<T>::resize(size_t new_size) {
   if (data_ == 0) {
     data_ = new T[new_size];
   }
-  else {
+  else if (size_ != new_size) {
     T* new_data = new T[new_size];
 
     for (size_t i=0; i < std::min(size_,new_size); i++)
@@ -323,7 +360,7 @@ void Storage1D<T>::resize(size_t new_size, T fill_value) {
     for (size_t i=0; i < new_size; i++)
       data_[i] = fill_value;
   }
-  else {
+  else if (size_ != new_size) {
     T* new_data = new T[new_size];
     for (size_t i=size_; i < new_size; i++)
       new_data[i] = fill_value;
@@ -343,10 +380,12 @@ void Storage1D<T>::resize(size_t new_size, T fill_value) {
 template<typename T>
 void Storage1D<T>::resize_dirty(size_t new_size) {
 
-  if (data_ != 0)
-    delete[] data_;
+  if (size_ != new_size) {
+    if (data_ != 0)
+      delete[] data_;
 
-  data_ = new T[new_size];
+    data_ = new T[new_size];
+  }
   size_ = new_size;
 }
 
@@ -408,15 +447,20 @@ bool operator==(const Storage1D<T>& v1, const Storage1D<T>& v2) {
   return true;
 }
 
+template<typename T>
+bool operator!=(const Storage1D<T>& v1, const Storage1D<T>& v2) {
+  return !operator==(v1,v2);
+}
 
-/******* implementation of DynamicStorage1D *********/
+
+/******* implementation of FlexibleStorage1D *********/
 
 template<typename T>
 /*static*/ const std::string FlexibleStorage1D<T>::flex_stor1D_name_ = "unnamed flexible 1Dstorage";
 
 template<typename T>
 FlexibleStorage1D<T>::FlexibleStorage1D() : size_(0) {
-  reserved_size_ = 8;
+  reserved_size_ = 4;
   data_ = new T[reserved_size_];
 }
 
@@ -429,7 +473,7 @@ FlexibleStorage1D<T>::FlexibleStorage1D(size_t reserved_size)  : size_(0), reser
 template<typename T>
 FlexibleStorage1D<T>::FlexibleStorage1D(const FlexibleStorage1D<T>& toCopy) {
 
-  size_ = toCopy.reserved_size();
+  size_ = toCopy.size();
   reserved_size_ = toCopy.reserved_size();
   
   data_ = new T[reserved_size_];
@@ -437,10 +481,12 @@ FlexibleStorage1D<T>::FlexibleStorage1D(const FlexibleStorage1D<T>& toCopy) {
     data_[k] = toCopy[k];
 }
 
+template<>
+FlexibleStorage1D<uint>::FlexibleStorage1D(const FlexibleStorage1D<uint>& toCopy);
+
 template<typename T>
 void FlexibleStorage1D<T>::operator=(const FlexibleStorage1D<T>& toCopy) {
 
-  size_ = toCopy.reserved_size();
   uint new_res = toCopy.reserved_size();
   if (new_res != reserved_size_) {
     reserved_size_ = new_res;
@@ -450,9 +496,14 @@ void FlexibleStorage1D<T>::operator=(const FlexibleStorage1D<T>& toCopy) {
     data_ = new T[reserved_size_];
   }
 
-  for (uint k=0; k < toCopy.size(); k++)
+  size_ = toCopy.size();
+
+  for (uint k=0; k < size_; k++)
     data_[k] = toCopy[k];
 }
+
+template<>
+void FlexibleStorage1D<uint>::operator=(const FlexibleStorage1D<uint>& toCopy);
 
 template<typename T>
 /*virtual*/ const std::string& FlexibleStorage1D<T>::name() const {
@@ -486,7 +537,7 @@ size_t FlexibleStorage1D<T>::append(T val) {
 
   if (size_ == reserved_size_) {
 
-    reserved_size_ = size_t(1.2 * reserved_size_) + 8;
+    reserved_size_ = size_t(1.2 * reserved_size_) + 4;
 
     T* new_data = new T[reserved_size_];
     for (uint k=0; k < size_; k++)
@@ -505,6 +556,48 @@ size_t FlexibleStorage1D<T>::append(T val) {
 }
 
 template<typename T>
+void FlexibleStorage1D<T>::append(Storage1D<T>& toAppend) {
+
+  if (reserved_size_ < size_ + toAppend.size()) {
+
+    reserved_size_ = size_ + toAppend.size() + 2;
+
+    T* new_data = new T[reserved_size_];
+    for (uint k=0; k < size_; k++)
+      new_data[k] = data_[k];
+
+    delete[] data_;
+    data_ = new_data;
+  }
+
+  for (uint k=0; k < toAppend.size(); k++) {
+    data_[size_] = toAppend[k];
+    size_++;
+  }
+}
+
+template<typename T>
+void FlexibleStorage1D<T>::append(FlexibleStorage1D<T>& toAppend) {
+
+  if (reserved_size_ < size_ + toAppend.size()) {
+
+    reserved_size_ = size_ + toAppend.size() + 2;
+
+    T* new_data = new T[reserved_size_];
+    for (uint k=0; k < size_; k++)
+      new_data[k] = data_[k];
+
+    delete[] data_;
+    data_ = new_data;
+  }
+
+  for (uint k=0; k < toAppend.size(); k++) {
+    data_[size_] = toAppend[k];
+    size_++;
+  }
+}
+
+template<typename T>
 void FlexibleStorage1D<T>::resize(size_t size, bool exact_fit) {
 
   if (size > reserved_size_ || size < (reserved_size_ / 3) ) {
@@ -515,7 +608,7 @@ void FlexibleStorage1D<T>::resize(size_t size, bool exact_fit) {
       new_data[k] = data_[k];
     
     delete[] data_;
-    data_ = new_data;    
+    data_ = new_data;
   }
 
   if (size < size_)
@@ -529,7 +622,7 @@ void FlexibleStorage1D<T>::resize(size_t size, bool exact_fit) {
       new_data[k] = data_[k];
     
     delete[] data_;
-    data_ = new_data;      
+    data_ = new_data;
   }
 }
 
@@ -549,6 +642,12 @@ OPTINLINE T& FlexibleStorage1D<T>::operator[](size_t i) const {
 
 template<typename T>
 T* FlexibleStorage1D<T>::direct_access() {
+
+  return data_;
+}
+
+template<typename T>
+const T* FlexibleStorage1D<T>::direct_access() const {
 
   return data_;
 }
@@ -577,6 +676,46 @@ bool operator==(const FlexibleStorage1D<T>& v1, const FlexibleStorage1D<T>& v2) 
       return false;
   }
   return true;
+}
+
+
+/***********************************/
+
+template<typename T>
+NamedFlexibleStorage1D<T>::NamedFlexibleStorage1D() : name_("unfs1d") {}
+
+template<typename T>
+NamedFlexibleStorage1D<T>::NamedFlexibleStorage1D(const std::string& name) : name_(name) {
+}
+
+template<typename T>
+NamedFlexibleStorage1D<T>::NamedFlexibleStorage1D(size_t reserved_size, const std::string& name) :
+  FlexibleStorage1D<T>(reserved_size), name_(name) {}
+
+//Note: the name is NOT copied
+template<typename T>
+NamedFlexibleStorage1D<T>::NamedFlexibleStorage1D(const NamedFlexibleStorage1D<T>& toCopy) : 
+  FlexibleStorage1D<T>(toCopy), name_("unfs1d") {
+}
+
+template<typename T>
+NamedFlexibleStorage1D<T>::NamedFlexibleStorage1D(const FlexibleStorage1D<T>& toCopy) : 
+  FlexibleStorage1D<T>(toCopy), name_("unfs1d") {
+}
+
+template<typename T>
+/*virtual*/ const std::string& NamedFlexibleStorage1D<T>::name() const {
+  return name_;
+}
+
+template<typename T>
+void NamedFlexibleStorage1D<T>::operator=(const NamedFlexibleStorage1D<T>& toCopy) {
+  FlexibleStorage1D<T>::operator=(toCopy);
+}
+
+template<typename T>
+void NamedFlexibleStorage1D<T>::operator=(const FlexibleStorage1D<T>& toCopy) {
+  FlexibleStorage1D<T>::operator=(toCopy);
 }
 
 #endif

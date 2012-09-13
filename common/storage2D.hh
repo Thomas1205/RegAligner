@@ -1,4 +1,7 @@
-/*** written by Thomas Schoenemann as a private person without employment, July 2009 ***/
+/*-*-c++-*-*/ 
+/*** first version written by Thomas Schoenemann as a private person without employment, September 2009 ***/
+/*** much refined by Thomas Schoenemann  at Lund University, Sweden, the University of Pisa, Italy, ***
+ *** and the University of Düsseldorf, Germany 2010 - 2011 **/
 /*** if you desire the checked version, make sure your compiler defines the option SAFE_MODE on the command line ***/
 
 #ifndef STORAGE2D_HH
@@ -244,7 +247,7 @@ void Storage2D<T>::resize(size_t newxDim, size_t newyDim) {
   if (data_ == 0) {
     data_ = new T[newxDim*newyDim];
   }
-  else {
+  else if (newxDim != xDim_ || newyDim != yDim_) {
 
     T* new_data = new T[newxDim*newyDim];
 
@@ -273,7 +276,7 @@ void Storage2D<T>::resize(size_t newxDim, size_t newyDim, T fill_value) {
 
     std::fill_n(data_,newxDim*newyDim,fill_value);
   }
-  else {
+  else if (newxDim != xDim_ || newyDim != yDim_) {
 
     T* new_data = new T[newxDim*newyDim];
     for (size_t i=0; i < newxDim*newyDim; i++)
@@ -296,15 +299,17 @@ void Storage2D<T>::resize(size_t newxDim, size_t newyDim, T fill_value) {
 template<typename T>
 void Storage2D<T>::resize_dirty(size_t newxDim, size_t newyDim) {
 
-  if (data_ != 0) {
-    delete[] data_;
+  if (newxDim != xDim_ || newyDim != yDim_) {
+    if (data_ != 0) {
+      delete[] data_;
+    }
+  
+    xDim_ = newxDim;
+    yDim_ = newyDim;
+    size_ = xDim_*yDim_;
+    
+    data_ = new T[size_];
   }
-
-  xDim_ = newxDim;
-  yDim_ = newyDim;
-  size_ = xDim_*yDim_;
-
-  data_ = new T[size_];
 }
 
 /***** implementation of NamedStorage2D ********/

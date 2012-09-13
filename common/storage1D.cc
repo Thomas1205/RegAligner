@@ -115,3 +115,32 @@ Storage1D<double>::Storage1D(const Storage1D<double>& toCopy) {
 
   memcpy(data_,toCopy.direct_access(),size_*sizeof(double));
 }
+
+
+template<>
+FlexibleStorage1D<uint>::FlexibleStorage1D(const FlexibleStorage1D<uint>& toCopy) {
+
+  size_ = toCopy.size();
+  reserved_size_ = toCopy.reserved_size();
+  
+  data_ = new uint[reserved_size_];
+
+  memcpy(data_,toCopy.direct_access(),size_*sizeof(uint));
+}
+
+template<>
+void FlexibleStorage1D<uint>::operator=(const FlexibleStorage1D<uint>& toCopy) {
+  
+    uint new_res = toCopy.reserved_size();
+  if (new_res != reserved_size_) {
+    reserved_size_ = new_res;
+
+    if (data_ != 0)
+      delete[] data_;
+    data_ = new uint[reserved_size_];
+  }
+
+  size_ = toCopy.size();
+
+  memcpy(data_,toCopy.direct_access(),size_*sizeof(uint));
+}

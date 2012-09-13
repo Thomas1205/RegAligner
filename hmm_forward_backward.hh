@@ -1,4 +1,5 @@
-/*** written by Thomas Schoenemann as a private person without employment, November 2009 ***/
+/*** first version written by Thomas Schoenemann as a private person without employment, November 2009 ***/
+/*** refined at Lund University, Sweden, 2010-2011 and at the University of Düsseldorf, Germany, 2012 ***/
 
 #ifndef HMM_FORWARD_BACKWARD
 #define HMM_FORWARD_BACKWARD
