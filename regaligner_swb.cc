@@ -1,7 +1,9 @@
 /*** written by Thomas Schoenemann 
  *** initially as a private person without employment, October 2009 
  *** later continued as an employee of Lund University, Sweden, 2010 - March 2011
- *** and later as a private person taking a time off ***/
+ *** and later as a private person taking a time off, ***
+ *** in small parts at the University of Pisa, Italy, October 2011 
+ *** and at the University of Düsseldorf, Germany, 2012 ***/
 
 #include "makros.hh"
 #include "application.hh"
@@ -53,6 +55,7 @@ int main(int argc, char** argv) {
 	      << " [-fert-limit <uint>]: fertility limit for IBM-3/4, default: 10000" << std::endl
 	      << " [-hmm-type (auto | fullpar | redpar | nonpar)]: default auto" << std::endl
 	      << " [-p0 <double>]: fix probability for empty alignments for IBM-3/4 " << std::endl
+              << " [-org-empty-word] : for IBM 3/4 use empty word as originally published" << std::endl
               << " [-o <file>] : the determined dictionary is written to this file" << std::endl
               << " -oa <file> : the determined alignment is written to this file" << std::endl
               << std::endl;
@@ -62,7 +65,7 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  const int nParams = 25;
+  const int nParams = 26;
   ParamDescr  params[nParams] = {{"-s",mandInFilename,0,""},{"-t",mandInFilename,0,""},
                                  {"-ds",optInFilename,0,""},{"-dt",optInFilename,0,""},
                                  {"-o",optOutFilename,0,""},{"-oa",mandOutFilename,0,""},
@@ -75,8 +78,8 @@ int main(int argc, char** argv) {
                                  {"-fertpen",optWithValue,1,"0.0"},{"-constraint-mode",optWithValue,1,"unconstrained"},
 				 {"-l0-beta",optWithValue,1,"-1.0"},{"-ibm4-mode",optWithValue,1,"first"},
 				 {"-fert-limit",optWithValue,1,"10000"},{"-postdec-thresh",optWithValue,1,"-1.0"},
-                                 {"-hmm-type",optWithValue,1,"auto"},{"-p0",optWithValue,1,"-1.0"}
-  };
+                                 {"-hmm-type",optWithValue,1,"auto"},{"-p0",optWithValue,1,"-1.0"},
+                                 {"-org-empty-word",flag,0,""}};
 
   Application app(argc,argv,params,nParams);
 
@@ -401,7 +404,7 @@ int main(int argc, char** argv) {
   IBM3Trainer ibm3_trainer(source_sentence, slookup, target_sentence, 
                            sure_ref_alignments, possible_ref_alignments,
                            dict, wcooc, nSourceWords, nTargetWords, prior_weight, 
-                           true, true, false, l0_fertpen, em_l0, l0_beta);
+                           true, !app.is_set("-org-empty-word"), false, l0_fertpen, em_l0, l0_beta);
 
   ibm3_trainer.set_fertility_limit(fert_limit);
   if (fert_p0 >= 0.0)
@@ -463,7 +466,7 @@ int main(int argc, char** argv) {
   IBM4Trainer ibm4_trainer(source_sentence, slookup, target_sentence, 
                            sure_ref_alignments, possible_ref_alignments,
                            dict, wcooc, nSourceWords, nTargetWords, prior_weight, 
-                           source_class, target_class, true, true, true,
+                           source_class, target_class, !app.is_set("-org-empty-word"), true, true,
                            ibm4_cept_mode, em_l0, l0_beta, l0_fertpen);
 
   ibm4_trainer.set_fertility_limit(fert_limit);

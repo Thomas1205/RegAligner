@@ -967,7 +967,7 @@ long double IBM4Trainer::alignment_prob(const Storage1D<uint>& source, const Sto
   assert(alignment.size() == curJ);
 
   Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
-  Math1D::NamedVector<std::set<int> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
+  NamedStorage1D<std::set<int> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
 
   const Storage2D<Math2D::Matrix<float> >& cur_inter_distortion_prob =  inter_distortion_prob_[curJ];
   const Math3D::Tensor<float>& cur_intra_distortion_prob =  intra_distortion_prob_[curJ];
@@ -1079,7 +1079,7 @@ long double IBM4Trainer::alignment_prob(const Storage1D<uint>& source, const Sto
 
         const int cur_j = *ait;
         prob *= dict_[ti][lookup(cur_j,i-1)] * cur_intra_distortion_prob(tclass,cur_j,prev_j);
-
+	
         //DEBUG
         if (isnan(prob))
           std::cerr << "prob nan after combined body-prob, i=" << i << std::endl;
@@ -1143,119 +1143,20 @@ long double IBM4Trainer::distortion_prob(const Storage1D<uint>& source, const St
 
   assert(alignment.size() == curJ);
 
-  Math1D::NamedVector<std::set<int> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
+  
+  NamedStorage1D<std::vector<ushort> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
 
   for (uint j=0; j < curJ; j++) {
     const uint aj = alignment[j];
-    aligned_source_words[aj].insert(j);
+    aligned_source_words[aj].push_back(j);
   }
 
   return distortion_prob(source,target,aligned_source_words);
 }
 
-long double IBM4Trainer::distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-					 const Math1D::NamedVector<std::set<int> >& aligned_source_words) {
-
-  long double prob = 1.0;
-
-  const uint curI = target.size();
-  const uint curJ = source.size();
-
-  const Storage2D<Math2D::Matrix<float> >& cur_inter_distortion_prob =  inter_distortion_prob_[curJ];
-  const Math3D::Tensor<float>& cur_intra_distortion_prob =  intra_distortion_prob_[curJ];
-
-  const Math1D::Vector<double>& cur_sentence_start_prob = sentence_start_prob_[curJ];
-
-  
-  if (curJ < 2*aligned_source_words[0].size())
-    return 0.0;
-
-  //handle cepts with one or more aligned source words
-  int prev_cept_center = -1;
-
-  for (uint i=1; i <= curI; i++) {
-
-    //NOTE: a dependence on word classes is currently not implemented
-    
-    if (aligned_source_words[i].size() > 0) {
-
-      const uint ti = target[i-1];
-      const uint tclass = target_class_[ti];
-
-      const int first_j = *aligned_source_words[i].begin();
-
-      //handle the head of the cept
-      if (prev_cept_center != -1) {
-
-        if (cept_start_mode_ != IBM4UNIFORM) {
-
-          const uint sclass = source_class_[source[prev_cept_center]];
-
-          if (cur_inter_distortion_prob(sclass,tclass).size() == 0)
-            par2nonpar_inter_distortion(curJ,sclass,tclass);
-        
-          prob *= cur_inter_distortion_prob(sclass,tclass)(first_j,prev_cept_center); 
-        }
-        else
-          prob /= curJ;
-      }
-      else {
-        if (use_sentence_start_prob_) {
-          prob *= cur_sentence_start_prob[first_j];
-        }
-        else {
-          prob *= 1.0 / curJ;
-        }
-      }
-
-      //handle the body of the cept
-      int prev_j = first_j;
-      std::set<int>::iterator ait = aligned_source_words[i].begin();
-      for (++ait; ait != aligned_source_words[i].end(); ait++) {
-
-        const int cur_j = *ait;
-        prob *= cur_intra_distortion_prob(tclass,cur_j,prev_j);
-	
-        prev_j = cur_j;
-      }
-
-      switch (cept_start_mode_) {
-      case IBM4CENTER : {
-
-	//compute the center of this cept and store the result in prev_cept_center
-	double sum = 0.0;
-	for (std::set<int>::iterator ait = aligned_source_words[i].begin(); ait != aligned_source_words[i].end(); ait++) {
-	  sum += *ait;
-	}
-
-        prev_cept_center = (int) round(sum / aligned_source_words[i].size());
-        break;
-      }
-      case IBM4FIRST:
-        prev_cept_center = first_j;
-        break;
-      case IBM4LAST:
-        prev_cept_center = prev_j;
-        break;
-      case IBM4UNIFORM:
-        prev_cept_center = first_j;
-        break;
-      default:
-        assert(false);
-      }
-
-      assert(prev_cept_center >= 0);
-    }
-  }
-
-
-  return prob;
-}
-
-
 //NOTE: the vectors need to be sorted
 long double IBM4Trainer::distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-					 const Math1D::NamedVector<std::vector<ushort> >& aligned_source_words) {
+					 const Storage1D<std::vector<ushort> >& aligned_source_words) {
 
   long double prob = 1.0;
 
@@ -1315,7 +1216,7 @@ long double IBM4Trainer::distortion_prob(const Storage1D<uint>& source, const St
 
         const int cur_j = aligned_source_words[i][k];
         prob *= cur_intra_distortion_prob(tclass,cur_j,prev_j);
-	
+
         prev_j = cur_j;
       }
 
@@ -1368,7 +1269,7 @@ void IBM4Trainer::print_alignment_prob_factors(const Storage1D<uint>& source, co
   assert(alignment.size() == curJ);
 
   Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
-  Math1D::NamedVector<std::set<int> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
+  NamedStorage1D<std::set<int> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
 
   const Storage2D<Math2D::Matrix<float> >& cur_inter_distortion_prob =  inter_distortion_prob_[curJ];
   const Math3D::Tensor<float>& cur_intra_distortion_prob =  intra_distortion_prob_[curJ];
@@ -1576,7 +1477,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
   const Math1D::Vector<double>& cur_sentence_start_prob = sentence_start_prob_[curJ];
 
   //source words are listed in ascending order
-  Math1D::NamedVector< std::vector<ushort> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
+  NamedStorage1D< std::vector<ushort> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
   
   fertility.set_constant(0);
   for (uint j=0; j < curJ; j++) {
@@ -1652,7 +1553,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
     //a) expansion moves
 
-    Math1D::NamedVector< std::vector<ushort> > hyp_aligned_source_words(MAKENAME(hyp_aligned_source_words));
+    NamedStorage1D< std::vector<ushort> > hyp_aligned_source_words(MAKENAME(hyp_aligned_source_words));
     hyp_aligned_source_words = aligned_source_words;
 
     for (uint j=0; j < curJ; j++) {
@@ -1661,41 +1562,45 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       assert(fertility[aj] > 0);
       expansion_prob(j,aj) = 0.0;
 
+      const uint s_idx = source[j];
+
+      const double old_dict_prob = (aj == 0) ? dict_[0][s_idx-1] : dict_[target[aj-1]][lookup(j,aj-1)];
+
       //for now, to be sure:
       hyp_aligned_source_words[aj] = aligned_source_words[aj];
 
       const uint prev_i = prev_cept[aj];
       const uint next_i = next_cept[aj];
 
-      //std::cerr << "j: " << j << ", aj: " << aj << std::endl;
-
       for (uint cand_aj = 0; cand_aj <= curI; cand_aj++) {
       
         if (cand_aj != aj) {
-
-	  //std::cerr << "cand_aj: " << cand_aj << std::endl;
 
           long double hyp_prob = 0.0;
 
           bool incremental_calculation = false;
 
+          const double new_dict_prob = (cand_aj == 0) ? dict_[0][s_idx-1] : dict_[target[cand_aj-1]][lookup(j,cand_aj-1)];
+
 	  //EXPERIMENTAL (prune constellations with very unlikely translation probs.)
-	  if (cand_aj != 0) {
-	    const uint new_ti = target[cand_aj-1];
-	    if ((fertility[cand_aj]+1) > fertility_limit_ || dict_[new_ti][lookup(j,cand_aj-1)] < 1e-10) {
+          if (new_dict_prob < 1e-10) {
+            expansion_prob(j,cand_aj) = 0.0;
+            continue;
+          }
+	  if (cand_aj != 0 && (fertility[cand_aj]+1) > fertility_limit_) {
 
-	      expansion_prob(j,cand_aj) = 0.0;
-	      continue;
-	    }
+            expansion_prob(j,cand_aj) = 0.0;
+            continue;
 	  }
-	  else {
-	    if (dict_[0][source[j]-1] < 1e-10) {
+	  else if (curJ < 2*fertility[0]+2) {
 
-	      expansion_prob(j,cand_aj) = 0.0;
-	      continue;
-	    }
+            expansion_prob(j,cand_aj) = 0.0;
+            continue;
 	  }
 	  //END_EXPERIMENTAL
+
+          long double incoming_prob = new_dict_prob; 
+          long double leaving_prob = old_dict_prob; 
 
           if (aj != 0 && cand_aj != 0) {
 
@@ -1709,8 +1614,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
               const uint prev_ti = target[aj-1];
               const uint new_ti = target[cand_aj-1];
 
-              long double incoming_prob = dict_[new_ti][lookup(j,cand_aj-1)];
-
               incoming_prob *= fertility_prob_[new_ti][fertility[cand_aj]+1];
               incoming_prob *= fertility_prob_[prev_ti][fertility[aj]-1];
 
@@ -1718,8 +1621,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
                 incoming_prob *= ldfac(fertility[cand_aj]+1);
                 incoming_prob *= ldfac(fertility[aj]-1);
               }
-
-              long double leaving_prob = dict_[prev_ti][lookup(j,aj-1)];
 
               leaving_prob *= fertility_prob_[new_ti][fertility[cand_aj]];
               leaving_prob *= fertility_prob_[prev_ti][fertility[aj]];
@@ -1743,8 +1644,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
                     break;
                 }
 
-                //std::cerr << "jnum: " << jnum << std::endl;
-
                 assert (jnum < aligned_source_words[aj].size());
 
                 //calculate new center of aj
@@ -1757,7 +1656,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
                       sum_j += aligned_source_words[aj][k];
                   }
                   new_aj_center = (int) round(sum_j / (aligned_source_words[aj].size()-1));
-		  //std::cerr << "new_aj_center: " << new_aj_center << std::endl;
                   break;
                 }
                 case IBM4FIRST : {
@@ -1784,12 +1682,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
                   assert(false);
                 }
 		
-
-		//std::cerr << "old aj center: " << cept_center[aj] << std::endl;
-		//std::cerr << "new_aj_center: " << new_aj_center << std::endl;
-		//std::cerr << "prev_i: " << prev_i << ", next_i: " << next_i << std::endl;
-
-
                 //re-calculate the transition aj -> next_i
                 if (next_i != MAX_UINT && new_aj_center != cept_center[aj]) { 
                   const uint old_sclass = source_class_[source[cept_center[aj]]];
@@ -1917,9 +1809,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
                 }
               }
 
-	      //std::cerr << "cand_prev_i: " << cand_prev_i << std::endl;
-	      //std::cerr << "cand_next_i: " << cand_next_i << std::endl;
-
               if (fertility[cand_aj] > 0) {
                 //the cept cand_aj was already there
 
@@ -1930,8 +1819,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
                 }
 
                 const uint tclass = target_class_[new_ti];
-
-                //std::cerr << "insert_pos: " << insert_pos << std::endl;
 
                 if (insert_pos == 0) {
 
@@ -1975,8 +1862,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
                   assert(insert_pos == fertility[cand_aj]);
 
                   incoming_prob *= cur_intra_distortion_prob(tclass,j,aligned_source_words[cand_aj][insert_pos-1]);
-
-                  //std::cerr << "including prob. " << cur_intra_distortion_prob(tclass,j,aligned_source_words[cand_aj][insert_pos-1]) << std::endl;
                 }
 
                 if (cand_next_i != MAX_UINT) {
@@ -2146,7 +2031,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
             }
             else {
 
-              long double incoming_prob = dict_[0][source[j]-1];
               incoming_prob *= fertility_prob_[prev_ti][fertility[aj]-1];
               if (!no_factorial_)
                 incoming_prob *= ldfac(fertility[aj]-1);
@@ -2163,7 +2047,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
                   incoming_prob *= ((long double) k) / curJ;
               }
 
-              long double leaving_prob = dict_[prev_ti][lookup(j,aj-1)];
               leaving_prob *= fertility_prob_[prev_ti][fertility[aj]];
               if (!no_factorial_)
                 leaving_prob *= ldfac(fertility[aj]);
@@ -2188,8 +2071,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
                   if (aligned_source_words[aj][jnum] == j)
                     break;
                 }
-
-                //std::cerr << "jnum: " << jnum << std::endl;
 
                 assert (jnum < aligned_source_words[aj].size());
 
@@ -2229,10 +2110,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
                   default:
                     assert(false);
                   }
-		  
-                  //  		std::cerr << "old aj center: " << cept_center[aj] << std::endl;
-                  //  		std::cerr << "new_aj_center: " << new_aj_center << std::endl;
-                  //  		std::cerr << "prev_i: " << prev_i << ", next_i: " << next_i << std::endl;
 
                   //re-calculate the transition aj -> next_i
                   if (cept_center[aj] != new_aj_center) {
@@ -2385,9 +2262,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 	    const uint prev_ti = (aj != 0) ? target[aj-1] : 0;
 	    const uint new_ti = (cand_aj != 0) ? target[cand_aj-1] : 0;
 
-	    long double incoming_prob; 
-            incoming_prob = dict_[new_ti][lookup(j,cand_aj-1)];
-
             incoming_prob *= fertility_prob_[new_ti][fertility[cand_aj]+1];
 	    if (aj != 0)
 	      incoming_prob *= fertility_prob_[prev_ti][fertility[aj]-1];
@@ -2398,12 +2272,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 		incoming_prob *= ldfac(fertility[aj]-1);
 	    }
 
-	    long double leaving_prob;
-	    if (aj != 0)
-	      leaving_prob = dict_[prev_ti][lookup(j,aj-1)];
-	    else
-	      leaving_prob = dict_[0][source[j]-1];
-	    
             leaving_prob *= fertility_prob_[new_ti][fertility[cand_aj]];
 	    if (aj != 0)
 	      leaving_prob *= fertility_prob_[prev_ti][fertility[aj]];
@@ -2543,8 +2411,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
     }
 
     //tEndExp = std::clock();
-    //if (curJ >= 45 && curI >= 45)
-    //std::cerr << "pair #" << s << ": spent " << diff_seconds(tEndExp,tStartExp) << " seconds on expansion moves" << std::endl;
 
     //std::clock_t tStartSwap,tEndSwap;
     //tStartSwap = std::clock();
@@ -2552,19 +2418,15 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
     //for now, to be sure:
     hyp_aligned_source_words = aligned_source_words;
 
-    //std::cerr << "starting with swap moves" << std::endl;
 
     //b) swap moves
     for (uint j1=0; j1 < curJ; j1++) {
 
       swap_prob(j1,j1) = 0.0;
-      //std::cerr << "j1: " << j1 << std::endl;
       
       const uint aj1 = alignment[j1];
 
       for (uint j2 = j1+1; j2 < curJ; j2++) {
-
-        //std::cerr << "j2: " << j2 << std::endl;
 
         const uint aj2 = alignment[j2];
 
@@ -2602,8 +2464,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
               cept_start_mode_ != IBM4UNIFORM &&
               aligned_source_words[aj1].size() == 1 && aligned_source_words[aj2].size() == 1) {
             //both affected cepts are one-word cepts
-
-            //std::cerr << "case 1" << std::endl;
 
             const uint taj1 = target[aj1-1];
             const uint taj2 = target[aj2-1];
@@ -2741,8 +2601,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
           }
           else if (aj1 != 0 && aj2 != 0 && 
                    prev_cept[aj1] != aj2 && prev_cept[aj2] != aj1) {
-
-            //std::cerr << "case 2" << std::endl;
 
             const uint taj1 = target[aj1-1];
             const uint taj2 = target[aj2-1];
@@ -2964,8 +2822,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
           }
           else {
 
-            //std::cerr << "case 3" << std::endl;
-
 	    std::vector<ushort>::iterator it = std::find(hyp_aligned_source_words[aj1].begin(),
 							 hyp_aligned_source_words[aj1].end(),j1);
 	    hyp_aligned_source_words[aj1].erase(it);
@@ -3069,10 +2925,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
     }
 
     //tEndSwap = std::clock();
-    // if (curJ >= 45 && curI >= 45)
-    //   std::cerr << "pair #" << s << ": spent " << diff_seconds(tEndSwap,tStartSwap) 
-    // 		<< " seconds on swap moves" << std::endl;
-
 
     //update alignment if a better one was found
     if (!improvement)
@@ -3082,6 +2934,8 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
     if (best_change_is_move) {
       uint cur_aj = alignment[best_move_j];
       assert(cur_aj != best_move_aj);
+
+      //std::cerr << "moving source pos" << best_move_j << " from " << cur_aj << " to " << best_move_aj << std::endl;
 
       alignment[best_move_j] = best_move_aj;
       fertility[cur_aj]--;
@@ -3096,9 +2950,14 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       aligned_source_words[cur_aj].erase(it);
     }
     else {
+      //std::cerr << "swapping: j1=" << best_swap_j1 << std::endl;
+      //std::cerr << "swapping: j2=" << best_swap_j2 << std::endl;
 
       uint cur_aj1 = alignment[best_swap_j1];
       uint cur_aj2 = alignment[best_swap_j2];
+
+      //std::cerr << "old aj1: " << cur_aj1 << std::endl;
+      //std::cerr << "old aj2: " << cur_aj2 << std::endl;
 
       assert(cur_aj1 != cur_aj2);
       
@@ -3106,24 +2965,18 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       alignment[best_swap_j2] = cur_aj1;
 
       //NOTE: the fertilities are not affected here
-      //bool found1 = false;
       for (uint k=0; k < aligned_source_words[cur_aj2].size(); k++) {
 	if (aligned_source_words[cur_aj2][k] == best_swap_j2) {
 	  aligned_source_words[cur_aj2][k] = best_swap_j1;
-          //found1 = true;
           break;
         }
       }
-      //assert(found1);
-      //bool found2 = false;
       for (uint k=0; k < aligned_source_words[cur_aj1].size(); k++) {
 	if (aligned_source_words[cur_aj1][k] == best_swap_j1) {
 	  aligned_source_words[cur_aj1][k] = best_swap_j2;
-          //found2 = true;
           break;
         }
       }
-      //assert(found2);
 
       std::sort(aligned_source_words[cur_aj1].begin(), aligned_source_words[cur_aj1].end());
       std::sort(aligned_source_words[cur_aj2].begin(), aligned_source_words[cur_aj2].end());
@@ -3270,8 +3123,6 @@ double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& source, co
       par2nonpar_start_prob();
   }
 
-  //std::cerr << "run checks" << std::endl;
-
   /*** check if fertility tables are large enough ***/
   for (uint i=0; i < I; i++) {
 
@@ -3308,8 +3159,6 @@ double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& source, co
         dict_[target[aj-1]][lookup(j,aj-1)] = 1e-20;
     }
   }
-
-  //std::cerr << "calling the actual routine" << std::endl;
 
   //create matrices
   Math2D::Matrix<long double> expansion_prob(J,I+1);
@@ -3382,7 +3231,6 @@ void IBM4Trainer::compute_external_postdec_alignment(const Storage1D<uint>& sour
     cept_start_prob_ = new_param;
 
     //intra params
-
     IBM4WithinCeptModel new_wi_model(within_cept_prob_.xDim(),2*J-1,0.0,MAKENAME(new_wi_model)); 
 
     for (uint c=0; c < new_wi_model.xDim(); c++) {
@@ -4820,12 +4668,12 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 
       double cur_distort_prob = distortion_prob(cur_source,cur_target,best_known_alignment_[s]);
 
-      Math1D::NamedVector<std::set<int> > hyp_aligned_source_words(curI+1,MAKENAME(aligned_source_words));
+      NamedStorage1D<std::vector<ushort> > hyp_aligned_source_words(curI+1,MAKENAME(hyp_aligned_source_words));
 
       for (uint j=0; j < curJ; j++) {
 
       	uint aj = best_known_alignment_[s][j];
-      	hyp_aligned_source_words[aj].insert(j);
+      	hyp_aligned_source_words[aj].push_back(j);
       }
 
 
@@ -4845,8 +4693,10 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 
           if (allowed) {
 
-	    hyp_aligned_source_words[cur_aj].erase(j);
-	    hyp_aligned_source_words[i].insert(j);
+            hyp_aligned_source_words[cur_aj].erase(std::find(hyp_aligned_source_words[cur_aj].begin(),
+                                                             hyp_aligned_source_words[cur_aj].end(),j));
+            hyp_aligned_source_words[i].push_back(j);
+            std::sort(hyp_aligned_source_words[i].begin(),hyp_aligned_source_words[i].end());
 
             uint new_target_word = (i == 0) ? 0 : cur_target[i-1];
 
@@ -4925,7 +4775,7 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 		change += -(c2+1) * std::log(c2+1);
 	      }
 	    }
-
+	      
 	    if (i == 0) {
 
 	      uint zero_fert = fertility[0];
@@ -4995,15 +4845,18 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 		ffert_count[new_target_word][prev_fert] -= 1;
 		ffert_count[new_target_word][prev_fert+1] += 1;
 	      }
-
+	      
 	      fertility[cur_aj]--;
 	      fertility[i]++;
 	      
 	      cur_distort_prob = hyp_distort_prob; //distortion_prob(cur_source,cur_target,best_known_alignment_[s]);
 	    }
 	    else {
-	      hyp_aligned_source_words[i].erase(j);
-	      hyp_aligned_source_words[cur_aj].insert(j);
+
+              hyp_aligned_source_words[i].erase(std::find(hyp_aligned_source_words[i].begin(),
+                                                          hyp_aligned_source_words[i].end(),j));
+              hyp_aligned_source_words[cur_aj].push_back(j);
+              std::sort(hyp_aligned_source_words[cur_aj].begin(),hyp_aligned_source_words[cur_aj].end());
 	    }
           }
 	}	

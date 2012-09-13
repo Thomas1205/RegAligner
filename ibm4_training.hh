@@ -66,12 +66,9 @@ protected:
   long double distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 			      const Math1D::Vector<ushort>& alignment);
 
-  long double distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-			      const Math1D::NamedVector<std::set<int> >& aligned_source_words);
-
   //NOTE: the vectors need to be sorted
   long double distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-			      const Math1D::NamedVector<std::vector<ushort> >& aligned_source_words);
+			      const Storage1D<std::vector<ushort> >& aligned_source_words);
 
   void print_alignment_prob_factors(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 				    const Math2D::Matrix<uint>& lookup, const Math1D::Vector<ushort>& alignment);
