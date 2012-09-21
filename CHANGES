@@ -1,9 +1,9 @@
 RegAligner Change History
 
 *** upcoming release ***
-- implemented word classes for IBM4
 - parameterization of HMM now selectable on command line
 - probability for empty word for IBM-3/4 can now be fixed on command line
+  + the original empty word of Brown et al. can now be used
 - speed-up for Viterbi computation of HMM with reduced parameterization
 - HMM Viterbi prob is now returned as a long double
 - bugfix in count collection for IBM-4
