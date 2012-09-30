@@ -426,17 +426,16 @@ void IBM3Trainer::par_distortion_m_step(const ReducedIBM3DistortionModel& fdisto
     }
 
     /*** go on neg. gradient direction and reproject ***/
-    for (uint j=0; j < distortion_param_.xDim(); j++) {
-      
-      Math1D::Vector<double> temp(maxI_);
+    for (uint i=0; i < distortion_param_.yDim(); i++) {
 
-      for (uint i=0; i < maxI_; i++)
-        temp[i] = distortion_param_(j,i) - alpha * distortion_grad(j,i) ;
+      Math1D::Vector<double> temp(maxJ_);
+      for (uint j=0; j < distortion_param_.xDim(); j++) 
+        temp[j] = distortion_param_(j,i) - alpha * distortion_grad(j,i);
 
-      projection_on_simplex(temp.direct_access(), maxI_);
+      projection_on_simplex(temp.direct_access(), maxJ_);
 
-      for (uint i=0; i < maxI_; i++)
-        new_distortion_param(j,i) = temp[i];
+      for (uint j=0; j < distortion_param_.xDim(); j++) 
+        new_distortion_param(j,i) = temp[j];
     }
 
     /*** find appropriate step-size ***/
