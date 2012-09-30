@@ -7,6 +7,7 @@ RegAligner Change History
 - speed-up for Viterbi computation of HMM with reduced parameterization
 - HMM Viterbi prob is now returned as a long double
 - bugfix in count collection for IBM-4
+- bugfix in m-step for parametric distortion in IBM-3
 
 *** release version 0.92 (released on May 08 2012)
 - can now specify a fertility limit for IBM-3/4

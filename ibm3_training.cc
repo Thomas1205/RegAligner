@@ -358,14 +358,18 @@ double IBM3Trainer::par_distortion_m_step_energy(const ReducedIBM3DistortionMode
 
     if (cur_distort_count.size() > 0) {
 
-      for (uint j=0; j < cur_distort_count.xDim(); j++) {
-      
-        double sum = 0.0;
-        for (uint i=0; i < cur_distort_count.yDim(); i++) 
-          sum += param(j,i);
 
-        for (uint i=0; i < cur_distort_count.yDim(); i++) 
+      for (uint i=0; i < cur_distort_count.yDim(); i++) {
+
+        double sum = 0.0;
+
+        for (uint j=0; j < cur_distort_count.xDim(); j++) {
+          sum += param(j,i);
+        }
+
+        for (uint j=0; j < cur_distort_count.xDim(); j++) {
           energy -= cur_distort_count(j,i) * std::log( param(j,i) / sum);
+        }
       }
     }
   }
@@ -398,24 +402,24 @@ void IBM3Trainer::par_distortion_m_step(const ReducedIBM3DistortionModel& fdisto
       const Math2D::Matrix<double>& cur_distort_count = fdistort_count[J];
 
       if (cur_distort_count.size() > 0) {
-	
-        for (uint j=0; j < cur_distort_count.xDim(); j++) {
-	  
+
+
+        for (uint i=0; i < cur_distort_count.yDim(); i++) {
+          
           double sum = 0.0;
-          for (uint i=0; i < cur_distort_count.yDim(); i++) 
+          double count_sum =0.0;
+
+          for (uint j=0; j < cur_distort_count.xDim(); j++) {
             sum += distortion_param_(j,i);
-
-          double count_sum = 0.0;
-          for (uint i=0; i < cur_distort_count.yDim(); i++) {
             count_sum += cur_distort_count(j,i);
-
-            double cur_param = std::max(1e-15,distortion_param_(j,i));
-	  
-            distortion_grad(j,i) -= cur_distort_count(j,i) / cur_param;
           }
 
-          for (uint i=0; i < cur_distort_count.yDim(); i++) {
+          for (uint j=0; j < cur_distort_count.xDim(); j++) {
+            
+            double cur_param = std::max(1e-15,distortion_param_(j,i));
+
             distortion_grad(j,i) += count_sum / sum;
+            distortion_grad(j,i) -= cur_distort_count(j,i) / cur_param;
           }
         }
       }
