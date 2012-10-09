@@ -996,13 +996,13 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
       for (uint I=1; I <= maxI; I++) {
 	
-        if (align_model[I-1].xDim() != 0) {
+        if (ficount[I-1].size() != 0) {
           for (uint i=0; i < I; i++) {
-            source_fert_count[1] += initial_prob[I-1][i];
-            init_count[i] += initial_prob[I-1][i];
+            source_fert_count[1] += ficount[I-1][i];
+            init_count[i] += ficount[I-1][i];
           }
           for (uint i=I; i < 2*I; i++) {
-            source_fert_count[0] += initial_prob[I-1][i];
+            source_fert_count[0] += ficount[I-1][i];
           }
         }
       }
