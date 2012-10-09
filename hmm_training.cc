@@ -1090,7 +1090,7 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
     }
 
 
-    if (align_type != HmmAlignProbNonpar) {
+    if (source_fert.size() > 0 && source_fert_count.size() > 0) {
 
       for (uint i=0; i < 2; i++) {
         source_fert[i] = source_fert_count[i] / source_fert_count.sum();
