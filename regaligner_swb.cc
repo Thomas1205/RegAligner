@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  const int nParams = 26;
+  const int nParams = 27;
   ParamDescr  params[nParams] = {{"-s",mandInFilename,0,""},{"-t",mandInFilename,0,""},
                                  {"-ds",optInFilename,0,""},{"-dt",optInFilename,0,""},
                                  {"-o",optOutFilename,0,""},{"-oa",mandOutFilename,0,""},
@@ -79,7 +79,7 @@ int main(int argc, char** argv) {
 				 {"-l0-beta",optWithValue,1,"-1.0"},{"-ibm4-mode",optWithValue,1,"first"},
 				 {"-fert-limit",optWithValue,1,"10000"},{"-postdec-thresh",optWithValue,1,"-1.0"},
                                  {"-hmm-type",optWithValue,1,"auto"},{"-p0",optWithValue,1,"-1.0"},
-                                 {"-org-empty-word",flag,0,""}};
+                                 {"-org-empty-word",flag,0,""},{"-nonpar-distortion",flag,0,""}};
 
   Application app(argc,argv,params,nParams);
 
@@ -393,7 +393,7 @@ int main(int argc, char** argv) {
 
     viterbi_train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, nSourceWords, nTargetWords,
                                hmmalign_model, hmm_dist_params, hmm_dist_grouping_param, source_fert,
-                               initial_prob, dict, hmm_iter, HmmInitFix, train_dist_mode, false,  
+                               initial_prob, hmm_init_params, dict, hmm_iter, HmmInitFix, train_dist_mode, false,  
                                sure_ref_alignments, possible_ref_alignments, prior_weight);
   }
   
@@ -404,7 +404,8 @@ int main(int argc, char** argv) {
   IBM3Trainer ibm3_trainer(source_sentence, slookup, target_sentence, 
                            sure_ref_alignments, possible_ref_alignments,
                            dict, wcooc, nSourceWords, nTargetWords, prior_weight, 
-                           true, !app.is_set("-org-empty-word"), false, l0_fertpen, em_l0, l0_beta);
+                           !app.is_set("-nonpar-distortion"), !app.is_set("-org-empty-word"), 
+                           false, l0_fertpen, em_l0, l0_beta);
 
   ibm3_trainer.set_fertility_limit(fert_limit);
   if (fert_p0 >= 0.0)
