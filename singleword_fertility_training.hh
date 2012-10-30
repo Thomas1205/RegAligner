@@ -21,15 +21,15 @@ public:
                         SingleWordDictionary& dict,
                         const CooccuringWordsType& wcooc,
                         uint nSourceWords, uint nTargetWords,
-                        const std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
-                        const std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
+                        const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
+                        const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
                         uint fertility_limit = 10000);
 
   void write_alignments(const std::string filename) const;
 
   double AER();
 
-  double AER(const Storage1D<Math1D::Vector<ushort> >& alignments);
+  double AER(const Storage1D<Math1D::Vector<AlignBaseType> >& alignments);
 
   double f_measure(double alpha = 0.1);
 
@@ -37,7 +37,7 @@ public:
 
   const NamedStorage1D<Math1D::Vector<double> >& fertility_prob() const;
 
-  const NamedStorage1D<Math1D::Vector<ushort> >& best_alignments() const;
+  const NamedStorage1D<Math1D::Vector<AlignBaseType> >& best_alignments() const;
 
   void set_fertility_limit(uint new_limit);
 
@@ -95,10 +95,10 @@ protected:
 
   NamedStorage1D<Math1D::Vector<double> > fertility_prob_;
 
-  NamedStorage1D<Math1D::Vector<ushort> > best_known_alignment_;
+  NamedStorage1D<Math1D::Vector<AlignBaseType> > best_known_alignment_;
 
-  std::map<uint,std::set<std::pair<ushort,ushort> > > sure_ref_alignments_;
-  std::map<uint,std::set<std::pair<ushort,ushort> > > possible_ref_alignments_;
+  std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > > sure_ref_alignments_;
+  std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > > possible_ref_alignments_;
 };
 
 #endif

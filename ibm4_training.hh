@@ -14,8 +14,8 @@ public:
   IBM4Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
               const Storage1D<Math2D::Matrix<uint> >& slookup,
               const Storage1D<Storage1D<uint> >& target_sentence,
-              const std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
-              const std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
+              const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
+              const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
               SingleWordDictionary& dict,
               const CooccuringWordsType& wcooc,
               uint nSourceWords, uint nTargetWords,
@@ -45,14 +45,14 @@ public:
 
   double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
                                     const Math2D::Matrix<uint>& lookup,
-                                    Math1D::Vector<ushort>& alignment);
+                                    Math1D::Vector<AlignBaseType>& alignment);
 
   // <code> start_alignment </code> is used as initialization for hillclimbing and later modified
   // the extracted alignment is written to <code> postdec_alignment </code>
   void compute_external_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
 					  const Math2D::Matrix<uint>& lookup,
-					  Math1D::Vector<ushort>& start_alignment,
-					  std::set<std::pair<ushort,ushort> >& postdec_alignment,
+					  Math1D::Vector<AlignBaseType>& start_alignment,
+					  std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
 					  double threshold = 0.25);
 
 
@@ -61,24 +61,24 @@ public:
 protected:
 
   long double alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-                             const Math2D::Matrix<uint>& lookup, const Math1D::Vector<ushort>& alignment);
+                             const Math2D::Matrix<uint>& lookup, const Math1D::Vector<AlignBaseType>& alignment);
 
   long double distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-			      const Math1D::Vector<ushort>& alignment);
+			      const Math1D::Vector<AlignBaseType>& alignment);
 
   //NOTE: the vectors need to be sorted
   long double distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 			      const Storage1D<std::vector<ushort> >& aligned_source_words);
 
   void print_alignment_prob_factors(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-				    const Math2D::Matrix<uint>& lookup, const Math1D::Vector<ushort>& alignment);
+				    const Math2D::Matrix<uint>& lookup, const Math1D::Vector<AlignBaseType>& alignment);
 
-  long double alignment_prob(uint s, const Math1D::Vector<ushort>& alignment);
+  long double alignment_prob(uint s, const Math1D::Vector<AlignBaseType>& alignment);
 
   long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
                                                const Math2D::Matrix<uint>& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
                                                Math2D::Matrix<long double>& expansion_prob,
-                                               Math2D::Matrix<long double>& swap_prob, Math1D::Vector<ushort>& alignment);
+                                               Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment);
 
   void par2nonpar_inter_distortion();
 

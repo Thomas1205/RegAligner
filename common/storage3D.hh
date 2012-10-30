@@ -1,7 +1,7 @@
 /*-*-c++-*-*/ 
 /*** first version written by Thomas Schoenemann as a private person without employment, September 2009 ***/
 /*** much refined by Thomas Schoenemann  at Lund University, Sweden, the University of Pisa, Italy, ***
- *** and the University of Düsseldorf, Germany 2010 - 2011 **/
+ *** and the University of Düsseldorf, Germany 2010 - 2012 **/
 /*** if you desire the checked version, make sure your compiler defines the option SAFE_MODE on the command line ***/
 
 #include "makros.hh"
@@ -85,6 +85,12 @@ public:
 protected:
   std::string name_;
 };
+
+template<typename T>
+bool operator==(const Storage3D<T>& v1, const Storage3D<T>& v2);
+
+template<typename T>
+bool operator!=(const Storage3D<T>& v1, const Storage3D<T>& v2);
 
 
 /******************************************** implementation **************************************************/
@@ -334,3 +340,21 @@ inline void NamedStorage3D<T>::operator=(const NamedStorage3D<T>& toCopy) {
   Storage3D<T>::operator=(static_cast<Storage3D<T> >(toCopy));
 }
 
+
+template<typename T>
+bool operator==(const Storage3D<T>& v1, const Storage3D<T>& v2) {
+  if (v1.xDim() != v2.xDim() || v1.yDim() != v2.yDim() || v1.zDim() != v2.zDim())
+    return false;
+  
+  for (uint i=0; i < v1.size(); i++) {
+    if (v1.direct_access(i) != v2.direct_access(i))
+      return false;
+  }
+
+  return true;
+}
+
+template<typename T>
+bool operator!=(const Storage3D<T>& v1, const Storage3D<T>& v2) {
+  return !operator==(v1,v2);
+}

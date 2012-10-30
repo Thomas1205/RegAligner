@@ -23,8 +23,8 @@ FertilityModelTrainer::FertilityModelTrainer(const Storage1D<Storage1D<uint> >& 
                                              SingleWordDictionary& dict,
                                              const CooccuringWordsType& wcooc,
                                              uint nSourceWords, uint nTargetWords,
-                                             const std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
-                                             const std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
+                                             const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
+                                             const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
 					     uint fertility_limit) :
   uncovered_set_(MAKENAME(uncovered_sets_)), predecessor_sets_(MAKENAME(predecessor_sets_)), 
   nUncoveredPositions_(MAKENAME(nUncoveredPositions_)), j_before_end_skips_(MAKENAME(j_before_end_skips_)),
@@ -94,7 +94,7 @@ void FertilityModelTrainer::write_fertilities(std::string filename) {
   }
 }
 
-const NamedStorage1D<Math1D::Vector<ushort> >& FertilityModelTrainer::best_alignments() const {
+const NamedStorage1D<Math1D::Vector<AlignBaseType> >& FertilityModelTrainer::best_alignments() const {
   return best_known_alignment_;
 }
 
@@ -107,33 +107,34 @@ double FertilityModelTrainer::AER() {
   double sum_aer = 0.0;
   uint nContributors = 0;
   
-  for (size_t s=0; s < source_sentence_.size(); s++) {
+
+  for(std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::iterator it = possible_ref_alignments_.begin();
+      it != possible_ref_alignments_.end(); it ++) {
     
-    if (possible_ref_alignments_.find(s+1) != possible_ref_alignments_.end()) {
-      
-      nContributors++;
-      //add alignment error rate
-      sum_aer += ::AER(best_known_alignment_[s],sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]);
-    }
+    uint s = it->first-1;
+
+    nContributors++;
+    //add alignment error rate
+    sum_aer += ::AER(best_known_alignment_[s],sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]);
   }
   
   sum_aer *= 100.0 / nContributors;
   return sum_aer;
 }
 
-double FertilityModelTrainer::AER(const Storage1D<Math1D::Vector<ushort> >& alignments) {
+double FertilityModelTrainer::AER(const Storage1D<Math1D::Vector<AlignBaseType> >& alignments) {
 
   double sum_aer = 0.0;
   uint nContributors = 0;
-  
-  for (size_t s=0; s < source_sentence_.size(); s++) {
+
+  for(std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::iterator it = possible_ref_alignments_.begin();
+      it != possible_ref_alignments_.end(); it ++) {
     
-    if (possible_ref_alignments_.find(s+1) != possible_ref_alignments_.end()) {
-      
-      nContributors++;
-      //add alignment error rate
-      sum_aer += ::AER(alignments[s],sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]);
-    }
+    uint s = it->first-1;
+  
+    nContributors++;
+    //add alignment error rate
+    sum_aer += ::AER(alignments[s],sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]);
   }
   
   sum_aer *= 100.0 / nContributors;
@@ -145,24 +146,24 @@ double FertilityModelTrainer::f_measure(double alpha) {
   double sum_fmeasure = 0.0;
   uint nContributors = 0;
   
-  for (size_t s=0; s < source_sentence_.size(); s++) {
+  for(std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::iterator it = possible_ref_alignments_.begin();
+      it != possible_ref_alignments_.end(); it ++) {
     
-    if (sure_ref_alignments_.find(s+1) != sure_ref_alignments_.end() 
-	|| possible_ref_alignments_.find(s+1) != possible_ref_alignments_.end()) {
+    uint s = it->first-1;
+
       
-      nContributors++;
-      //add alignment error rate
-
-      // std::cerr << "s: " << s << ", " << ::f_measure(uint_alignment,sure_ref_alignments_[s+1],possible_ref_alignments_[s+1], alpha) << std::endl;
-      // std::cerr << "precision: " << ::precision(uint_alignment,sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]) << std::endl;
-      // std::cerr << "recall: " << ::recall(uint_alignment,sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]) << std::endl;
-      // std::cerr << "alpha: " << alpha << std::endl;
-      // std::cerr << "sure alignments: " << sure_ref_alignments_[s+1] << std::endl;
-      // std::cerr << "possible alignments: " << possible_ref_alignments_[s+1] << std::endl;
-      // std::cerr << "computed alignment: " << uint_alignment << std::endl;
-
-      sum_fmeasure += ::f_measure(best_known_alignment_[s],sure_ref_alignments_[s+1],possible_ref_alignments_[s+1], alpha);
-    }
+    nContributors++;
+    //add alignment error rate
+    
+    // std::cerr << "s: " << s << ", " << ::f_measure(uint_alignment,sure_ref_alignments_[s+1],possible_ref_alignments_[s+1], alpha) << std::endl;
+    // std::cerr << "precision: " << ::precision(uint_alignment,sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]) << std::endl;
+    // std::cerr << "recall: " << ::recall(uint_alignment,sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]) << std::endl;
+    // std::cerr << "alpha: " << alpha << std::endl;
+    // std::cerr << "sure alignments: " << sure_ref_alignments_[s+1] << std::endl;
+    // std::cerr << "possible alignments: " << possible_ref_alignments_[s+1] << std::endl;
+    // std::cerr << "computed alignment: " << uint_alignment << std::endl;
+    
+    sum_fmeasure += ::f_measure(best_known_alignment_[s],sure_ref_alignments_[s+1],possible_ref_alignments_[s+1], alpha);
   }
   
   sum_fmeasure /= nContributors;
@@ -174,14 +175,14 @@ double FertilityModelTrainer::DAE_S() {
   double sum_errors = 0.0;
   uint nContributors = 0;
   
-  for (size_t s=0; s < source_sentence_.size(); s++) {
+  for(std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::iterator it = possible_ref_alignments_.begin();
+      it != possible_ref_alignments_.end(); it ++) {
     
-    if (possible_ref_alignments_.find(s+1) != possible_ref_alignments_.end()) {
-      
-      nContributors++;
-      //add DAE/S
-      sum_errors += ::nDefiniteAlignmentErrors(best_known_alignment_[s],sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]);
-    }
+    uint s = it->first-1;
+
+    nContributors++;
+    //add DAE/S
+    sum_errors += ::nDefiniteAlignmentErrors(best_known_alignment_[s],sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]);
   }
   
   sum_errors /= nContributors;
@@ -216,6 +217,8 @@ uint FertilityModelTrainer::nUncoveredPositions(uint state) const {
 
 void FertilityModelTrainer::cover(uint level) {
 
+  //  std::cerr << "*****cover(" << level << ")" << std::endl;
+
   if (level == 0) {
     next_set_idx_++;
     return;
@@ -229,7 +232,7 @@ void FertilityModelTrainer::cover(uint level) {
   const uint ref_j = uncovered_set_(level,ref_set_idx);
 
   for (uint j=1; j < ref_j; j++) {
-    
+
     assert(next_set_idx_ <= uncovered_set_.yDim());
     
     for (uint k=level; k < uncovered_set_.xDim(); k++)
@@ -295,7 +298,6 @@ void FertilityModelTrainer::compute_uncovered_sets(uint nMaxSkips) {
 
     //NOTE: a state is always its own predecessor state; to save memory we omit the entry
     bool limit_state = (uncovered_set_(0,state) != MAX_USHORT);
-    //uint prev_candidate;
 
     if (limit_state) {
 
@@ -474,6 +476,8 @@ void FertilityModelTrainer::compute_uncovered_sets(uint nMaxSkips) {
     nTransitions += predecessor_sets_[s].yDim();
 
   std::cerr << nTransitions << " transitions" << std::endl;
+
+  //visualize_set_graph("stategraph.dot");
 }
 
 void FertilityModelTrainer::visualize_set_graph(std::string filename) {
@@ -635,6 +639,7 @@ void FertilityModelTrainer::compute_coverage_states() {
         if (covered_source_pos <= highest_covered_source_pos) {
           const uint predecessor_set = predecessor_sets_[uncovered_set_idx](0,p);
 
+	  
           uint prev_highest_covered = highest_covered_source_pos;
           if (covered_source_pos == highest_covered_source_pos) {
             if (nUncoveredPositions_[predecessor_set] < nUncoveredPositions_[uncovered_set_idx])

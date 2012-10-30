@@ -1,5 +1,5 @@
-/*** written by Thomas Schoenemann as a private person without employment, October 2009 
- *** and later by Thomas Schoenemann as an employee of Lund University, 2010 ***/
+/*** written by Thomas Schoenemann. Started as a private person without employment, October 2009 
+ *** continued at Lund University, Sweden, 2010, as a private person, and at the University of Düsseldorf, Germany, 2012 ***/
 
 
 #ifndef HMM_TRAINING_HH
@@ -12,67 +12,86 @@
 #include <map>
 #include <set>
 
+class HmmOptions {
+public:
 
+  HmmOptions(uint nSourceWords,uint nTargetWords,
+             std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
+             std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments);
+
+  uint nIterations_;
+  HmmInitProbType init_type_;
+  HmmAlignProbType align_type_;
+
+  bool start_empty_word_;
+  bool smoothed_l0_;
+  double l0_beta_;
+
+  bool print_energy_;
+
+  uint nSourceWords_; 
+  uint nTargetWords_;
+
+  uint init_m_step_iter_;
+  uint align_m_step_iter_;
+  uint dict_m_step_iter_;
+
+  std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments_;
+  std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments_;
+};
 
 void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
                         const Storage1D<Math2D::Matrix<uint> >& slookup,
                         const Storage1D<Storage1D<uint> >& target,
                         const CooccuringWordsType& wcooc,
-                        uint nSourceWords, uint nTargetWords,
                         FullHMMAlignmentModel& align_model,
                         Math1D::Vector<double>& dist_params, double& dist_grouping_param,
                         Math1D::Vector<double>& source_fert,
                         InitialAlignmentProbability& initial_prob,
                         Math1D::Vector<double>& init_params,
                         SingleWordDictionary& dict,
-                        uint nIterations, HmmInitProbType init_type, HmmAlignProbType align_type,
-                        std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
-                        std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
                         const floatSingleWordDictionary& prior_weight, 
-                        bool smoothed_l0 = false, double l0_beta = 1.0);
+                        HmmOptions& options);
 
 
 void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
                                        const Storage1D<Math2D::Matrix<uint> >& slookup,
                                        const Storage1D<Storage1D<uint> >& target,
                                        const CooccuringWordsType& wcooc,
-                                       uint nSourceWords, uint nTargetWords,
                                        FullHMMAlignmentModel& align_model,
                                        Math1D::Vector<double>& dist_params, double& dist_grouping_param,
                                        Math1D::Vector<double>& source_fert,
                                        InitialAlignmentProbability& initial_prob,
                                        Math1D::Vector<double>& init_params,
                                        SingleWordDictionary& dict,
-                                       uint nIterations, HmmInitProbType init_type, HmmAlignProbType align_type,
-                                       std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
-                                       std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
                                        const floatSingleWordDictionary& prior_weight,
-                                       bool smoothed_l0 = false, double l0_beta = 1.0);
+                                       HmmOptions& options);
 
 
 void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
                                 const Storage1D<Math2D::Matrix<uint> >& slookup,
                                 const Storage1D<Storage1D<uint> >& target,
                                 const CooccuringWordsType& wcooc,
-                                uint nSourceWords, uint nTargetWords,
                                 FullHMMAlignmentModel& align_model,
                                 Math1D::Vector<double>& dist_params, double& dist_grouping_param,
                                 Math1D::Vector<double>& source_fert,
                                 InitialAlignmentProbability& initial_prob, 
                                 Math1D::Vector<double>& init_params,
-                                SingleWordDictionary& dict, uint nIterations, 
-                                HmmInitProbType init_type, HmmAlignProbType align_type, bool deficient_parametric,
-                                std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
-                                std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
-                                const floatSingleWordDictionary& prior_weight);
+                                SingleWordDictionary& dict, //uint nIterations, 
+                                const floatSingleWordDictionary& prior_weight,
+                                bool deficient_parametric, HmmOptions& options);
 
 void par2nonpar_hmm_init_model(const Math1D::Vector<double>& init_params, const Math1D::Vector<double>& source_fert,
-                               HmmInitProbType init_type, InitialAlignmentProbability& initial_prob);
+                               HmmInitProbType init_type, InitialAlignmentProbability& initial_prob, bool start_empty_word = false);
 
 void par2nonpar_hmm_alignment_model(const Math1D::Vector<double>& dist_params, const uint zero_offset,
                                     const double dist_grouping_param, const Math1D::Vector<double>& source_fert,
                                     HmmAlignProbType align_type, FullHMMAlignmentModel& align_model);
 
 
+void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& dist_params, uint zero_offset,
+                 uint nIter, double& grouping_param);
+
+void ehmm_init_m_step(const InitialAlignmentProbability& init_acount, Math1D::Vector<double>& init_params, uint nIter);
 
 #endif

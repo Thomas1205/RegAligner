@@ -32,10 +32,12 @@ typedef Math3D::NamedTensor<double> IBM4CeptStartModel;
 //indexed by (source word class, displacement)
 typedef Math2D::NamedMatrix<double> IBM4WithinCeptModel;
 
-enum HmmInitProbType {HmmInitFix, HmmInitNonpar, HmmInitPar, HmmInitInvalid};
+enum HmmInitProbType {HmmInitFix, HmmInitNonpar, HmmInitPar, HmmInitFix2, HmmInitInvalid};
 
 enum HmmAlignProbType {HmmAlignProbNonpar, HmmAlignProbFullpar, HmmAlignProbReducedpar, HmmAlignProbInvalid};
 
 typedef ushort WordClassType; 
+
+typedef ushort AlignBaseType;
 
 #endif

@@ -4,7 +4,6 @@
 #include "ibm4_training.hh"
 
 #include "combinatoric.hh"
-#include "alignment_error_rate.hh"
 #include "timing.hh"
 #include "projection.hh"
 #include "ibm1_training.hh" //for the dictionary m-step
@@ -21,8 +20,8 @@
 IBM4Trainer::IBM4Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
                          const Storage1D<Math2D::Matrix<uint> >& slookup,
                          const Storage1D<Storage1D<uint> >& target_sentence,
-                         const std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
-                         const std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
+                         const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
+                         const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
                          SingleWordDictionary& dict,
                          const CooccuringWordsType& wcooc,
                          uint nSourceWords, uint nTargetWords,
@@ -284,6 +283,8 @@ double IBM4Trainer::inter_distortion_m_step_energy(const Storage1D<Storage2D<Mat
   double energy = 0.0;
 
   for (int J=1; J <= (int) maxJ_; J++) {
+
+    //std::cerr << "J:" << J << std::endl;
 
     if (inter_distort_count[J].xDim() > class1 && inter_distort_count[J].yDim() > class2) {
 
@@ -951,13 +952,13 @@ void IBM4Trainer::update_alignments_unconstrained() {
 }
 
 
-long double IBM4Trainer::alignment_prob(uint s, const Math1D::Vector<ushort>& alignment) {
+long double IBM4Trainer::alignment_prob(uint s, const Math1D::Vector<AlignBaseType>& alignment) {
 
   return alignment_prob(source_sentence_[s],target_sentence_[s],slookup_[s],alignment);
 }
 
 long double IBM4Trainer::alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target,
-                                        const Math2D::Matrix<uint>& lookup,const Math1D::Vector<ushort>& alignment) {
+                                        const Math2D::Matrix<uint>& lookup,const Math1D::Vector<AlignBaseType>& alignment) {
 
   long double prob = 1.0;
 
@@ -1136,7 +1137,7 @@ long double IBM4Trainer::alignment_prob(const Storage1D<uint>& source, const Sto
 }
 
 long double IBM4Trainer::distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-					 const Math1D::Vector<ushort>& alignment) {
+					 const Math1D::Vector<AlignBaseType>& alignment) {
 
   const uint curI = target.size();
   const uint curJ = source.size();
@@ -1249,12 +1250,12 @@ long double IBM4Trainer::distortion_prob(const Storage1D<uint>& source, const St
     }
   }
 
-
   return prob;
 }
 
+
 void IBM4Trainer::print_alignment_prob_factors(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-					       const Math2D::Matrix<uint>& lookup, const Math1D::Vector<ushort>& alignment) {
+					       const Math2D::Matrix<uint>& lookup, const Math1D::Vector<AlignBaseType>& alignment) {
 
 
   long double prob = 1.0;
@@ -1453,16 +1454,20 @@ void IBM4Trainer::print_alignment_prob_factors(const Storage1D<uint>& source, co
 long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
                                                           const Math2D::Matrix<uint>& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
                                                           Math2D::Matrix<long double>& expansion_prob,
-                                                          Math2D::Matrix<long double>& swap_prob, Math1D::Vector<ushort>& alignment) {
+                                                          Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment) {
 
   const double improvement_factor = 1.001;
 
   const uint curI = target.size();
   const uint curJ = source.size(); 
 
+  //std::cerr << "*************** hillclimb: J = " << curJ << ", I=" << curI << std::endl;
+
   fertility.resize(curI+1);
 
   long double base_prob = alignment_prob(source,target,lookup,alignment);
+
+  //long double base_distortion_prob = distortion_prob(source,target,alignment);
 
   swap_prob.resize(curJ,curJ);
   expansion_prob.resize(curJ,curI+1);
@@ -1681,7 +1686,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
                 default:
                   assert(false);
                 }
-		
+
                 //re-calculate the transition aj -> next_i
                 if (next_i != MAX_UINT && new_aj_center != cept_center[aj]) { 
                   const uint old_sclass = source_class_[source[cept_center[aj]]];
@@ -1985,7 +1990,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 	      
 #ifndef NDEBUG
               //DEBUG
-              Math1D::Vector<ushort> hyp_alignment = alignment;
+              Math1D::Vector<AlignBaseType> hyp_alignment = alignment;
               hyp_alignment[j] = cand_aj;
               long double check_prob = alignment_prob(source,target,lookup,hyp_alignment);
 
@@ -2217,7 +2222,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
 #ifndef NDEBUG
               //DEBUG
-              Math1D::Vector<ushort> hyp_alignment = alignment;
+              Math1D::Vector<AlignBaseType> hyp_alignment = alignment;
               hyp_alignment[j] = cand_aj;
               long double check_prob = alignment_prob(source,target,lookup,hyp_alignment);
 	      
@@ -2226,7 +2231,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
                 long double check_ratio = hyp_prob / check_prob;
 		
                 if (! (check_ratio > 0.99 && check_ratio < 1.01) ) {
-                  //if (true) {
                   
                   std::cerr << "incremental prob: " << hyp_prob << std::endl;
                   std::cerr << "actual prob: " << check_prob << std::endl;
@@ -2338,7 +2342,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 	    //END_DEBUG
 
 #ifndef NDEBUG
-            Math1D::Vector<ushort> hyp_alignment = alignment;
+            Math1D::Vector<AlignBaseType> hyp_alignment = alignment;
             hyp_alignment[j] = cand_aj;
 
 	    long double check = alignment_prob(source,target,lookup,hyp_alignment);
@@ -2382,7 +2386,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
             std::cerr << "curJ: " << curJ << ", curI: " << curI << std::endl;
             std::cerr << "incremental calculation: " << incremental_calculation << std::endl;
 
-            Math1D::Vector<ushort> hyp_alignment = alignment;
+            Math1D::Vector<AlignBaseType> hyp_alignment = alignment;
             hyp_alignment[j] = cand_aj;
 	    std::cerr << "prob. of start alignment: " 
 		      << alignment_prob(source,target,lookup,alignment) << std::endl;
@@ -2410,14 +2414,8 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       }
     }
 
-    //tEndExp = std::clock();
-
-    //std::clock_t tStartSwap,tEndSwap;
-    //tStartSwap = std::clock();
-
     //for now, to be sure:
     hyp_aligned_source_words = aligned_source_words;
-
 
     //b) swap moves
     for (uint j1=0; j1 < curJ; j1++) {
@@ -2575,7 +2573,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
 #ifndef NDEBUG
             //DEBUG
-            Math1D::Vector<ushort> hyp_alignment = alignment;
+            Math1D::Vector<AlignBaseType> hyp_alignment = alignment;
             hyp_alignment[j1] = aj2;
             hyp_alignment[j2] = aj1;
             long double check_prob = alignment_prob(source,target,lookup,hyp_alignment);
@@ -2669,7 +2667,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
             }
             default: assert(false);
             }
-	    
+
             const int old_head1 = aligned_source_words[temp_aj1][0];
             const int new_head1 = new_temp_aj1_aligned_source_words[0];
 
@@ -2763,7 +2761,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
                 incoming_prob *= sentence_start_prob_[curJ][new_head2];
               }
             }
-	    
+
             for (uint k=1; k < fertility[temp_aj2]; k++) {
               const uint tclass = target_class_[target[temp_aj2-1]];
               leaving_prob *= cur_intra_distortion_prob(tclass,aligned_source_words[temp_aj2][k],aligned_source_words[temp_aj2][k-1]);
@@ -2794,7 +2792,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
 #ifndef NDEBUG
             //DEBUG
-            Math1D::Vector<ushort> hyp_alignment = alignment;
+            Math1D::Vector<AlignBaseType> hyp_alignment = alignment;
             hyp_alignment[j1] = aj2;
             hyp_alignment[j2] = aj1;
             long double check_prob = alignment_prob(source,target,lookup,hyp_alignment);
@@ -2870,7 +2868,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 	    hyp_aligned_source_words[aj2] = aligned_source_words[aj2];
 
 #ifndef NDEBUG
-            Math1D::Vector<ushort> hyp_alignment = alignment;
+            Math1D::Vector<AlignBaseType> hyp_alignment = alignment;
             hyp_alignment[j1] = aj2;
             hyp_alignment[j2] = aj1;
 
@@ -2924,8 +2922,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       }
     }
 
-    //tEndSwap = std::clock();
-
     //update alignment if a better one was found
     if (!improvement)
       break;
@@ -2934,8 +2930,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
     if (best_change_is_move) {
       uint cur_aj = alignment[best_move_j];
       assert(cur_aj != best_move_aj);
-
-      //std::cerr << "moving source pos" << best_move_j << " from " << cur_aj << " to " << best_move_aj << std::endl;
 
       alignment[best_move_j] = best_move_aj;
       fertility[cur_aj]--;
@@ -2950,14 +2944,9 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       aligned_source_words[cur_aj].erase(it);
     }
     else {
-      //std::cerr << "swapping: j1=" << best_swap_j1 << std::endl;
-      //std::cerr << "swapping: j2=" << best_swap_j2 << std::endl;
 
       uint cur_aj1 = alignment[best_swap_j1];
       uint cur_aj2 = alignment[best_swap_j2];
-
-      //std::cerr << "old aj1: " << cur_aj1 << std::endl;
-      //std::cerr << "old aj2: " << cur_aj2 << std::endl;
 
       assert(cur_aj1 != cur_aj2);
       
@@ -3005,7 +2994,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
 double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
                                                const Math2D::Matrix<uint>& lookup,
-                                               Math1D::Vector<ushort>& alignment) {
+                                               Math1D::Vector<AlignBaseType>& alignment) {
 
   const uint J = source.size();
   const uint I = target.size();
@@ -3173,8 +3162,8 @@ double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& source, co
 // the extracted alignment is written to <code> postdec_alignment </code>
 void IBM4Trainer::compute_external_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
 						     const Math2D::Matrix<uint>& lookup,
-						     Math1D::Vector<ushort>& alignment,
-						     std::set<std::pair<ushort,ushort> >& postdec_alignment,
+						     Math1D::Vector<AlignBaseType>& alignment,
+						     std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
 						     double threshold) {
 
   postdec_alignment.clear();
@@ -4300,10 +4289,6 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
       Math2D::NamedMatrix<long double> swap_move_prob(curJ,curJ,MAKENAME(swap_move_prob));
       Math2D::NamedMatrix<long double> expansion_move_prob(curJ,curI+1,MAKENAME(expansion_move_prob));
 
-      //std::clock_t tHillclimbStart, tHillclimbEnd;
-      //tHillclimbStart = std::clock();
-
-
       long double best_prob = 0.0;
 
       if (ibm3 != 0 && iter == 1) {
@@ -4342,7 +4327,6 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
       }
       //END_DEBUG
 
-      //tHillclimbEnd = std::clock();
 
       /**** update empty word counts *****/
 
@@ -4668,11 +4652,13 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 
       double cur_distort_prob = distortion_prob(cur_source,cur_target,best_known_alignment_[s]);
 
+      //Math1D::NamedVector<std::set<int> > hyp_aligned_source_words(curI+1,MAKENAME(hyp_aligned_source_words));
       NamedStorage1D<std::vector<ushort> > hyp_aligned_source_words(curI+1,MAKENAME(hyp_aligned_source_words));
 
       for (uint j=0; j < curJ; j++) {
 
       	uint aj = best_known_alignment_[s][j];
+      	//hyp_aligned_source_words[aj].insert(j);
       	hyp_aligned_source_words[aj].push_back(j);
       }
 
@@ -4775,7 +4761,7 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 		change += -(c2+1) * std::log(c2+1);
 	      }
 	    }
-	      
+
 	    if (i == 0) {
 
 	      uint zero_fert = fertility[0];
@@ -4818,7 +4804,7 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 	    change += - std::log(hyp_distort_prob);
 	    
 	    if (change < -0.01) {
-
+	      
 	      best_known_alignment_[s][j] = i;
 
 	      nSwitches++;
@@ -4845,7 +4831,7 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 		ffert_count[new_target_word][prev_fert] -= 1;
 		ffert_count[new_target_word][prev_fert+1] += 1;
 	      }
-	      
+
 	      fertility[cur_aj]--;
 	      fertility[i]++;
 	      
@@ -4953,13 +4939,13 @@ void IBM4Trainer::write_postdec_alignments(const std::string filename, double th
 
   for (uint s=0; s < source_sentence_.size(); s++) {
     
-    Math1D::Vector<ushort> viterbi_alignment = best_known_alignment_[s];
-    std::set<std::pair<ushort,ushort> > postdec_alignment;
+    Math1D::Vector<AlignBaseType> viterbi_alignment = best_known_alignment_[s];
+    std::set<std::pair<AlignBaseType,AlignBaseType> > postdec_alignment;
   
     compute_external_postdec_alignment(source_sentence_[s], target_sentence_[s], slookup_[s],
 				       viterbi_alignment, postdec_alignment, thresh);
 
-    for(std::set<std::pair<ushort,ushort> >::iterator it = postdec_alignment.begin(); 
+    for(std::set<std::pair<AlignBaseType,AlignBaseType> >::iterator it = postdec_alignment.begin(); 
 	it != postdec_alignment.end(); it++) {
       
       (*out) << (it->second-1) << " " << (it->first-1) << " ";
