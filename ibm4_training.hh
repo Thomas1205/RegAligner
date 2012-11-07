@@ -8,6 +8,17 @@
 
 enum IBM4CeptStartMode { IBM4CENTER, IBM4FIRST, IBM4LAST, IBM4UNIFORM };
 
+struct DistortCount {
+
+  DistortCount(uchar J, uchar j, uchar j_prev);
+
+  uchar J_;
+  uchar j_;
+  uchar j_prev_;
+};
+
+
+
 class IBM4Trainer : public FertilityModelTrainer {
 public: 
 
@@ -24,7 +35,7 @@ public:
               const Storage1D<WordClassType>& target_class,  
               bool och_ney_empty_word = false,
               bool use_sentence_start_prob = false,
-              bool no_factorial = true,
+              bool no_factorial = true, 
               IBM4CeptStartMode cept_start_mode = IBM4CENTER,
               bool smoothed_l0 = false, double l0_beta = 1.0, double l0_fertpen = 0.0);
 
@@ -43,9 +54,9 @@ public:
 
   void fix_p0(double p0);
 
-  double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-                                    const Math2D::Matrix<uint>& lookup,
-                                    Math1D::Vector<AlignBaseType>& alignment);
+  long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+                                         const Math2D::Matrix<uint>& lookup,
+                                         Math1D::Vector<AlignBaseType>& alignment);
 
   // <code> start_alignment </code> is used as initialization for hillclimbing and later modified
   // the extracted alignment is written to <code> postdec_alignment </code>
@@ -68,7 +79,7 @@ protected:
 
   //NOTE: the vectors need to be sorted
   long double distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-			      const Storage1D<std::vector<ushort> >& aligned_source_words);
+			      const Storage1D<std::vector<AlignBaseType> >& aligned_source_words);
 
   void print_alignment_prob_factors(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 				    const Math2D::Matrix<uint>& lookup, const Math1D::Vector<AlignBaseType>& alignment);
@@ -89,12 +100,19 @@ protected:
   void par2nonpar_start_prob();
 
   double inter_distortion_m_step_energy(const Storage1D<Storage2D<Math2D::Matrix<double> > >& inter_distort_count,
+                                        const std::map<DistortCount,double>& sparse_inter_distort_count,
                                         const Math3D::Tensor<double>& inter_param, uint class1, uint class2);
+
+  double inter_distortion_m_step_energy(const Storage1D<Storage2D<Math2D::Matrix<double> > >& inter_distort_count,
+                                        const std::vector<std::pair<DistortCount,double> >& sparse_inter_distort_count,
+                                        const Math3D::Tensor<double>& inter_param, uint class1, uint class2);
+
 
   double intra_distortion_m_step_energy(const Storage1D<Math3D::Tensor<double> >& intra_distort_count,
                                         const Math2D::Matrix<double>& intra_param, uint word_class);
 
   void inter_distortion_m_step(const Storage1D<Storage2D<Math2D::Matrix<double> > >& inter_distort_count,
+                               const std::map<DistortCount,double>& sparse_inter_distort_count,
                                uint class1, uint class2);
 
   void intra_distortion_m_step(const Storage1D<Math3D::Tensor<double> >& intra_distort_count,
@@ -119,7 +137,7 @@ protected:
   Storage1D<WordClassType> source_class_;
   Storage1D<WordClassType> target_class_;  
 
-  uint displacement_offset_;
+  int displacement_offset_;
 
   double p_zero_;
   double p_nonzero_;
@@ -137,7 +155,6 @@ protected:
 
   uint nSourceClasses_;
   uint nTargetClasses_;
-
 };
 
 #endif

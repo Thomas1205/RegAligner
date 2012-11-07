@@ -30,7 +30,7 @@ IBM4Trainer::IBM4Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
                          const Storage1D<WordClassType>& target_class,
                          bool och_ney_empty_word,
                          bool use_sentence_start_prob,
-                         bool no_factorial,
+                         bool no_factorial, 
                          IBM4CeptStartMode cept_start_mode, bool smoothed_l0, double l0_beta, double l0_fertpen)
   : FertilityModelTrainer(source_sentence,slookup,target_sentence,dict,wcooc,
                           nSourceWords,nTargetWords,sure_ref_alignments,possible_ref_alignments),
@@ -60,12 +60,14 @@ IBM4Trainer::IBM4Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
   nTargetClasses_ = max_target_class+1;
 
   cept_start_prob_.resize(nSourceClasses_,nTargetClasses_,2*maxJ_-1);
-  within_cept_prob_.resize(nTargetClasses_,2*maxJ_-1);
+  within_cept_prob_.resize(nTargetClasses_,maxJ_);
 
   cept_start_prob_.set_constant(1.0 / nDisplacements);
-  within_cept_prob_.set_constant(1.0 / (nDisplacements-1));
+
+
+  within_cept_prob_.set_constant(1.0 / (maxJ_-1));
   for (uint x=0; x < within_cept_prob_.xDim(); x++)
-    within_cept_prob_(x,displacement_offset_) = 0.0;  //within cepts displacements of zero are impossible
+    within_cept_prob_(x,0) = 0.0;
 
   if (use_sentence_start_prob_) {
     sentence_start_parameters_.resize(maxJ_, 1.0 / maxJ_);
@@ -117,7 +119,7 @@ IBM4Trainer::IBM4Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
       for (uint i=0; i < curI; i++) {
         const uint tclass = target_class_[target_sentence_[s][i]];
 
-        if (curJ <= 25 || nSourceClasses_ == 1 || nTargetClasses_ == 1) {
+        if (curJ <= 10 || nSourceClasses_ == 1 || nTargetClasses_ == 1) {
           
           if (inter_distortion_prob_[curJ](sclass,tclass).size() == 0) {
             inter_distortion_prob_[curJ](sclass,tclass).resize(curJ,curJ);
@@ -138,10 +140,10 @@ IBM4Trainer::IBM4Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
     if (seenJs.find(J) != seenJs.end()) {
 
       for (int j1=0; j1 < (int) J; j1++) {
-        for (int j2=0; j2 < (int) J; j2++) {
+        for (int j2=j1+1; j2 < (int) J; j2++) {
 
           for (uint y = 0; y < intra_distortion_prob_[J].xDim(); y++)
-            intra_distortion_prob_[J](y,j2,j1) = within_cept_prob_(y,j2-j1+displacement_offset_);
+            intra_distortion_prob_[J](y,j2,j1) = within_cept_prob_(y,j2-j1);
         }
       }
     
@@ -238,12 +240,12 @@ void IBM4Trainer::par2nonpar_intra_distortion() {
 	  double sum = 0.0;
 	  
 	  for (int j2=j1+1; j2 < J; j2++) {
-	    sum += within_cept_prob_(x,j2-j1+displacement_offset_);
+	    sum += within_cept_prob_(x,j2-j1);
 	  }
 	  
 	  if (sum > 1e-305) {
 	    for (int j2=j1+1; j2 < J; j2++) {
-	      intra_distortion_prob_[J](x,j2,j1) = std::max(1e-8,within_cept_prob_(x,j2-j1+displacement_offset_) / sum);
+	      intra_distortion_prob_[J](x,j2,j1) = std::max(1e-8,within_cept_prob_(x,j2-j1) / sum);
 	    }
 	  }
 	  else {
@@ -278,13 +280,12 @@ void IBM4Trainer::par2nonpar_start_prob() {
 }
 
 double IBM4Trainer::inter_distortion_m_step_energy(const Storage1D<Storage2D<Math2D::Matrix<double> > >& inter_distort_count,
+                                                   const std::map<DistortCount,double>& sparse_inter_distort_count,
                                                    const Math3D::Tensor<double>& inter_param, uint class1, uint class2) {
 
   double energy = 0.0;
 
   for (int J=1; J <= (int) maxJ_; J++) {
-
-    //std::cerr << "J:" << J << std::endl;
 
     if (inter_distort_count[J].xDim() > class1 && inter_distort_count[J].yDim() > class2) {
 
@@ -304,9 +305,14 @@ double IBM4Trainer::inter_distortion_m_step_energy(const Storage1D<Storage2D<Mat
         sum = std::max(1e-50,sum);
 
         for (int j2=0; j2 < J; j2++) {
-          double cur_param = std::max(1e-100, inter_param(class1,class2,j2-j1 + displacement_offset_));
 
-          energy -= cur_count(j2,j1) * std::log( cur_param / sum);
+          const double count = cur_count(j2,j1);
+          if (count == 0.0)
+            continue;
+
+          const double cur_param = std::max(1e-100, inter_param(class1,class2,j2-j1 + displacement_offset_));
+
+          energy -= count * std::log( cur_param / sum);
           if (isnan(energy)) {
 
             std::cerr << "j1: " << j1 << ", j2: " << j2 << std::endl;
@@ -317,6 +323,117 @@ double IBM4Trainer::inter_distortion_m_step_energy(const Storage1D<Storage2D<Mat
         }
       }
     }
+  }
+
+  for (std::map<DistortCount,double>::const_iterator it = sparse_inter_distort_count.begin(); it != sparse_inter_distort_count.end(); it++) {
+
+    const DistortCount& dist_count = it->first;
+    const double weight = it->second;
+
+    uchar J = dist_count.J_;
+    int j1 = dist_count.j_prev_;
+
+    double sum = 0.0;
+
+    for (int j2=0; j2 < J; j2++) {
+      sum += inter_param(class1,class2,j2-j1 + displacement_offset_);
+    }
+    
+    sum = std::max(1e-50,sum);
+
+    int j2 = dist_count.j_;
+
+    const double cur_param = std::max(1e-100, inter_param(class1,class2,j2-j1 + displacement_offset_));
+
+    energy -= weight * std::log( cur_param / sum);
+    if (isnan(energy)) {
+      
+      std::cerr << "j1: " << j1 << ", j2: " << j2 << std::endl;
+      std::cerr << "added " << weight << "* log(" << cur_param 
+                << "/" << sum << ")" << std::endl;
+    }
+    assert(!isnan(energy));
+  }
+
+  return energy;
+}
+
+double IBM4Trainer::inter_distortion_m_step_energy(const Storage1D<Storage2D<Math2D::Matrix<double> > >& inter_distort_count,
+                                                   const std::vector<std::pair<DistortCount,double> >& sparse_inter_distort_count,
+                                                   const Math3D::Tensor<double>& inter_param, uint class1, uint class2) {
+
+
+  double energy = 0.0;
+
+  for (int J=1; J <= (int) maxJ_; J++) {
+
+    if (inter_distort_count[J].xDim() > class1 && inter_distort_count[J].yDim() > class2) {
+
+      const Math2D::Matrix<double>& cur_count = inter_distort_count[J](class1,class2);
+
+      if (cur_count.size() == 0)
+        continue;
+
+      for (int j1=0; j1 < J; j1++) {
+
+        double sum = 0.0;
+
+        for (int j2=0; j2 < J; j2++) {
+          sum += inter_param(class1,class2,j2-j1 + displacement_offset_);
+        }
+
+        sum = std::max(1e-50,sum);
+
+        for (int j2=0; j2 < J; j2++) {
+
+          const double count = cur_count(j2,j1);
+          if (count == 0.0)
+            continue;
+
+          const double cur_param = std::max(1e-100, inter_param(class1,class2,j2-j1 + displacement_offset_));
+
+          energy -= count * std::log( cur_param / sum);
+          if (isnan(energy)) {
+
+            std::cerr << "j1: " << j1 << ", j2: " << j2 << std::endl;
+            std::cerr << "added " << cur_count(j2,j1) << "* log(" << cur_param 
+                      << "/" << sum << ")" << std::endl;
+          }
+          assert(!isnan(energy));
+        }
+      }
+    }
+  }
+
+  for (std::vector<std::pair<DistortCount,double> >::const_iterator it = sparse_inter_distort_count.begin(); 
+       it != sparse_inter_distort_count.end(); it++) {
+
+    const DistortCount& dist_count = it->first;
+    const double weight = it->second;
+
+    uchar J = dist_count.J_;
+    int j1 = dist_count.j_prev_;
+
+    double sum = 0.0;
+
+    for (int j2=0; j2 < J; j2++) {
+      sum += inter_param(class1,class2,j2-j1 + displacement_offset_);
+    }
+    
+    sum = std::max(1e-50,sum);
+
+    int j2 = dist_count.j_;
+
+    const double cur_param = std::max(1e-100, inter_param(class1,class2,j2-j1 + displacement_offset_));
+
+    energy -= weight * std::log( cur_param / sum);
+    if (isnan(energy)) {
+      
+      std::cerr << "j1: " << j1 << ", j2: " << j2 << std::endl;
+      std::cerr << "added " << weight << "* log(" << cur_param 
+                << "/" << sum << ")" << std::endl;
+    }
+    assert(!isnan(energy));
   }
 
   return energy;
@@ -339,11 +456,11 @@ double IBM4Trainer::intra_distortion_m_step_energy(const Storage1D<Math3D::Tenso
         double sum = 0.0;
 
         for (int j2=j1+1; j2 < J; j2++) {
-          sum += intra_param(word_class,j2-j1 + displacement_offset_);
+          sum += intra_param(word_class,j2-j1);
         }
 
         for (int j2=j1+2; j2 < J; j2++) {
-          double cur_param = std::max(1e-100, intra_param(word_class,j2-j1 + displacement_offset_));
+          double cur_param = std::max(1e-100, intra_param(word_class,j2-j1));
 
           energy -= cur_count(word_class,j2,j1) * std::log( cur_param / sum);
         }
@@ -355,7 +472,15 @@ double IBM4Trainer::intra_distortion_m_step_energy(const Storage1D<Math3D::Tenso
 }
 
 void IBM4Trainer::inter_distortion_m_step(const Storage1D<Storage2D<Math2D::Matrix<double> > >& inter_distort_count,
+                                          const std::map<DistortCount,double>& sparse_inter_distort_count,
                                           uint class1, uint class2) {
+
+  //iterating over a vector is a lot faster than iterating over a map -> copy
+  std::vector<std::pair<DistortCount,double> > vec_sparse_inter_distort_count;
+  vec_sparse_inter_distort_count.reserve(sparse_inter_distort_count.size());
+  for (std::map<DistortCount,double>::const_iterator it = sparse_inter_distort_count.begin();
+       it != sparse_inter_distort_count.end(); it++)
+    vec_sparse_inter_distort_count.push_back(*it);
 
   Math3D::Tensor<double> new_ceptstart_prob = cept_start_prob_;
   Math3D::Tensor<double> hyp_ceptstart_prob = cept_start_prob_;
@@ -363,7 +488,7 @@ void IBM4Trainer::inter_distortion_m_step(const Storage1D<Storage2D<Math2D::Matr
 
   double alpha = 0.01;
 
-  double energy = inter_distortion_m_step_energy(inter_distort_count,cept_start_prob_,class1,class2);
+  double energy = inter_distortion_m_step_energy(inter_distort_count,vec_sparse_inter_distort_count,cept_start_prob_,class1,class2);
 
   if (nSourceClasses_*nTargetClasses_ <= 4)
     std::cerr << "start energy: " << energy << std::endl;
@@ -393,17 +518,21 @@ void IBM4Trainer::inter_distortion_m_step(const Storage1D<Storage2D<Math2D::Matr
             assert(!isnan(cept_start_prob_(class1,class2,j2-j1 + displacement_offset_)));
           }
 
-          if (sum < 1e-100)
-            continue;  //this can happen for j1=0 (and J=1)
+          sum = std::max(1e-15,sum);
 
           double count_sum = 0.0;
           for (int j2=0; j2 < J; j2++) {
 
-            count_sum += cur_count(j2,j1);
+            const double count = cur_count(j2,j1);
 
-            double cur_param = std::max(1e-15,cept_start_prob_(class1,class2,j2-j1 + displacement_offset_));
+            if (count == 0.0)
+              continue;
+
+            count_sum += count;
+
+            const double cur_param = std::max(1e-15,cept_start_prob_(class1,class2,j2-j1 + displacement_offset_));
             ceptstart_grad[j2-j1 + displacement_offset_] -= 
-              cur_count(j2,j1) / cur_param;
+              count / cur_param;
             assert(!isnan(ceptstart_grad[j2-j1 + displacement_offset_]));
           }
 
@@ -412,6 +541,37 @@ void IBM4Trainer::inter_distortion_m_step(const Storage1D<Storage2D<Math2D::Matr
             assert(!isnan(ceptstart_grad[j2-j1 + displacement_offset_]));
           }
         }
+      }
+    }
+
+
+    for (std::vector<std::pair<DistortCount,double> >::const_iterator it = vec_sparse_inter_distort_count.begin(); 
+         it != vec_sparse_inter_distort_count.end(); it++) {
+
+      const DistortCount& dist_count = it->first;
+      const double weight = it->second;
+      
+      uchar J = dist_count.J_;
+      int j1 = dist_count.j_prev_;
+      
+      double sum = 0.0;
+      
+      for (int j2=0; j2 < J; j2++) {
+        sum += cept_start_prob_(class1,class2,j2-j1 + displacement_offset_);
+      }
+
+      sum = std::max(1e-15,sum);
+      
+      int j2 = dist_count.j_;
+      
+      const double cur_param = std::max(1e-15, cept_start_prob_(class1,class2,j2-j1 + displacement_offset_));
+
+      ceptstart_grad[j2-j1 + displacement_offset_] -= weight / cur_param;
+
+      assert(!isnan(ceptstart_grad[j2-j1 + displacement_offset_]));
+
+      for (int jj=0; jj < J; jj++) {
+        ceptstart_grad[jj-j1 + displacement_offset_] += weight / sum;
       }
     }
 
@@ -447,7 +607,7 @@ void IBM4Trainer::inter_distortion_m_step(const Storage1D<Storage2D<Math2D::Matr
         hyp_ceptstart_prob(class1,class2,k) = neg_lambda * cept_start_prob_(class1,class2,k) 
           + lambda * new_ceptstart_prob(class1,class2,k);
 
-      double hyp_energy = inter_distortion_m_step_energy(inter_distort_count,hyp_ceptstart_prob,class1,class2);
+      double hyp_energy = inter_distortion_m_step_energy(inter_distort_count,vec_sparse_inter_distort_count,hyp_ceptstart_prob,class1,class2);
 
       if (hyp_energy < best_energy) {
 
@@ -509,7 +669,7 @@ void IBM4Trainer::intra_distortion_m_step(const Storage1D<Math3D::Tensor<double>
           double sum = 0.0;
 
           for (int j2=j1+1; j2 < J; j2++) {
-            sum += within_cept_prob_(word_class,j2-j1 + displacement_offset_);
+            sum += within_cept_prob_(word_class,j2-j1);
           }
 
           if (sum < 1e-100)
@@ -522,13 +682,12 @@ void IBM4Trainer::intra_distortion_m_step(const Storage1D<Math3D::Tensor<double>
 
             count_sum += cur_count;
 
-            double cur_param = std::max(1e-15,within_cept_prob_(word_class,j2-j1 + displacement_offset_));
-            within_cept_grad[j2-j1 + displacement_offset_] -= 
-              cur_count / cur_param;
+            double cur_param = std::max(1e-15,within_cept_prob_(word_class,j2-j1));
+            within_cept_grad[j2-j1] -= cur_count / cur_param;
           }
 
-          for (int j2=0; j2 < J; j2++) {
-            within_cept_grad[j2-j1 + displacement_offset_] += count_sum / sum;
+          for (int j2=j1+1; j2 < J; j2++) {
+            within_cept_grad[j2-j1] += count_sum / sum;
           }
         }
       }
@@ -813,7 +972,6 @@ void IBM4Trainer::init_from_ibm3(IBM3Trainer& ibm3trainer, bool clear_ibm3,
 	    nAlignedWords++;
 	    
 	    int diff = cur_j - prev_j;
-	    diff += displacement_offset_;
 	    within_cept_prob_(tclass,diff) += 1.0;
 	    
 	    prev_j = cur_j;
@@ -856,7 +1014,7 @@ void IBM4Trainer::init_from_ibm3(IBM3Trainer& ibm3trainer, bool clear_ibm3,
             cept_start_prob_(x,y,d) = count_factor * cept_start_prob_(x,y,d) + uniform_share;
         }
         else {
-          //this combination did not occur in the viterbi alignments and neighbors
+          //this combination did not occur in the viterbi alignments
           //but it may still be possible in the data
           for (uint d=0; d < cept_start_prob_.zDim(); d++)
             cept_start_prob_(x,y,d) = 1.0 / cept_start_prob_.zDim();
@@ -878,7 +1036,7 @@ void IBM4Trainer::init_from_ibm3(IBM3Trainer& ibm3trainer, bool clear_ibm3,
         const double uniform_share = 0.1 / ( within_cept_prob_.yDim()-1 );
         
         for (uint d=0; d < within_cept_prob_.yDim(); d++) {
-          if (d == displacement_offset_) {
+          if (d == 0) {
             //zero-displacements are impossible within cepts
             within_cept_prob_(x,d) = 0.0;
           }
@@ -888,7 +1046,7 @@ void IBM4Trainer::init_from_ibm3(IBM3Trainer& ibm3trainer, bool clear_ibm3,
       }
       else {
         for (uint d=0; d < within_cept_prob_.yDim(); d++) {
-          if (d == displacement_offset_) {
+          if (d == 0) {
             //zero-displacements are impossible within cepts
             within_cept_prob_(x,d) = 0.0;
           }
@@ -903,15 +1061,6 @@ void IBM4Trainer::init_from_ibm3(IBM3Trainer& ibm3trainer, bool clear_ibm3,
     //c) sentence start prob
     if (use_sentence_start_prob_) {
       sentence_start_parameters_ *= 1.0 / sentence_start_parameters_.sum();
-
-      //TEMP
-      for (uint J=1; J <= maxJ_; J++) {
-	if (sentence_start_prob_[J].size() > 0) {
-	  for (uint j=0; j < J; j++)
-	    sentence_start_prob_[J][j] = sentence_start_parameters_[j];
-	}
-      }
-      //END_TEMP
 
       par2nonpar_start_prob();
     }
@@ -946,8 +1095,9 @@ void IBM4Trainer::update_alignments_unconstrained() {
     Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
     
     uint nIter=0;
+
     update_alignment_by_hillclimbing(source_sentence_[s],target_sentence_[s],slookup_[s],
-                                     nIter,fertility,expansion_prob,swap_prob,best_known_alignment_[s]);
+				     nIter,fertility,expansion_prob,swap_prob,best_known_alignment_[s]);
   }
 }
 
@@ -1136,6 +1286,7 @@ long double IBM4Trainer::alignment_prob(const Storage1D<uint>& source, const Sto
   return prob;
 }
 
+
 long double IBM4Trainer::distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 					 const Math1D::Vector<AlignBaseType>& alignment) {
 
@@ -1145,7 +1296,7 @@ long double IBM4Trainer::distortion_prob(const Storage1D<uint>& source, const St
   assert(alignment.size() == curJ);
 
   
-  NamedStorage1D<std::vector<ushort> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
+  NamedStorage1D<std::vector<AlignBaseType> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
 
   for (uint j=0; j < curJ; j++) {
     const uint aj = alignment[j];
@@ -1155,9 +1306,10 @@ long double IBM4Trainer::distortion_prob(const Storage1D<uint>& source, const St
   return distortion_prob(source,target,aligned_source_words);
 }
 
+
 //NOTE: the vectors need to be sorted
 long double IBM4Trainer::distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-					 const Storage1D<std::vector<ushort> >& aligned_source_words) {
+					 const Storage1D<std::vector<AlignBaseType> >& aligned_source_words) {
 
   long double prob = 1.0;
 
@@ -1177,8 +1329,6 @@ long double IBM4Trainer::distortion_prob(const Storage1D<uint>& source, const St
   int prev_cept_center = -1;
 
   for (uint i=1; i <= curI; i++) {
-
-    //NOTE: a dependence on word classes is currently not implemented
 
     if (aligned_source_words[i].size() > 0) {
 
@@ -1250,9 +1400,9 @@ long double IBM4Trainer::distortion_prob(const Storage1D<uint>& source, const St
     }
   }
 
+
   return prob;
 }
-
 
 void IBM4Trainer::print_alignment_prob_factors(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 					       const Math2D::Matrix<uint>& lookup, const Math1D::Vector<AlignBaseType>& alignment) {
@@ -1447,8 +1597,6 @@ void IBM4Trainer::print_alignment_prob_factors(const Storage1D<uint>& source, co
       std::cerr << "mult by k/curJ = " << (((long double) k) / curJ) << ", result: " << prob << std::endl;
     }
   }
-
-
 }
 
 long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
@@ -1462,12 +1610,12 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
   const uint curJ = source.size(); 
 
   //std::cerr << "*************** hillclimb: J = " << curJ << ", I=" << curI << std::endl;
+  //std::cerr << "start alignment: " << alignment << std::endl;
+
 
   fertility.resize(curI+1);
 
   long double base_prob = alignment_prob(source,target,lookup,alignment);
-
-  //long double base_distortion_prob = distortion_prob(source,target,alignment);
 
   swap_prob.resize(curJ,curJ);
   expansion_prob.resize(curJ,curI+1);
@@ -1482,7 +1630,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
   const Math1D::Vector<double>& cur_sentence_start_prob = sentence_start_prob_[curJ];
 
   //source words are listed in ascending order
-  NamedStorage1D< std::vector<ushort> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
+  NamedStorage1D< std::vector<AlignBaseType> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
   
   fertility.set_constant(0);
   for (uint j=0; j < curJ; j++) {
@@ -1558,7 +1706,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
     //a) expansion moves
 
-    NamedStorage1D< std::vector<ushort> > hyp_aligned_source_words(MAKENAME(hyp_aligned_source_words));
+    NamedStorage1D< std::vector<AlignBaseType> > hyp_aligned_source_words(MAKENAME(hyp_aligned_source_words));
     hyp_aligned_source_words = aligned_source_words;
 
     for (uint j=0; j < curJ; j++) {
@@ -2077,6 +2225,8 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
                     break;
                 }
 
+                //std::cerr << "jnum: " << jnum << std::endl;
+
                 assert (jnum < aligned_source_words[aj].size());
 
                 if (next_i != MAX_UINT) {
@@ -2231,6 +2381,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
                 long double check_ratio = hyp_prob / check_prob;
 		
                 if (! (check_ratio > 0.99 && check_ratio < 1.01) ) {
+                  //if (true) {
                   
                   std::cerr << "incremental prob: " << hyp_prob << std::endl;
                   std::cerr << "actual prob: " << check_prob << std::endl;
@@ -2251,8 +2402,8 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
           if (!incremental_calculation) {
 
-	    std::vector<ushort>::iterator it = std::find(hyp_aligned_source_words[aj].begin(),
-							 hyp_aligned_source_words[aj].end(),j);
+	    std::vector<AlignBaseType>::iterator it = std::find(hyp_aligned_source_words[aj].begin(),
+                                                                hyp_aligned_source_words[aj].end(),j);
 	    hyp_aligned_source_words[aj].erase(it);
 
 	    hyp_aligned_source_words[cand_aj].push_back(j);
@@ -2414,8 +2565,16 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       }
     }
 
+    //tEndExp = std::clock();
+    //std::cerr << "pair #" << s << ": spent " << diff_seconds(tEndExp,tStartExp) << " seconds on expansion moves" << std::endl;
+
+    //std::clock_t tStartSwap,tEndSwap;
+    //tStartSwap = std::clock();
+
     //for now, to be sure:
     hyp_aligned_source_words = aligned_source_words;
+
+    //std::cerr << "starting with swap moves" << std::endl;
 
     //b) swap moves
     for (uint j1=0; j1 < curJ; j1++) {
@@ -2463,6 +2622,8 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
               aligned_source_words[aj1].size() == 1 && aligned_source_words[aj2].size() == 1) {
             //both affected cepts are one-word cepts
 
+            //std::cerr << "case 1" << std::endl;
+
             const uint taj1 = target[aj1-1];
             const uint taj2 = target[aj2-1];
 
@@ -2503,7 +2664,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
             // 2. leaving cept temp_aj1 and entering cept temp_aj2
             if (prev_cept[temp_aj2] != temp_aj1) {
-	      
+
               //a) leaving cept aj1
               const uint next_i = next_cept[temp_aj1];
               if (next_i != MAX_UINT) {
@@ -2640,7 +2801,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
             }
             assert(old_j2_num != MAX_UINT);
 
-            std::vector<ushort> new_temp_aj1_aligned_source_words = aligned_source_words[temp_aj1];
+            std::vector<AlignBaseType> new_temp_aj1_aligned_source_words = aligned_source_words[temp_aj1];
             new_temp_aj1_aligned_source_words[old_j1_num] = temp_j2;
             std::sort(new_temp_aj1_aligned_source_words.begin(),new_temp_aj1_aligned_source_words.end());
 
@@ -2667,7 +2828,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
             }
             default: assert(false);
             }
-
+	    
             const int old_head1 = aligned_source_words[temp_aj1][0];
             const int new_head1 = new_temp_aj1_aligned_source_words[0];
 
@@ -2714,7 +2875,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
               incoming_prob *= cur_inter_distortion_prob(sclass2,tclass)(next_head,new_temp_aj1_center);
             }
 
-            std::vector<ushort> new_temp_aj2_aligned_source_words = aligned_source_words[temp_aj2];
+            std::vector<AlignBaseType> new_temp_aj2_aligned_source_words = aligned_source_words[temp_aj2];
             new_temp_aj2_aligned_source_words[old_j2_num] = temp_j1;
             std::sort(new_temp_aj2_aligned_source_words.begin(),new_temp_aj2_aligned_source_words.end());
 
@@ -2761,7 +2922,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
                 incoming_prob *= sentence_start_prob_[curJ][new_head2];
               }
             }
-
+	    
             for (uint k=1; k < fertility[temp_aj2]; k++) {
               const uint tclass = target_class_[target[temp_aj2-1]];
               leaving_prob *= cur_intra_distortion_prob(tclass,aligned_source_words[temp_aj2][k],aligned_source_words[temp_aj2][k-1]);
@@ -2820,8 +2981,8 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
           }
           else {
 
-	    std::vector<ushort>::iterator it = std::find(hyp_aligned_source_words[aj1].begin(),
-							 hyp_aligned_source_words[aj1].end(),j1);
+	    std::vector<AlignBaseType>::iterator it = std::find(hyp_aligned_source_words[aj1].begin(),
+                                                                hyp_aligned_source_words[aj1].end(),j1);
 	    hyp_aligned_source_words[aj1].erase(it);
 	    it = std::find(hyp_aligned_source_words[aj2].begin(),hyp_aligned_source_words[aj2].end(),j2);
 	    hyp_aligned_source_words[aj2].erase(it);
@@ -2922,6 +3083,8 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       }
     }
 
+    //tEndSwap = std::clock();
+
     //update alignment if a better one was found
     if (!improvement)
       break;
@@ -2938,7 +3101,8 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       aligned_source_words[best_move_aj].push_back(best_move_j);
       std::sort(aligned_source_words[best_move_aj].begin(), aligned_source_words[best_move_aj].end());
 
-      std::vector<ushort>::iterator it = std::find(aligned_source_words[cur_aj].begin(),aligned_source_words[cur_aj].end(),best_move_j);
+      std::vector<AlignBaseType>::iterator it = std::find(aligned_source_words[cur_aj].begin(),
+                                                          aligned_source_words[cur_aj].end(),best_move_j);
       assert(it != aligned_source_words[cur_aj].end());
 
       aligned_source_words[cur_aj].erase(it);
@@ -2992,9 +3156,9 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
   return base_prob;
 }
 
-double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-                                               const Math2D::Matrix<uint>& lookup,
-                                               Math1D::Vector<AlignBaseType>& alignment) {
+long double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+                                                    const Math2D::Matrix<uint>& lookup,
+                                                    Math1D::Vector<AlignBaseType>& alignment) {
 
   const uint J = source.size();
   const uint I = target.size();
@@ -3049,12 +3213,12 @@ double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& source, co
 
     //intra params
 
-    IBM4WithinCeptModel new_wi_model(within_cept_prob_.xDim(),2*J-1,0.0,MAKENAME(new_wi_model)); 
+    IBM4WithinCeptModel new_wi_model(within_cept_prob_.xDim(),J,0.0,MAKENAME(new_wi_model)); 
 
     for (uint c=0; c < new_wi_model.xDim(); c++) {
 
       for (uint k=0; k < within_cept_prob_.yDim(); k++)
-	new_wi_model(c,k+ new_zero_offset - displacement_offset_) = within_cept_prob_(c,k);
+	new_wi_model(c,k) = within_cept_prob_(c,k);
     }
 
     within_cept_prob_ = new_wi_model;
@@ -3149,6 +3313,8 @@ double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& source, co
     }
   }
 
+  //std::cerr << "calling the actual routine" << std::endl;
+
   //create matrices
   Math2D::Matrix<long double> expansion_prob(J,I+1);
   Math2D::Matrix<long double> swap_prob(J,J);
@@ -3220,12 +3386,13 @@ void IBM4Trainer::compute_external_postdec_alignment(const Storage1D<uint>& sour
     cept_start_prob_ = new_param;
 
     //intra params
-    IBM4WithinCeptModel new_wi_model(within_cept_prob_.xDim(),2*J-1,0.0,MAKENAME(new_wi_model)); 
+
+    IBM4WithinCeptModel new_wi_model(within_cept_prob_.xDim(),J,0.0,MAKENAME(new_wi_model)); 
 
     for (uint c=0; c < new_wi_model.xDim(); c++) {
 
       for (uint k=0; k < within_cept_prob_.yDim(); k++)
-	new_wi_model(c,k+ new_zero_offset - displacement_offset_) = within_cept_prob_(c,k);
+	new_wi_model(c,k) = within_cept_prob_(c,k);
     }
 
     within_cept_prob_ = new_wi_model;
@@ -3323,9 +3490,10 @@ void IBM4Trainer::compute_external_postdec_alignment(const Storage1D<uint>& sour
   Math2D::Matrix<long double> swap_move_prob(J,J);
   
   uint nIter;
-  long double best_prob = update_alignment_by_hillclimbing(source, target, lookup, nIter, fertility,
-							   expansion_move_prob, swap_move_prob, alignment);
+  long double best_prob;
 
+  best_prob = update_alignment_by_hillclimbing(source, target, lookup, nIter, fertility,
+					       expansion_move_prob, swap_move_prob, alignment);
 
   const long double expansion_prob = expansion_move_prob.sum();
   const long double swap_prob =  0.5 * swap_move_prob.sum();
@@ -3376,7 +3544,17 @@ void IBM4Trainer::compute_external_postdec_alignment(const Storage1D<uint>& sour
       }
     }
   }
-  
+}
+
+DistortCount::DistortCount(uchar J, uchar j, uchar j_prev)
+  : J_(J), j_(j), j_prev_(j_prev) {}
+
+bool operator<(const DistortCount& d1, const DistortCount& d2) {
+  if (d1.J_ != d2.J_)
+    return (d1.J_ < d2.J_);
+  if (d1.j_ != d2.j_)
+    return (d1.j_ < d2.j_);
+  return (d1.j_prev_ < d2.j_prev_);
 }
 
 void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
@@ -3391,7 +3569,7 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
   double approx_sum_perplexity = 0.0;
 
   IBM4CeptStartModel fceptstart_count(cept_start_prob_.xDim(),cept_start_prob_.yDim(),2*maxJ_-1,MAKENAME(fceptstart_count));
-  IBM4WithinCeptModel fwithincept_count(within_cept_prob_.xDim(),2*maxJ_-1,MAKENAME(fwithincept_count));
+  IBM4WithinCeptModel fwithincept_count(within_cept_prob_.xDim(),within_cept_prob_.yDim(),MAKENAME(fwithincept_count));
   Math1D::NamedVector<double> fsentence_start_count(maxJ_,MAKENAME(fsentence_start_count));
 
   Storage1D<Storage2D<Math2D::Matrix<double> > > inter_distort_count(maxJ_+1);
@@ -3404,10 +3582,10 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
     if (inter_distortion_prob_[J].size() > 0) {
       inter_distort_count[J].resize(inter_distortion_prob_[J].xDim(),inter_distortion_prob_[J].yDim());
 
-      if (J <= 25) {
-        for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
-          for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
-            inter_distort_count[J](x,y).resize(inter_distortion_prob_[J](x,y).xDim(),inter_distortion_prob_[J](x,y).yDim(),0.0);
+      if (J <= 10 || nSourceClasses_*nTargetClasses_ <= 10) {
+	for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
+	  for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
+	    inter_distort_count[J](x,y).resize(inter_distortion_prob_[J](x,y).xDim(),inter_distortion_prob_[J](x,y).yDim(),0.0);
       }
 
       intra_distort_count[J].resize(intra_distortion_prob_[J].xDim(),intra_distortion_prob_[J].yDim(),
@@ -3440,6 +3618,8 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
 
   for (uint iter=1; iter <= nIter; iter++) {
 
+    Storage2D<std::map<DistortCount,double> > sparse_inter_distort_count(nSourceClasses_,nTargetClasses_);
+
     std::cerr << "******* IBM-4 EM-iteration " << iter << std::endl;
 
     uint sum_iter = 0;
@@ -3458,8 +3638,8 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
 
     for (uint J=1; J <= maxJ_; J++) {
       if (inter_distort_count[J].size() > 0) {
-        for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
-          for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
+        for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
+          for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
             inter_distort_count[J](x,y).set_constant(0.0);
       }
       intra_distort_count[J].set_constant(0.0);
@@ -3473,6 +3653,16 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
 
       if ((s% 10000) == 0)
         std::cerr << "sentence pair #" << s << std::endl;
+
+
+      if (nSourceClasses_*nTargetClasses_ >= 10 && (s%25) == 0) {
+        for (uint J=11; J < inter_distortion_prob_.size(); J++) {
+
+          for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
+            for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
+              inter_distortion_prob_[J](x,y).resize(0,0);
+        }
+      }
       
       const Storage1D<uint>& cur_source = source_sentence_[s];
       const Storage1D<uint>& cur_target = target_sentence_[s];
@@ -3499,7 +3689,7 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
 	best_prob = update_alignment_by_hillclimbing(cur_source,cur_target,cur_lookup,sum_iter,fertility,
 						     expansion_move_prob,swap_move_prob,best_known_alignment_[s]);
       }
-      max_perplexity -= std::log(std::max<double>(best_prob,1e-300));
+      max_perplexity -= std::log(best_prob);
 
       tHillclimbEnd = std::clock();
 
@@ -3510,7 +3700,7 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
 
       const long double sentence_prob = best_prob + expansion_prob +  swap_prob;
 
-      approx_sum_perplexity -= std::log(std::max<double>(sentence_prob,1e-300));
+      approx_sum_perplexity -= std::log(sentence_prob);
       
       const long double inv_sentence_prob = 1.0 / sentence_prob;
 
@@ -3589,6 +3779,10 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
           std::cerr << "best alignment prob: " << best_prob << std::endl;
           std::cerr << "sentence prob: " << sentence_prob << std::endl;
           std::cerr << "" << std::endl;
+
+          //DEBUG
+          exit(1);
+          //END_DEBUG
         }
 
         ffert_count[t_idx][cur_fert] += addon;
@@ -3746,10 +3940,10 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
 
             fceptstart_count(sclass,tclass,diff) += cur_prob;
 
-            if (inter_distort_count[curJ](sclass,tclass).size() == 0)
-              inter_distort_count[curJ](sclass,tclass).resize(curJ,curJ,0.0);
-
-            inter_distort_count[curJ](sclass,tclass)(first_aligned_source_word[i],cept_center[cur_prev_cept]) += cur_prob;
+	    if (inter_distort_count[curJ](sclass,tclass).size() == 0)
+	      sparse_inter_distort_count(sclass,tclass)[DistortCount(curJ,first_aligned_source_word[i],cept_center[cur_prev_cept])] += cur_prob;
+	    else
+	      inter_distort_count[curJ](sclass,tclass)(first_aligned_source_word[i],cept_center[cur_prev_cept]) += cur_prob;
           }
           else if (use_sentence_start_prob_) {
             fsentence_start_count[first_aligned_source_word[i]] += cur_prob;
@@ -3764,7 +3958,6 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
 
             const int cur_j = *ait;
             int diff = cur_j - prev_aligned_j;
-            diff += displacement_offset_;
             fwithincept_count(tclass,diff) += cur_prob;
             intra_distort_count[curJ](tclass,cur_j,prev_aligned_j) += cur_prob;
 
@@ -3817,10 +4010,10 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
                   diff += displacement_offset_;
                   fceptstart_count(sclass,tclass,diff) += cur_prob;
 
-                  if (inter_distort_count[curJ](sclass,tclass).size() == 0)
-                    inter_distort_count[curJ](sclass,tclass).resize(curJ,curJ,0.0);
-                  
-                  inter_distort_count[curJ](sclass,tclass)(first_j,prev_center) += cur_prob;
+		  if (inter_distort_count[curJ](sclass,tclass).size() == 0)
+		    sparse_inter_distort_count(sclass,tclass)[DistortCount(curJ,first_j,prev_center)] += cur_prob;
+		  else
+		    inter_distort_count[curJ](sclass,tclass)(first_j,prev_center) += cur_prob;
                 }
                 else if (use_sentence_start_prob_) {
                   fsentence_start_count[first_j] += cur_prob;
@@ -3836,7 +4029,6 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
                   nAlignedWords++;
 
                   int diff = cur_j - prev_j;
-                  diff += displacement_offset_;
                   fwithincept_count(tclass,diff) += cur_prob;
                   intra_distort_count[curJ](tclass,cur_j,prev_j) += cur_prob;
 
@@ -3922,10 +4114,10 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
                   diff += displacement_offset_;
                   fceptstart_count(sclass,tclass,diff) += cur_prob;
 
-                  if (inter_distort_count[curJ](sclass,tclass).size() == 0)
-                    inter_distort_count[curJ](sclass,tclass).resize(curJ,curJ,0.0);
-
-                  inter_distort_count[curJ](sclass,tclass)(first_j,prev_center) += cur_prob;
+		  if (inter_distort_count[curJ](sclass,tclass).size() == 0)
+		    sparse_inter_distort_count(sclass,tclass)[DistortCount(curJ,first_j,prev_center)] += cur_prob;
+		  else
+		    inter_distort_count[curJ](sclass,tclass)(first_j,prev_center) += cur_prob;
                 }
                 else if (use_sentence_start_prob_) {
                   fsentence_start_count[first_j] += cur_prob;
@@ -3941,7 +4133,6 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
                   nAlignedWords++;
 
                   int diff = cur_j - prev_j;
-                  diff += displacement_offset_;
                   fwithincept_count(tclass,diff) += cur_prob;
                   intra_distort_count[curJ](tclass,cur_j,prev_j) += cur_prob;
 
@@ -3974,10 +4165,11 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
           }
         }
       }
-      
+
       tCountCollectEnd = std::clock();
       countcollecttime += diff_seconds(tCountCollectEnd,tCountCollectStart);
-    }
+
+    } //loop over sentences finished
 
     /***** update probability models from counts *******/
 
@@ -4065,6 +4257,8 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
     //update fertility probabilities
     for (uint i=1; i < nTargetWords; i++) {
 
+      //std::cerr << "i: " << i << std::endl;
+
       const double sum = ffert_count[i].sum();
 
       if (sum > 1e-305) {
@@ -4088,56 +4282,65 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
 
     //update distortion probabilities
 
+    //std::cerr << "A" << std::endl;
+
+
     //a) cept-start
     for (uint x=0; x < cept_start_prob_.xDim(); x++) {
       std::cerr << "calling inter-m-step(" << x << ",*)" << std::endl;
-
+      
       for (uint y=0; y < cept_start_prob_.yDim(); y++) {
 
-        if (iter == 1) {
-          double sum = 0.0;
-          for (uint d=0; d < cept_start_prob_.zDim(); d++) 
-            sum += fceptstart_count(x,y,d);
+	double sum = 0.0;
+	for (uint d=0; d < cept_start_prob_.zDim(); d++) 
+	  sum += fceptstart_count(x,y,d);
+	
+	if (sum > 1e-305) {
+	  IBM4CeptStartModel hyp_cept_start_prob = cept_start_prob_;
 	  
-          if (sum > 1e-305) {
-            const double inv_sum = 1.0 / sum;
-            for (uint d=0; d < cept_start_prob_.zDim(); d++) 
-              cept_start_prob_(x,y,d) = inv_sum * fceptstart_count(x,y,d);
-          }
-          else {
-            std::cerr << "WARNING: did not update cept start model because sum was " << sum << std::endl;
-          }
-        }
-
-        inter_distortion_m_step(inter_distort_count,x,y);
+	  const double inv_sum = 1.0 / sum;
+	  for (uint d=0; d < cept_start_prob_.zDim(); d++) 
+	    hyp_cept_start_prob(x,y,d) = inv_sum * fceptstart_count(x,y,d);
+	  
+	  double cur_energy = inter_distortion_m_step_energy(inter_distort_count,sparse_inter_distort_count(x,y),
+							     cept_start_prob_,x,y);
+	  double hyp_energy = inter_distortion_m_step_energy(inter_distort_count,sparse_inter_distort_count(x,y),
+							     hyp_cept_start_prob,x,y);
+	  
+	  if (hyp_energy < cur_energy)
+	    cept_start_prob_ = hyp_cept_start_prob;
+	}
+	
+	inter_distortion_m_step(inter_distort_count,sparse_inter_distort_count(x,y),x,y);
       }
-    }
 
-    par2nonpar_inter_distortion();
+      par2nonpar_inter_distortion();
+    }
 
     //b) within-cept
     for (uint x=0; x < within_cept_prob_.xDim(); x++) {
       
-      if (iter == 1) {
-        double sum = 0.0;
-        for (uint d=0; d < within_cept_prob_.yDim(); d++)
-          sum += fwithincept_count(x,d);
+      IBM4WithinCeptModel hyp_withincept_prob = within_cept_prob_;
+      double sum = 0.0;
+      for (uint d=0; d < within_cept_prob_.yDim(); d++)
+	sum += fwithincept_count(x,d);
+      
+      if (sum > 1e-305) {
+            
+	const double inv_sum = 1.0 / sum;
+	for (uint d=0; d < within_cept_prob_.yDim(); d++)
+	  hyp_withincept_prob(x,d) = inv_sum * fwithincept_count(x,d);
 	
-        if (sum > 1e-305) {
-	  
-          const double inv_sum = 1.0 / sum;
-          for (uint d=0; d < within_cept_prob_.yDim(); d++)
-            within_cept_prob_(x,d) = inv_sum * fwithincept_count(x,d);
-        }
-        else {
-          std::cerr << "WARNING: did not update within cept model because sum was " << sum << std::endl;
-        }
+	double cur_energy = intra_distortion_m_step_energy(intra_distort_count,within_cept_prob_,x);
+	double hyp_energy = intra_distortion_m_step_energy(intra_distort_count,hyp_withincept_prob,x);
+	
+	if (hyp_energy < cur_energy)
+	  within_cept_prob_ = hyp_withincept_prob; 
       }
-
+        
       std::cerr << "intra-m-step(" << x << ")" << std::endl;
       intra_distortion_m_step(intra_distort_count,x);      
     }
-
     par2nonpar_intra_distortion();
 
     //c) sentence start prob
@@ -4200,7 +4403,7 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
   double max_perplexity = 0.0;
 
   IBM4CeptStartModel fceptstart_count(cept_start_prob_.xDim(),cept_start_prob_.yDim(),2*maxJ_-1,MAKENAME(fceptstart_count));
-  IBM4WithinCeptModel fwithincept_count(within_cept_prob_.xDim(),2*maxJ_-1,MAKENAME(fwithincept_count));
+  IBM4WithinCeptModel fwithincept_count(within_cept_prob_.xDim(),within_cept_prob_.yDim(),MAKENAME(fwithincept_count));
   Math1D::NamedVector<double> fsentence_start_count(maxJ_,MAKENAME(fsentence_start_count));
 
   Storage1D<Storage2D<Math2D::Matrix<double> > > inter_distort_count(maxJ_+1);
@@ -4258,13 +4461,15 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 
     for (uint J=1; J <= maxJ_; J++) {
       if (inter_distort_count[J].size() > 0) {
-        for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
-          for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
+        for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
+          for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
             inter_distort_count[J](x,y).set_constant(0.0);
       }
       intra_distort_count[J].set_constant(0.0);
       sentence_start_count[J].set_constant(0.0);
     }
+
+    Storage2D<std::map<DistortCount,double> > sparse_inter_distort_count(nSourceClasses_,nTargetClasses_);
 
     max_perplexity = 0.0;
 
@@ -4289,11 +4494,15 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
       Math2D::NamedMatrix<long double> swap_move_prob(curJ,curJ,MAKENAME(swap_move_prob));
       Math2D::NamedMatrix<long double> expansion_move_prob(curJ,curI+1,MAKENAME(expansion_move_prob));
 
+      //std::clock_t tHillclimbStart, tHillclimbEnd;
+      //tHillclimbStart = std::clock();
+
+
       long double best_prob = 0.0;
 
       if (ibm3 != 0 && iter == 1) {
 	best_prob = ibm3->update_alignment_by_hillclimbing(cur_source,cur_target,cur_lookup,sum_iter,fertility,
-						     expansion_move_prob,swap_move_prob,best_known_alignment_[s]);	
+							   expansion_move_prob,swap_move_prob,best_known_alignment_[s]);	
 
 	//DEBUG
 	long double align_prob = alignment_prob(s,best_known_alignment_[s]);
@@ -4327,6 +4536,7 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
       }
       //END_DEBUG
 
+      //tHillclimbEnd = std::clock();
 
       /**** update empty word counts *****/
 
@@ -4435,10 +4645,10 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 
             fceptstart_count(sclass,tclass,diff) += 1.0;
 
-            if (inter_distort_count[curJ](sclass,tclass).size() == 0)
-              inter_distort_count[curJ](sclass,tclass).resize(curJ,curJ,0.0);
-
-            inter_distort_count[curJ](sclass,tclass)(first_aligned_source_word[i],cept_center[cur_prev_cept]) += 1.0;
+	    if (inter_distort_count[curJ](sclass,tclass).size() == 0)
+	      sparse_inter_distort_count(sclass,tclass)[DistortCount(curJ,first_aligned_source_word[i],cept_center[cur_prev_cept])] += 1.0;
+	    else
+	      inter_distort_count[curJ](sclass,tclass)(first_aligned_source_word[i],cept_center[cur_prev_cept]) += 1.0;
           }
           else if (use_sentence_start_prob_) {
             fsentence_start_count[first_aligned_source_word[i]] += 1.0;
@@ -4453,7 +4663,6 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 
             const int cur_j = *ait;
             int diff = cur_j - prev_aligned_j;
-            diff += displacement_offset_;
             fwithincept_count(tclass,diff) += 1.0;
             intra_distort_count[curJ](tclass,cur_j,prev_aligned_j) += 1.0;
 
@@ -4461,7 +4670,7 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
           }
         }
       }
-    }
+    } // loop over sentences finished
 
     /***** update probability models from counts *******/
 
@@ -4548,22 +4757,27 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
     for (uint x=0; x < cept_start_prob_.xDim(); x++) {
       for (uint y=0; y < cept_start_prob_.yDim(); y++) {
 
-        if (iter == 1) {
-          double sum = 0.0;
+        double sum = 0.0;
+        for (uint d=0; d < cept_start_prob_.zDim(); d++) 
+          sum += fceptstart_count(x,y,d);
+          
+        if (sum > 1e-305) {
+          IBM4CeptStartModel hyp_cept_start_prob = cept_start_prob_;
+          
+          const double inv_sum = 1.0 / sum;
           for (uint d=0; d < cept_start_prob_.zDim(); d++) 
-            sum += fceptstart_count(x,y,d);
-	  
-          if (sum > 1e-305) {
-            const double inv_sum = 1.0 / sum;
-            for (uint d=0; d < cept_start_prob_.zDim(); d++) 
-              cept_start_prob_(x,y,d) = inv_sum * fceptstart_count(x,y,d);
-          }
-          else {
-            std::cerr << "WARNING: did not update cept start model because sum was " << sum << std::endl;
-          }
+            hyp_cept_start_prob(x,y,d) = inv_sum * fceptstart_count(x,y,d);
+          
+          double cur_energy = inter_distortion_m_step_energy(inter_distort_count,sparse_inter_distort_count(x,y),
+                                                             cept_start_prob_,x,y);
+          double hyp_energy = inter_distortion_m_step_energy(inter_distort_count,sparse_inter_distort_count(x,y),
+                                                             hyp_cept_start_prob,x,y);
+
+          if (hyp_energy < cur_energy)
+            cept_start_prob_ = hyp_cept_start_prob;
         }
 
-        inter_distortion_m_step(inter_distort_count,x,y);  
+        inter_distortion_m_step(inter_distort_count,sparse_inter_distort_count(x,y),x,y);  
       }
     }
 
@@ -4607,6 +4821,7 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
     }
 
     //DEBUG
+#ifndef NDEBUG
     for (size_t s=0; s < source_sentence_.size(); s++) {
       
       long double align_prob = alignment_prob(s,best_known_alignment_[s]);
@@ -4620,6 +4835,7 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 	exit(1);
       }
     }
+#endif
     //END_DEBUG
 
     max_perplexity /= source_sentence_.size();
@@ -4652,13 +4868,11 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 
       double cur_distort_prob = distortion_prob(cur_source,cur_target,best_known_alignment_[s]);
 
-      //Math1D::NamedVector<std::set<int> > hyp_aligned_source_words(curI+1,MAKENAME(hyp_aligned_source_words));
-      NamedStorage1D<std::vector<ushort> > hyp_aligned_source_words(curI+1,MAKENAME(hyp_aligned_source_words));
+      NamedStorage1D<std::vector<AlignBaseType> > hyp_aligned_source_words(curI+1,MAKENAME(hyp_aligned_source_words));
 
       for (uint j=0; j < curJ; j++) {
 
       	uint aj = best_known_alignment_[s][j];
-      	//hyp_aligned_source_words[aj].insert(j);
       	hyp_aligned_source_words[aj].push_back(j);
       }
 
@@ -4796,7 +5010,7 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 		change += l0_fertpen_;
 	      change += -(c2+1) * std::log(c2+1);
 	    }
-	    
+	  
 	    /***** distortion ****/
 	    change -= - std::log(cur_distort_prob);
 
@@ -4804,7 +5018,7 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 	    change += - std::log(hyp_distort_prob);
 	    
 	    if (change < -0.01) {
-	      
+
 	      best_known_alignment_[s][j] = i;
 
 	      nSwitches++;
@@ -4835,7 +5049,7 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 	      fertility[cur_aj]--;
 	      fertility[i]++;
 	      
-	      cur_distort_prob = hyp_distort_prob; //distortion_prob(cur_source,cur_target,best_known_alignment_[s]);
+	      cur_distort_prob = hyp_distort_prob; 
 	    }
 	    else {
 
@@ -4848,7 +5062,7 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 	}	
 
       }
-    }
+    } //loop over sentences finished
     std::cerr << nSwitches << " changes in ICM stage" << std::endl;
 
     //update dictionary
