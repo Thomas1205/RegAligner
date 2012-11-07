@@ -48,7 +48,10 @@ double ibm1_perplexity( const Storage1D<Storage1D<uint> >& source,
                         const Storage1D< Storage1D<uint> >& target,
                         const SingleWordDictionary& dict) {
 
+  //std::cerr << "calculating IBM-1 perplexity" << std::endl;
+
   double sum = 0.0;
+
 
   const size_t nSentences = target.size();
   assert(slookup.size() == nSentences);
@@ -65,7 +68,7 @@ double ibm1_perplexity( const Storage1D<Storage1D<uint> >& source,
     const uint nCurTargetWords = cur_target.size();
 
     sum += nCurSourceWords*std::log(nCurTargetWords);
-
+    
     for (uint j=0; j < nCurSourceWords; j++) {
 
       double cur_sum = dict[0][cur_source[j]-1]; // handles empty word
@@ -187,7 +190,7 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count,
     projection_on_simplex_with_slack(new_dict.direct_access(), new_slack_entry, new_dict.size());
 
     
-    double hyp_energy = 1e300; 
+    double hyp_energy = 1e300; //dict_m_step_energy(fdict_count,prior_weight,new_dict);
     
     double lambda  = 1.0;
     double best_lambda = lambda;
@@ -208,6 +211,7 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count,
       }
       
       double new_energy = single_dict_m_step_energy(fdict_count,prior_weight,hyp_dict,smoothed_l0,l0_beta);
+      //std::cerr << "lambda = " << lambda << ", hyp_energy = " << new_energy << std::endl;
 
       if (new_energy < hyp_energy) {
         hyp_energy = new_energy;
@@ -292,14 +296,13 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
   //prepare dictionary
   for (uint i=0; i < options.nTargetWords_; i++) {
     
-    const uint size = cooc[i].size();
+    const uint size = (i == 0) ? options.nSourceWords_-1 : cooc[i].size();
     if (size == 0) {
       std::cerr << "WARNING: dict-size for t-word " << i << " is zero" << std::endl;
     }
 
     dict[i].resize_dirty(size);
     dict[i].set_constant(1.0 / ((double) size));
-    //dict[i].set_constant(0.0);
   }
   dict[0].set_constant(1.0 / dict[0].size());
 
@@ -331,7 +334,7 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
   //fractional counts used for EM-iterations
   NamedStorage1D<Math1D::Vector<double> > fcount(options.nTargetWords_,MAKENAME(fcount));
   for (uint i=0; i < options.nTargetWords_; i++) {
-    fcount[i].resize(cooc[i].size());
+    fcount[i].resize(dict[i].size());
   }
 
   for (uint iter = 1; iter <= nIter; iter++) {
@@ -502,7 +505,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
   //prepare dictionary
   for (uint i=0; i < options.nTargetWords_; i++) {
     
-    const uint size = cooc[i].size();
+    const uint size = (i == 0) ? options.nSourceWords_-1 : cooc[i].size();
     dict[i].resize_dirty(size);
     dict[i].set_constant(1.0 / ((double) size));
   }
@@ -548,7 +551,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
   
   for (uint i=0; i < options.nTargetWords_; i++) {
     
-    const uint size = cooc[i].size();
+    const uint size = dict[i].size();
     new_dict[i].resize_dirty(size);
     hyp_dict[i].resize_dirty(size);
   }
@@ -565,18 +568,20 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
 
   double best_lower_bound = -1e300;
 
+  SingleWordDictionary dict_grad(options.nTargetWords_,MAKENAME(dict_grad));
+  for (uint i=0; i < options.nTargetWords_; i++) {
+      
+    const uint size = dict[i].size();
+    dict_grad[i].resize_dirty(size);
+  }
+
   for (uint iter = 1; iter <= nIter; iter++) {
     
     std::cerr << "starting IBM-1 gradient descent iteration #" << iter << std::endl;
     
     /***** calcuate gradients ****/
     
-    SingleWordDictionary dict_grad(options.nTargetWords_,MAKENAME(dict_grad));
-    
     for (uint i=0; i < options.nTargetWords_; i++) {
-      
-      const uint size = cooc[i].size();
-      dict_grad[i].resize_dirty(size);
       dict_grad[i].set_constant(0.0);
     }
     
@@ -608,7 +613,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
 
     for (uint i=0; i < options.nTargetWords_; i++) {
 	
-      const uint size = cooc[i].size();
+      const uint size = dict[i].size();
       
       for (uint k=0; k < size; k++) {
         if (smoothed_l0)
@@ -720,6 +725,8 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
       nSuccessiveReductions = 0;
     }
 
+    //     std::cerr << "alpha: " << alpha << std::endl;
+
     for (uint i=0; i < options.nTargetWords_; i++) {
 
       double inv_lambda = 1.0 - best_lambda;
@@ -737,6 +744,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
     assert(fabs(check_energy - hyp_energy) < 0.0025);
 
     energy = hyp_energy;
+
 
     if (options.print_energy_)
       std::cerr << "energy: " << energy << std::endl;
@@ -780,6 +788,8 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
 
   } //end for (iter)
 
+  //std::cerr << "slack sum: " << slack_vector.sum() << std::endl;
+
 }
 
 void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source, 
@@ -801,7 +811,7 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
   dict.resize(options.nTargetWords_);
   for (uint i=0; i < options.nTargetWords_; i++) {
     
-    const uint size = cooc[i].size();
+    const uint size = (i == 0) ? options.nSourceWords_-1 : cooc[i].size();
     dict[i].resize_dirty(size);
     dict[i].set_constant(1.0 / ((double) size));
   }
@@ -837,7 +847,7 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
   NamedStorage1D<Math1D::Vector<uint> > dcount(options.nTargetWords_,MAKENAME(dcount));
 
   for (uint i=0; i < options.nTargetWords_; i++) {
-    dcount[i].resize(cooc[i].size());
+    dcount[i].resize(dict[i].size());
     dcount[i].set_constant(0);
   }
 
@@ -891,7 +901,7 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
           for (uint i=0; i < nCurTargetWords; i++) {
 
             double hyp = -std::log(dict[cur_target[i]][cur_lookup(j,i)]);
-
+	    
             if (hyp < min) {
               min = hyp;
               arg_min = i+1;
@@ -943,7 +953,6 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
     }
 
     sum += energy_offset;
-
 
     /*** ICM phase ***/
 
@@ -1098,8 +1107,6 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
       }
     }
     
-    //std::cerr << "number of total alignments: " << sum_sum << std::endl;
-    //std::cerr.precision(10);
 
     energy /= nSentences;
     for (uint i=0; i < dcount.size(); i++)
@@ -1151,4 +1158,6 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
     }
   }
 }
+
+
 

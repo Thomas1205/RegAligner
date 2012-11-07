@@ -273,8 +273,10 @@ int main(int argc, char** argv) {
   if (app.is_set("-prior-dict"))
     read_prior_dict(app.getParam("-prior-dict"), known_pairs, app.is_set("-invert-biling-data"));
   
-  for (uint i=0; i < nTargetWords; i++)
-    prior_weight[i].resize(wcooc[i].size(),0.0);
+  for (uint i=0; i < nTargetWords; i++) {
+    uint size = (i == 0) ? nSourceWords-1 : wcooc[i].size();
+    prior_weight[i].resize(size,0.0);
+  }
   
   if (known_pairs.size() > 0) {
     
@@ -331,6 +333,7 @@ int main(int argc, char** argv) {
           distribution_weight[i] = 0.0;
         else {
           nSparse++;
+          //std::cerr << "sparse word: " << distribution_weight[i] << std::endl;
           distribution_weight[i] = (cutoff+1) - distribution_weight[i];
         }
       }
@@ -498,7 +501,7 @@ int main(int argc, char** argv) {
   IBM4Trainer ibm4_trainer(source_sentence, slookup, target_sentence, 
                            sure_ref_alignments, possible_ref_alignments,
                            dict, wcooc, nSourceWords, nTargetWords, prior_weight, 
-                           source_class, target_class, !app.is_set("-org-empty-word"), true, true,
+                           source_class, target_class, !app.is_set("-org-empty-word"), true, true, 
                            ibm4_cept_mode, em_l0, l0_beta, l0_fertpen);
 
   ibm4_trainer.set_fertility_limit(fert_limit);
@@ -563,7 +566,11 @@ int main(int argc, char** argv) {
 
   if (dev_present) {
     
+    //HmmAlignProbType dev_align_mode = hmm_align_mode;
+
     uint train_zero_offset = maxI - 1;
+    
+    //std::cerr << "AA" << std::endl;
     
     //handle case where init and/or distance parameters were not estimated above for <emph>train</emph>
     if (hmm_init_mode == HmmInitNonpar || hmm_init_params.sum() < 1e-5) {
@@ -583,6 +590,8 @@ int main(int argc, char** argv) {
       assert(sum > 0.0);
       hmm_init_params *= 1.0 / sum;
     }
+    
+    //std::cerr << "BB" << std::endl;
 
     if (hmm_align_mode == HmmAlignProbNonpar || hmm_dist_params.sum() < 1e-5) {
 
@@ -609,12 +618,16 @@ int main(int argc, char** argv) {
       source_fert[1] = 0.98;
     }
 
+    //std::cerr << "CC" << std::endl;
+
     for (uint i=0; i < std::min<uint>(max_devI,hmm_init_params.size()); i++) {
       dev_hmm_init_params[i] = hmm_init_params[i];	
       
       dev_hmm_dist_params[dev_zero_offset - i] = hmm_dist_params[train_zero_offset - i];
       dev_hmm_dist_params[dev_zero_offset + i] = hmm_dist_params[train_zero_offset + i];
     }
+    
+    //std::cerr << "DD" << std::endl;
 
     dev_hmmalign_model.resize(max_devI+1);
     dev_initial_prob.resize(max_devI+1);
@@ -626,6 +639,8 @@ int main(int argc, char** argv) {
       dev_hmmalign_model[I-1].resize(I+1,I,0.0); //because of empty words
       dev_initial_prob[I-1].resize(2*I,0.0);
     }
+    
+    //std::cerr << "EE" << std::endl;
 
     if (hmm_init_mode != HmmInitFix) {
       par2nonpar_hmm_init_model(dev_hmm_init_params, source_fert, HmmInitPar, dev_initial_prob);
@@ -642,6 +657,8 @@ int main(int argc, char** argv) {
           dev_initial_prob[I].set_constant(1.0 / dev_initial_prob[I].size());
       }
     }
+      
+    //std::cerr << "FF" << std::endl;
 
     HmmAlignProbType mode = hmm_align_mode;
     if (mode == HmmAlignProbNonpar)
@@ -692,6 +709,8 @@ int main(int argc, char** argv) {
 
       for (size_t s = 0; s < dev_source_sentence.size(); s++) {
 	
+	//std::cerr << "s: " << s << std::endl;
+	
 	const uint curI = dev_target_sentence[s].size();
 	
 	//initialize by HMM
@@ -700,6 +719,8 @@ int main(int argc, char** argv) {
 				       viterbi_alignment, false);
 		
 	if (postdec_thresh <= 0.0) {
+	  
+	  //std::cerr << "standard alignment computation" << std::endl;
 	  
 	  ibm4_trainer.compute_external_alignment(dev_source_sentence[s],dev_target_sentence[s],dev_slookup[s],
 						  viterbi_alignment);
@@ -942,8 +963,9 @@ int main(int argc, char** argv) {
     std::ofstream out(app.getParam("-o").c_str());
     for (uint j=0; j < nTargetWords; j++) {
       for (uint k=0; k < dict[j].size(); k++) {
+        uint word = (j > 0) ? wcooc[j][k] : k+1;
         if (dict[j][k] > 1e-7)
-          out << j << " " << wcooc[j][k] << " " << dict[j][k] << std::endl;
+          out << j << " " << word << " " << dict[j][k] << std::endl;
       }
     }
     out.close();

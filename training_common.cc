@@ -7,6 +7,10 @@
 #include <map>
 #include <algorithm>
 
+#ifdef HAS_GZSTREAM
+#include "gzstream.h"
+#endif
+
 void find_cooccuring_words(const Storage1D<Storage1D<uint> >& source, 
                            const Storage1D<Storage1D<uint> >& target,
                            uint nSourceWords, uint nTargetWords,
@@ -27,8 +31,6 @@ void find_cooccuring_words(const Storage1D<Storage1D<uint> >& source,
                            CooccuringWordsType& cooc) {
 
   NamedStorage1D<std::set<uint> > coocset(nTargetWords,MAKENAME(coocset));
-  for (uint j=0; j < nSourceWords-1; j++)
-    coocset[0].insert(j);
 
   const uint nSentences = source.size();
   assert(nSentences == target.size());
@@ -107,6 +109,77 @@ void find_cooccuring_words(const Storage1D<Storage1D<uint> >& source,
   }
   
   std::cerr << "average number of cooccuring words: " << (sum_cooc / nTargetWords) << std::endl;
+}
+
+bool read_cooccuring_words_structure(std::string filename, uint nSourceWords, uint nTargetWords,
+                                     CooccuringWordsType& cooc) {
+
+  std::istream* in;
+#ifdef HAS_GZSTREAM
+  if (is_gzip_file(filename))
+    in = new igzstream(filename.c_str());
+  else
+    in = new std::ifstream(filename.c_str());
+#else
+  in = new std::ifstream(filename.c_str());
+#endif
+
+  uint size = nSourceWords * 10;
+  char* cline = new char[size];
+
+  std::vector<std::vector<uint> > temp_cooc;
+  temp_cooc.push_back(std::vector<uint>());
+
+  while (in->getline(cline,size)) {
+
+    std::vector<std::string> tokens;
+
+    temp_cooc.push_back(std::vector<uint>());
+
+    std::string line = cline;
+    tokenize(line,tokens,' ');
+
+    for (uint k=0; k < tokens.size(); k++) {
+      uint idx = convert<uint>(tokens[k]);
+      if (idx >= nSourceWords) {
+        std::cerr << "ERROR: index exceeds number of source words" << std::endl;
+        delete in;
+        return false;
+      }
+      temp_cooc.back().push_back(idx);
+    }
+  }
+
+  delete[] cline;
+  delete in;
+  
+  if (temp_cooc.size() != nTargetWords) {
+    std::cerr << "ERROR: dict structure has wrong number of lines: " << temp_cooc.size() << " instead of " << nTargetWords << std::endl;
+    return false;
+  }
+
+  cooc.resize(nTargetWords);
+
+  //now copy temp_cooc -> vector        
+  for (uint i=0; i < nTargetWords; i++) {
+    
+    const uint size = temp_cooc[i].size();
+    cooc[i].resize_dirty(size);
+    uint j=0;
+    for (std::vector<uint>::iterator it = temp_cooc[i].begin(); it != temp_cooc[i].end(); it++, j++)
+      cooc[i][j] = *it;
+    
+    temp_cooc[i].clear();
+  }
+
+  double sum_cooc = 0.0;
+  for (uint i=0; i < nTargetWords; i++) {
+    sum_cooc += cooc[i].size();
+  }
+  
+  std::cerr << "average number of cooccuring words: " << (sum_cooc / nTargetWords) << std::endl;
+
+  return true;
 }
 
 
@@ -409,9 +482,6 @@ void count_cooc_target_pairs_and_source_words(const Storage1D<Storage1D<uint> >&
 bool operator<(const std::pair<uint,Storage1D<std::pair<uint,uint> > >& x1, 
                const std::pair<uint,Storage1D<std::pair<uint,uint> > >& x2) {
 
-  //   if (x1.first == x2.first)
-  //     std::cerr << "identical: " << x1.first << std::endl;
-
   assert(x1.first != x2.first);
 
   return (x1.first < x2.first);
@@ -529,8 +599,6 @@ void count_cooc_target_pairs_and_source_words(const Storage1D<Storage1D<uint> >&
           cur_cooc[t2_cooc_idx].first = t2;
         }
 
-        //std::pair<uint,Storage1D<std::pair<uint,uint> > >& cur_pair = cur_cooc[t2_cooc_idx];
-
         Storage1D<std::pair<uint,uint> >& cur_vec = cur_cooc[t2_cooc_idx].second;
 
         for (uint j=0; j < curJ; j++) {
@@ -618,7 +686,11 @@ void generate_wordlookup(const Storage1D<Storage1D<uint> >& source,
 	
         uint sidx = cur_source[j];
         uint* ptr = std::lower_bound(cooc[tidx].direct_access(), cooc[tidx].direct_access()+cooc[tidx].size(),sidx);
-        assert((*ptr) == sidx);
+
+        if (ptr == cooc[tidx].direct_access()+cooc[tidx].size() || (*ptr) != sidx) {
+          INTERNAL_ERROR << " word not found. Exiting." << std::endl;
+          exit(1);
+        }
 	
         uint idx = ptr - cooc[tidx].direct_access();
         assert(idx < cooc[tidx].size());

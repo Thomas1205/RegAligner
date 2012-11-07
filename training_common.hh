@@ -21,6 +21,9 @@ void find_cooccuring_words(const Storage1D<Storage1D<uint> >& source,
                            uint nSourceWords, uint nTargetWords,
                            CooccuringWordsType& cooc);
 
+bool read_cooccuring_words_structure(std::string filename, uint nSourceWords, uint nTargetWords,
+                                     CooccuringWordsType& cooc);
+
 
 void find_cooc_monolingual_pairs(const Storage1D<Storage1D<uint> >& sentence,
                                  uint voc_size, Storage1D<Storage1D<uint> >& cooc);
