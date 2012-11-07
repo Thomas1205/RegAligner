@@ -577,12 +577,12 @@ int main(int argc, char** argv) {
 
       hmm_init_params.resize(maxI);
       hmm_init_params.set_constant(0.0);
-      
-      for (uint k=0; k < initial_prob.size(); k++) {
+
+      for (uint I=1; I <= maxI; I++) {
         
-        for (uint l=0; l < initial_prob[k].size(); l++) {
+        for (uint l=0; l < std::min<uint>(I,initial_prob[I-1].size()); l++) {
           if (l < hmm_init_params.size()) 
-            hmm_init_params[l] += initial_prob[k][l];
+            hmm_init_params[l] += initial_prob[I-1][l];
         }
       }
       
@@ -603,7 +603,7 @@ int main(int argc, char** argv) {
       for (uint I=1; I <= maxI; I++) {
         
         for (uint i1 = 0; i1 < hmmalign_model[I-1].yDim(); i1++) 
-          for (uint i2 = 0; i2 < hmmalign_model[I-1].xDim(); i2++) 
+          for (uint i2 = 0; i2 < I; i2++) 
             hmm_dist_params[train_zero_offset + i2 - i1] += hmmalign_model[I-1](i1,i2);
       }
       
