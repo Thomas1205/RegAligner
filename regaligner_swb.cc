@@ -18,6 +18,7 @@
 #include "training_common.hh"
 #include "alignment_computation.hh"
 #include "alignment_error_rate.hh"
+#include "stringprocessing.hh"
 
 #include <fstream>
 
@@ -53,8 +54,9 @@ int main(int argc, char** argv) {
               << " [-constraint-mode (unconstrained | itg | ibm) " << std::endl
 	      << " [-postdec-thresh <double>]" << std::endl
 	      << " [-fert-limit <uint>]: fertility limit for IBM-3/4, default: 10000" << std::endl
-	      << " [-hmm-type (auto | fullpar | redpar | nonpar)]: default auto" << std::endl
+	      << " [-hmm-type (auto | fullpar | redpar | nonpar | nonpar2)]: default auto" << std::endl
 	      << " [-hmm-init-type (auto | par | nonpar | fix | fix2)]: default auto" << std::endl
+              << " [-ibm1-transfer-mode (no | viterbi | posterior) ] : how to init HMM from IBM1, default: no" << std::endl
 	      << " [-p0 <double>]: fix probability for empty alignments for IBM-3/4 " << std::endl
               << " [-org-empty-word] : for IBM 3/4 use empty word as originally published" << std::endl
               << " [-nonpar-distortion] : use extended set of distortion parameters for IBM-3" << std::endl
@@ -68,7 +70,7 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  const int nParams = 29;
+  const int nParams = 30;
   ParamDescr  params[nParams] = {{"-s",mandInFilename,0,""},{"-t",mandInFilename,0,""},
                                  {"-ds",optInFilename,0,""},{"-dt",optInFilename,0,""},
                                  {"-o",optOutFilename,0,""},{"-oa",mandOutFilename,0,""},
@@ -83,7 +85,8 @@ int main(int argc, char** argv) {
 				 {"-fert-limit",optWithValue,1,"10000"},{"-postdec-thresh",optWithValue,1,"-1.0"},
                                  {"-hmm-type",optWithValue,1,"auto"},{"-p0",optWithValue,1,"-1.0"},
                                  {"-org-empty-word",flag,0,""},{"-nonpar-distortion",flag,0,""},
-                                 {"-hmm-init-type",optWithValue,1,"auto"},{"-dont-print-energy",flag,0,""}};
+                                 {"-hmm-init-type",optWithValue,1,"auto"},{"-dont-print-energy",flag,0,""},
+                                 {"-ibm1-transfer-mode",optWithValue,0,"no"}};
 
   Application app(argc,argv,params,nParams);
 
@@ -113,7 +116,7 @@ int main(int argc, char** argv) {
   if (app.is_set("-ibm4-iter"))
     ibm4_iter = convert<uint>(app.getParam("-ibm4-iter"));
 
-  std::string method = app.getParam("-method");
+  std::string method = downcase(app.getParam("-method"));
 
   if (method != "em" && method != "gd" && method != "viterbi") {
     USER_ERROR << "unknown method \"" << method << "\"" << std::endl;
@@ -215,8 +218,9 @@ int main(int argc, char** argv) {
 
   double dict_regularity = convert<double>(app.getParam("-dict-regularity"));
 
-  std::string hmm_string = app.getParam("-hmm-type");
-  if (hmm_string != "redpar" && hmm_string != "fullpar" && hmm_string != "nonpar") {
+  std::string hmm_string = downcase(app.getParam("-hmm-type"));
+  if (hmm_string != "redpar" && hmm_string != "fullpar" 
+      && hmm_string != "nonpar" && hmm_string != "nonpar2") {
     std::cerr << "WARNING: \"" << hmm_string << "\" is not a valid hmm type. Selecting auto.";
     hmm_string = "auto";
   }
@@ -230,13 +234,14 @@ int main(int argc, char** argv) {
     hmm_align_mode = HmmAlignProbFullpar;
   else if (hmm_string == "nonpar") 
     hmm_align_mode = HmmAlignProbNonpar;
-
+  else if (hmm_string == "nonpar2") 
+    hmm_align_mode = HmmAlignProbNonpar2;
 
   HmmInitProbType hmm_init_mode = HmmInitPar;
   if (method == "viterbi")
     hmm_init_mode = HmmInitFix2;
       
-  std::string hmm_init_string = app.getParam("-hmm-init-type");
+  std::string hmm_init_string = downcase(app.getParam("-hmm-init-type"));
   if (hmm_init_string != "auto" && hmm_init_string != "par" && hmm_init_string != "nonpar" 
       && hmm_init_string != "fix" && hmm_init_string != "fix2") {
     std::cerr << "WARNING: \"" << hmm_init_string << "\" is not a valid hmm init type. Selecting auto.";
@@ -411,6 +416,18 @@ int main(int argc, char** argv) {
   hmm_options.smoothed_l0_ = em_l0;
   hmm_options.l0_beta_ = l0_beta;
 
+  std::string ibm1_transfer_mode = downcase(app.getParam("-ibm1-transfer-mode"));
+  if (ibm1_transfer_mode != "no" && ibm1_transfer_mode != "viterbi" && ibm1_transfer_mode != "posterior") {
+    std::cerr << "WARNING: unknown mode \"" << ibm1_transfer_mode << "\" for transfer from IBM-1 to HMM. Selecting \"no\"" << std::endl;
+    ibm1_transfer_mode = "no";
+  }
+  
+  hmm_options.transfer_mode_ = IBM1TransferNo;
+  if (ibm1_transfer_mode == "posterior")
+    hmm_options.transfer_mode_ = IBM1TransferPosterior;
+  else if (ibm1_transfer_mode == "viterbi")
+    hmm_options.transfer_mode_ = IBM1TransferViterbi;
+
   if (method == "em") {
 
     train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, 
@@ -452,7 +469,7 @@ int main(int argc, char** argv) {
 
     if (method == "em" || method == "gd") {
       
-      std::string constraint_mode = app.getParam("-constraint-mode");
+      std::string constraint_mode = downcase(app.getParam("-constraint-mode"));
 
       if (constraint_mode == "unconstrained") {
         ibm3_trainer.train_unconstrained(ibm3_iter);
@@ -593,7 +610,7 @@ int main(int argc, char** argv) {
     
     //std::cerr << "BB" << std::endl;
 
-    if (hmm_align_mode == HmmAlignProbNonpar || hmm_dist_params.sum() < 1e-5) {
+    if (hmm_align_mode == HmmAlignProbNonpar || hmm_align_mode == HmmAlignProbNonpar2 || hmm_dist_params.sum() < 1e-5) {
 
       hmm_dist_grouping_param = -1.0;
 
@@ -661,13 +678,13 @@ int main(int argc, char** argv) {
     //std::cerr << "FF" << std::endl;
 
     HmmAlignProbType mode = hmm_align_mode;
-    if (mode == HmmAlignProbNonpar)
+    if (mode == HmmAlignProbNonpar || hmm_align_mode == HmmAlignProbNonpar2)
       mode = HmmAlignProbFullpar;
     
     par2nonpar_hmm_alignment_model(dev_hmm_dist_params, dev_zero_offset, hmm_dist_grouping_param, source_fert,
                                    mode, dev_hmmalign_model);
     
-    if (hmm_align_mode == HmmAlignProbNonpar) {
+    if (hmm_align_mode == HmmAlignProbNonpar || hmm_align_mode == HmmAlignProbNonpar2) {
       
       for (uint I=0; I < std::min(dev_hmmalign_model.size(),hmmalign_model.size()); I++) {
         if (dev_hmmalign_model.size() > 0 && hmmalign_model.size() > 0)
@@ -840,8 +857,8 @@ int main(int argc, char** argv) {
 					 false );
 	else
 	  compute_ehmm_postdec_alignment(source_sentence[s],slookup[s], target_sentence[s], 
-					 dict, hmmalign_model[curI-1], initial_prob[curI-1], postdec_alignment,
-					 postdec_thresh);
+					 dict, hmmalign_model[curI-1], initial_prob[curI-1], hmm_align_mode,
+                                         postdec_alignment, postdec_thresh);
       }
       else if (ibm2_iter > 0) {
 	
@@ -913,7 +930,7 @@ int main(int argc, char** argv) {
 	  }
 	  else {
 	    compute_ehmm_postdec_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
-					   dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
+					   dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1], hmm_align_mode,
 					   postdec_alignment, postdec_thresh);
 	  }
 	}

@@ -12,6 +12,8 @@
 #include <map>
 #include <set>
 
+enum IBM1TransferMode {IBM1TransferNo, IBM1TransferViterbi, IBM1TransferPosterior, IBM1TransferInvalid};
+
 class HmmOptions {
 public:
 
@@ -35,6 +37,8 @@ public:
   uint init_m_step_iter_;
   uint align_m_step_iter_;
   uint dict_m_step_iter_;
+
+  IBM1TransferMode transfer_mode_;
 
   std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments_;
   std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments_;
@@ -87,7 +91,6 @@ void par2nonpar_hmm_init_model(const Math1D::Vector<double>& init_params, const 
 void par2nonpar_hmm_alignment_model(const Math1D::Vector<double>& dist_params, const uint zero_offset,
                                     const double dist_grouping_param, const Math1D::Vector<double>& source_fert,
                                     HmmAlignProbType align_type, FullHMMAlignmentModel& align_model);
-
 
 void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& dist_params, uint zero_offset,
                  uint nIter, double& grouping_param);

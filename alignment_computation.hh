@@ -90,6 +90,7 @@ void compute_ehmm_postdec_alignment(const Storage1D<uint>& source_sentence,
 				    const SingleWordDictionary& dict,
 				    const Math2D::Matrix<double>& align_prob,
 				    const Math1D::Vector<double>& initial_prob,
+                                    HmmAlignProbType align_type,
 				    std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
 				    double threshold = 0.25);
 

@@ -27,14 +27,14 @@ typedef NamedStorage1D<Math1D::Vector<double> > InitialAlignmentProbability;
 
 typedef NamedStorage1D<Math2D::Matrix<double> > ReducedIBM3DistortionModel;
 
-//indexed by (target word class idx, source word class idx, displacement)
+//indexed by (source word class idx, target word class idx, displacement)
 typedef Math3D::NamedTensor<double> IBM4CeptStartModel;
 //indexed by (source word class, displacement)
 typedef Math2D::NamedMatrix<double> IBM4WithinCeptModel;
 
 enum HmmInitProbType {HmmInitFix, HmmInitNonpar, HmmInitPar, HmmInitFix2, HmmInitInvalid};
 
-enum HmmAlignProbType {HmmAlignProbNonpar, HmmAlignProbFullpar, HmmAlignProbReducedpar, HmmAlignProbInvalid};
+enum HmmAlignProbType {HmmAlignProbNonpar, HmmAlignProbFullpar, HmmAlignProbReducedpar, HmmAlignProbNonpar2, HmmAlignProbInvalid};
 
 typedef ushort WordClassType; 
 

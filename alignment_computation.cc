@@ -226,12 +226,6 @@ long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentenc
         }
       }
 
-      //       if (arg_max == MAX_UINT) {
-      // 	std::cerr << "ERROR: j=" << j << ", J=" << J << ", I=" << I << std::endl;
-      //       }
-
-      //       assert(arg_max != MAX_UINT);
-
       double dict_entry = std::max(min_dict_entry,dict[target_sentence[i]][slookup(j,i)]);
 
       cur_score[i] = max_score * dict_entry;
@@ -248,14 +242,27 @@ long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentenc
         arg_max = i-I;
       }
 
-      //double dict_entry = std::max(min_dict_entry,dict[0][source_sentence[j]-1]);
-
       cur_score[i] = max_score * null_dict_entry * align_prob(I,i-I);
       traceback(i,j) = arg_max;
     }
 
+    // if (J == 25 && I == 15) 
     if (verbose)
       std::cerr << "j=" << j << ", cur_score: " << cur_score << std::endl;
+
+    //DEBUG
+    //     if (J == 27 && I == 36) {
+    //       std::cerr << "j= " << j << ", score: " << cur_score << std::endl;
+    //       std::cerr << "zero-dict-prob: " << dict[0][source_sentence[j]-1] << std::endl;
+    //     }
+
+    //     if (isnan(cur_score.max())) {
+    //       std::cerr << "j= " << j << ", nan occurs: " << cur_score << std::endl;
+    //     }
+    //     if (cur_score.max()<= 0.0) {
+    //       std::cerr << "j= " << j << ", all zero: " << cur_score << std::endl;
+    //     }
+    //END_DEBUG
 
     //to keep the numbers inside double precision    
     correction_factor *= cur_score.max();
@@ -265,6 +272,8 @@ long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentenc
   /*** now extract Viterbi alignment from the score and the traceback matrix ***/
   double max_score = 0.0;
   uint arg_max = MAX_UINT;
+
+  //std::cerr << "finding max" << std::endl;
 
   Math1D::Vector<double>& cur_score = score[cur_idx];
 
@@ -282,6 +291,7 @@ long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentenc
     std::cerr << "end-score: " << cur_score << std::endl;
     std::cerr << "align_model: " << align_prob << std::endl;
     std::cerr << "initial_prob: " << initial_prob << std::endl;
+
 
     exit(1);
   }
@@ -435,6 +445,8 @@ long double compute_sehmm_viterbi_alignment(const Storage1D<uint>& source_senten
   double max_score = 0.0;
   uint arg_max = MAX_UINT;
 
+  //std::cerr << "finding max" << std::endl;
+
   Math1D::Vector<double>& cur_score = score[cur_idx];
 
   for (uint i=0; i <= 2*I; i++) {
@@ -452,9 +464,6 @@ long double compute_sehmm_viterbi_alignment(const Storage1D<uint>& source_senten
     std::cerr << "align_model: " << align_prob << std::endl;
     std::cerr << "initial_prob: " << initial_prob << std::endl;
 
-    // for (uint i=0; i < I; i++) {
-    //   std::cerr << "dict for target word #" << i << dict[target_sentence[i]] << std::endl;
-    // }
     exit(1);
   }
 
@@ -621,8 +630,6 @@ long double compute_ehmm_viterbi_alignment_with_tricks(const Storage1D<uint>& so
         arg_max = i-I;
       }
 
-      //double dict_entry = std::max(min_dict_entry,dict[0][source_sentence[j]-1]);
-
       cur_score[i] = max_score * null_dict_entry * align_prob(I,i-I);
       traceback(i,j) = arg_max;
     }
@@ -635,8 +642,6 @@ long double compute_ehmm_viterbi_alignment_with_tricks(const Storage1D<uint>& so
   /*** now extract Viterbi alignment from the score and the traceback matrix ***/
   double max_score = 0.0;
   uint arg_max = MAX_UINT;
-
-  //std::cerr << "finding max" << std::endl;
 
   Math1D::Vector<double>& cur_score = score[cur_idx];
 
@@ -770,6 +775,7 @@ void compute_ehmm_postdec_alignment(const Storage1D<uint>& source_sentence,
 				    const SingleWordDictionary& dict,
 				    const Math2D::Matrix<double>& align_prob,
 				    const Math1D::Vector<double>& initial_prob,
+                                    HmmAlignProbType align_type,
 				    std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
 				    double threshold) {
 
@@ -782,11 +788,19 @@ void compute_ehmm_postdec_alignment(const Storage1D<uint>& source_sentence,
   Math2D::NamedMatrix<long double> forward(2*I,J,MAKENAME(forward));
   Math2D::NamedMatrix<long double> backward(2*I,J,MAKENAME(backward));
 
-  calculate_hmm_forward(source_sentence, target_sentence, slookup, dict, align_prob,
-                        initial_prob, forward);
+  if (align_type == HmmAlignProbReducedpar)
+    calculate_hmm_forward_with_tricks(source_sentence, target_sentence, slookup, dict, align_prob,
+                                      initial_prob, forward);
+  else
+    calculate_hmm_forward(source_sentence, target_sentence, slookup, dict, align_prob,
+                          initial_prob, forward);
 
-  calculate_hmm_backward(source_sentence, target_sentence, slookup, dict, align_prob,
-                         initial_prob, backward);
+  if (align_type == HmmAlignProbReducedpar)
+    calculate_hmm_backward_with_tricks(source_sentence, target_sentence, slookup, dict, align_prob,
+                                       initial_prob, backward);
+  else
+    calculate_hmm_backward(source_sentence, target_sentence, slookup, dict, align_prob,
+                           initial_prob, backward);
 
   long double sent_prob = 0.0;
   for (uint i=0; i < 2*I; i++)
