@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
                                  {"-hmm-type",optWithValue,1,"auto"},{"-p0",optWithValue,1,"-1.0"},
                                  {"-org-empty-word",flag,0,""},{"-nonpar-distortion",flag,0,""},
                                  {"-hmm-init-type",optWithValue,1,"auto"},{"-dont-print-energy",flag,0,""},
-                                 {"-ibm1-transfer-mode",optWithValue,0,"no"}};
+                                 {"-ibm1-transfer-mode",optWithValue,1,"no"}};
 
   Application app(argc,argv,params,nParams);
 
