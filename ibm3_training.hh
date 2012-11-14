@@ -28,7 +28,8 @@ public:
               bool smoothed_l0 = false, double l0_beta = 1.0);
   
   void init_from_hmm(const FullHMMAlignmentModel& align_model,
-                     const InitialAlignmentProbability& initial_prob, const HmmOptions& hmm_options);
+                     const InitialAlignmentProbability& initial_prob, const HmmOptions& hmm_options,
+                     bool viterbi = false);
 
   //training without constraints on maximal fertility or uncovered positions.
   //This is based on the EM-algorithm, where the E-step uses heuristics

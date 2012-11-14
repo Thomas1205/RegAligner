@@ -463,7 +463,7 @@ int main(int argc, char** argv) {
     ibm3_trainer.fix_p0(fert_p0);
 
   if (ibm3_iter+ibm4_iter > 0)
-    ibm3_trainer.init_from_hmm(hmmalign_model,initial_prob,hmm_options);
+    ibm3_trainer.init_from_hmm(hmmalign_model,initial_prob,hmm_options,method == "viterbi");
 
   if (ibm3_iter > 0) {
 

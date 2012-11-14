@@ -111,7 +111,7 @@ void IBM3Trainer::release_memory() {
 
 void IBM3Trainer::init_from_hmm(const FullHMMAlignmentModel& align_model,
                                 const InitialAlignmentProbability& initial_prob,
-                                const HmmOptions& hmm_options) {
+                                const HmmOptions& hmm_options, bool viterbi) {
 
   const HmmAlignProbType align_type = hmm_options.align_type_;
   const bool start_empty_word = hmm_options.start_empty_word_;
@@ -214,7 +214,9 @@ void IBM3Trainer::init_from_hmm(const FullHMMAlignmentModel& align_model,
       fertility_prob_[i].set_constant(1.0 / max_fert);
   }
 
-  std::cerr << "initializing distortion prob. by forward-backward HMM" << std::endl;
+
+  if (!viterbi)
+    std::cerr << "initializing distortion prob. by forward-backward HMM" << std::endl;
 
   ReducedIBM3DistortionModel fdcount(distortion_prob_.size(),MAKENAME(fdcount));
   for (uint J=0; J < distortion_prob_.size(); J++) {
@@ -241,85 +243,104 @@ void IBM3Trainer::init_from_hmm(const FullHMMAlignmentModel& align_model,
     Math2D::NamedMatrix<long double> forward(2*curI,curJ,MAKENAME(forward));
     Math2D::NamedMatrix<long double> backward(2*curI,curJ,MAKENAME(backward));
 
+    if (!viterbi) {
     
-    const Math1D::Vector<double> init_prob = (initial_prob.size() > 0) ? initial_prob[curI-1] : empty_vec;
-
-    if (start_empty_word) {
-
-      calculate_sehmm_forward(cur_source, cur_target, cur_lookup, dict_,
-                              align_model[curI-1], init_prob, forward);
-
-    }
-    else {
-
-      if (align_type == HmmAlignProbReducedpar) {
+      const Math1D::Vector<double> init_prob = (initial_prob.size() > 0) ? initial_prob[curI-1] : empty_vec;
+      
+      if (start_empty_word) {
         
-        calculate_hmm_forward_with_tricks(cur_source, cur_target, cur_lookup, dict_, align_model[curI-1],
-                                          initial_prob[curI-1], forward);
-      }
-      else {
-
-        calculate_hmm_forward(cur_source, cur_target, cur_lookup, dict_,
-                              align_model[curI-1], init_prob, forward);
-      }
-    }
-
-    if (start_empty_word) {
-
-      calculate_sehmm_backward(cur_source, cur_target, cur_lookup, dict_,
-                               align_model[curI-1], init_prob, backward, false);
-    }
-    else  {
-      if (align_type == HmmAlignProbReducedpar) {
-
-        calculate_hmm_backward_with_tricks(cur_source, cur_target, cur_lookup, dict_, align_model[curI-1],
-                                           initial_prob[curI-1], backward);
+        calculate_sehmm_forward(cur_source, cur_target, cur_lookup, dict_,
+                                align_model[curI-1], init_prob, forward);
+        
       }
       else {
         
-        calculate_hmm_backward(cur_source, cur_target, cur_lookup, dict_,
-                               align_model[curI-1], init_prob, backward, false);
+        if (align_type == HmmAlignProbReducedpar) {
+          
+          calculate_hmm_forward_with_tricks(cur_source, cur_target, cur_lookup, dict_, align_model[curI-1],
+                                            initial_prob[curI-1], forward);
+        }
+        else {
+          
+          calculate_hmm_forward(cur_source, cur_target, cur_lookup, dict_,
+                                align_model[curI-1], init_prob, forward);
+        }
+      }
+      
+      if (start_empty_word) {
+        
+        calculate_sehmm_backward(cur_source, cur_target, cur_lookup, dict_,
+                                 align_model[curI-1], init_prob, backward, false);
+      }
+      else  {
+        if (align_type == HmmAlignProbReducedpar) {
+          
+          calculate_hmm_backward_with_tricks(cur_source, cur_target, cur_lookup, dict_, align_model[curI-1],
+                                             initial_prob[curI-1], backward);
+        }
+        else {
+          
+          calculate_hmm_backward(cur_source, cur_target, cur_lookup, dict_,
+                                 align_model[curI-1], init_prob, backward, false);
+        }
       }
     }
 
     // extract fractional counts
     long double sentence_prob = 0.0;
-    for (uint i=0; i < forward.xDim(); i++)
-      sentence_prob += forward(i,curJ-1);
-    long double inv_sentence_prob = 1.0 / sentence_prob;
+    if (!viterbi) {
+      for (uint i=0; i < forward.xDim(); i++)
+        sentence_prob += forward(i,curJ-1);
+    }
+    long double inv_sentence_prob = (viterbi) ? 1.0 : 1.0 / sentence_prob;
 
     assert(!isnan(inv_sentence_prob));
 
-    for (uint i=0; i < curI; i++) {
-      const uint t_idx = cur_target[i];
+    if (viterbi) {
 
+      for (uint j=0; j < best_known_alignment_[s].size(); j++) {
 
-      for (uint j=0; j < curJ; j++) {
-	
-        if (dict_[t_idx][cur_lookup(j,i)] > 1e-305) {
-          double contrib = inv_sentence_prob * forward(i,j) * backward(i,j) 
-            / dict_[t_idx][cur_lookup(j,i)];
-	  
-          fdcount[curJ-1](j,i) += contrib;
-	  if (!fix_p0_)
-	    p_nonzero_ += contrib;
+        uint aj = best_known_alignment_[s][j];
+        if (aj == 0)
+          p_zero_ += 1.0;
+        else {
+          p_nonzero_ += 1.0;
+
+          fdcount[curJ-1](j,aj-1) += 1.0;
         }
       }
     }
-    for (uint i=curI; i < forward.xDim(); i++) {
-      for (uint j=0; j < curJ; j++) {
-        const uint s_idx = cur_source[j];
-	
-        if (dict_[0][s_idx-1] > 1e-305) {
-          double contrib = inv_sentence_prob * forward(i,j) * backward(i,j) 
+    else {
+      
+      for (uint i=0; i < curI; i++) {
+        const uint t_idx = cur_target[i];
+           
+        for (uint j=0; j < curJ; j++) {
+          
+          if (dict_[t_idx][cur_lookup(j,i)] > 1e-305) {
+            double contrib = inv_sentence_prob * forward(i,j) * backward(i,j) 
+              / dict_[t_idx][cur_lookup(j,i)];
+            
+            fdcount[curJ-1](j,i) += contrib;
+            if (!fix_p0_)
+              p_nonzero_ += contrib;
+          }
+        }
+      }
+      for (uint i=curI; i < forward.xDim(); i++) {
+        for (uint j=0; j < curJ; j++) {
+          const uint s_idx = cur_source[j];
+          
+          if (dict_[0][s_idx-1] > 1e-305) {
+            double contrib = inv_sentence_prob * forward(i,j) * backward(i,j) 
             / dict_[0][s_idx-1];
-
-	  if (!fix_p0_)     
-	    p_zero_ += contrib;
+            
+            if (!fix_p0_)     
+              p_zero_ += contrib;
+          }
         }
       }
     }
-
   }
 
   if (!fix_p0_) {
@@ -353,8 +374,12 @@ void IBM3Trainer::init_from_hmm(const FullHMMAlignmentModel& align_model,
           
           if (parametric_distortion_)
             distortion_param_(j,i) += fdcount[J](j,i);
-          else
-            distortion_prob_[J](j,i) = 0.9 * inv_sum * fdcount[J](j,i) + 0.1 / (J+1);
+          else {
+            if (viterbi)
+              distortion_prob_[J](j,i) = 0.8 * inv_sum * fdcount[J](j,i) + 0.2 / (J+1);
+            else
+              distortion_prob_[J](j,i) = 0.9 * inv_sum * fdcount[J](j,i) + 0.1 / (J+1);
+          }
         }
       }
       else if (!parametric_distortion_) {
@@ -376,13 +401,16 @@ void IBM3Trainer::init_from_hmm(const FullHMMAlignmentModel& align_model,
           distortion_param_(j,i) = 1.0 / distortion_param_.xDim();
       }
       else {
-        for (uint j=0; j < distortion_param_.xDim(); j++) 
-          distortion_param_(j,i) = 0.95 * distortion_param_(j,i) / sum + 0.05 / distortion_param_.xDim();
+        for (uint j=0; j < distortion_param_.xDim(); j++) { 
+          if (viterbi)
+            distortion_param_(j,i) = 0.9 * distortion_param_(j,i) / sum + 0.1 / distortion_param_.xDim();
+          else
+            distortion_param_(j,i) = 0.95 * distortion_param_(j,i) / sum + 0.05 / distortion_param_.xDim();
+        }
       }
     }
     par2nonpar_distortion(distortion_prob_);
   }
-
 
 }
 
