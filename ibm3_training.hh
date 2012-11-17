@@ -49,9 +49,9 @@ public:
 
   void fix_p0(double p0);
 
-  double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-                                    const Math2D::Matrix<uint>& lookup,
-                                    Math1D::Vector<AlignBaseType>& alignment, bool ilp=false);
+  long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+                                         const Math2D::Matrix<uint>& lookup,
+                                         Math1D::Vector<AlignBaseType>& alignment, bool ilp=false);
 
   // <code> start_alignment </code> is used as initialization for hillclimbing and later modified
   // the extracted alignment is written to <code> postdec_alignment </code>

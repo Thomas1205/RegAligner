@@ -299,10 +299,8 @@ double IBM4Trainer::inter_distortion_m_step_energy(const Storage1D<Storage2D<Mat
         double sum = 0.0;
 
         for (int j2=0; j2 < J; j2++) {
-          sum += inter_param(class1,class2,j2-j1 + displacement_offset_);
+          sum += std::max(1e-15,inter_param(class1,class2,j2-j1 + displacement_offset_));
         }
-
-        sum = std::max(1e-50,sum);
 
         for (int j2=0; j2 < J; j2++) {
 
@@ -310,7 +308,7 @@ double IBM4Trainer::inter_distortion_m_step_energy(const Storage1D<Storage2D<Mat
           if (count == 0.0)
             continue;
 
-          const double cur_param = std::max(1e-100, inter_param(class1,class2,j2-j1 + displacement_offset_));
+          const double cur_param = std::max(1e-15, inter_param(class1,class2,j2-j1 + displacement_offset_));
 
           energy -= count * std::log( cur_param / sum);
           if (isnan(energy)) {
@@ -336,14 +334,12 @@ double IBM4Trainer::inter_distortion_m_step_energy(const Storage1D<Storage2D<Mat
     double sum = 0.0;
 
     for (int j2=0; j2 < J; j2++) {
-      sum += inter_param(class1,class2,j2-j1 + displacement_offset_);
+      sum += std::max(1e-15,inter_param(class1,class2,j2-j1 + displacement_offset_));
     }
-    
-    sum = std::max(1e-50,sum);
 
     int j2 = dist_count.j_;
 
-    const double cur_param = std::max(1e-100, inter_param(class1,class2,j2-j1 + displacement_offset_));
+    const double cur_param = std::max(1e-15, inter_param(class1,class2,j2-j1 + displacement_offset_));
 
     energy -= weight * std::log( cur_param / sum);
     if (isnan(energy)) {
@@ -379,10 +375,8 @@ double IBM4Trainer::inter_distortion_m_step_energy(const Storage1D<Storage2D<Mat
         double sum = 0.0;
 
         for (int j2=0; j2 < J; j2++) {
-          sum += inter_param(class1,class2,j2-j1 + displacement_offset_);
+          sum += std::max(1e-15,inter_param(class1,class2,j2-j1 + displacement_offset_));
         }
-
-        sum = std::max(1e-50,sum);
 
         for (int j2=0; j2 < J; j2++) {
 
@@ -390,7 +384,7 @@ double IBM4Trainer::inter_distortion_m_step_energy(const Storage1D<Storage2D<Mat
           if (count == 0.0)
             continue;
 
-          const double cur_param = std::max(1e-100, inter_param(class1,class2,j2-j1 + displacement_offset_));
+          const double cur_param = std::max(1e-15, inter_param(class1,class2,j2-j1 + displacement_offset_));
 
           energy -= count * std::log( cur_param / sum);
           if (isnan(energy)) {
@@ -417,14 +411,12 @@ double IBM4Trainer::inter_distortion_m_step_energy(const Storage1D<Storage2D<Mat
     double sum = 0.0;
 
     for (int j2=0; j2 < J; j2++) {
-      sum += inter_param(class1,class2,j2-j1 + displacement_offset_);
+      sum += std::max(1e-15,inter_param(class1,class2,j2-j1 + displacement_offset_));
     }
-    
-    sum = std::max(1e-50,sum);
 
     int j2 = dist_count.j_;
 
-    const double cur_param = std::max(1e-100, inter_param(class1,class2,j2-j1 + displacement_offset_));
+    const double cur_param = std::max(1e-15, inter_param(class1,class2,j2-j1 + displacement_offset_));
 
     energy -= weight * std::log( cur_param / sum);
     if (isnan(energy)) {
@@ -456,11 +448,11 @@ double IBM4Trainer::intra_distortion_m_step_energy(const Storage1D<Math3D::Tenso
         double sum = 0.0;
 
         for (int j2=j1+1; j2 < J; j2++) {
-          sum += intra_param(word_class,j2-j1);
+          sum += std::max(1e-15,intra_param(word_class,j2-j1));
         }
 
         for (int j2=j1+2; j2 < J; j2++) {
-          double cur_param = std::max(1e-100, intra_param(word_class,j2-j1));
+          double cur_param = std::max(1e-15, intra_param(word_class,j2-j1));
 
           energy -= cur_count(word_class,j2,j1) * std::log( cur_param / sum);
         }
@@ -514,11 +506,9 @@ void IBM4Trainer::inter_distortion_m_step(const Storage1D<Storage2D<Math2D::Matr
           double sum = 0.0;
 
           for (int j2=0; j2 < J; j2++) {
-            sum += cept_start_prob_(class1,class2,j2-j1 + displacement_offset_);
+            sum += std::max(1e-15,cept_start_prob_(class1,class2,j2-j1 + displacement_offset_));
             assert(!isnan(cept_start_prob_(class1,class2,j2-j1 + displacement_offset_)));
           }
-
-          sum = std::max(1e-15,sum);
 
           double count_sum = 0.0;
           for (int j2=0; j2 < J; j2++) {
@@ -557,10 +547,8 @@ void IBM4Trainer::inter_distortion_m_step(const Storage1D<Storage2D<Math2D::Matr
       double sum = 0.0;
       
       for (int j2=0; j2 < J; j2++) {
-        sum += cept_start_prob_(class1,class2,j2-j1 + displacement_offset_);
+        sum += std::max(1e-15,cept_start_prob_(class1,class2,j2-j1 + displacement_offset_));
       }
-
-      sum = std::max(1e-15,sum);
       
       int j2 = dist_count.j_;
       
@@ -669,7 +657,7 @@ void IBM4Trainer::intra_distortion_m_step(const Storage1D<Math3D::Tensor<double>
           double sum = 0.0;
 
           for (int j2=j1+1; j2 < J; j2++) {
-            sum += within_cept_prob_(word_class,j2-j1);
+            sum += std::max(1e-15,within_cept_prob_(word_class,j2-j1));
           }
 
           if (sum < 1e-100)
@@ -767,11 +755,11 @@ double IBM4Trainer::start_prob_m_step_energy(const Storage1D<Math1D::Vector<doub
 
       for (uint j=0; j < J; j++) {
         count_sum += start_count[J][j];
-        sum += param[j];
+        sum += std::max(1e-15,param[j]);
       }
 
       for (uint j=0; j < J; j++) {
-        energy -= start_count[J][j] * std::log(std::max(1e-50,param[j]));
+        energy -= start_count[J][j] * std::log(std::max(1e-15,param[j]));
       }
 
       energy += count_sum * std::log(sum);
@@ -807,7 +795,7 @@ void IBM4Trainer::start_prob_m_step(const Storage1D<Math1D::Vector<double> >& st
 	
         for (uint j=0; j < J; j++) {
           count_sum += start_count[J][j];
-          sum += sentence_start_parameters_[j];
+          sum += std::max(1e-15,sentence_start_parameters_[j]);
         }
 	
         for (uint j=0; j < J; j++) {
