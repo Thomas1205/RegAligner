@@ -1368,7 +1368,7 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
               assert(!isnan(inv_sum));
 	      
               for (uint i_next = 0; i_next <= I; i_next++) {
-                align_model[I-1](i_next,i) = inv_sum *facount[I-1](i_next,i);
+                align_model[I-1](i_next,i) = std::max(1e-8,inv_sum *facount[I-1](i_next,i));
 		assert(!isnan(align_model[I-1](i_next,i)));
               }
             }
@@ -1391,7 +1391,7 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
               assert(!isnan(inv_sum));
               
               for (uint i_next = 0; i_next < I; i_next++) {
-                align_model[I-1](i_next,i) = inv_sum * facount[I-1](i_next,i);
+                align_model[I-1](i_next,i) = std::max(1e-8,inv_sum * facount[I-1](i_next,i));
                 assert(!isnan(align_model[I-1](i_next,i)));
               }
             }
