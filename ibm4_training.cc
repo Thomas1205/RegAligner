@@ -1079,6 +1079,15 @@ void IBM4Trainer::update_alignments_unconstrained() {
 
   for (size_t s=0; s < source_sentence_.size(); s++) {
 
+    if (nSourceClasses_*nTargetClasses_ >= 10 && (s%25) == 0) {
+      for (uint J=11; J < inter_distortion_prob_.size(); J++) {
+	
+	for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
+	  for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
+	    inter_distortion_prob_[J](x,y).resize(0,0);
+      }
+    }
+
     const uint curI = target_sentence_[s].size();
     Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
     
@@ -1087,6 +1096,17 @@ void IBM4Trainer::update_alignments_unconstrained() {
     update_alignment_by_hillclimbing(source_sentence_[s],target_sentence_[s],slookup_[s],
 				     nIter,fertility,expansion_prob,swap_prob,best_known_alignment_[s]);
   }
+
+
+  if (nSourceClasses_*nTargetClasses_ >= 10) {
+    for (uint J=11; J < inter_distortion_prob_.size(); J++) {
+      
+      for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
+	for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
+	  inter_distortion_prob_[J](x,y).resize(0,0);
+    }
+  }
+
 }
 
 
@@ -4159,6 +4179,16 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
 
     } //loop over sentences finished
 
+    if (nSourceClasses_*nTargetClasses_ >= 10) {
+      for (uint J=11; J < inter_distortion_prob_.size(); J++) {
+	
+	for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
+	  for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
+	    inter_distortion_prob_[J](x,y).resize(0,0);
+      }
+    }
+
+
     /***** update probability models from counts *******/
 
     //update p_zero_ and p_nonzero_
@@ -4469,6 +4499,16 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 
       if ((s% 10000) == 0)
         std::cerr << "sentence pair #" << s << std::endl;
+
+      if (nSourceClasses_*nTargetClasses_ >= 10 && (s%25) == 0) {
+        for (uint J=11; J < inter_distortion_prob_.size(); J++) {
+
+          for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
+            for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
+              inter_distortion_prob_[J](x,y).resize(0,0);
+        }
+      }
+
       
       const Storage1D<uint>& cur_source = source_sentence_[s];
       const Storage1D<uint>& cur_target = target_sentence_[s];
@@ -4660,6 +4700,17 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
       }
     } // loop over sentences finished
 
+
+    if (nSourceClasses_*nTargetClasses_ >= 10) {
+      for (uint J=11; J < inter_distortion_prob_.size(); J++) {
+	
+	for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
+	  for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
+	    inter_distortion_prob_[J](x,y).resize(0,0);
+      }
+    }
+
+
     /***** update probability models from counts *******/
 
     //update p_zero_ and p_nonzero_
@@ -4841,6 +4892,15 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 
       if ((s% 10000) == 0)
         std::cerr << "sentence pair #" << s << std::endl;
+
+      if (nSourceClasses_*nTargetClasses_ >= 10 && (s%25) == 0) {
+        for (uint J=11; J < inter_distortion_prob_.size(); J++) {
+
+          for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
+            for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
+              inter_distortion_prob_[J](x,y).resize(0,0);
+        }
+      }
 
       const Storage1D<uint>& cur_source = source_sentence_[s];
       const Storage1D<uint>& cur_target = target_sentence_[s];
@@ -5052,6 +5112,16 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
       }
     } //loop over sentences finished
     std::cerr << nSwitches << " changes in ICM stage" << std::endl;
+
+    if (nSourceClasses_*nTargetClasses_ >= 10) {
+      for (uint J=11; J < inter_distortion_prob_.size(); J++) {
+	
+	for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
+	  for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
+	    inter_distortion_prob_[J](x,y).resize(0,0);
+      }
+    }
+
 
     //update dictionary
     for (uint i=0; i < nTargetWords; i++) {

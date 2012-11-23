@@ -335,7 +335,7 @@ void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& d
 
     new_grouping_param = std::max(new_grouping_param,1e-15);
 
-    double best_energy = ehmm_m_step_energy(facount, new_dist_params, zero_offset, new_grouping_param);
+    double best_energy = 1e300; //ehmm_m_step_energy(facount, new_dist_params, zero_offset, new_grouping_param);
 
     double lambda = 1.0;
     double line_reduction_factor = 0.5;
@@ -475,7 +475,7 @@ void ehmm_init_m_step(const InitialAlignmentProbability& init_acount, Math1D::Ve
     projection_on_simplex(new_init_params.direct_access(),init_params.size());
 
     //find step-size
-    double best_energy = ehmm_init_m_step_energy(init_acount, new_init_params);
+    double best_energy = 1e300; //ehmm_init_m_step_energy(init_acount, new_init_params);
 
     double lambda = 1.0;
     double line_reduction_factor = 0.5;
