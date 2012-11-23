@@ -1350,7 +1350,7 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
         if (init_type == HmmInitNonpar) {
           double inv_norm = 1.0 / ficount[I-1].sum();
           for (uint i=0; i < initial_prob[I-1].size(); i++)
-            initial_prob[I-1][i] = inv_norm * ficount[I-1][i]; 
+            initial_prob[I-1][i] = std::max(1e-8,inv_norm * ficount[I-1][i]); 
         }
 	
         if (align_type == HmmAlignProbNonpar) {
