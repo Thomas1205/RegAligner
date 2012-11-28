@@ -1,15 +1,21 @@
 RegAligner Change History
 
 *** upcoming release ***
-- parameterization of HMM now selectable on command line, plus new mode for the init distribution
-- probability for empty word for IBM-3/4 can now be fixed on command line
-  + the original empty word of Brown et al. can now be used
+- parameterization of HMM now selectable on command line, plus added some variants
+- added options to the IBM-3: 
+  probability for empty word can now be fixed on command line, the original empty word of Brown et al. can be used
+  and nonparametric distortion models can be used
+- added options to the IBM-4:
+  + (like in the IBM-3) probability for empty word can now be fixed and the original empty word of Brown et al. can be used
+  + option to use a more deficient variant (according to Brown et al.)
+- IBM-4 now implements word classes
 - speed-up for Viterbi computation of HMM with reduced parameterization
 - HMM Viterbi prob is now returned as a long double
 - bugfix in count collection for IBM-4
 - bugfix in m-step for parametric distortion in IBM-3, plus now using non-trivial initialization
 - small bugfixes for HMM, plus extended Viterbi-mode
-
+- improved some numerical issues
+- added option -dont-print-energy to speed up computations (while reducing output information)
 
 *** release version 0.92 (released on May 08 2012)
 - can now specify a fertility limit for IBM-3/4

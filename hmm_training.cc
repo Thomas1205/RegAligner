@@ -166,7 +166,7 @@ double ehmm_m_step_energy(const FullHMMAlignmentModel& facount, const Math1D::Ve
                           uint zero_offset, double grouping_param = -1.0) {
 
   double energy = 0.0;
-  
+
   for (uint I=1; I <= facount.size(); I++) {
 
     if (facount[I-1].size() > 0) {
@@ -191,7 +191,7 @@ double ehmm_m_step_energy(const FullHMMAlignmentModel& facount, const Math1D::Ve
 
           double grouping_norm = std::max(0,i-5);
           grouping_norm += std::max(0,int(I)-1-(i+5));
-	  
+
           for (int ii=0; ii < (int) I; ii++) {
             if (abs(ii-i) <= 5) 
               non_zero_sum += std::max(1e-15,dist_params[zero_offset + ii - i]);
@@ -305,7 +305,6 @@ void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& d
     }
 
     //go in gradient direction
-    //double alpha  = 0.0001;
     double alpha  = 0.001;
 
     for (uint k=0; k < dist_params.size(); k++)
@@ -335,7 +334,7 @@ void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& d
 
     new_grouping_param = std::max(new_grouping_param,1e-15);
 
-    double best_energy = 1e300; //ehmm_m_step_energy(facount, new_dist_params, zero_offset, new_grouping_param);
+    double best_energy = 1e300; ehmm_m_step_energy(facount, new_dist_params, zero_offset, new_grouping_param);
 
     double lambda = 1.0;
     double line_reduction_factor = 0.5;
@@ -475,7 +474,7 @@ void ehmm_init_m_step(const InitialAlignmentProbability& init_acount, Math1D::Ve
     projection_on_simplex(new_init_params.direct_access(),init_params.size());
 
     //find step-size
-    double best_energy = 1e300; //ehmm_init_m_step_energy(init_acount, new_init_params);
+    double best_energy = 1e300; 
 
     double lambda = 1.0;
     double line_reduction_factor = 0.5;
@@ -934,8 +933,6 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
     for (size_t s=0; s < nSentences; s++) {
 
-      //std::cerr << "s: " << s << std::endl;
-
       const Storage1D<uint>& cur_source = source[s];
       const Storage1D<uint>& cur_target = target[s];
       const Math2D::Matrix<uint>& cur_lookup = slookup[s];
@@ -1019,7 +1016,6 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       prev_perplexity -= std::log(sentence_prob);
       
       if (! (sentence_prob > 0.0)) {
-        //if (true) {
         std::cerr << "sentence_prob " << sentence_prob << " for sentence pair " << s << " with I=" << curI
                   << ", J= " << curJ << std::endl;
 
@@ -1250,13 +1246,13 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       if (hyp_energy < cur_energy)
         init_params = init_count;
 
-
       ehmm_init_m_step(ficount, init_params, options.init_m_step_iter_);
     }
 
     /***** compute alignment and dictionary probabilities from normalized counts ******/
 
     //compute new dict from normalized fractional counts
+
     double nonnullcount = 0.0;
     for (uint k=1; k < fwcount.size(); k++)
       nonnullcount += fwcount[k].sum();
@@ -1404,6 +1400,8 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
     /************* compute alignment error rate ****************/
     if (!options.possible_ref_alignments_.empty()) {
+      
+      //std::cerr << "computing error rates" << std::endl;
 
       double sum_aer = 0.0;
       double sum_marg_aer = 0.0;
@@ -1642,6 +1640,8 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
     for (size_t s=0; s < nSentences; s++) {
 
+      //std::cerr << "s: " << s << std::endl;
+
       const Storage1D<uint>& cur_source = source[s];
       const Storage1D<uint>& cur_target = target[s];
       const Math2D::Matrix<uint>& cur_lookup = slookup[s];
@@ -1671,10 +1671,6 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
       long double sentence_prob = 0.0;
       for (uint i=0; i < 2*curI; i++) {
-
-        // 	if (!(forward(i,curJ-1) >= 0.0)) {	  
-        // 	  std::cerr << "s=" << s << ", I=" << curI << ", i= " << i << ", value " << forward(i,curJ-1) << std::endl;
-        // 	}
 
         assert(forward(i,curJ-1) >= 0.0);
         sentence_prob += forward(i,curJ-1);
@@ -1929,8 +1925,6 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
     }
     
     /******** 2. move in gradient direction *********/
-
-    //std::cerr << "A" << std::endl;
 
     if (align_type != HmmAlignProbNonpar || init_type == HmmInitPar) {
       
@@ -2312,11 +2306,6 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
   HmmAlignProbType align_type = options.align_type_;
   bool start_empty_word = options.start_empty_word_;
 
-  if (align_type == HmmAlignProbNonpar2)  {
-    INTERNAL_ERROR << " viterbi mode does not yet support Nonpar2. Exiting" << std::endl;
-    exit(1);
-  }
-
   const size_t nSentences = source.size();
   assert(nSentences == target.size());
 
@@ -2345,8 +2334,6 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
     if (curJ > maxJ)
       maxJ = curJ;
   }
-  
-  //std::cerr << "init_type: " << init_type << std::endl;
   
   init_hmm_from_ibm1(source, slookup, target, dict, align_model, dist_params, dist_grouping_param,
                      source_fert, initial_prob, init_params, init_type, align_type, start_empty_word,
@@ -2527,7 +2514,6 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
             //we need to divide as we are truly minimizing the perplexity WITHOUT division plus the l0-term
             energy += prior_weight[i][k] / nSentences; 
       
-      //std::cerr << "perplexity after iteration #" << (iter-1) <<": " << prev_perplexity << std::endl;
       std::cerr << "energy after iteration #" << (iter-1) <<": " << energy << std::endl;
     }
 
@@ -2676,13 +2662,9 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       Math2D::Matrix<double>& cur_acount = acount[curI-1];
 
       for (uint j=0; j < curJ; j++) {
-
-        //std::cerr << "j: " << j << std::endl;
 	
         ushort cur_aj = viterbi_alignment[s][j];
         ushort new_aj = cur_aj;
-
-        //std::cerr << "cur_aj: " << cur_aj << std::endl;
 
         double best_change = 1e300;
 
@@ -2736,7 +2718,7 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
 	    
             //TODO: handle these special cases (some distributions are doubly affected)
-            if (align_type == HmmAlignProbNonpar || align_type == HmmAlignProbNonpar2) {
+            if (align_type == HmmAlignProbNonpar) {
               if (effective_prev_aj == effective_cur_aj)
                 allowed = false;
               if (effective_prev_aj == effective_i)
@@ -2816,7 +2798,13 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
                 change += -(new_c+1) * std::log(new_c+1);
               }
               else if (align_type == HmmAlignProbNonpar2) {
-                TODO("");
+                
+                //incremental calculation is quite complicated in this case:
+                // if you switch between zero and non-zero alignments you also need to renormalize
+                // => we do not update the alignment parameters in ICM
+
+                change -= -std::log(align_model[curI-1](std::min<ushort>(curI,cur_aj),prev_aj));
+                change += -std::log(align_model[curI-1](std::min<ushort>(curI,i),prev_aj));
               }
               else { //parametric model
 		
@@ -3019,7 +3007,8 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
               new_aj = i;
             }
           }
-          else if (align_type != HmmAlignProbNonpar && align_type != HmmAlignProbNonpar2 && !start_empty_word) {
+          else if (align_type != HmmAlignProbNonpar && !start_empty_word
+                   && init_type != HmmInitNonpar) {
 
             //TODO: make this ready for start-empty-word-mode
 
@@ -3186,11 +3175,13 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
           //a) dependency to preceeding pos
           if (j == 0) {
 	    
-            assert(icount[curI-1][cur_aj] > 0);
-	    
-            icount[curI-1][cur_aj]--;
-            icount[curI-1][new_aj]++;
-            
+            if (true) {
+              assert(icount[curI-1][cur_aj] > 0);
+	      
+              icount[curI-1][cur_aj]--;
+              icount[curI-1][new_aj]++;
+            }
+
             if (init_type == HmmInitPar) {
 
               if (cur_aj < curI && new_aj >= curI) {
@@ -3265,96 +3256,95 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
     
     std::cerr << nSwitches << " switches in ICM" << std::endl;
 
-// #ifndef NDEBUG
-//     //DEBUG
-//     if (init_type == HmmInitFix || init_type == HmmInitFix2) {
-//       Math1D::Vector<double> check_source_fert_count(2,0.0);
+#ifndef NDEBUG
+    //DEBUG
+    if (init_type == HmmInitFix || init_type == HmmInitFix2) {
+      Math1D::Vector<double> check_source_fert_count(2,0.0);
     
-//       Storage1D<Math1D::Vector<uint> > check_dcount(options.nTargetWords_);
-//       for (uint i=0; i < options.nTargetWords_; i++) {
-//         check_dcount[i].resize(dict[i].size(),0);
-//       }
+      Storage1D<Math1D::Vector<uint> > check_dcount(options.nTargetWords_);
+      for (uint i=0; i < options.nTargetWords_; i++) {
+        check_dcount[i].resize(dict[i].size(),0);
+      }
       
-//       FullHMMAlignmentModel check_acount(maxI,MAKENAME(acount));
-//       for (uint I = 1; I <= maxI; I++) {
-//         if (seenIs.find(I) != seenIs.end()) {
-//           check_acount[I-1].resize(I+1,I,0.0);
-//         }
-//       }
+      FullHMMAlignmentModel check_acount(maxI,MAKENAME(acount));
+      for (uint I = 1; I <= maxI; I++) {
+        if (seenIs.find(I) != seenIs.end()) {
+          check_acount[I-1].resize(I+1,I,0.0);
+        }
+      }
       
-//       for (size_t s=0; s < nSentences; s++) {
+      for (size_t s=0; s < nSentences; s++) {
         
-//         const Storage1D<uint>& cur_source = source[s];
-//         const Storage1D<uint>& cur_target = target[s];
-//         const Math2D::Matrix<uint>& cur_lookup = slookup[s];
+        const Storage1D<uint>& cur_source = source[s];
+        const Storage1D<uint>& cur_target = target[s];
+        const Math2D::Matrix<uint>& cur_lookup = slookup[s];
         
-//         const uint curJ = cur_source.size();
-//         const uint curI = cur_target.size();
+        const uint curJ = cur_source.size();
+        const uint curI = cur_target.size();
         
-//         Math2D::Matrix<double>& cur_facount = check_acount[curI-1];
+        Math2D::Matrix<double>& cur_facount = check_acount[curI-1];
         
         
-//         /**** update counts ****/      
-//         for (uint j=0; j < curJ; j++) {
+        /**** update counts ****/      
+        for (uint j=0; j < curJ; j++) {
 
-//           ushort aj = viterbi_alignment[s][j];
-//           if (aj >= curI) {
-//             check_dcount[0][cur_source[j]-1] += 1;
-//             if (align_type != HmmAlignProbNonpar && j > 0) 
-//               check_source_fert_count[0] += 1.0;
-//           }
-//           else {
-//             check_dcount[cur_target[aj]][cur_lookup(j,aj)] += 1;
-//             if (align_type != HmmAlignProbNonpar && j > 0) 
-//               check_source_fert_count[1] += 1.0;
-//           }
+          ushort aj = viterbi_alignment[s][j];
+          if (aj >= curI) {
+            check_dcount[0][cur_source[j]-1] += 1;
+            if (align_type != HmmAlignProbNonpar && j > 0) 
+              check_source_fert_count[0] += 1.0;
+          }
+          else {
+            check_dcount[cur_target[aj]][cur_lookup(j,aj)] += 1;
+            if (align_type != HmmAlignProbNonpar && j > 0) 
+              check_source_fert_count[1] += 1.0;
+          }
           
-//           if (j == 0) {
-//           }
-//           else {
+          if (j == 0) {
+          }
+          else {
             
-//             ushort prev_aj = viterbi_alignment[s][j-1];
+            ushort prev_aj = viterbi_alignment[s][j-1];
             
-//             if (prev_aj >= curI) {
+            if (prev_aj >= curI) {
               
-//               if (aj >= curI) {
-//                 cur_facount(curI,prev_aj-curI) += 1.0;
-//               }
-//               else {
-//                 cur_facount(aj,prev_aj-curI) += 1.0;
-//               }
-//             }
-//             else {
-//               if (aj >= curI) {
-//                 cur_facount(curI,prev_aj) += 1.0;
-//               }
-//               else {
-//                 cur_facount(aj,prev_aj) += 1.0;
-//               }
-//             }
-//           }
-//         }
-//       }
+              if (aj >= curI) {
+                cur_facount(curI,prev_aj-curI) += 1.0;
+              }
+              else {
+                cur_facount(aj,prev_aj-curI) += 1.0;
+              }
+            }
+            else {
+              if (aj >= curI) {
+                cur_facount(curI,prev_aj) += 1.0;
+              }
+              else {
+                cur_facount(aj,prev_aj) += 1.0;
+              }
+            }
+          }
+        }
+      }
 
-//       assert(check_dcount == dcount);
-//       for (uint I=0; I < acount.size(); I++) {
-//         //std::cerr << "I: " << I << std::endl; 
+      assert(check_dcount == dcount);
+      for (uint I=0; I < acount.size(); I++) {
         
-//         if (check_acount[I] != acount[I]) {
-//           std::cerr << "should be: " << check_acount[I] << std::endl;
-//           std::cerr << "is: " << acount[I] << std::endl;
-//         }
+        if (check_acount[I] != acount[I]) {
+          std::cerr << "should be: " << check_acount[I] << std::endl;
+          std::cerr << "is: " << acount[I] << std::endl;
+        }
 
-//         assert(check_acount[I] == acount[I]);
-//       }
-//       //assert(check_acount == acount);
-//       std::cerr << "should be: " << check_source_fert_count << std::endl;
-//       std::cerr << "is: " << source_fert_count << std::endl;
+        assert(check_acount[I] == acount[I]);
+      }
+      //assert(check_acount == acount);
+      std::cerr << "should be: " << check_source_fert_count << std::endl;
+      std::cerr << "is: " << source_fert_count << std::endl;
       
-//       assert(check_source_fert_count == source_fert_count);
-//     }
-//     //END_DEBUG
-// #endif
+      assert(check_source_fert_count == source_fert_count);
+    }
+    //END_DEBUG
+#endif
 
 #endif
 
@@ -3401,7 +3391,7 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       ehmm_init_m_step(icount, init_params, options.init_m_step_iter_);
     }
 
-    if (align_type != HmmAlignProbNonpar) {
+    if (align_type != HmmAlignProbNonpar && align_type != HmmAlignProbNonpar2) {
 
 
       if (deficient_parametric) {
@@ -3418,6 +3408,9 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       }
     }
 
+
+    //the changes in source-fert-counts are SO FAR NOT accounted for in the ICM hyp score calculations
+    // nevertheless, updating them according to the new counts cannot worsen the energy
     for (uint k=0; k < 2; k++)
       source_fert[k] = source_fert_count[k] / source_fert_count.sum();
     std::cerr << "new source-fert: " << source_fert << std::endl;
@@ -3457,26 +3450,33 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
         }
         else if (align_type == HmmAlignProbNonpar2) {
 
+          //changes in these counts are so far not included in the ICM score calculation.
+          // nevertheless, updating the probabilities according to the new counts cannor worsen the energy
+
           for (uint i=0; i < I; i++) {
 	    
-            align_model[I-1](I,i) = source_fert[0];
-            
             double sum = 0.0;
             for (uint i_next = 0; i_next < I; i_next++)
               sum += acount[I-1](i_next,i);
-	    
+
+            align_model[I-1](I,i) = source_fert[0];
+
             if (sum >= 1e-300) {
 	      
               assert(!isnan(sum));
-              const double inv_sum = source_fert[1] / sum;
+              const double inv_sum = 1.0 / sum;
               assert(!isnan(inv_sum));
-	      
+
               for (uint i_next = 0; i_next < I; i_next++) {
-                align_model[I-1](i_next,i) = inv_sum *acount[I-1](i_next,i);
+                align_model[I-1](i_next,i) = inv_sum * source_fert[1] * acount[I-1](i_next,i);
               }
             }
-          }
-          
+            else {
+              for (uint i_next = 0; i_next < I; i_next++) {
+                align_model[I-1](i_next,i) = source_fert[1] / double(I);
+              }
+            }               
+          }          
         }
         else if (deficient_parametric) {
 

@@ -36,6 +36,7 @@ public:
               bool och_ney_empty_word = false,
               bool use_sentence_start_prob = false,
               bool no_factorial = true, 
+              bool reduce_deficiency = true,
               IBM4CeptStartMode cept_start_mode = IBM4CENTER,
               bool smoothed_l0 = false, double l0_beta = 1.0, double l0_fertpen = 0.0);
 
@@ -146,6 +147,7 @@ protected:
   IBM4CeptStartMode cept_start_mode_;
   bool use_sentence_start_prob_;
   bool no_factorial_;
+  bool reduce_deficiency_;
   const floatSingleWordDictionary& prior_weight_;
   bool smoothed_l0_;
   double l0_beta_;
