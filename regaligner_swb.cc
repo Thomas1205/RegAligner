@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  const int nParams = 32;
+  const int nParams = 34;
   ParamDescr  params[nParams] = {{"-s",mandInFilename,0,""},{"-t",mandInFilename,0,""},
                                  {"-ds",optInFilename,0,""},{"-dt",optInFilename,0,""},
                                  {"-o",optOutFilename,0,""},{"-oa",mandOutFilename,0,""},
@@ -88,7 +88,8 @@ int main(int argc, char** argv) {
                                  {"-org-empty-word",flag,0,""},{"-nonpar-distortion",flag,0,""},
                                  {"-hmm-init-type",optWithValue,1,"auto"},{"-dont-print-energy",flag,0,""},
                                  {"-ibm1-transfer-mode",optWithValue,1,"no"},{"-dict-struct",optWithValue,0,""},
-                                 {"-dont-reduce-deficiency",flag,0,""}};
+                                 {"-dont-reduce-deficiency",flag,0,""},
+				 {"-sclasses",optInFilename,0,""},{"-tclasses",optInFilename,0,""}};
 
   Application app(argc,argv,params,nParams);
 
@@ -222,7 +223,7 @@ int main(int argc, char** argv) {
 
   std::string hmm_string = downcase(app.getParam("-hmm-type"));
   if (hmm_string != "redpar" && hmm_string != "fullpar" 
-      && hmm_string != "nonpar" && hmm_string != "nonpar2") {
+      && hmm_string != "nonpar" && hmm_string != "nonpar2" && hmm_string != "auto") {
     std::cerr << "WARNING: \"" << hmm_string << "\" is not a valid hmm type. Selecting auto.";
     hmm_string = "auto";
   }
