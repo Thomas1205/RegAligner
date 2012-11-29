@@ -374,6 +374,7 @@ int main(int argc, char** argv) {
   ibm1_options.nIterations_ = ibm1_iter;
   ibm1_options.smoothed_l0_ = em_l0;
   ibm1_options.l0_beta_ = l0_beta;
+  ibm1_options.print_energy_ = !app.is_set("-dont-print-energy");
 
   if (method == "em") {
 
@@ -426,6 +427,7 @@ int main(int argc, char** argv) {
   hmm_options.init_type_ = hmm_init_mode;
   hmm_options.smoothed_l0_ = em_l0;
   hmm_options.l0_beta_ = l0_beta;
+  hmm_options.print_energy_ = !app.is_set("-dont-print-energy");
 
   std::string ibm1_transfer_mode = downcase(app.getParam("-ibm1-transfer-mode"));
   if (ibm1_transfer_mode != "no" && ibm1_transfer_mode != "viterbi" && ibm1_transfer_mode != "posterior") {
