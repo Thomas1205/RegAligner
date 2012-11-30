@@ -57,6 +57,7 @@ int main(int argc, char** argv) {
 	      << " [-hmm-type (auto | fullpar | redpar | nonpar | nonpar2)]: default auto" << std::endl
 	      << " [-hmm-init-type (auto | par | nonpar | fix | fix2)]: default auto" << std::endl
               << " [-ibm1-transfer-mode (no | viterbi | posterior) ] : how to init HMM from IBM1, default: no" << std::endl
+	      << " [-count-collection] : to IBM-3 hillclimbing when initializing IBM-4" << std::endl
 	      << " [-p0 <double>]: fix probability for empty alignments for IBM-3/4 " << std::endl
               << " [-org-empty-word] : for IBM 3/4 use empty word as originally published" << std::endl
               << " [-dont-reduce-deficiency] : use non-normalized probabilities for IBM-4 (as in Brown et al.)" << std::endl
@@ -71,7 +72,7 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  const int nParams = 34;
+  const int nParams = 35;
   ParamDescr  params[nParams] = {{"-s",mandInFilename,0,""},{"-t",mandInFilename,0,""},
                                  {"-ds",optInFilename,0,""},{"-dt",optInFilename,0,""},
                                  {"-o",optOutFilename,0,""},{"-oa",mandOutFilename,0,""},
@@ -88,7 +89,7 @@ int main(int argc, char** argv) {
                                  {"-org-empty-word",flag,0,""},{"-nonpar-distortion",flag,0,""},
                                  {"-hmm-init-type",optWithValue,1,"auto"},{"-dont-print-energy",flag,0,""},
                                  {"-ibm1-transfer-mode",optWithValue,1,"no"},{"-dict-struct",optWithValue,0,""},
-                                 {"-dont-reduce-deficiency",flag,0,""},
+                                 {"-dont-reduce-deficiency",flag,0,""},{"-count-collection",flag,0,""},
 				 {"-sclasses",optInFilename,0,""},{"-tclasses",optInFilename,0,""}};
 
   Application app(argc,argv,params,nParams);

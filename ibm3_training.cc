@@ -1514,7 +1514,7 @@ void IBM3Trainer::train_unconstrained(uint nIter) {
 
     for (size_t s=0; s < source_sentence_.size(); s++) {
       
-      if ((s% 500) == 0)
+      if ((s% 10000) == 0)
         std::cerr << "sentence pair #" << s << std::endl;
       
       const Storage1D<uint>& cur_source = source_sentence_[s];
