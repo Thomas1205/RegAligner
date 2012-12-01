@@ -48,10 +48,8 @@ double ibm1_perplexity( const Storage1D<Storage1D<uint> >& source,
                         const Storage1D< Storage1D<uint> >& target,
                         const SingleWordDictionary& dict) {
 
-  //std::cerr << "calculating IBM-1 perplexity" << std::endl;
 
   double sum = 0.0;
-
 
   const size_t nSentences = target.size();
   assert(slookup.size() == nSentences);
@@ -68,7 +66,7 @@ double ibm1_perplexity( const Storage1D<Storage1D<uint> >& source,
     const uint nCurTargetWords = cur_target.size();
 
     sum += nCurSourceWords*std::log(nCurTargetWords);
-    
+
     for (uint j=0; j < nCurSourceWords; j++) {
 
       double cur_sum = dict[0][cur_source[j]-1]; // handles empty word
@@ -165,6 +163,7 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count,
 
   double line_reduction_factor = 0.5;
 
+
   for (uint iter=1; iter <= nIter; iter++) {
 
     //set gradient to 0 and recalculate
@@ -190,7 +189,7 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count,
     projection_on_simplex_with_slack(new_dict.direct_access(), new_slack_entry, new_dict.size());
 
     
-    double hyp_energy = 1e300; //dict_m_step_energy(fdict_count,prior_weight,new_dict);
+    double hyp_energy = 1e300; 
     
     double lambda  = 1.0;
     double best_lambda = lambda;
@@ -211,7 +210,6 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count,
       }
       
       double new_energy = single_dict_m_step_energy(fdict_count,prior_weight,hyp_dict,smoothed_l0,l0_beta);
-      //std::cerr << "lambda = " << lambda << ", hyp_energy = " << new_energy << std::endl;
 
       if (new_energy < hyp_energy) {
         hyp_energy = new_energy;
@@ -558,9 +556,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
   
   Math1D::Vector<double> new_slack_vector(options.nTargetWords_,0.0);  
 
-  double alpha = 0.0001; //0.01;
-  //double alpha = 0.5; //0.1; // 0.0001;
-  //double alpha = 1.0;
+  double alpha = 100.0;
 
   double line_reduction_factor = 0.5;
 
@@ -628,11 +624,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
     double lower_bound = energy;
     for (uint i=0; i < options.nTargetWords_; i++) {
 
-      //if (regularity_weight != 0.0)
-      if (true)
-        lower_bound += std::min(0.0,dict_grad[i].min());
-      else
-        lower_bound += dict_grad[i].min();
+      lower_bound += std::min(0.0,dict_grad[i].min());
       lower_bound -= dict_grad[i] % dict[i];
     }
 
@@ -642,34 +634,32 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
 
 
     /**** move in gradient direction ****/
-    
+    double real_alpha = alpha;
+    double sqr_grad_norm = 0.0;
+    for (uint i=0; i < options.nTargetWords_; i++)
+      sqr_grad_norm +=  dict_grad[i].sqr_norm();
+    real_alpha /= sqrt(sqr_grad_norm); 
+
     for (uint i=0; i < options.nTargetWords_; i++) {
 
       for (uint k=0; k < dict[i].size(); k++) 
-        new_dict[i][k] = dict[i][k] - alpha * dict_grad[i][k];
+        new_dict[i][k] = dict[i][k] - real_alpha * dict_grad[i][k];
     }
     
-    //if (regularity_weight != 0.0)
-    if (true)
-      new_slack_vector = slack_vector;
+    new_slack_vector = slack_vector;
 
     /**** reproject on the simplices [Michelot 1986]****/
     for (uint i=0; i < options.nTargetWords_; i++) {
 
       const uint nCurWords = new_dict[i].size();
 
-      //if (regularity_weight != 0.0)
-      if (true)
-        projection_on_simplex_with_slack(new_dict[i].direct_access(),slack_vector[i],nCurWords);
-      else
-        projection_on_simplex(new_dict[i].direct_access(),nCurWords);
-
+      projection_on_simplex_with_slack(new_dict[i].direct_access(),slack_vector[i],nCurWords);
     }
     
     double lambda = 1.0;
     double best_lambda = 1.0;
 
-    double hyp_energy = ibm1_energy(source,slookup,target,new_dict,prior_weight,smoothed_l0,l0_beta);
+    double hyp_energy = 1e300; 
 
     uint nInnerIter = 0;
 
@@ -725,8 +715,6 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
       nSuccessiveReductions = 0;
     }
 
-    //     std::cerr << "alpha: " << alpha << std::endl;
-
     for (uint i=0; i < options.nTargetWords_; i++) {
 
       double inv_lambda = 1.0 - best_lambda;
@@ -734,9 +722,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
       for (uint k=0; k < dict[i].size(); k++) 
         dict[i][k] = inv_lambda * dict[i][k] + best_lambda * new_dict[i][k];
 
-      //if (regularity_weight > 0.0)
-      if (true)
-        slack_vector[i] = inv_lambda * slack_vector[i] + best_lambda * new_slack_vector[i];
+      slack_vector[i] = inv_lambda * slack_vector[i] + best_lambda * new_slack_vector[i];
     }
 
     double check_energy = ibm1_energy(source,slookup,target,dict,prior_weight,smoothed_l0,l0_beta);
@@ -744,7 +730,6 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
     assert(fabs(check_energy - hyp_energy) < 0.0025);
 
     energy = hyp_energy;
-
 
     if (options.print_energy_)
       std::cerr << "energy: " << energy << std::endl;
@@ -787,9 +772,6 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
     std::cerr << "slack sum: " << slack_vector.sum() << std::endl;
 
   } //end for (iter)
-
-  //std::cerr << "slack sum: " << slack_vector.sum() << std::endl;
-
 }
 
 void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source, 
@@ -951,8 +933,9 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
           dcount[cur_target[arg_min-1]][cur_lookup(j,arg_min-1)]++;
       }
     }
-
+   
     sum += energy_offset;
+
 
     /*** ICM phase ***/
 
@@ -1107,7 +1090,6 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
       }
     }
     
-
     energy /= nSentences;
     for (uint i=0; i < dcount.size(); i++)
       for (uint k=0; k < dcount[i].size(); k++)
@@ -1158,6 +1140,5 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
     }
   }
 }
-
 
 
