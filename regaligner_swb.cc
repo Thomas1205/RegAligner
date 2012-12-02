@@ -675,7 +675,7 @@ int main(int argc, char** argv) {
     
     //std::cerr << "EE" << std::endl;
 
-    if (hmm_init_mode != HmmInitFix) {
+    if (hmm_init_mode != HmmInitFix && hmm_init_mode != HmmInitFix2) {
       par2nonpar_hmm_init_model(dev_hmm_init_params, source_fert, HmmInitPar, dev_initial_prob);
       if (hmm_init_mode == HmmInitNonpar) {
         for (uint I=0; I < std::min(dev_initial_prob.size(),initial_prob.size()); I++) {
@@ -685,10 +685,7 @@ int main(int argc, char** argv) {
       }
     }
     else {
-      for (uint I=0; I < dev_initial_prob.size(); I++) {
-        if (dev_initial_prob[I].size() > 0)
-          dev_initial_prob[I].set_constant(1.0 / dev_initial_prob[I].size());
-      }
+      par2nonpar_hmm_init_model(dev_hmm_init_params, source_fert, hmm_init_mode, dev_initial_prob);
     }
       
     //std::cerr << "FF" << std::endl;

@@ -3415,10 +3415,11 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
     //the changes in source-fert-counts are SO FAR NOT accounted for in the ICM hyp score calculations
     // nevertheless, updating them according to the new counts cannot worsen the energy
-    for (uint k=0; k < 2; k++)
-      source_fert[k] = source_fert_count[k] / source_fert_count.sum();
-    std::cerr << "new source-fert: " << source_fert << std::endl;
-
+    if (source_fert_count.sum() > 1e-300) {
+      for (uint k=0; k < 2; k++)
+	source_fert[k] = source_fert_count[k] / source_fert_count.sum();
+      std::cerr << "new source-fert: " << source_fert << std::endl;
+    }
 
     //compute new alignment probabilities from normalized fractional counts
     for (uint I=1; I <= maxI; I++) {
