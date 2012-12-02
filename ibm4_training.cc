@@ -3194,8 +3194,21 @@ long double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& sourc
 
   for (uint j=0; j < J; j++) {
     const uint aj = alignment[j];
+
+    if (aj > 0) {
+      if (dict_[target[aj-1]][lookup(j,aj-1)] < 1e-15)
+	dict_[target[aj-1]][lookup(j,aj-1)] = 1e-15;
+    }
+    else {
+      if (dict_[0][source[j]-1] < 1e-15)
+	dict_[0][source[j]-1] = 1e-15;
+    }
+
     fertility[aj]++;
   }
+
+  if (fertility[0] > 0 && p_zero_ < 1e-12)
+    p_zero_ = 1e-12;
   
   if (2*fertility[0] > J) {
     
@@ -3312,6 +3325,9 @@ long double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& sourc
 
     if (fertility_prob_[target[i]].sum() < 0.5)
       fertility_prob_[target[i]].set_constant(1.0 / fertility_prob_[target[i]].size());
+
+    if (fertility_prob_[target[i]][fertility[i+1]] < 1e-8)
+      fertility_prob_[target[i]][fertility[i+1]] = 1e-8;
   }
 
   /*** check if a source word does not have a translation (with non-zero prob.) ***/
@@ -3368,8 +3384,21 @@ void IBM4Trainer::compute_external_postdec_alignment(const Storage1D<uint>& sour
 
   for (uint j=0; j < J; j++) {
     const uint aj = alignment[j];
+
+    if (aj > 0) {
+      if (dict_[target[aj-1]][lookup(j,aj-1)] < 1e-15)
+	dict_[target[aj-1]][lookup(j,aj-1)] = 1e-15;
+    }
+    else {
+      if (dict_[0][source[j]-1] < 1e-15)
+	dict_[0][source[j]-1] = 1e-15;
+    }
+
     fertility[aj]++;
   }
+
+  if (fertility[0] > 0 && p_zero_ < 1e-12)
+    p_zero_ = 1e-12;
   
   if (2*fertility[0] > J) {
     
@@ -3485,6 +3514,9 @@ void IBM4Trainer::compute_external_postdec_alignment(const Storage1D<uint>& sour
 
     if (fertility_prob_[target[i]].sum() < 0.5)
       fertility_prob_[target[i]].set_constant(1.0 / fertility_prob_[target[i]].size());
+
+    if (fertility_prob_[target[i]][fertility[i+1]] < 1e-8)
+      fertility_prob_[target[i]][fertility[i+1]] = 1e-8;
   }
 
   /*** check if a source word does not have a translation (with non-zero prob.) ***/

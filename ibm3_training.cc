@@ -747,6 +747,23 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
     std::cerr << "check: " << check << std::endl;
   
     std::cerr << "ratio: " << check_ratio << std::endl;
+
+    
+    for (uint j=0; j < curJ; j++) {
+      const uint aj = alignment[j];
+     
+      std::cerr << "j: " << j << ", aj: " << aj << std::endl;
+ 
+      //handle lexicon prob and distortion prob for aj != 0
+      if (aj == 0) {
+	std::cerr << " mult with dict prob " << dict_[0][source[j]-1] << std::endl;
+      }
+      else {
+	std::cerr << " mult with distort prob " << cur_distort_prob(j,aj-1) << std::endl;
+	std::cerr << " mult with dict prob " << dict_[target[aj-1]][lookup(j,aj-1)] << std::endl;
+      }
+    }
+
   }
 
   if (base_prob > 1e-300 || check > 1e-300)
@@ -1130,13 +1147,25 @@ long double IBM3Trainer::compute_external_alignment(const Storage1D<uint>& sourc
 
   if (alignment.size() != J)
     alignment.resize(J,1);
-
+  
   Math1D::Vector<uint> fertility(I+1,0);
-
-    for (uint j=0; j < J; j++) {
+  
+  for (uint j=0; j < J; j++) {
     const uint aj = alignment[j];
+    if (aj > 0) {
+      if (dict_[target[aj-1]][lookup(j,aj-1)] < 1e-15)
+	dict_[target[aj-1]][lookup(j,aj-1)] = 1e-15;
+    }
+    else {
+      if (dict_[0][source[j]-1] < 1e-15)
+	dict_[0][source[j]-1] = 1e-15;
+    }
+
     fertility[aj]++;
   }
+    
+  if (fertility[0] > 0 && p_zero_ < 1e-12)
+    p_zero_ = 1e-12;
   
   if (2*fertility[0] > J) {
     
@@ -1188,6 +1217,13 @@ long double IBM3Trainer::compute_external_alignment(const Storage1D<uint>& sourc
     }
   }
 
+  for (uint j=0; j < J; j++) {
+    
+    uint aj = alignment[j];
+    if (aj > 0 && distortion_prob_[J-1](j,aj-1) < 1e-8)
+      distortion_prob_[J-1](j,aj-1) = 1e-8;
+  }
+
   /*** check if fertility tables are large enough ***/
   for (uint i=0; i < I; i++) {
 
@@ -1199,6 +1235,9 @@ long double IBM3Trainer::compute_external_alignment(const Storage1D<uint>& sourc
 
     if (fertility_prob_[target[i]].sum() < 0.5)
       fertility_prob_[target[i]].set_constant(1.0 / fertility_prob_[target[i]].size());
+
+    if (fertility_prob_[target[i]][fertility[i+1]] < 1e-8)
+      fertility_prob_[target[i]][fertility[i+1]] = 1e-8;
   }
 
   /*** check if a source word does not have a translation (with non-zero prob.) ***/
@@ -1271,8 +1310,21 @@ void IBM3Trainer::compute_external_postdec_alignment(const Storage1D<uint>& sour
 
     for (uint j=0; j < J; j++) {
     const uint aj = alignment[j];
+
+    if (aj > 0) {
+      if (dict_[target[aj-1]][lookup(j,aj-1)] < 1e-15)
+	dict_[target[aj-1]][lookup(j,aj-1)] = 1e-15;
+    }
+    else {
+      if (dict_[0][source[j]-1] < 1e-15)
+	dict_[0][source[j]-1] = 1e-15;
+    }
+
     fertility[aj]++;
   }
+
+  if (fertility[0] > 0 && p_zero_ < 1e-12)
+    p_zero_ = 1e-12;
   
   if (2*fertility[0] > J) {
     
@@ -1340,6 +1392,9 @@ void IBM3Trainer::compute_external_postdec_alignment(const Storage1D<uint>& sour
 
     if (fertility_prob_[target[i]].sum() < 0.5)
       fertility_prob_[target[i]].set_constant(1.0 / fertility_prob_[target[i]].size());
+
+    if (fertility_prob_[target[i]][fertility[i+1]] < 1e-8)
+      fertility_prob_[target[i]][fertility[i+1]] = 1e-8;
   }
 
   /*** check if a source word does not have a translation (with non-zero prob.) ***/
