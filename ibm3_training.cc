@@ -303,13 +303,15 @@ void IBM3Trainer::init_from_hmm(const FullHMMAlignmentModel& align_model,
       for (uint j=0; j < best_known_alignment_[s].size(); j++) {
 
         uint aj = best_known_alignment_[s][j];
-        if (aj == 0)
-          p_zero_ += 1.0;
-        else {
-          p_nonzero_ += 1.0;
+	if (!fix_p0_) {
+	  if (aj == 0)
+	    p_zero_ += 1.0;
+	  else 
+	    p_nonzero_ += 1.0;
+	}
 
-          fdcount[curJ-1](j,aj-1) += 1.0;
-        }
+	if (aj != 0)
+	  fdcount[curJ-1](j,aj-1) += 1.0;
       }
     }
     else {
