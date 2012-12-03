@@ -4769,8 +4769,8 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
     //update p_zero_ and p_nonzero_
     if (!fix_p0_) {
       double fsum = fzero_count + fnonzero_count;
-      p_zero_ = fzero_count / fsum;
-      p_nonzero_ = fnonzero_count / fsum;
+      p_zero_ = std::max<double>(1e-15,fzero_count / fsum);
+      p_nonzero_ = std::max<double>(1e-15,fnonzero_count / fsum);
     }
 
     std::cerr << "new p_zero: " << p_zero_ << std::endl;

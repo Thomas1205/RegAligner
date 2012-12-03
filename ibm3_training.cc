@@ -2226,8 +2226,8 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
 
     if (!fix_p0_) {
       double fsum = fzero_count + fnonzero_count;
-      p_zero_ = fzero_count / fsum;
-      p_nonzero_ = fnonzero_count / fsum;
+      p_zero_ = std::max<double>(1e-15,fzero_count / fsum);
+      p_nonzero_ = std::max<double>(1e-15,fnonzero_count / fsum);
     }
 
     /*** ICM stage ***/
@@ -2462,15 +2462,6 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
     }
 
     std::cerr << nSwitches << " changes in ICM stage" << std::endl;
-
-    //update p_zero_ and p_nonzero_
-    if (!fix_p0_) {
-      double fsum = fzero_count + fnonzero_count;
-      p_zero_ = fzero_count / fsum;
-      p_nonzero_ = fnonzero_count / fsum;
-    }
-
-    std::cerr << "new p_zero: " << p_zero_ << std::endl;
 
     //DEBUG
     uint nZeroAlignments = 0;
