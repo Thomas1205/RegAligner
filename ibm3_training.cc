@@ -2230,6 +2230,8 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
       p_nonzero_ = std::max<double>(1e-15,fnonzero_count / fsum);
     }
 
+    std::cerr << "new p0: " << p_zero_ << std::endl;
+
     /*** ICM stage ***/
 
     Math1D::NamedVector<uint> dict_sum(fwcount.size(),MAKENAME(dict_sum));
