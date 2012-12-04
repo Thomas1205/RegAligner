@@ -3992,17 +3992,21 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
           //a) update head prob
           if (cur_prev_cept >= 0) {
 
+	    const int prev_cept_center = cept_center[cur_prev_cept];
+
             const uint sclass = source_class_[ cur_source[cept_center[cur_prev_cept]]  ];
 
-            int diff = first_aligned_source_word[i] - cept_center[cur_prev_cept];
+            int diff = first_aligned_source_word[i] - prev_cept_center;
             diff += displacement_offset_;
 
             fceptstart_count(sclass,tclass,diff) += cur_prob;
 
-	    if (inter_distort_count[curJ](sclass,tclass).size() == 0)
-	      sparse_inter_distort_count(sclass,tclass)[DistortCount(curJ,first_aligned_source_word[i],cept_center[cur_prev_cept])] += cur_prob;
-	    else
-	      inter_distort_count[curJ](sclass,tclass)(first_aligned_source_word[i],cept_center[cur_prev_cept]) += cur_prob;
+	    if (reduce_deficiency_) {
+	      if (inter_distort_count[curJ](sclass,tclass).size() == 0)
+		sparse_inter_distort_count(sclass,tclass)[DistortCount(curJ,first_aligned_source_word[i],prev_cept_center)] += cur_prob;
+	      else
+		inter_distort_count[curJ](sclass,tclass)(first_aligned_source_word[i],prev_cept_center) += cur_prob;
+	    }
           }
           else if (use_sentence_start_prob_) {
             fsentence_start_count[first_aligned_source_word[i]] += cur_prob;
@@ -4018,7 +4022,9 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
             const int cur_j = *ait;
             int diff = cur_j - prev_aligned_j;
             fwithincept_count(tclass,diff) += cur_prob;
-            intra_distort_count[curJ](tclass,cur_j,prev_aligned_j) += cur_prob;
+
+	    if (reduce_deficiency_) 
+	      intra_distort_count[curJ](tclass,cur_j,prev_aligned_j) += cur_prob;
 
             prev_aligned_j = cur_j;
           }
@@ -4069,10 +4075,13 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
                   diff += displacement_offset_;
                   fceptstart_count(sclass,tclass,diff) += cur_prob;
 
-		  if (inter_distort_count[curJ](sclass,tclass).size() == 0)
-		    sparse_inter_distort_count(sclass,tclass)[DistortCount(curJ,first_j,prev_center)] += cur_prob;
-		  else
-		    inter_distort_count[curJ](sclass,tclass)(first_j,prev_center) += cur_prob;
+
+		  if (reduce_deficiency_) {
+		    if (inter_distort_count[curJ](sclass,tclass).size() == 0)
+		      sparse_inter_distort_count(sclass,tclass)[DistortCount(curJ,first_j,prev_center)] += cur_prob;
+		    else
+		      inter_distort_count[curJ](sclass,tclass)(first_j,prev_center) += cur_prob;
+		  }
                 }
                 else if (use_sentence_start_prob_) {
                   fsentence_start_count[first_j] += cur_prob;
@@ -4089,7 +4098,9 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
 
                   int diff = cur_j - prev_j;
                   fwithincept_count(tclass,diff) += cur_prob;
-                  intra_distort_count[curJ](tclass,cur_j,prev_j) += cur_prob;
+
+		  if (reduce_deficiency_) 
+		    intra_distort_count[curJ](tclass,cur_j,prev_j) += cur_prob;
 
                   prev_j = cur_j;
                 }
@@ -4173,10 +4184,13 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
                   diff += displacement_offset_;
                   fceptstart_count(sclass,tclass,diff) += cur_prob;
 
-		  if (inter_distort_count[curJ](sclass,tclass).size() == 0)
-		    sparse_inter_distort_count(sclass,tclass)[DistortCount(curJ,first_j,prev_center)] += cur_prob;
-		  else
-		    inter_distort_count[curJ](sclass,tclass)(first_j,prev_center) += cur_prob;
+
+		  if (reduce_deficiency_) {
+		    if (inter_distort_count[curJ](sclass,tclass).size() == 0)
+		      sparse_inter_distort_count(sclass,tclass)[DistortCount(curJ,first_j,prev_center)] += cur_prob;
+		    else
+		      inter_distort_count[curJ](sclass,tclass)(first_j,prev_center) += cur_prob;
+		  }
                 }
                 else if (use_sentence_start_prob_) {
                   fsentence_start_count[first_j] += cur_prob;
@@ -4193,7 +4207,9 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
 
                   int diff = cur_j - prev_j;
                   fwithincept_count(tclass,diff) += cur_prob;
-                  intra_distort_count[curJ](tclass,cur_j,prev_j) += cur_prob;
+
+		  if (reduce_deficiency_)
+		    intra_distort_count[curJ](tclass,cur_j,prev_j) += cur_prob;
 
                   prev_j = cur_j;
                 }
@@ -4496,7 +4512,7 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 
   for (uint J=1; J <= maxJ_; J++) {
 
-    if (inter_distortion_prob_[J].size() > 0) {
+    if (reduce_deficiency_ && inter_distortion_prob_[J].size() > 0) {
       inter_distort_count[J].resize(inter_distortion_prob_[J].xDim(),inter_distortion_prob_[J].yDim());
 
       if (J <= 25) {
@@ -4730,17 +4746,21 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
           //a) update head prob
           if (cur_prev_cept >= 0) {
 
-            const uint sclass = source_class_[ cur_source[cept_center[cur_prev_cept]]  ];
+	    const uint prev_cept_center = cept_center[cur_prev_cept];
 
-            int diff = first_aligned_source_word[i] - cept_center[cur_prev_cept];
+            const uint sclass = source_class_[ cur_source[prev_cept_center]  ];
+
+            int diff = first_aligned_source_word[i] - prev_cept_center;
             diff += displacement_offset_;
 
             fceptstart_count(sclass,tclass,diff) += 1.0;
 
-	    if (inter_distort_count[curJ](sclass,tclass).size() == 0)
-	      sparse_inter_distort_count(sclass,tclass)[DistortCount(curJ,first_aligned_source_word[i],cept_center[cur_prev_cept])] += 1.0;
-	    else
-	      inter_distort_count[curJ](sclass,tclass)(first_aligned_source_word[i],cept_center[cur_prev_cept]) += 1.0;
+	    if (reduce_deficiency_) {
+	      if (inter_distort_count[curJ](sclass,tclass).size() == 0)
+		sparse_inter_distort_count(sclass,tclass)[DistortCount(curJ,first_aligned_source_word[i],cept_center[cur_prev_cept])] += 1.0;
+	      else
+		inter_distort_count[curJ](sclass,tclass)(first_aligned_source_word[i],cept_center[cur_prev_cept]) += 1.0;
+	    }
           }
           else if (use_sentence_start_prob_) {
             fsentence_start_count[first_aligned_source_word[i]] += 1.0;
@@ -4756,7 +4776,9 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
             const int cur_j = *ait;
             int diff = cur_j - prev_aligned_j;
             fwithincept_count(tclass,diff) += 1.0;
-            intra_distort_count[curJ](tclass,cur_j,prev_aligned_j) += 1.0;
+
+	    if (reduce_deficiency_) 
+	      intra_distort_count[curJ](tclass,cur_j,prev_aligned_j) += 1.0;
 
             prev_aligned_j = cur_j;
           }
