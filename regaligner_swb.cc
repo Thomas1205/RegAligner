@@ -206,6 +206,14 @@ int main(int argc, char** argv) {
     for (uint k=0; k < target_sentence[s].size(); k++)
       nTargetWords = std::max(nTargetWords,target_sentence[s][k]+1);
   }
+  for (size_t s=0; s < dev_source_sentence.size(); s++) {
+
+    for (uint k=0; k < dev_source_sentence[s].size(); k++)
+      nSourceWords = std::max(nSourceWords,dev_source_sentence[s][k]+1);
+
+    for (uint k=0; k < dev_target_sentence[s].size(); k++)
+      nTargetWords = std::max(nTargetWords,dev_target_sentence[s][k]+1);
+  }
 
   CooccuringWordsType wcooc(MAKENAME(wcooc));
   CooccuringLengthsType lcooc(MAKENAME(lcooc));
