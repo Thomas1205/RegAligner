@@ -187,8 +187,9 @@ long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentenc
     score[0][i] = start_null_dict_entry * initial_prob[i];
 
   //to keep the numbers inside double precision
-  long double correction_factor = score[0].max();
-  score[0] *= 1.0 / score[0].max();
+  double cur_max = score[0].max();
+  long double correction_factor = cur_max;
+  score[0] *= 1.0 / cur_max;
 
   if (verbose)
     std::cerr << "initial score: " << score[0] << std::endl;
@@ -265,8 +266,9 @@ long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentenc
     //END_DEBUG
 
     //to keep the numbers inside double precision    
-    correction_factor *= cur_score.max();
-    cur_score *= 1.0 / cur_score.max();
+    double cur_max = cur_score.max();
+    correction_factor *= cur_max;
+    cur_score *= 1.0 / cur_max;
   }
 
   /*** now extract Viterbi alignment from the score and the traceback matrix ***/
@@ -275,7 +277,7 @@ long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentenc
 
   //std::cerr << "finding max" << std::endl;
 
-  Math1D::Vector<double>& cur_score = score[cur_idx];
+  const Math1D::Vector<double>& cur_score = score[cur_idx];
 
   for (uint i=0; i < 2*I; i++) {
     if (cur_score[i] > max_score) {
@@ -360,8 +362,9 @@ long double compute_sehmm_viterbi_alignment(const Storage1D<uint>& source_senten
   score[0][2*I] = initial_prob[I] * std::max(min_dict_entry,dict[0][source_sentence[0]-1]);
 
   //to keep the numbers inside double precision
-  long double correction_factor = score[0].max();
-  score[0] *= 1.0 / score[0].max();
+  double cur_max = score[0].max();
+  long double correction_factor = cur_max;
+  score[0] *= 1.0 / cur_max;
 
   if (verbose)
     std::cerr << "initial score: " << score[0] << std::endl;
@@ -436,8 +439,9 @@ long double compute_sehmm_viterbi_alignment(const Storage1D<uint>& source_senten
       std::cerr << "j=" << j << ", cur_score: " << cur_score << std::endl;
 
     //to keep the numbers inside double precision    
-    correction_factor *= cur_score.max();
-    cur_score *= 1.0 / cur_score.max();
+    double cur_max = cur_score.max();
+    correction_factor *= cur_max;
+    cur_score *= 1.0 / cur_max;
   }
 
   /*** now extract Viterbi alignment from the score and the traceback matrix ***/
@@ -447,7 +451,7 @@ long double compute_sehmm_viterbi_alignment(const Storage1D<uint>& source_senten
 
   //std::cerr << "finding max" << std::endl;
 
-  Math1D::Vector<double>& cur_score = score[cur_idx];
+  const Math1D::Vector<double>& cur_score = score[cur_idx];
 
   for (uint i=0; i <= 2*I; i++) {
     if (cur_score[i] > max_score) {
@@ -533,8 +537,9 @@ long double compute_ehmm_viterbi_alignment_with_tricks(const Storage1D<uint>& so
     score[0][i] = start_null_dict_entry * initial_prob[i];
 
   //to keep the numbers inside double precision
-  long double correction_factor = score[0].max();
-  score[0] *= 1.0 / score[0].max();
+  double cur_max = score[0].max();
+  long double correction_factor = cur_max;
+  score[0] *= 1.0 / cur_max;
 
   if (verbose)
     std::cerr << "initial score: " << score[0] << std::endl;
@@ -635,15 +640,16 @@ long double compute_ehmm_viterbi_alignment_with_tricks(const Storage1D<uint>& so
     }
 
     //to keep the numbers inside double precision    
-    correction_factor *= cur_score.max();
-    cur_score *= 1.0 / cur_score.max();
+    double cur_max = cur_score.max();
+    correction_factor *= cur_max;
+    cur_score *= 1.0 / cur_max;
   }
 
   /*** now extract Viterbi alignment from the score and the traceback matrix ***/
   double max_score = 0.0;
   uint arg_max = MAX_UINT;
 
-  Math1D::Vector<double>& cur_score = score[cur_idx];
+  const Math1D::Vector<double>& cur_score = score[cur_idx];
 
   for (uint i=0; i < 2*I; i++) {
     if (cur_score[i] > max_score) {
