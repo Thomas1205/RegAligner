@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
               << " [-constraint-mode (unconstrained | itg | ibm) " << std::endl
 	      << " [-postdec-thresh <double>]" << std::endl
 	      << " [-fert-limit <uint>]: fertility limit for IBM-3/4, default: 10000" << std::endl
-	      << " [-hmm-type (auto | fullpar | redpar | nonpar | nonpar2)]: default auto" << std::endl
+	      << " [-hmm-type (fullpar | redpar | nonpar | nonpar2)]: default redpar" << std::endl
 	      << " [-hmm-init-type (auto | par | nonpar | fix | fix2)]: default auto" << std::endl
               << " [-ibm1-transfer-mode (no | viterbi | posterior) ] : how to init HMM from IBM1, default: no" << std::endl
 	      << " [-count-collection] : do IBM-3 hillclimbing when initializing IBM-4" << std::endl
@@ -85,7 +85,7 @@ int main(int argc, char** argv) {
                                  {"-fertpen",optWithValue,1,"0.0"},{"-constraint-mode",optWithValue,1,"unconstrained"},
 				 {"-l0-beta",optWithValue,1,"-1.0"},{"-ibm4-mode",optWithValue,1,"first"},
 				 {"-fert-limit",optWithValue,1,"10000"},{"-postdec-thresh",optWithValue,1,"-1.0"},
-                                 {"-hmm-type",optWithValue,1,"auto"},{"-p0",optWithValue,1,"-1.0"},
+                                 {"-hmm-type",optWithValue,1,"redpar"},{"-p0",optWithValue,1,"-1.0"},
                                  {"-org-empty-word",flag,0,""},{"-nonpar-distortion",flag,0,""},
                                  {"-hmm-init-type",optWithValue,1,"auto"},{"-dont-print-energy",flag,0,""},
                                  {"-ibm1-transfer-mode",optWithValue,1,"no"},{"-dict-struct",optWithValue,0,""},
@@ -232,17 +232,13 @@ int main(int argc, char** argv) {
 
   std::string hmm_string = downcase(app.getParam("-hmm-type"));
   if (hmm_string != "redpar" && hmm_string != "fullpar" 
-      && hmm_string != "nonpar" && hmm_string != "nonpar2" && hmm_string != "auto") {
-    std::cerr << "WARNING: \"" << hmm_string << "\" is not a valid hmm type. Selecting auto.";
-    hmm_string = "auto";
+      && hmm_string != "nonpar" && hmm_string != "nonpar2") {
+    std::cerr << "WARNING: \"" << hmm_string << "\" is not a valid hmm type. Selecting redpar.";
+    hmm_string = "redpar";
   }
 
   HmmAlignProbType hmm_align_mode = HmmAlignProbReducedpar;
-  if (hmm_string == "auto") {
-    if (method == "viterbi" && dict_regularity != 0.0)
-      hmm_align_mode = HmmAlignProbFullpar;
-  }
-  else if (hmm_string == "fullpar")
+  if (hmm_string == "fullpar")
     hmm_align_mode = HmmAlignProbFullpar;
   else if (hmm_string == "nonpar") 
     hmm_align_mode = HmmAlignProbNonpar;
