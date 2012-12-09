@@ -15,7 +15,6 @@ GIZA++ as the models IBM-1,2,3,4 and HMM are implemented.
 
 There are a few restrictions however:
 - support for the IBM-2 is limited.
-- for IBM-4 there is currently no dependence on word classes 
 - pegging is not implemented (and usually too slow, anyway)
 - when moving from one model to the next, there is no count collection 
   from the previous model. Rather, novel parameters are initialized uniformly.
