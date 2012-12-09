@@ -233,7 +233,7 @@ int main(int argc, char** argv) {
   std::string hmm_string = downcase(app.getParam("-hmm-type"));
   if (hmm_string != "redpar" && hmm_string != "fullpar" 
       && hmm_string != "nonpar" && hmm_string != "nonpar2") {
-    std::cerr << "WARNING: \"" << hmm_string << "\" is not a valid hmm type. Selecting redpar.";
+    std::cerr << "WARNING: \"" << hmm_string << "\" is not a valid hmm type. Selecting redpar." << std::endl;
     hmm_string = "redpar";
   }
 
@@ -254,7 +254,7 @@ int main(int argc, char** argv) {
   std::string hmm_init_string = downcase(app.getParam("-hmm-init-type"));
   if (hmm_init_string != "auto" && hmm_init_string != "par" && hmm_init_string != "nonpar" 
       && hmm_init_string != "fix" && hmm_init_string != "fix2") {
-    std::cerr << "WARNING: \"" << hmm_init_string << "\" is not a valid hmm init type. Selecting auto.";
+    std::cerr << "WARNING: \"" << hmm_init_string << "\" is not a valid hmm init type. Selecting auto." << std::endl;
     hmm_init_string = "auto";
   }
   if (hmm_init_string == "par")
