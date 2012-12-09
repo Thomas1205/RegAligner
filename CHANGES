@@ -1,6 +1,6 @@
 RegAligner Change History
 
-*** upcoming release ***
+*** release version 1.0 (released on December 09 2012) ***
 - parameterization of HMM now selectable on command line, plus added some variants
 - added options to the IBM-3: 
   probability for empty word can now be fixed on command line, the original empty word of Brown et al. can be used
