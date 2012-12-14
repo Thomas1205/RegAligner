@@ -81,6 +81,12 @@ T convert(const std::string s) {
 template<>
 uint convert<uint>(const std::string s); 
 
+template<typename T1, typename T2>
+void operator+=(std::pair<T1,T2>& x, const std::pair<T1,T2>& y) {
+  x.first += y.first;
+  x.second += y.second;
+}
+
 
 /********************* Code Macros ****************************/
 #define TODO(s) { std::cerr << "TODO ERROR[" << __FILE__ << ":" << __LINE__ << "]: feature \"" << (s) << "\" is currently not implemented. exiting..." << std::endl; exit(1); } 
