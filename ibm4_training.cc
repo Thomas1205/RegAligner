@@ -3237,7 +3237,7 @@ long double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& sourc
     update = true;
 
     //inter params
-    IBM4CeptStartModel new_param(cept_start_prob_.xDim(),cept_start_prob_.yDim(),2*J-1,0.0,MAKENAME(new_param));
+    IBM4CeptStartModel new_param(cept_start_prob_.xDim(),cept_start_prob_.yDim(),2*J-1,1e-8,MAKENAME(new_param));
     uint new_zero_offset = J-1;
     for (int j = -int(maxJ_)+1; j <= int(maxJ_)-1; j++) {
 
@@ -3249,8 +3249,7 @@ long double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& sourc
     cept_start_prob_ = new_param;
 
     //intra params
-
-    IBM4WithinCeptModel new_wi_model(within_cept_prob_.xDim(),J,0.0,MAKENAME(new_wi_model)); 
+    IBM4WithinCeptModel new_wi_model(within_cept_prob_.xDim(),J,1e-8,MAKENAME(new_wi_model)); 
 
     for (uint c=0; c < new_wi_model.xDim(); c++) {
 
@@ -3427,7 +3426,7 @@ void IBM4Trainer::compute_external_postdec_alignment(const Storage1D<uint>& sour
     update = true;
 
     //inter params
-    IBM4CeptStartModel new_param(cept_start_prob_.xDim(),cept_start_prob_.yDim(),2*J-1,0.0,MAKENAME(new_param));
+    IBM4CeptStartModel new_param(cept_start_prob_.xDim(),cept_start_prob_.yDim(),2*J-1,1e-8,MAKENAME(new_param));
     uint new_zero_offset = J-1;
     for (int j = -int(maxJ_)+1; j <= int(maxJ_)-1; j++) {
 
@@ -3442,7 +3441,7 @@ void IBM4Trainer::compute_external_postdec_alignment(const Storage1D<uint>& sour
 
     //const uint nNewDisplacements = 2*J-1;
 
-    IBM4WithinCeptModel new_wi_model(within_cept_prob_.xDim(),J,0.0,MAKENAME(new_wi_model)); 
+    IBM4WithinCeptModel new_wi_model(within_cept_prob_.xDim(),J,1e-8,MAKENAME(new_wi_model)); 
 
     for (uint c=0; c < new_wi_model.xDim(); c++) {
 
