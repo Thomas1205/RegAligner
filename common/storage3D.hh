@@ -6,7 +6,7 @@
 
 #include "makros.hh"
 
-template<typename T>
+template<typename T, typename ST=size_t>
 class Storage3D {
 public:
 
@@ -15,93 +15,93 @@ public:
   //copy constructor
   Storage3D(const Storage3D& toCopy);
 
-  Storage3D(size_t xDim, size_t yDim, size_t zDim);
+  Storage3D(ST xDim, ST yDim, ST zDim);
 
-  Storage3D(size_t xDim, size_t yDim, size_t zDim, T default_value);
+  Storage3D(ST xDim, ST yDim, ST zDim, T default_value);
 
   ~Storage3D();
 
-  OPTINLINE T& operator()(size_t x, size_t y, size_t z) const;
+  OPTINLINE T& operator()(ST x, ST y, ST z) const;
 
   virtual const std::string& name() const;
 
-  inline size_t size() const;
+  inline ST size() const;
 
-  inline size_t xDim() const;
+  inline ST xDim() const;
 
-  inline size_t yDim() const;
+  inline ST yDim() const;
 
-  inline size_t zDim() const;
+  inline ST zDim() const;
 
   inline T* direct_access();
 
   inline const T* direct_access() const;
 
-  inline T& direct_access(size_t i);
+  inline T& direct_access(ST i);
 
-  inline T direct_access(size_t i) const;
+  inline T direct_access(ST i) const;
 
-  void operator=(const Storage3D<T>& toCopy);
-
-  //existing positions are copied, new ones are uninitialized
-  void resize(size_t newxDim, size_t newyDim, size_t newzDim);
+  void operator=(const Storage3D<T,ST>& toCopy);
 
   //existing positions are copied, new ones are uninitialized
-  void resize(size_t newxDim, size_t newyDim, size_t newzDim, T default_value);
+  void resize(ST newxDim, ST newyDim, ST newzDim);
+
+  //existing positions are copied, new ones are uninitialized
+  void resize(ST newxDim, ST newyDim, ST newzDim, T default_value);
   
   //all elements are uninitialized after this operation
-  void resize_dirty(size_t newxDim, size_t newyDim, size_t newzDim);
+  void resize_dirty(ST newxDim, ST newyDim, ST newzDim);
 
 protected:
-  size_t xDim_;
-  size_t yDim_;
-  size_t zDim_;
-  size_t size_;
+  ST xDim_;
+  ST yDim_;
+  ST zDim_;
+  ST size_;
 
   T* data_;
   static const std::string stor3D_name_;
 };
 
 
-template<typename T>
-class NamedStorage3D : public Storage3D<T> {
+template<typename T, typename ST=size_t>
+class NamedStorage3D : public Storage3D<T,ST> {
 public:
 
   NamedStorage3D();
 
   NamedStorage3D(std::string name);
   
-  NamedStorage3D(size_t xDim, size_t yDim, size_t zDim, std::string name);
+  NamedStorage3D(ST xDim, ST yDim, ST zDim, std::string name);
   
-  NamedStorage3D(size_t xDim, size_t yDim, size_t zDim, T default_value, std::string name);
+  NamedStorage3D(ST xDim, ST yDim, ST zDim, T default_value, std::string name);
 
   virtual const std::string& name() const;
 
-  inline void operator=(const Storage3D<T>& toCopy);
+  inline void operator=(const Storage3D<T,ST>& toCopy);
 
   //NOTE: the name is NOT copied
-  inline void operator=(const NamedStorage3D<T>& toCopy);
+  inline void operator=(const NamedStorage3D<T,ST>& toCopy);
 
 protected:
   std::string name_;
 };
 
-template<typename T>
-bool operator==(const Storage3D<T>& v1, const Storage3D<T>& v2);
+template<typename T, typename ST>
+bool operator==(const Storage3D<T,ST>& v1, const Storage3D<T,ST>& v2);
 
-template<typename T>
-bool operator!=(const Storage3D<T>& v1, const Storage3D<T>& v2);
+template<typename T, typename ST>
+bool operator!=(const Storage3D<T,ST>& v1, const Storage3D<T,ST>& v2);
 
 
 /******************************************** implementation **************************************************/
-template<typename T>
-/*static*/ const std::string Storage3D<T>::stor3D_name_ = "unnamed Storage3D";
+template<typename T, typename ST>
+/*static*/ const std::string Storage3D<T,ST>::stor3D_name_ = "unnamed Storage3D";
 
-template<typename T>
-Storage3D<T>::Storage3D() : xDim_(0), yDim_(0), zDim_(0), size_(0), data_(0) {}
+template<typename T, typename ST>
+Storage3D<T,ST>::Storage3D() : xDim_(0), yDim_(0), zDim_(0), size_(0), data_(0) {}
 
-template<typename T>
-Storage3D<T>::Storage3D(const Storage3D<T>& toCopy) {
+template<typename T, typename ST>
+Storage3D<T,ST>::Storage3D(const Storage3D<T,ST>& toCopy) {
 
   xDim_ = toCopy.xDim();
   yDim_ = toCopy.yDim();
@@ -110,41 +110,45 @@ Storage3D<T>::Storage3D(const Storage3D<T>& toCopy) {
 
   data_ = new T[size_];
 
-  for (size_t i=0; i < size_; i++)
+  for (ST i=0; i < size_; i++)
     data_[i] = toCopy.direct_access(i);
   
   //this is faster for basic types but it fails for complex types where e.g. arrays have to be copied
   //memcpy(data_,toCopy.direct_access(),size_*sizeof(T));  
 }
 
-template<typename T>
-Storage3D<T>::Storage3D(size_t xDim, size_t yDim, size_t zDim) : xDim_(xDim), yDim_(yDim), zDim_(zDim) {
+template<typename T, typename ST>
+Storage3D<T,ST>::Storage3D(ST xDim, ST yDim, ST zDim) : xDim_(xDim), yDim_(yDim), zDim_(zDim) {
 
   size_ = xDim_*yDim_*zDim_;
   data_ = new T[size_];
 }
 
-template<typename T>
-Storage3D<T>::Storage3D(size_t xDim, size_t yDim, size_t zDim, T default_value) :
+template<typename T, typename ST>
+Storage3D<T,ST>::Storage3D(ST xDim, ST yDim, ST zDim, T default_value) :
   xDim_(xDim), yDim_(yDim), zDim_(zDim) {
 
   size_ = xDim_*yDim_*zDim_;
   data_ = new T[size_];
-  for (size_t i=0; i < size_; i++) {
-    data_[i] = default_value;
-  }
+
+
+  std::fill_n(data_,size_,default_value);
+
+  // for (ST i=0; i < size_; i++) {
+  //   data_[i] = default_value;
+  // }
 }
 
 
-template<typename T>
-Storage3D<T>::~Storage3D() {
+template<typename T, typename ST>
+Storage3D<T,ST>::~Storage3D() {
 
   if (data_ != 0)
     delete[] data_;
 }
 
-template<typename T>
-OPTINLINE T& Storage3D<T>::operator()(size_t x, size_t y, size_t z) const {
+template<typename T, typename ST>
+OPTINLINE T& Storage3D<T,ST>::operator()(ST x, ST y, ST z) const {
 #ifdef SAFE_MODE
   if (x >= xDim_ || y >= yDim_ || z >= zDim_) {
     INTERNAL_ERROR << "     invalid access on element (" << x << "," << y << "," << z << ") of 3D-storage \"" 
@@ -156,53 +160,53 @@ OPTINLINE T& Storage3D<T>::operator()(size_t x, size_t y, size_t z) const {
   return data_[(y*xDim_+x)*zDim_+z];
 }
 
-template<typename T>
-/*virtual*/ const std::string& Storage3D<T>::name() const {
+template<typename T, typename ST>
+/*virtual*/ const std::string& Storage3D<T,ST>::name() const {
   return stor3D_name_;
 }
 
-template<typename T>
-inline size_t Storage3D<T>::size() const {
+template<typename T, typename ST>
+inline ST Storage3D<T,ST>::size() const {
   return size_;
 }
 
-template<typename T>
-inline size_t Storage3D<T>::xDim() const {
+template<typename T, typename ST>
+inline ST Storage3D<T,ST>::xDim() const {
   return xDim_;
 }
 
-template<typename T>
-inline size_t Storage3D<T>::yDim() const {
+template<typename T, typename ST>
+inline ST Storage3D<T,ST>::yDim() const {
   return yDim_;
 }
 
-template<typename T>
-inline size_t Storage3D<T>::zDim() const {
+template<typename T, typename ST>
+inline ST Storage3D<T,ST>::zDim() const {
   return zDim_;
 }
 
-template<typename T>
-inline T* Storage3D<T>::direct_access() {
+template<typename T, typename ST>
+inline T* Storage3D<T,ST>::direct_access() {
   return data_;
 }
 
-template<typename T>
-inline const T* Storage3D<T>::direct_access() const {
+template<typename T, typename ST>
+inline const T* Storage3D<T,ST>::direct_access() const {
   return data_;
 }
 
-template<typename T>
-inline T& Storage3D<T>::direct_access(size_t i) {
+template<typename T, typename ST>
+inline T& Storage3D<T,ST>::direct_access(ST i) {
   return data_[i];
 }
 
-template<typename T>
-inline T Storage3D<T>::direct_access(size_t i) const {
+template<typename T, typename ST>
+inline T Storage3D<T,ST>::direct_access(ST i) const {
   return data_[i];
 }
 
-template<typename T>
-void Storage3D<T>::operator=(const Storage3D<T>& toCopy) {
+template<typename T, typename ST>
+void Storage3D<T,ST>::operator=(const Storage3D<T,ST>& toCopy) {
 
   if (size_ != toCopy.size()) {
     if (data_ != 0) {
@@ -218,7 +222,7 @@ void Storage3D<T>::operator=(const Storage3D<T>& toCopy) {
   zDim_ = toCopy.zDim();
   assert(size_ == xDim_*yDim_*zDim_);
 
-  for (size_t i=0; i < size_; i++)
+  for (ST i=0; i < size_; i++)
     data_[i] = toCopy.direct_access(i);
   
   //this is faster for basic types but it fails for complex types where e.g. arrays have to be copied
@@ -227,10 +231,10 @@ void Storage3D<T>::operator=(const Storage3D<T>& toCopy) {
 
 
 //existing positions are copied, new ones are uninitialized
-template<typename T>
-void Storage3D<T>::resize(size_t newxDim, size_t newyDim, size_t newzDim) {
+template<typename T, typename ST>
+void Storage3D<T,ST>::resize(ST newxDim, ST newyDim, ST newzDim) {
 
-  size_t new_size = newxDim*newyDim*newzDim;
+  ST new_size = newxDim*newyDim*newzDim;
 
   if (newxDim != xDim_ || newyDim != yDim_ || newzDim != zDim_) {
     T* new_data = new T[new_size];
@@ -238,12 +242,12 @@ void Storage3D<T>::resize(size_t newxDim, size_t newyDim, size_t newzDim) {
     if (data_ != 0) {
       
       //copy existing elements
-      for (size_t x=0; x < std::min(xDim_,newxDim); x++) {
-        for (size_t y=0; y < std::min(yDim_,newyDim); y++) {
-          for (size_t z=0; z < std::min(zDim_,newzDim); z++) {
+      for (ST x=0; x < std::min(xDim_,newxDim); x++) {
+        for (ST y=0; y < std::min(yDim_,newyDim); y++) {
+          for (ST z=0; z < std::min(zDim_,newzDim); z++) {
             new_data[(y*newxDim+x)*newzDim+z] = data_[(y*xDim_+x)*zDim_+z];
           }
-      }
+        }
       }
       
       delete[] data_;
@@ -257,23 +261,23 @@ void Storage3D<T>::resize(size_t newxDim, size_t newyDim, size_t newzDim) {
 }
 
 //existing positions are copied, new ones are uninitialized
-template<typename T>
-void Storage3D<T>::resize(size_t newxDim, size_t newyDim, size_t newzDim, T default_value) {
+template<typename T, typename ST>
+void Storage3D<T,ST>::resize(ST newxDim, ST newyDim, ST newzDim, T default_value) {
 
-  size_t new_size = newxDim*newyDim*newzDim;
+  ST new_size = newxDim*newyDim*newzDim;
 
   if (newxDim != xDim_ || newyDim != yDim_ || newzDim != zDim_) {
 
     T* new_data = new T[new_size];
-    for (size_t i=0; i < new_size; i++)
+    for (ST i=0; i < new_size; i++)
       new_data[i] = default_value;
     
     if (data_ != 0) {
       
       //copy existing elements
-      for (size_t x=0; x < std::min(xDim_,newxDim); x++) {
-        for (size_t y=0; y < std::min(yDim_,newyDim); y++) {
-          for (size_t z=0; z < std::min(zDim_,newzDim); z++) {
+      for (ST x=0; x < std::min(xDim_,newxDim); x++) {
+        for (ST y=0; y < std::min(yDim_,newyDim); y++) {
+          for (ST z=0; z < std::min(zDim_,newzDim); z++) {
             new_data[(y*newxDim+x)*newzDim+z] = data_[(y*xDim_+x)*zDim_+z];
           }
         }
@@ -290,8 +294,8 @@ void Storage3D<T>::resize(size_t newxDim, size_t newyDim, size_t newzDim, T defa
 }
 
 //all elements are uninitialized after this operation
-template<typename T>
-void Storage3D<T>::resize_dirty(size_t newxDim, size_t newyDim, size_t newzDim) {
+template<typename T, typename ST>
+void Storage3D<T,ST>::resize_dirty(ST newxDim, ST newyDim, ST newzDim) {
 
   if (newxDim != xDim_ || newyDim != yDim_ || newzDim != zDim_) {
     
@@ -310,43 +314,43 @@ void Storage3D<T>::resize_dirty(size_t newxDim, size_t newyDim, size_t newzDim) 
 
 /***********************/
 
-template<typename T>
-NamedStorage3D<T>::NamedStorage3D() : Storage3D<T>(), name_("yyy") {}
+template<typename T, typename ST>
+NamedStorage3D<T,ST>::NamedStorage3D() : Storage3D<T,ST>(), name_("yyy") {}
 
-template<typename T>
-NamedStorage3D<T>::NamedStorage3D(std::string name) : Storage3D<T>(), name_(name) {}
+template<typename T, typename ST>
+NamedStorage3D<T,ST>::NamedStorage3D(std::string name) : Storage3D<T,ST>(), name_(name) {}
 
-template<typename T>
-NamedStorage3D<T>::NamedStorage3D(size_t xDim, size_t yDim, size_t zDim, std::string name) : 
-  Storage3D<T>(xDim,yDim,zDim), name_(name) {}
+template<typename T, typename ST>
+NamedStorage3D<T,ST>::NamedStorage3D(ST xDim, ST yDim, ST zDim, std::string name) : 
+  Storage3D<T,ST>(xDim,yDim,zDim), name_(name) {}
 
-template<typename T>
-NamedStorage3D<T>::NamedStorage3D(size_t xDim, size_t yDim, size_t zDim, T default_value, std::string name) 
-  : Storage3D<T>(xDim,yDim,zDim,default_value), name_(name) {}
+template<typename T, typename ST>
+NamedStorage3D<T,ST>::NamedStorage3D(ST xDim, ST yDim, ST zDim, T default_value, std::string name) 
+  : Storage3D<T,ST>(xDim,yDim,zDim,default_value), name_(name) {}
 
-template<typename T>
-/*virtual*/ const std::string& NamedStorage3D<T>::name() const {
+template<typename T, typename ST>
+/*virtual*/ const std::string& NamedStorage3D<T,ST>::name() const {
   return name_;
 }
 
-template<typename T>
-inline void NamedStorage3D<T>::operator=(const Storage3D<T>& toCopy) {
-  Storage3D<T>::operator=(toCopy);
+template<typename T, typename ST>
+inline void NamedStorage3D<T,ST>::operator=(const Storage3D<T,ST>& toCopy) {
+  Storage3D<T,ST>::operator=(toCopy);
 }
 
 //NOTE: the name is NOT copied
-template<typename T>
-inline void NamedStorage3D<T>::operator=(const NamedStorage3D<T>& toCopy) {
-  Storage3D<T>::operator=(static_cast<Storage3D<T> >(toCopy));
+template<typename T, typename ST>
+inline void NamedStorage3D<T,ST>::operator=(const NamedStorage3D<T,ST>& toCopy) {
+  Storage3D<T,ST>::operator=(static_cast<Storage3D<T,ST> >(toCopy));
 }
 
 
-template<typename T>
-bool operator==(const Storage3D<T>& v1, const Storage3D<T>& v2) {
+template<typename T, typename ST>
+bool operator==(const Storage3D<T,ST>& v1, const Storage3D<T,ST>& v2) {
   if (v1.xDim() != v2.xDim() || v1.yDim() != v2.yDim() || v1.zDim() != v2.zDim())
     return false;
   
-  for (uint i=0; i < v1.size(); i++) {
+  for (ST i=0; i < v1.size(); i++) {
     if (v1.direct_access(i) != v2.direct_access(i))
       return false;
   }
@@ -354,7 +358,7 @@ bool operator==(const Storage3D<T>& v1, const Storage3D<T>& v2) {
   return true;
 }
 
-template<typename T>
-bool operator!=(const Storage3D<T>& v1, const Storage3D<T>& v2) {
+template<typename T, typename ST>
+bool operator!=(const Storage3D<T,ST>& v1, const Storage3D<T,ST>& v2) {
   return !operator==(v1,v2);
 }

@@ -26,16 +26,16 @@ On the other hand, there are some additional features:
 - IBM-3 allows a reduction of the alignment parameters by
   pooling over all sentence lengths.
 - variants of IBM-4 where instead of the center of a cept one can take the head or the tail
-- we implement posterior decoding (although not active by default)
+- we implement posterior decoding (not active by default)
 - refined Viterbi training mode with ICM stage (useful with L_0-norms)
 - training the IBM-3 with the ITG constraints and the IBM constraints is supported
 - computation of IBM-3 Viterbi alignments via ILPs is integrated
-
+- we use long double precision
 
 BUILDING REGALIGNER
 
 A sample Makefile has been provided, but you will most likely have to modify
-it. Also, you will have to change to the directory common first, and build there.
+it. 
 
 DEPENDENCIES
 

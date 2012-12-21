@@ -2,9 +2,9 @@
 tidy:
 	rm *~
 
-clean:
-	-rm $(DEBUGDIR)/*.o $(DEBUGDIR)/*.cu_o
-	-rm $(OPTDIR)/*.o $(OPTDIR)/*.cu_o
+#clean:
+#	-rm $(DEBUGDIR)/*.o 
+#	-rm $(OPTDIR)/*.o 
 
 $(DEBUGDIR)/%.o : %.cc
 	$(COMPILER) $(INCLUDE) -c $< $(DEBUGFLAGS) -o $@

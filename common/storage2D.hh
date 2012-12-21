@@ -12,124 +12,124 @@
 
 //two-dimensional container class for objects of any type T
 //(i.e. neither mathematical nor streaming operations need to be defined on T)
-template<typename T>
+template<typename T, typename ST = size_t>
 class Storage2D {
 public:
 
   //default constructor
   Storage2D();
 
-  Storage2D(size_t xDim, size_t yDim);
+  Storage2D(ST xDim, ST yDim);
 
-  Storage2D(size_t xDim, size_t yDim, T default_value);
+  Storage2D(ST xDim, ST yDim, T default_value);
 
   //copy constructor
-  Storage2D(const Storage2D<T>& toCopy);
+  Storage2D(const Storage2D<T,ST>& toCopy);
 
   ~Storage2D();
 
   virtual const std::string& name() const;
 
   //saves all existing entries, new positions contain undefined data
-  void resize(size_t newxDim, size_t newyDim);
+  void resize(ST newxDim, ST newyDim);
 
   //saves all existing entries, new positions are filled with <code> fill_value </code>
-  void resize(size_t newxDim, size_t newyDim, T fill_value);
+  void resize(ST newxDim, ST newyDim, T fill_value);
 
   //all elements are uninitialized after this operation
-  void resize_dirty(size_t newxDim, size_t newyDim);
+  void resize_dirty(ST newxDim, ST newyDim);
 
   void set_constant(T new_constant);
 
   //access on an element
-  OPTINLINE T& operator()(size_t x, size_t y) const;
+  OPTINLINE T& operator()(ST x, ST y) const;
 
-  void operator=(const Storage2D<T>& toCopy);
+  void operator=(const Storage2D<T,ST>& toCopy);
 
   inline T* direct_access();
 
   inline const T* direct_access() const;
 
-  inline T& direct_access(size_t i);
+  inline T& direct_access(ST i);
 
-  inline T direct_access(size_t i) const;
+  inline T direct_access(ST i) const;
 
-  inline T value(size_t i) const;
+  inline T value(ST i) const;
 
-  inline size_t xDim() const;
+  inline ST xDim() const;
 
-  inline size_t yDim() const;
+  inline ST yDim() const;
   
-  inline size_t size() const;
+  inline ST size() const;
 
 protected:
 
   T* data_;
-  size_t xDim_;
-  size_t yDim_;
-  size_t size_;
+  ST xDim_;
+  ST yDim_;
+  ST size_;
   static const std::string stor2D_name_;
 };
 
-template<typename T>
-class NamedStorage2D : public Storage2D<T> {
+template<typename T, typename ST=size_t>
+class NamedStorage2D : public Storage2D<T,ST> {
 public:
 
   NamedStorage2D();
 
   NamedStorage2D(std::string name);
   
-  NamedStorage2D(size_t xDim, size_t yDim, std::string name);
+  NamedStorage2D(ST xDim, ST yDim, std::string name);
   
-  NamedStorage2D(size_t xDim, size_t yDim, T default_value, std::string name);
+  NamedStorage2D(ST xDim, ST yDim, T default_value, std::string name);
 
   virtual const std::string& name() const;
 
-  inline void operator=(const Storage2D<T>& toCopy);
+  inline void operator=(const Storage2D<T,ST>& toCopy);
 
   //NOTE: the name is NOT copied
-  inline void operator=(const NamedStorage2D<T>& toCopy);
+  inline void operator=(const NamedStorage2D<T,ST>& toCopy);
 
 protected:
   std::string name_;
 };
 
 
-template<typename T>
-bool operator==(const Storage2D<T>& v1, const Storage2D<T>& v2);
+template<typename T, typename ST>
+bool operator==(const Storage2D<T,ST>& v1, const Storage2D<T,ST>& v2);
 
-template<typename T>
-bool operator!=(const Storage2D<T>& v1, const Storage2D<T>& v2);
+template<typename T, typename ST>
+bool operator!=(const Storage2D<T,ST>& v1, const Storage2D<T,ST>& v2);
 
 
 /**************************** implementation **************************************/
 
-template<typename T>
-/*static*/ const std::string Storage2D<T>::stor2D_name_ = "unnamed 2Dstorage";
+template<typename T, typename ST>
+/*static*/ const std::string Storage2D<T,ST>::stor2D_name_ = "unnamed 2Dstorage";
 
 //constructors
-template<typename T>
-Storage2D<T>::Storage2D() : data_(0), xDim_(0), yDim_(0), size_(0) {}
+template<typename T, typename ST>
+Storage2D<T,ST>::Storage2D() : data_(0), xDim_(0), yDim_(0), size_(0) {}
 
-template<typename T>
-Storage2D<T>::Storage2D(size_t xDim, size_t yDim) : xDim_(xDim), yDim_(yDim) {
+template<typename T, typename ST>
+Storage2D<T,ST>::Storage2D(ST xDim, ST yDim) : xDim_(xDim), yDim_(yDim) {
 
   size_ = xDim_*yDim_;
   data_ = new T[size_];
 }
 
-template<typename T>
-Storage2D<T>::Storage2D(size_t xDim, size_t yDim, T default_value) : xDim_(xDim), yDim_(yDim) {
+template<typename T, typename ST>
+Storage2D<T,ST>::Storage2D(ST xDim, ST yDim, T default_value) : xDim_(xDim), yDim_(yDim) {
 
   size_ = xDim_*yDim_;
   data_ = new T[size_];
-  for (size_t i=0; i < size_; i++)
+  for (ST i=0; i < size_; i++)
     data_[i] = default_value;
 }
 
 //copy constructor
-template<typename T>
-Storage2D<T>::Storage2D(const Storage2D<T>& toCopy) {
+template<typename T, typename ST>
+Storage2D<T,ST>::Storage2D(const Storage2D<T,ST>& toCopy) {
 
   xDim_ = toCopy.xDim();
   yDim_ = toCopy.yDim();
@@ -142,7 +142,7 @@ Storage2D<T>::Storage2D(const Storage2D<T>& toCopy) {
   else {
     data_ = new T[size_];
 
-    for (size_t i = 0; i < size_; i++)
+    for (ST i = 0; i < size_; i++)
       data_[i] = toCopy.value(i);
 
     //this is faster for basic types but it fails for complex types where e.g. arrays have to be copied    
@@ -151,52 +151,52 @@ Storage2D<T>::Storage2D(const Storage2D<T>& toCopy) {
 }
 
 //destructor
-template <typename T>
-Storage2D<T>::~Storage2D() {
+template <typename T, typename ST>
+Storage2D<T,ST>::~Storage2D() {
   if (data_ != 0)
     delete[] data_;
 }
 
-template <typename T>
-void Storage2D<T>::set_constant(T new_constant) {
+template <typename T, typename ST>
+void Storage2D<T,ST>::set_constant(T new_constant) {
 
-  for (size_t i=0; i < size_; i++)
+  for (ST i=0; i < size_; i++)
     data_[i] = new_constant;
 }
 
-template<typename T>
-const std::string& Storage2D<T>::name() const {
-  return Storage2D<T>::stor2D_name_;
+template<typename T, typename ST>
+const std::string& Storage2D<T,ST>::name() const {
+  return Storage2D<T,ST>::stor2D_name_;
 }
 
-template<typename T>
-inline T* Storage2D<T>::direct_access() { return data_; }
+template<typename T, typename ST>
+inline T* Storage2D<T,ST>::direct_access() { return data_; }
 
-template<typename T>
-inline const T* Storage2D<T>::direct_access() const { return data_; }
+template<typename T, typename ST>
+inline const T* Storage2D<T,ST>::direct_access() const { return data_; }
 
-template<typename T>
-inline T& Storage2D<T>::direct_access(size_t i) { return data_[i]; }
+template<typename T, typename ST>
+inline T& Storage2D<T,ST>::direct_access(ST i) { return data_[i]; }
 
-template<typename T>
-inline T Storage2D<T>::direct_access(size_t i) const {
+template<typename T, typename ST>
+inline T Storage2D<T,ST>::direct_access(ST i) const {
   return data_[i];
 }
 
-template<typename T>
-inline T Storage2D<T>::value(size_t i) const { return data_[i]; }
+template<typename T, typename ST>
+inline T Storage2D<T,ST>::value(ST i) const { return data_[i]; }
 
-template<typename T>
-inline size_t Storage2D<T>::xDim() const { return xDim_; }
+template<typename T, typename ST>
+inline ST Storage2D<T,ST>::xDim() const { return xDim_; }
 
-template<typename T>
-inline size_t Storage2D<T>::yDim() const { return yDim_; }
+template<typename T, typename ST>
+inline ST Storage2D<T,ST>::yDim() const { return yDim_; }
 
-template<typename T>
-inline size_t Storage2D<T>::size() const { return size_; }
+template<typename T, typename ST>
+inline ST Storage2D<T,ST>::size() const { return size_; }
 
-template <typename T>
-OPTINLINE T& Storage2D<T>::operator()(size_t x, size_t y) const {
+template <typename T, typename ST>
+OPTINLINE T& Storage2D<T,ST>::operator()(ST x, ST y) const {
 #ifdef SAFE_MODE
   if (x >= xDim_ || y >= yDim_) {
     INTERNAL_ERROR << "    access on element(" << x << "," << y 
@@ -208,8 +208,8 @@ OPTINLINE T& Storage2D<T>::operator()(size_t x, size_t y) const {
   return data_[y*xDim_+x];
 }
 
-template <typename T>
-void Storage2D<T>::operator=(const Storage2D<T>& toCopy) {
+template <typename T, typename ST>
+void Storage2D<T,ST>::operator=(const Storage2D<T,ST>& toCopy) {
 
   if (size_ != toCopy.size()) {
     if (data_ != 0)
@@ -223,9 +223,9 @@ void Storage2D<T>::operator=(const Storage2D<T>& toCopy) {
   yDim_ = toCopy.yDim();
   assert(size_ == xDim_*yDim_);
 
-  const uint size = size_;
+  const ST size = size_;
 
-  for (size_t i = 0; i < size; i++)
+  for (ST i = 0; i < size; i++)
     data_[i] = toCopy.value(i);
   
   //this is faster for basic types but it fails for complex types where e.g. arrays have to be copied
@@ -248,8 +248,8 @@ template<>
 void Storage2D<long double>::operator=(const Storage2D<long double>& toCopy);
 
 
-template <typename T>
-void Storage2D<T>::resize(size_t newxDim, size_t newyDim) {
+template <typename T, typename ST>
+void Storage2D<T,ST>::resize(ST newxDim, ST newyDim) {
 
   if (data_ == 0) {
     data_ = new T[newxDim*newyDim];
@@ -259,8 +259,8 @@ void Storage2D<T>::resize(size_t newxDim, size_t newyDim) {
     T* new_data = new T[newxDim*newyDim];
 
     /* copy data */
-    for (size_t y=0; y < std::min(yDim_,newyDim); y++)
-      for (size_t x=0; x < std::min(xDim_,newxDim); x++)
+    for (ST y=0; y < std::min(yDim_,newyDim); y++)
+      for (ST x=0; x < std::min(xDim_,newxDim); x++)
 	new_data[y*newxDim+x] = data_[y*xDim_+x];
 
     delete[] data_;
@@ -272,13 +272,13 @@ void Storage2D<T>::resize(size_t newxDim, size_t newyDim) {
   size_ = xDim_*yDim_;
 }
 
-template <typename T>
-void Storage2D<T>::resize(size_t newxDim, size_t newyDim, T fill_value) {
+template <typename T, typename ST>
+void Storage2D<T,ST>::resize(ST newxDim, ST newyDim, T fill_value) {
 
   if (data_ == 0) {
     data_ = new T[newxDim*newyDim];
 
-//     for (size_t i=0; i < newxDim*newyDim; i++)
+//     for (ST i=0; i < newxDim*newyDim; i++)
 //       data_[i] = fill_value;
 
     std::fill_n(data_,newxDim*newyDim,fill_value);
@@ -286,12 +286,12 @@ void Storage2D<T>::resize(size_t newxDim, size_t newyDim, T fill_value) {
   else if (newxDim != xDim_ || newyDim != yDim_) {
 
     T* new_data = new T[newxDim*newyDim];
-    for (size_t i=0; i < newxDim*newyDim; i++)
+    for (ST i=0; i < newxDim*newyDim; i++)
       new_data[i] = fill_value;
 
     /* copy data */
-    for (size_t y=0; y < std::min(yDim_,newyDim); y++)
-      for (size_t x=0; x < std::min(xDim_,newxDim); x++)
+    for (ST y=0; y < std::min(yDim_,newyDim); y++)
+      for (ST x=0; x < std::min(xDim_,newxDim); x++)
 	new_data[y*newxDim+x] = data_[y*xDim_+x];
 
     delete[] data_;
@@ -303,8 +303,8 @@ void Storage2D<T>::resize(size_t newxDim, size_t newyDim, T fill_value) {
   size_ = xDim_*yDim_;
 }
 
-template<typename T>
-void Storage2D<T>::resize_dirty(size_t newxDim, size_t newyDim) {
+template<typename T, typename ST>
+void Storage2D<T,ST>::resize_dirty(ST newxDim, ST newyDim) {
 
   if (newxDim != xDim_ || newyDim != yDim_) {
     if (data_ != 0) {
@@ -321,42 +321,42 @@ void Storage2D<T>::resize_dirty(size_t newxDim, size_t newyDim) {
 
 /***** implementation of NamedStorage2D ********/
 
-template<typename T>
-NamedStorage2D<T>::NamedStorage2D() : Storage2D<T>(), name_("yyy") {}
+template<typename T, typename ST>
+NamedStorage2D<T,ST>::NamedStorage2D() : Storage2D<T,ST>(), name_("yyy") {}
 
-template<typename T>
-NamedStorage2D<T>::NamedStorage2D(std::string name) : Storage2D<T>(), name_(name) {}
+template<typename T, typename ST>
+NamedStorage2D<T,ST>::NamedStorage2D(std::string name) : Storage2D<T,ST>(), name_(name) {}
 
-template<typename T>
-NamedStorage2D<T>::NamedStorage2D(size_t xDim, size_t yDim, std::string name) : Storage2D<T>(xDim,yDim), name_(name) {}
+template<typename T, typename ST>
+NamedStorage2D<T,ST>::NamedStorage2D(ST xDim, ST yDim, std::string name) : Storage2D<T,ST>(xDim,yDim), name_(name) {}
 
-template<typename T>
-NamedStorage2D<T>::NamedStorage2D(size_t xDim, size_t yDim, T default_value, std::string name) 
-  : Storage2D<T>(xDim,yDim,default_value), name_(name) {}
+template<typename T, typename ST>
+NamedStorage2D<T,ST>::NamedStorage2D(ST xDim, ST yDim, T default_value, std::string name) 
+  : Storage2D<T,ST>(xDim,yDim,default_value), name_(name) {}
 
-template<typename T>
-/*virtual*/ const std::string& NamedStorage2D<T>::name() const {
+template<typename T, typename ST>
+/*virtual*/ const std::string& NamedStorage2D<T,ST>::name() const {
   return name_;
 }
 
-template<typename T>
-inline void NamedStorage2D<T>::operator=(const Storage2D<T>& toCopy) {
-  Storage2D<T>::operator=(toCopy);
+template<typename T, typename ST>
+inline void NamedStorage2D<T,ST>::operator=(const Storage2D<T,ST>& toCopy) {
+  Storage2D<T,ST>::operator=(toCopy);
 }
 
 //NOTE: the name is NOT copied
-template<typename T>
-inline void NamedStorage2D<T>::operator=(const NamedStorage2D<T>& toCopy) {
-  Storage2D<T>::operator=(static_cast<Storage2D<T> >(toCopy));
+template<typename T, typename ST>
+inline void NamedStorage2D<T,ST>::operator=(const NamedStorage2D<T,ST>& toCopy) {
+  Storage2D<T,ST>::operator=(static_cast<Storage2D<T,ST> >(toCopy));
 }
 
 
-template<typename T>
-bool operator==(const Storage2D<T>& v1, const Storage2D<T>& v2) {
+template<typename T, typename ST>
+bool operator==(const Storage2D<T,ST>& v1, const Storage2D<T,ST>& v2) {
   if (v1.xDim() != v2.xDim() || v1.yDim() != v2.yDim())
     return false;
   
-  for (uint i=0; i < v1.size(); i++) {
+  for (ST i=0; i < v1.size(); i++) {
     if (v1.direct_access(i) != v2.direct_access(i))
       return false;
   }
@@ -364,8 +364,8 @@ bool operator==(const Storage2D<T>& v1, const Storage2D<T>& v2) {
   return true;
 }
 
-template<typename T>
-bool operator!=(const Storage2D<T>& v1, const Storage2D<T>& v2) {
+template<typename T, typename ST>
+bool operator!=(const Storage2D<T,ST>& v1, const Storage2D<T,ST>& v2) {
   return !operator==(v1,v2);
 }
 

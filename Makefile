@@ -41,6 +41,10 @@ regaligner_swb.debug.L64 : regaligner_swb.cc common/lib/commonlib.debug $(DEBUGD
 regaligner_swb.opt.L64 : regaligner_swb.cc common/lib/commonlib.opt $(OPTDIR)/training_common.o $(OPTDIR)/ibm1_training.o $(OPTDIR)/ibm2_training.o $(OPTDIR)/ibm3_training.o $(OPTDIR)/ibm4_training.o $(OPTDIR)/hmm_training.o common/$(OPTDIR)/stringprocessing.o common/$(OPTDIR)/combinatoric.o  $(OPTDIR)/alignment_computation.o $(OPTDIR)/singleword_fertility_training.o $(OPTDIR)/alignment_error_rate.o  $(CBCLINK) $(OPTDIR)/alignment_error_rate.o $(OPTDIR)/corpusio.o 
 	$(LINKER) $(OPTFLAGS) $(INCLUDE) regaligner_swb.cc common/lib/commonlib.debug $(OPTDIR)/training_common.o $(OPTDIR)/ibm1_training.o $(OPTDIR)/ibm2_training.o $(OPTDIR)/ibm3_training.o $(OPTDIR)/ibm4_training.o $(OPTDIR)/hmm_training.o common/$(OPTDIR)/matrix.o  common/$(OPTDIR)/combinatoric.o $(OPTDIR)/alignment_computation.o  $(OPTDIR)/singleword_fertility_training.o common/$(OPTDIR)/fileio.o $(OPTDIR)/alignment_error_rate.o $(OPTDIR)/corpusio.o  $(CBCLINK) $(GZLINK) -ldl -lm -lc -lz  -o $@
 
+clean:
+	cd common; make clean; cd -
+	rm $(DEBUGDIR)/*.o 
+	rm $(OPTDIR)/*.o 
 
 
 include common/Makefile.finish
