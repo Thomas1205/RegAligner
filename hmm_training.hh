@@ -45,7 +45,7 @@ public:
 };
 
 void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
-                        const Storage1D<Math2D::Matrix<uint> >& slookup,
+                        const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
                         const Storage1D<Storage1D<uint> >& target,
                         const CooccuringWordsType& wcooc,
                         FullHMMAlignmentModel& align_model,
@@ -59,7 +59,7 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
 
 void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
-                                       const Storage1D<Math2D::Matrix<uint> >& slookup,
+                                       const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
                                        const Storage1D<Storage1D<uint> >& target,
                                        const CooccuringWordsType& wcooc,
                                        FullHMMAlignmentModel& align_model,
@@ -73,7 +73,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
 
 void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
-                                const Storage1D<Math2D::Matrix<uint> >& slookup,
+                                const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
                                 const Storage1D<Storage1D<uint> >& target,
                                 const CooccuringWordsType& wcooc,
                                 FullHMMAlignmentModel& align_model,
@@ -91,6 +91,7 @@ void par2nonpar_hmm_init_model(const Math1D::Vector<double>& init_params, const 
 void par2nonpar_hmm_alignment_model(const Math1D::Vector<double>& dist_params, const uint zero_offset,
                                     const double dist_grouping_param, const Math1D::Vector<double>& source_fert,
                                     HmmAlignProbType align_type, FullHMMAlignmentModel& align_model);
+
 
 void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& dist_params, uint zero_offset,
                  uint nIter, double& grouping_param);

@@ -14,15 +14,9 @@ INCLUDE += -I common/ -I $(CBCPATH)Clp/src/ -I $(CBCPATH)CoinUtils/src/ -I $(CBC
 #GZLINK = thirdparty/libgzstream.a -lz
 #INCLUDE += -I thirdparty/
 
-all : $(DEBUGDIR) $(OPTDIR) .check regaligner_swb.debug.L64 regaligner_swb.opt.L64 extractvoc.opt.L64 plain2indices.opt.L64 common/lib/commonlib.debug common/lib/commonlib.opt cls2rac.opt.L64
+all : $(DEBUGDIR) $(OPTDIR) .subdirs regaligner_swb.opt.L64 extractvoc.opt.L64 plain2indices.opt.L64 cls2rac.opt.L64
 
-.check :
-	cd common; make; cd -
-
-common/lib/commonlib.opt : 
-	cd common; make; cd -
-
-common/lib/commonlib.debug :
+.subdirs :
 	cd common; make; cd -
 
 cls2rac.opt.L64 : cls2rac.cc common/lib/commonlib.opt

@@ -57,12 +57,13 @@ int main(int argc, char** argv) {
 	      << " [-hmm-type (fullpar | redpar | nonpar | nonpar2)]: default redpar" << std::endl
 	      << " [-hmm-init-type (auto | par | nonpar | fix | fix2)]: default auto" << std::endl
               << " [-ibm1-transfer-mode (no | viterbi | posterior) ] : how to init HMM from IBM1, default: no" << std::endl
-	      << " [-count-collection] : do IBM-3 hillclimbing when initializing IBM-4" << std::endl
+              << " [-count-collection] : do IBM-3 hillclimbing when initializing IBM-4" << std::endl
 	      << " [-p0 <double>]: fix probability for empty alignments for IBM-3/4 " << std::endl
               << " [-org-empty-word] : for IBM 3/4 use empty word as originally published" << std::endl
               << " [-dont-reduce-deficiency] : use non-normalized probabilities for IBM-4 (as in Brown et al.)" << std::endl
               << " [-nonpar-distortion] : use extended set of distortion parameters for IBM-3" << std::endl
               << " [-dont-print-energy] : do not print the energy (speeds up EM for IBM-1 and HMM)" << std::endl
+              << " [-max-lookup <uint>] : only store lookup tables up to this size. Default: 65535" << std::endl
               << " [-o <file>] : the determined dictionary is written to this file" << std::endl
               << " -oa <file> : the determined alignment is written to this file" << std::endl
               << std::endl;
@@ -72,7 +73,7 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  const int nParams = 35;
+  const int nParams = 36;
   ParamDescr  params[nParams] = {{"-s",mandInFilename,0,""},{"-t",mandInFilename,0,""},
                                  {"-ds",optInFilename,0,""},{"-dt",optInFilename,0,""},
                                  {"-o",optOutFilename,0,""},{"-oa",mandOutFilename,0,""},
@@ -90,7 +91,8 @@ int main(int argc, char** argv) {
                                  {"-hmm-init-type",optWithValue,1,"auto"},{"-dont-print-energy",flag,0,""},
                                  {"-ibm1-transfer-mode",optWithValue,1,"no"},{"-dict-struct",optWithValue,0,""},
                                  {"-dont-reduce-deficiency",flag,0,""},{"-count-collection",flag,0,""},
-				 {"-sclasses",optInFilename,0,""},{"-tclasses",optInFilename,0,""}};
+				 {"-sclasses",optInFilename,0,""},{"-tclasses",optInFilename,0,""},
+                                 {"-max-lookup",optWithValue,1,"65535"}};
 
   Application app(argc,argv,params,nParams);
 
@@ -133,6 +135,8 @@ int main(int argc, char** argv) {
   bool em_l0 = (l0_beta > 0);
 
   uint fert_limit = convert<uint>(app.getParam("-fert-limit"));
+
+  const uint max_lookup = convert<uint>(app.getParam("-max-lookup"));
 
   double postdec_thresh = convert<double>(app.getParam("-postdec-thresh"));
 
@@ -181,6 +185,7 @@ int main(int argc, char** argv) {
   uint nSentences = source_sentence.size();
 
   uint maxI = 0;
+  uint maxJ = 0;
 
   for (size_t s=0; s < source_sentence.size(); s++) {
 
@@ -188,6 +193,7 @@ int main(int argc, char** argv) {
     uint curI = target_sentence[s].size();
 
     maxI = std::max<uint>(maxI,curI);
+    maxJ = std::max<uint>(maxJ,curJ);
 
     if (9*curJ < curI || 9*curI < curJ) {
 
@@ -195,25 +201,56 @@ int main(int argc, char** argv) {
     }
   }
 
+  if (maxJ > 254 || maxI > 254) {
+    USER_ERROR << " maximum sentence length is 254. clean up your data!. Exiting." << std::endl;
+    exit(1);
+  }
+
+
   uint nSourceWords = 0;
   uint nTargetWords = 0;
 
   for (size_t s=0; s < source_sentence.size(); s++) {
 
-    for (uint k=0; k < source_sentence[s].size(); k++)
-      nSourceWords = std::max(nSourceWords,source_sentence[s][k]+1);
+    for (uint k=0; k < source_sentence[s].size(); k++) {
+      uint sidx = source_sentence[s][k];
+      if (sidx == 0) {
+        USER_ERROR << " index 0 is reserved for the empty word. Exiting.." << std::endl;
+        exit(1);
+      }
+      nSourceWords = std::max(nSourceWords,sidx+1);
+    }
 
-    for (uint k=0; k < target_sentence[s].size(); k++)
-      nTargetWords = std::max(nTargetWords,target_sentence[s][k]+1);
+    for (uint k=0; k < target_sentence[s].size(); k++) {
+      uint tidx = target_sentence[s][k];
+      if (tidx == 0) {
+        USER_ERROR << " index 0 is reserved for the empty word. Exiting.." << std::endl;
+        exit(1);
+      }
+      nTargetWords = std::max(nTargetWords,tidx+1);
+    }
   }
   for (size_t s=0; s < dev_source_sentence.size(); s++) {
 
-    for (uint k=0; k < dev_source_sentence[s].size(); k++)
+    for (uint k=0; k < dev_source_sentence[s].size(); k++) {
+      uint sidx = dev_source_sentence[s][k];
+      if (sidx == 0) {
+        USER_ERROR << " index 0 is reserved for the empty word. Exiting.." << std::endl;
+        exit(1);
+      }
       nSourceWords = std::max(nSourceWords,dev_source_sentence[s][k]+1);
+    }
 
-    for (uint k=0; k < dev_target_sentence[s].size(); k++)
+    for (uint k=0; k < dev_target_sentence[s].size(); k++) {
+      uint tidx = dev_target_sentence[s][k];
+      if (tidx == 0) {
+        USER_ERROR << " index 0 is reserved for the empty word. Exiting.." << std::endl;
+        exit(1);
+      }      
       nTargetWords = std::max(nTargetWords,dev_target_sentence[s][k]+1);
+    }
   }
+
 
   CooccuringWordsType wcooc(MAKENAME(wcooc));
   CooccuringLengthsType lcooc(MAKENAME(lcooc));
@@ -248,8 +285,6 @@ int main(int argc, char** argv) {
   HmmInitProbType hmm_init_mode = HmmInitPar;
   if (method == "viterbi")
     hmm_init_mode = HmmInitFix2;
-
-  //HmmInitProbType hmm_init_mode = HmmInitFix2;
       
   std::string hmm_init_string = downcase(app.getParam("-hmm-init-type"));
   if (hmm_init_string != "auto" && hmm_init_string != "par" && hmm_init_string != "nonpar" 
@@ -277,8 +312,8 @@ int main(int argc, char** argv) {
                           nSourceWords, nTargetWords, wcooc);
   
   std::cerr << "generating lookup table" << std::endl;
-  Storage1D<Math2D::Matrix<uint> > slookup;
-  generate_wordlookup(source_sentence, target_sentence, wcooc, slookup);
+  Storage1D<Math2D::Matrix<uint,ushort> > slookup;
+  generate_wordlookup(source_sentence, target_sentence, wcooc, nSourceWords, slookup, max_lookup);
 
     
   floatSingleWordDictionary prior_weight(nTargetWords, MAKENAME(prior_weight));
@@ -562,9 +597,9 @@ int main(int argc, char** argv) {
     //ibm4_trainer.update_alignments_unconstrained();
   }
 
-  Storage1D<Math2D::Matrix<uint> > dev_slookup;
+  Storage1D<Math2D::Matrix<uint, ushort> > dev_slookup;
   if (dev_present) {
-    generate_wordlookup(dev_source_sentence, dev_target_sentence, wcooc, dev_slookup);
+    generate_wordlookup(dev_source_sentence, dev_target_sentence, wcooc, nSourceWords, dev_slookup);
   }
 
   /*** write alignments ***/
@@ -588,9 +623,6 @@ int main(int argc, char** argv) {
 
       max_devJ = std::max(max_devJ,curJ);
       max_devI = std::max(max_devI,curI);	
-
-      //dev_lengthJ[curJ] = std::max(curI,dev_lengthJ[curJ]);
-      //dev_lengthI[curI] = std::max(curJ,dev_lengthI[curI]);
     }
   }
 
@@ -603,11 +635,7 @@ int main(int argc, char** argv) {
 
   if (dev_present) {
     
-    //HmmAlignProbType dev_align_mode = hmm_align_mode;
-
     uint train_zero_offset = maxI - 1;
-    
-    //std::cerr << "AA" << std::endl;
     
     //handle case where init and/or distance parameters were not estimated above for <emph>train</emph>
     if (hmm_init_mode == HmmInitNonpar || hmm_init_params.sum() < 1e-5) {
@@ -628,8 +656,6 @@ int main(int argc, char** argv) {
       hmm_init_params *= 1.0 / sum;
     }
     
-    //std::cerr << "BB" << std::endl;
-
     if (hmm_align_mode == HmmAlignProbNonpar || hmm_align_mode == HmmAlignProbNonpar2 || hmm_dist_params.sum() < 1e-5) {
 
       hmm_dist_grouping_param = -1.0;
@@ -655,16 +681,12 @@ int main(int argc, char** argv) {
       source_fert[1] = 0.98;
     }
 
-    //std::cerr << "CC" << std::endl;
-
     for (uint i=0; i < std::min<uint>(max_devI,hmm_init_params.size()); i++) {
       dev_hmm_init_params[i] = hmm_init_params[i];	
       
       dev_hmm_dist_params[dev_zero_offset - i] = hmm_dist_params[train_zero_offset - i];
       dev_hmm_dist_params[dev_zero_offset + i] = hmm_dist_params[train_zero_offset + i];
     }
-    
-    //std::cerr << "DD" << std::endl;
 
     dev_hmmalign_model.resize(max_devI+1);
     dev_initial_prob.resize(max_devI+1);
@@ -676,8 +698,6 @@ int main(int argc, char** argv) {
       dev_hmmalign_model[I-1].resize(I+1,I,0.0); //because of empty words
       dev_initial_prob[I-1].resize(2*I,0.0);
     }
-    
-    //std::cerr << "EE" << std::endl;
 
     if (hmm_init_mode != HmmInitFix && hmm_init_mode != HmmInitFix2) {
       par2nonpar_hmm_init_model(dev_hmm_init_params, source_fert, HmmInitPar, dev_initial_prob);
@@ -691,8 +711,6 @@ int main(int argc, char** argv) {
     else {
       par2nonpar_hmm_init_model(dev_hmm_init_params, source_fert, hmm_init_mode, dev_initial_prob);
     }
-      
-    //std::cerr << "FF" << std::endl;
 
     HmmAlignProbType mode = hmm_align_mode;
     if (mode == HmmAlignProbNonpar || hmm_align_mode == HmmAlignProbNonpar2)
@@ -743,23 +761,14 @@ int main(int argc, char** argv) {
 
       for (size_t s = 0; s < dev_source_sentence.size(); s++) {
 	
-	//std::cerr << "s: " << s << std::endl;
-	
 	const uint curI = dev_target_sentence[s].size();
 
 	//initialize by HMM	
-        if (hmm_align_mode == HmmAlignProbReducedpar)
-          compute_ehmm_viterbi_alignment_with_tricks(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
-                                                     dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
-                                                     viterbi_alignment, false);
-        else
-          compute_ehmm_viterbi_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
-                                         dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
-                                         viterbi_alignment, false);
+        compute_ehmm_viterbi_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
+                                       dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
+                                       viterbi_alignment, hmm_align_mode, false);
 		
 	if (postdec_thresh <= 0.0) {
-	  
-	  //std::cerr << "standard alignment computation" << std::endl;
 	  
 	  ibm4_trainer.compute_external_alignment(dev_source_sentence[s],dev_target_sentence[s],dev_slookup[s],
 						  viterbi_alignment);
@@ -814,8 +823,7 @@ int main(int argc, char** argv) {
 
       for (size_t s = 0; s < dev_source_sentence.size(); s++) {
 	  
-	const uint curI = dev_target_sentence[s].size();
-	
+	const uint curI = dev_target_sentence[s].size();	
 
 	//initialize by HMM	
         if (hmm_align_mode == HmmAlignProbReducedpar)
@@ -876,22 +884,21 @@ int main(int argc, char** argv) {
     for (size_t s = 0; s < nSentences; s++) {
 
       const uint curI = target_sentence[s].size();
+
+      Math2D::Matrix<uint,ushort> aux_lookup;
+      const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(source_sentence[s],target_sentence[s],wcooc,
+                                                                     nSourceWords,slookup[s],aux_lookup);  
       
       if (hmm_iter > 0) {
 	
 	if (postdec_thresh <= 0.0) {
 
-          if (hmm_align_mode == HmmAlignProbReducedpar)
-            compute_ehmm_viterbi_alignment_with_tricks(source_sentence[s],slookup[s], target_sentence[s], 
-                                                       dict, hmmalign_model[curI-1], initial_prob[curI-1], viterbi_alignment,
-                                                       false );
-          else
-            compute_ehmm_viterbi_alignment(source_sentence[s],slookup[s], target_sentence[s], 
-                                           dict, hmmalign_model[curI-1], initial_prob[curI-1], viterbi_alignment,
-                                           false );
+          compute_ehmm_viterbi_alignment(source_sentence[s], cur_lookup, target_sentence[s], 
+                                         dict, hmmalign_model[curI-1], initial_prob[curI-1], viterbi_alignment,
+                                         hmm_align_mode, false );
         }
 	else
-	  compute_ehmm_postdec_alignment(source_sentence[s],slookup[s], target_sentence[s], 
+	  compute_ehmm_postdec_alignment(source_sentence[s], cur_lookup, target_sentence[s], 
 					 dict, hmmalign_model[curI-1], initial_prob[curI-1], hmm_align_mode,
                                          postdec_alignment, postdec_thresh);
       }
@@ -900,19 +907,19 @@ int main(int argc, char** argv) {
 	const Math2D::Matrix<double>& cur_align_model = reduced_ibm2align_model[curI];
 	
 	if (postdec_thresh <= 0.0) 
-	  compute_ibm2_viterbi_alignment(source_sentence[s], slookup[s], target_sentence[s], dict, 
+	  compute_ibm2_viterbi_alignment(source_sentence[s], cur_lookup, target_sentence[s], dict, 
 					 cur_align_model, viterbi_alignment);
 	else
-	  compute_ibm2_postdec_alignment(source_sentence[s], slookup[s], target_sentence[s], dict, 
+	  compute_ibm2_postdec_alignment(source_sentence[s], cur_lookup, target_sentence[s], dict, 
 					 cur_align_model, postdec_alignment, postdec_thresh);
 	
       }
       else {
 	
 	if (postdec_thresh <= 0.0) 
-	  compute_ibm1_viterbi_alignment(source_sentence[s], slookup[s], target_sentence[s], dict, viterbi_alignment);
+	  compute_ibm1_viterbi_alignment(source_sentence[s], cur_lookup, target_sentence[s], dict, viterbi_alignment);
 	else
-	  compute_ibm1_postdec_alignment(source_sentence[s], slookup[s], target_sentence[s], dict, 
+	  compute_ibm1_postdec_alignment(source_sentence[s], cur_lookup, target_sentence[s], dict, 
 					 postdec_alignment, postdec_thresh);
       }
       
@@ -960,14 +967,9 @@ int main(int argc, char** argv) {
             
 	  if (postdec_thresh <= 0.0) {
 
-            if (hmm_align_mode == HmmAlignProbReducedpar)
-              compute_ehmm_viterbi_alignment_with_tricks(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
-                                                         dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
-                                                         viterbi_alignment, false);
-            else
-              compute_ehmm_viterbi_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
-                                             dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
-                                             viterbi_alignment, false);
+            compute_ehmm_viterbi_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
+                                           dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
+                                           viterbi_alignment, hmm_align_mode, false);
 	  }
 	  else {
 	    compute_ehmm_postdec_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 

@@ -10,7 +10,18 @@
 template<typename T>
 void calculate_hmm_forward(const Storage1D<uint>& source_sentence,
                            const Storage1D<uint>& target_sentence,
-                           const Math2D::Matrix<uint>& slookup,
+                           const Math2D::Matrix<uint, ushort>& slookup,
+                           const SingleWordDictionary& dict,
+                           const Math2D::Matrix<double>& align_model,
+                           const Math1D::Vector<double>& start_prob,
+                           const HmmAlignProbType align_type,
+                           Math2D::Matrix<T>& forward);
+
+
+template<typename T>
+void calculate_hmm_forward(const Storage1D<uint>& source_sentence,
+                           const Storage1D<uint>& target_sentence,
+                           const Math2D::Matrix<uint, ushort>& slookup,
                            const SingleWordDictionary& dict,
                            const Math2D::Matrix<double>& align_model,
                            const Math1D::Vector<double>& start_prob,
@@ -22,7 +33,7 @@ void calculate_hmm_forward(const Storage1D<uint>& source_sentence,
 template<typename T>
 void calculate_hmm_forward_with_tricks(const Storage1D<uint>& source_sentence,
 				       const Storage1D<uint>& target_sentence,
-				       const Math2D::Matrix<uint>& slookup,
+				       const Math2D::Matrix<uint, ushort>& slookup,
 				       const SingleWordDictionary& dict,
 				       const Math2D::Matrix<double>& align_model,
 				       const Math1D::Vector<double>& start_prob,
@@ -32,18 +43,30 @@ void calculate_hmm_forward_with_tricks(const Storage1D<uint>& source_sentence,
 template<typename T>
 void calculate_sehmm_forward(const Storage1D<uint>& source_sentence,
                              const Storage1D<uint>& target_sentence,
-                             const Math2D::Matrix<uint>& slookup,
+                             const Math2D::Matrix<uint, ushort>& slookup,
                              const SingleWordDictionary& dict,
                              const Math2D::Matrix<double>& align_model,
                              const Math1D::Vector<double>& start_prob,
                              Math2D::Matrix<T>& forward);
 
 
+template<typename T>
+void calculate_hmm_backward(const Storage1D<uint>& source_sentence,
+                            const Storage1D<uint>& target_sentence,
+                            const Math2D::Matrix<uint, ushort>& slookup,
+                            const SingleWordDictionary& dict,
+                            const Math2D::Matrix<double>& align_model,
+                            const Math1D::Vector<double>& start_prob,
+                            const HmmAlignProbType align_type,
+                            Math2D::Matrix<T>& backward,
+                            bool include_start_alignment = true);
+
+
 
 template<typename T>
 void calculate_hmm_backward(const Storage1D<uint>& source_sentence,
                             const Storage1D<uint>& target_sentence,
-                            const Math2D::Matrix<uint>& slookup,
+                            const Math2D::Matrix<uint, ushort>& slookup,
                             const SingleWordDictionary& dict,
                             const Math2D::Matrix<double>& align_model,
                             const Math1D::Vector<double>& start_prob,
@@ -54,7 +77,7 @@ void calculate_hmm_backward(const Storage1D<uint>& source_sentence,
 template<typename T>
 void calculate_sehmm_backward(const Storage1D<uint>& source_sentence,
                               const Storage1D<uint>& target_sentence,
-                              const Math2D::Matrix<uint>& slookup,
+                              const Math2D::Matrix<uint, ushort>& slookup,
                               const SingleWordDictionary& dict,
                               const Math2D::Matrix<double>& align_model,
                               const Math1D::Vector<double>& start_prob,
@@ -65,7 +88,7 @@ void calculate_sehmm_backward(const Storage1D<uint>& source_sentence,
 template<typename T>
 void calculate_hmm_backward_with_tricks(const Storage1D<uint>& source_sentence,
 					const Storage1D<uint>& target_sentence,
-					const Math2D::Matrix<uint>& slookup,
+					const Math2D::Matrix<uint, ushort>& slookup,
 					const SingleWordDictionary& dict,
 					const Math2D::Matrix<double>& align_model,
 					const Math1D::Vector<double>& start_prob,
@@ -76,9 +99,28 @@ void calculate_hmm_backward_with_tricks(const Storage1D<uint>& source_sentence,
 /************ implementation **********/
 
 template<typename T>
+void calculate_hmm_forward(const Storage1D<uint>& source_sentence,
+                           const Storage1D<uint>& target_sentence,
+                           const Math2D::Matrix<uint, ushort>& slookup,
+                           const SingleWordDictionary& dict,
+                           const Math2D::Matrix<double>& align_model,
+                           const Math1D::Vector<double>& start_prob,
+                           const HmmAlignProbType align_type,
+                           Math2D::Matrix<T>& forward) {
+
+
+  if (align_type == HmmAlignProbReducedpar)
+    calculate_hmm_forward_with_tricks(source_sentence, target_sentence, slookup, dict, align_model,
+                                      start_prob, forward);
+  else
+    calculate_hmm_forward(source_sentence, target_sentence, slookup, dict, align_model, start_prob, forward);
+}
+
+
+template<typename T>
 void calculate_hmm_forward(const Storage1D<uint>& source,
                            const Storage1D<uint>& target,
-                           const Math2D::Matrix<uint>& slookup,
+                           const Math2D::Matrix<uint, ushort>& slookup,
                            const SingleWordDictionary& dict,
                            const Math2D::Matrix<double>& align_model,
                            const Math1D::Vector<double>& start_prob,
@@ -129,7 +171,7 @@ void calculate_hmm_forward(const Storage1D<uint>& source,
 template<typename T>
 void calculate_sehmm_forward(const Storage1D<uint>& source,
                              const Storage1D<uint>& target,
-                             const Math2D::Matrix<uint>& slookup,
+                             const Math2D::Matrix<uint, ushort>& slookup,
                              const SingleWordDictionary& dict,
                              const Math2D::Matrix<double>& align_model,
                              const Math1D::Vector<double>& start_prob,
@@ -189,7 +231,7 @@ void calculate_sehmm_forward(const Storage1D<uint>& source,
 template<typename T>
 void calculate_hmm_forward_with_tricks(const Storage1D<uint>& source,
 				       const Storage1D<uint>& target,
-				       const Math2D::Matrix<uint>& slookup,
+				       const Math2D::Matrix<uint, ushort>& slookup,
 				       const SingleWordDictionary& dict,
 				       const Math2D::Matrix<double>& align_model,
 				       const Math1D::Vector<double>& start_prob,
@@ -303,14 +345,34 @@ void calculate_hmm_forward_with_tricks(const Storage1D<uint>& source,
       forward(i,j) = sum * cur_emptyword_prob;
     }
   }
+}
 
+
+
+template<typename T>
+void calculate_hmm_backward(const Storage1D<uint>& source_sentence,
+                            const Storage1D<uint>& target_sentence,
+                            const Math2D::Matrix<uint, ushort>& slookup,
+                            const SingleWordDictionary& dict,
+                            const Math2D::Matrix<double>& align_model,
+                            const Math1D::Vector<double>& start_prob,
+                            const HmmAlignProbType align_type,
+                            Math2D::Matrix<T>& backward,
+                            bool include_start_alignment) {
+
+  if (align_type == HmmAlignProbReducedpar)
+    calculate_hmm_backward_with_tricks(source_sentence, target_sentence, slookup, dict, align_model,
+                                       start_prob, backward, include_start_alignment);
+  else
+    calculate_hmm_backward(source_sentence, target_sentence, slookup, dict, align_model,
+                           start_prob, backward, include_start_alignment);      
 }
 
 
 template<typename T>
 void calculate_hmm_backward(const Storage1D<uint>& source,
                             const Storage1D<uint>& target,
-                            const Math2D::Matrix<uint>& slookup,
+                            const Math2D::Matrix<uint, ushort>& slookup,
                             const SingleWordDictionary& dict,
                             const Math2D::Matrix<double>& align_model,
                             const Math1D::Vector<double>& start_prob,
@@ -362,7 +424,7 @@ void calculate_hmm_backward(const Storage1D<uint>& source,
 template<typename T>
 void calculate_sehmm_backward(const Storage1D<uint>& source,
                               const Storage1D<uint>& target,
-                              const Math2D::Matrix<uint>& slookup,
+                              const Math2D::Matrix<uint, ushort>& slookup,
                               const SingleWordDictionary& dict,
                               const Math2D::Matrix<double>& align_model,
                               const Math1D::Vector<double>& start_prob,
@@ -427,7 +489,7 @@ void calculate_sehmm_backward(const Storage1D<uint>& source,
 template<typename T>
 void calculate_hmm_backward_with_tricks(const Storage1D<uint>& source,
 					const Storage1D<uint>& target,
-					const Math2D::Matrix<uint>& slookup,
+					const Math2D::Matrix<uint, ushort>& slookup,
 					const SingleWordDictionary& dict,
 					const Math2D::Matrix<double>& align_model,
 					const Math1D::Vector<double>& start_prob,

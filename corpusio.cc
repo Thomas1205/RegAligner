@@ -41,11 +41,11 @@ void read_vocabulary(std::string filename, std::vector<std::string>& voc_list) {
 
 void read_monolingual_corpus(std::string filename, Storage1D<Storage1D<uint> > & sentence_list) {
 
+  bool zipped = is_gzip_file(filename);
+
 #ifdef HAS_GZSTREAM
   std::ifstream infile;
   igzstream gzin;
-
-  bool zipped = is_gzip_file(filename);
 
   if (zipped)
     gzin.open(filename.c_str());
@@ -55,6 +55,11 @@ void read_monolingual_corpus(std::string filename, Storage1D<Storage1D<uint> > &
 
   std::istream* instream = (zipped) ? static_cast<std::istream*>(&gzin) : &infile;
 #else
+
+  if (zipped) {
+    INTERNAL_ERROR << "zipped file input, but support for gz is not enabled" << std::endl;
+    exit(1);
+  }
 
   std::ifstream infile(filename.c_str());
 
@@ -97,11 +102,12 @@ void read_monolingual_corpus(std::string filename, Storage1D<Storage1D<uint> > &
 
 void read_monolingual_corpus(std::string filename, Storage1D<Storage1D<std::string> > & sentence_list) {
 
+
+  bool zipped = is_gzip_file(filename);
+
 #ifdef HAS_GZSTREAM
   std::ifstream infile;
   igzstream gzin;
-
-  bool zipped = is_gzip_file(filename);
 
   if (zipped)
     gzin.open(filename.c_str());
@@ -111,6 +117,12 @@ void read_monolingual_corpus(std::string filename, Storage1D<Storage1D<std::stri
 
   std::istream* instream = (zipped) ? static_cast<std::istream*>(&gzin) : &infile;
 #else
+
+  if (zipped) {
+    INTERNAL_ERROR << "zipped file input, but support for gz is not enabled" << std::endl;
+    exit(1);
+  }
+
   std::ifstream infile(filename.c_str());
 
   std::istream* instream = &infile;
@@ -165,11 +177,11 @@ bool read_next_monolingual_sentence(std::istream& file, Storage1D<std::string>& 
 
 void read_idx_dict(std::string filename, SingleWordDictionary& dict, CooccuringWordsType& cooc) {
 
+  bool zipped = is_gzip_file(filename);
+
 #ifdef HAS_GZSTREAM
   std::ifstream infile;
   igzstream gzin;
-
-  bool zipped = is_gzip_file(filename);
 
   if (zipped)
     gzin.open(filename.c_str());
@@ -179,6 +191,12 @@ void read_idx_dict(std::string filename, SingleWordDictionary& dict, CooccuringW
 
   std::istream* instream = (zipped) ? static_cast<std::istream*>(&gzin) : &infile;
 #else
+
+  if (zipped) {
+    INTERNAL_ERROR << "zipped file input, but support for gz is not enabled" << std::endl;
+    exit(1);
+  }
+
   std::ifstream infile(filename.c_str());
 
   std::istream* instream = &infile;
@@ -239,11 +257,12 @@ void read_idx_dict(std::string filename, SingleWordDictionary& dict, CooccuringW
 
 void read_prior_dict(std::string filename, std::set<std::pair<uint, uint> >& known_pairs, bool invert) {
 
+
+  bool zipped = is_gzip_file(filename);
+
 #ifdef HAS_GZSTREAM
   std::ifstream infile;
   igzstream gzin;
-
-  bool zipped = is_gzip_file(filename);
 
   if (zipped)
     gzin.open(filename.c_str());
@@ -253,6 +272,12 @@ void read_prior_dict(std::string filename, std::set<std::pair<uint, uint> >& kno
 
   std::istream* instream = (zipped) ? static_cast<std::istream*>(&gzin) : &infile;
 #else
+
+  if (zipped) {
+    INTERNAL_ERROR << "zipped file input, but support for gz is not enabled" << std::endl;
+    exit(1);
+  }
+
   std::ifstream infile(filename.c_str());
 
   std::istream* instream = &infile;
@@ -270,11 +295,11 @@ void read_prior_dict(std::string filename, std::set<std::pair<uint, uint> >& kno
 
 void read_word_classes(std::string filename, Storage1D<WordClassType>& word_class) {
 
+  bool zipped = is_gzip_file(filename);
+
 #ifdef HAS_GZSTREAM
   std::ifstream infile;
   igzstream gzin;
-
-  bool zipped = is_gzip_file(filename);
 
   if (zipped)
     gzin.open(filename.c_str());
@@ -284,6 +309,12 @@ void read_word_classes(std::string filename, Storage1D<WordClassType>& word_clas
 
   std::istream* instream = (zipped) ? static_cast<std::istream*>(&gzin) : &infile;
 #else
+
+  if (zipped) {
+    INTERNAL_ERROR << "zipped file input, but support for gz is not enabled" << std::endl;
+    exit(1);
+  }
+
   std::ifstream infile(filename.c_str());
 
   std::istream* instream = &infile;

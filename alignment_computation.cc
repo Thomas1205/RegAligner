@@ -6,7 +6,7 @@
 #include "hmm_forward_backward.hh"
 
 void compute_ibm1_viterbi_alignment(const Storage1D<uint>& source_sentence,
-                                    const Math2D::Matrix<uint>& slookup,
+                                    const Math2D::Matrix<uint, ushort>& slookup,
                                     const Storage1D<uint>& target_sentence,
                                     const SingleWordDictionary& dict,
                                     Storage1D<AlignBaseType>& viterbi_alignment) {
@@ -37,7 +37,7 @@ void compute_ibm1_viterbi_alignment(const Storage1D<uint>& source_sentence,
 
 //posterior decoding for IBM-1
 void compute_ibm1_postdec_alignment(const Storage1D<uint>& source_sentence,
-				    const Math2D::Matrix<uint>& slookup,
+				    const Math2D::Matrix<uint, ushort>& slookup,
 				    const Storage1D<uint>& target_sentence,
 				    const SingleWordDictionary& dict,
 				    std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
@@ -73,7 +73,7 @@ void compute_ibm1_postdec_alignment(const Storage1D<uint>& source_sentence,
 
 
 void compute_ibm2_viterbi_alignment(const Storage1D<uint>& source_sentence,
-                                    const Math2D::Matrix<uint>& slookup,
+                                    const Math2D::Matrix<uint, ushort>& slookup,
                                     const Storage1D<uint>& target_sentence,
                                     const SingleWordDictionary& dict,
                                     const Math2D::Matrix<double>& align_prob,
@@ -104,7 +104,7 @@ void compute_ibm2_viterbi_alignment(const Storage1D<uint>& source_sentence,
 }
 
 void compute_ibm2_postdec_alignment(const Storage1D<uint>& source_sentence,
-                                    const Math2D::Matrix<uint>& slookup,
+                                    const Math2D::Matrix<uint, ushort>& slookup,
                                     const Storage1D<uint>& target_sentence,
                                     const SingleWordDictionary& dict,
                                     const Math2D::Matrix<double>& align_prob,
@@ -139,7 +139,7 @@ void compute_ibm2_postdec_alignment(const Storage1D<uint>& source_sentence,
 }
 
 void compute_fullhmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
-                                       const Math2D::Matrix<uint>& slookup,
+                                       const Math2D::Matrix<uint, ushort>& slookup,
                                        const Storage1D<uint>& target_sentence,
                                        const SingleWordDictionary& dict,
                                        const Math2D::Matrix<double>& align_prob,
@@ -155,7 +155,27 @@ void compute_fullhmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
 
 
 long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
-					   const Math2D::Matrix<uint>& slookup,
+					   const Math2D::Matrix<uint, ushort>& slookup,
+					   const Storage1D<uint>& target_sentence,
+					   const SingleWordDictionary& dict,
+					   const Math2D::Matrix<double>& align_prob,
+					   const Math1D::Vector<double>& initial_prob,
+					   Storage1D<AlignBaseType>& viterbi_alignment,
+                                           const HmmAlignProbType align_type,
+					   bool internal_mode, bool verbose,
+                                           double min_dict_entry) {
+
+  if (align_type == HmmAlignProbReducedpar) 
+    return compute_ehmm_viterbi_alignment_with_tricks(source_sentence, slookup, target_sentence, dict, align_prob, initial_prob,
+                                                      viterbi_alignment, internal_mode, verbose, min_dict_entry);
+  else
+    return compute_ehmm_viterbi_alignment(source_sentence, slookup, target_sentence, dict, align_prob, initial_prob,
+                                          viterbi_alignment, internal_mode, verbose, min_dict_entry);
+}
+
+
+long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
+					   const Math2D::Matrix<uint, ushort>& slookup,
 					   const Storage1D<uint>& target_sentence,
 					   const SingleWordDictionary& dict,
 					   const Math2D::Matrix<double>& align_prob,
@@ -196,6 +216,8 @@ long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentenc
 
 
   for (uint j=1; j < J; j++) {
+    // if (verbose)
+    //   std::cerr << "j: " << j << std::endl;
 
     cur_idx = j % 2;
     last_idx = 1 - cur_idx;
@@ -227,6 +249,12 @@ long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentenc
         }
       }
 
+      //       if (arg_max == MAX_UINT) {
+      // 	std::cerr << "ERROR: j=" << j << ", J=" << J << ", I=" << I << std::endl;
+      //       }
+
+      //       assert(arg_max != MAX_UINT);
+
       double dict_entry = std::max(min_dict_entry,dict[target_sentence[i]][slookup(j,i)]);
 
       cur_score[i] = max_score * dict_entry;
@@ -247,23 +275,8 @@ long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentenc
       traceback(i,j) = arg_max;
     }
 
-    // if (J == 25 && I == 15) 
     if (verbose)
       std::cerr << "j=" << j << ", cur_score: " << cur_score << std::endl;
-
-    //DEBUG
-    //     if (J == 27 && I == 36) {
-    //       std::cerr << "j= " << j << ", score: " << cur_score << std::endl;
-    //       std::cerr << "zero-dict-prob: " << dict[0][source_sentence[j]-1] << std::endl;
-    //     }
-
-    //     if (isnan(cur_score.max())) {
-    //       std::cerr << "j= " << j << ", nan occurs: " << cur_score << std::endl;
-    //     }
-    //     if (cur_score.max()<= 0.0) {
-    //       std::cerr << "j= " << j << ", all zero: " << cur_score << std::endl;
-    //     }
-    //END_DEBUG
 
     //to keep the numbers inside double precision    
     double cur_max = cur_score.max();
@@ -274,8 +287,6 @@ long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentenc
   /*** now extract Viterbi alignment from the score and the traceback matrix ***/
   double max_score = 0.0;
   uint arg_max = MAX_UINT;
-
-  //std::cerr << "finding max" << std::endl;
 
   const Math1D::Vector<double>& cur_score = score[cur_idx];
 
@@ -293,7 +304,6 @@ long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentenc
     std::cerr << "end-score: " << cur_score << std::endl;
     std::cerr << "align_model: " << align_prob << std::endl;
     std::cerr << "initial_prob: " << initial_prob << std::endl;
-
 
     exit(1);
   }
@@ -331,7 +341,7 @@ long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentenc
 }
 
 long double compute_sehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
-                                            const Math2D::Matrix<uint>& slookup,
+                                            const Math2D::Matrix<uint, ushort>& slookup,
                                             const Storage1D<uint>& target_sentence,
                                             const SingleWordDictionary& dict,
                                             const Math2D::Matrix<double>& align_prob,
@@ -410,6 +420,12 @@ long double compute_sehmm_viterbi_alignment(const Storage1D<uint>& source_senten
         }
       }
 
+      //       if (arg_max == MAX_UINT) {
+      // 	std::cerr << "ERROR: j=" << j << ", J=" << J << ", I=" << I << std::endl;
+      //       }
+
+      //       assert(arg_max != MAX_UINT);
+
       double dict_entry = std::max(min_dict_entry,dict[target_sentence[i]][slookup(j,i)]);
 
       cur_score[i] = max_score * dict_entry;
@@ -425,6 +441,8 @@ long double compute_sehmm_viterbi_alignment(const Storage1D<uint>& source_senten
         max_score = hyp_score;
         arg_max = i-I;
       }
+
+      //double dict_entry = std::max(min_dict_entry,dict[0][source_sentence[j]-1]);
 
       cur_score[i] = max_score * null_dict_entry * align_prob(I,i-I);
       traceback(i,j) = arg_max;
@@ -448,8 +466,6 @@ long double compute_sehmm_viterbi_alignment(const Storage1D<uint>& source_senten
   
   double max_score = 0.0;
   uint arg_max = MAX_UINT;
-
-  //std::cerr << "finding max" << std::endl;
 
   const Math1D::Vector<double>& cur_score = score[cur_idx];
 
@@ -505,7 +521,7 @@ long double compute_sehmm_viterbi_alignment(const Storage1D<uint>& source_senten
 
 
 long double compute_ehmm_viterbi_alignment_with_tricks(const Storage1D<uint>& source_sentence,
-						       const Math2D::Matrix<uint>& slookup,
+						       const Math2D::Matrix<uint, ushort>& slookup,
 						       const Storage1D<uint>& target_sentence,
 						       const SingleWordDictionary& dict,
 						       const Math2D::Matrix<double>& align_prob,
@@ -635,6 +651,8 @@ long double compute_ehmm_viterbi_alignment_with_tricks(const Storage1D<uint>& so
         arg_max = i-I;
       }
 
+      //double dict_entry = std::max(min_dict_entry,dict[0][source_sentence[j]-1]);
+
       cur_score[i] = max_score * null_dict_entry * align_prob(I,i-I);
       traceback(i,j) = arg_max;
     }
@@ -704,7 +722,7 @@ long double compute_ehmm_viterbi_alignment_with_tricks(const Storage1D<uint>& so
 
 
 void compute_ehmm_optmarginal_alignment(const Storage1D<uint>& source_sentence,
-                                        const Math2D::Matrix<uint>& slookup,
+                                        const Math2D::Matrix<uint, ushort>& slookup,
                                         const Storage1D<uint>& target_sentence,
                                         const SingleWordDictionary& dict,
                                         const Math2D::Matrix<double>& align_prob,
@@ -776,7 +794,7 @@ void compute_ehmm_optmarginal_alignment(const Storage1D<uint>& source_sentence,
 
 
 void compute_ehmm_postdec_alignment(const Storage1D<uint>& source_sentence,
-				    const Math2D::Matrix<uint>& slookup,
+				    const Math2D::Matrix<uint, ushort>& slookup,
 				    const Storage1D<uint>& target_sentence,
 				    const SingleWordDictionary& dict,
 				    const Math2D::Matrix<double>& align_prob,

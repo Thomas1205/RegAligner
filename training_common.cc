@@ -42,24 +42,32 @@ void find_cooccuring_words(const Storage1D<Storage1D<uint> >& source,
     if ((s%10000) == 0)
       std::cerr << "sentence pair number " << s << std::endl;
     
-    const uint nCurSourceWords = source[s].size();
-    const uint nCurTargetWords = target[s].size();
+    const uint curJ = source[s].size();
+    const uint curI = target[s].size();
 
     const Storage1D<uint>& cur_source = source[s];
     const Storage1D<uint>& cur_target = target[s];
 
-    for (uint i=0; i < nCurTargetWords; i++) {
+    std::set<uint> source_set;
+    for (uint j=0; j < curJ; j++) {
+      source_set.insert(cur_source[j]);
+    }
+
+    //iterating over a vector is faster than iterating over a set -> copy
+    std::vector<uint> source_words;
+    for (std::set<uint>::iterator it = source_set.begin(); it != source_set.end(); it++)
+      source_words.push_back(*it);
+    
+
+    for (uint i=0; i < curI; i++) {
       uint t_idx = cur_target[i]; 
       assert(t_idx < nTargetWords);
 
       std::set<uint>& cur_set = coocset[t_idx];
 
-      for (uint j=0; j < nCurSourceWords; j++) {
-        uint s_idx = cur_source[j]; 
-        assert(s_idx < nSourceWords);
-	
-        cur_set.insert(s_idx);
-      }
+      const uint nWords = source_words.size();
+      for (uint k=0; k < nWords; k++)
+        cur_set.insert(source_words[k]);
     }
   }
 
@@ -103,12 +111,14 @@ void find_cooccuring_words(const Storage1D<Storage1D<uint> >& source,
     coocset[i].clear();
   }
 
+  uint max_cooc = 0;
   double sum_cooc = 0.0;
-  for (uint i=0; i < nTargetWords; i++) {
+  for (uint i=1; i < nTargetWords; i++) {
     sum_cooc += cooc[i].size();
+    max_cooc = std::max<uint>(max_cooc,cooc[i].size());
   }
   
-  std::cerr << "average number of cooccuring words: " << (sum_cooc / nTargetWords) << std::endl;
+  std::cerr << "average number of cooccuring words: " << (sum_cooc / (nTargetWords-1)) << ", maximum: " << max_cooc << std::endl;
 }
 
 bool read_cooccuring_words_structure(std::string filename, uint nSourceWords, uint nTargetWords,
@@ -173,11 +183,13 @@ bool read_cooccuring_words_structure(std::string filename, uint nSourceWords, ui
   }
 
   double sum_cooc = 0.0;
+  uint max_cooc = 0;
   for (uint i=0; i < nTargetWords; i++) {
     sum_cooc += cooc[i].size();
+    max_cooc = std::max<uint>(max_cooc,cooc[i].size());
   }
   
-  std::cerr << "average number of cooccuring words: " << (sum_cooc / nTargetWords) << std::endl;
+  std::cerr << "average number of cooccuring words: " << (sum_cooc / nTargetWords) << ", maximum: " << max_cooc << std::endl;
 
   return true;
 }
@@ -197,8 +209,6 @@ void find_cooc_monolingual_pairs(const Storage1D<Storage1D<uint> >& sentence,
     cooc[0][k] = k;
 
   for (uint s=0; s < nSentences; s++) {
-
-    //std::cerr << "s: " << s << std::endl;
 
     const Storage1D<uint>& cur_sentence = sentence[s];
 
@@ -240,8 +250,6 @@ void monolingual_pairs_cooc_count(const Storage1D<Storage1D<uint> >& sentence,
   uint nSentences = sentence.size();
 
   for (uint s=0; s < nSentences; s++) {
-
-    //std::cerr << "s: " << s << std::endl;
 
     const Storage1D<uint>& cur_sentence = sentence[s];
 
@@ -553,7 +561,6 @@ void count_cooc_target_pairs_and_source_words(const Storage1D<Storage1D<uint> >&
   
   /**** stage 2: sort the vectors ****/
   for (uint i=0; i < cooc.size(); i++) {
-    //std::cerr << "sorting #" << i << std::endl;
     std::sort(cooc[i].direct_access(), cooc[i].direct_access() + cooc[i].size());
   }
 
@@ -665,8 +672,8 @@ void find_cooccuring_lengths(const Storage1D<Storage1D<uint> >& source,
 
 void generate_wordlookup(const Storage1D<Storage1D<uint> >& source, 
                          const Storage1D<Storage1D<uint> >& target,
-                         const CooccuringWordsType& cooc,
-                         Storage1D<Math2D::Matrix<uint> >& slookup) {
+                         const CooccuringWordsType& cooc, uint nSourceWords,
+                         Storage1D<Math2D::Matrix<uint,ushort> >& slookup, uint max_size) {
 
   const uint nSentences = source.size();
   slookup.resize_dirty(nSentences);
@@ -676,27 +683,210 @@ void generate_wordlookup(const Storage1D<Storage1D<uint> >& source,
     const Storage1D<uint>& cur_source = source[s];
     const Storage1D<uint>& cur_target = target[s];
 
-    const uint nCurSourceWords = cur_source.size();
-    const uint nCurTargetWords = cur_target.size();
+    const uint J = cur_source.size();
+    const uint I = cur_target.size();
 
-    slookup[s].resize_dirty(nCurSourceWords,nCurTargetWords);
-    for (uint i=0; i < nCurTargetWords; i++) {
+    Math2D::Matrix<uint,ushort>& cur_lookup = slookup[s];
+
+    if (J*I <= max_size) {
+
+      cur_lookup.resize_dirty(J,I);
+    }
+
+    //NOTE: even if we don't store the lookup table, we still check for consistency at this point
+
+    Math1D::Vector<uint> s_prev_occ(J,MAX_UINT);
+    std::map<uint,uint> s_first_occ;
+    for (uint j=0; j < J; j++) {
+      
+      const uint sidx = cur_source[j];
+      assert(sidx > 0);
+
+      std::map<uint,uint>::iterator it = s_first_occ.find(sidx);
+      
+      if (it != s_first_occ.end())
+        s_prev_occ[j] = it->second;
+      else
+        s_first_occ[sidx] = j;
+    }
+
+    std::map<uint,uint> first_occ;
+
+    for (uint i=0; i < I; i++) {
       uint tidx = cur_target[i];
-      for (uint j=0; j < nCurSourceWords; j++) {
-	
-        uint sidx = cur_source[j];
-        uint* ptr = std::lower_bound(cooc[tidx].direct_access(), cooc[tidx].direct_access()+cooc[tidx].size(),sidx);
+      
+      std::map<uint,uint>::iterator it = first_occ.find(tidx);
+      if (it != first_occ.end()) {
+        uint prev_i = it->second;
 
-        if (ptr == cooc[tidx].direct_access()+cooc[tidx].size() || (*ptr) != sidx) {
-          INTERNAL_ERROR << " word not found. Exiting." << std::endl;
-          exit(1);
+        if (cur_lookup.size() > 0) {
+          for (uint j=0; j < J; j++) 
+            cur_lookup(j,i) = cur_lookup(j,prev_i);
         }
-	
-        uint idx = ptr - cooc[tidx].direct_access();
-        assert(idx < cooc[tidx].size());
-        slookup[s](j,i) = idx;
+      }
+      else {
+        
+        first_occ[tidx] = i;
+
+        
+        const Math1D::Vector<uint>& cur_cooc = cooc[tidx];      
+        const size_t cur_size = cur_cooc.size();
+      
+        if (cur_size == nSourceWords-1) {
+          
+          if (cur_lookup.size() > 0) {
+          
+            for (uint j=0; j < J; j++) {
+
+              const uint sidx = cur_source[j]-1;
+              cur_lookup(j,i) = sidx;
+            }
+          }
+        }
+        else {
+
+          const uint* start = cur_cooc.direct_access();
+          const uint* end = cur_cooc.direct_access()+cur_size;
+          
+          for (uint j=0; j < J; j++) {
+          
+            const uint sidx = cur_source[j];
+            
+            const uint prev_occ = s_prev_occ[j];
+            
+            if (prev_occ != MAX_UINT) {
+              if (cur_lookup.size() > 0)
+                cur_lookup(j,i) = cur_lookup(prev_occ,i);
+            }
+            else {
+              
+              const uint* ptr = std::lower_bound(start,end,sidx);
+              
+              if (ptr == end || (*ptr) != sidx) {
+                INTERNAL_ERROR << " word not found. Exiting." << std::endl;
+                exit(1);
+              }
+              
+              if (slookup[s].size() > 0) {
+                const uint idx = ptr - start;
+                assert(idx < cooc[tidx].size());
+                cur_lookup(j,i) = idx;
+              }
+            }
+          }
+        }
       }
     }
   }
 }
 
+const Math2D::Matrix<uint,ushort>& get_wordlookup(const Storage1D<uint>& source, const Storage1D<uint>& target,
+                                                  const CooccuringWordsType& cooc, uint nSourceWords,
+                                                  const Math2D::Matrix<uint,ushort>& lookup, Math2D::Matrix<uint,ushort>& aux) {
+
+  const uint J = source.size();
+  const uint I = target.size();
+
+  if (lookup.xDim() == J && lookup.yDim() == I)
+    return lookup;
+
+  aux.resize_dirty(J,I);
+
+  std::map<uint,uint> first_occ;
+
+
+  Math1D::Vector<uint> s_prev_occ(J,MAX_UINT);
+  std::map<uint,uint> s_first_occ;
+  for (uint j=0; j < J; j++) {
+
+    uint sidx = source[j];
+    assert(sidx > 0);
+
+    std::map<uint,uint>::iterator it = s_first_occ.find(sidx);
+    
+    if (it != s_first_occ.end())
+      s_prev_occ[j] = it->second;
+    else
+      s_first_occ[sidx] = j;
+  }
+  
+  for (uint i=0; i < I; i++) {
+    uint tidx = target[i];
+    
+    std::map<uint,uint>::iterator it = first_occ.find(tidx);
+    if (it != first_occ.end()) {
+      uint prev_i = it->second;
+      
+      for (uint j=0; j < J; j++) 
+        aux(j,i) = aux(j,prev_i);
+    }
+    else {
+      
+      first_occ[tidx] = i;
+      
+      const Math1D::Vector<uint>& cur_cooc = cooc[tidx];
+      const size_t cur_size = cur_cooc.size();
+      
+      double ratio = double(cur_size) / double(nSourceWords);
+
+      const uint* start = cur_cooc.direct_access();
+      const uint* end = cur_cooc.direct_access()+cur_size;
+
+      if (cur_size == nSourceWords-1) {
+
+        for (uint j=0; j < J; j++)
+          aux(j,i) = source[j]-1;
+      }
+      else {
+
+        for (uint j=0; j < J; j++) {
+
+          const uint prev_occ = s_prev_occ[j];
+          
+          if (prev_occ != MAX_UINT) {
+            aux(j,i) = aux(prev_occ,i);
+          }
+          else {
+
+            const uint sidx = source[j];
+            
+            const uint* ptr;
+
+            if (sidx-1 < cur_size) {
+              
+              const uint guess_idx = sidx-1;
+              //const uint guess_idx = floor((sidx-1)*ratio);
+
+              const uint* guess = start+guess_idx;
+              
+              const uint p = *(guess);
+              if (p == sidx) {
+                aux(j,i) = guess_idx;
+                continue;
+              }
+              else if (p < sidx)
+                ptr = std::lower_bound(guess, end, sidx);
+              else
+                ptr = std::lower_bound(start, guess, sidx);
+            }
+            else
+              ptr = std::lower_bound(start, end, sidx);
+           
+#ifdef SAFE_MODE
+            if (ptr == end || (*ptr) != sidx) {
+              INTERNAL_ERROR << " word not found. Exiting." << std::endl;
+              exit(1);
+            }
+#endif
+        
+            const uint idx = ptr - start;
+            assert(idx < cur_size);
+            aux(j,i) = idx;
+          }
+        }
+      }
+    }
+  }
+
+  return aux;
+}

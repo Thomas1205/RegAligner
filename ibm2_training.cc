@@ -16,10 +16,10 @@
 #include "projection.hh"
 
 double ibm2_perplexity( const Storage1D<Storage1D<uint> >& source,
-                        const Storage1D<Math2D::Matrix<uint> >& slookup,
+                        const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
                         const Storage1D< Storage1D<uint> >& target,
                         const IBM2AlignmentModel& align_model,
-                        const SingleWordDictionary& dict) {
+                        const SingleWordDictionary& dict, const CooccuringWordsType& wcooc, uint nSourceWords) {
 
   std::cerr << "calculating IBM 2 perplexity" << std::endl;
 
@@ -28,12 +28,14 @@ double ibm2_perplexity( const Storage1D<Storage1D<uint> >& source,
   const size_t nSentences = target.size();
   assert(slookup.size() == nSentences);
 
+  Math2D::Matrix<uint,ushort> aux_lookup;
+
   for (size_t s=0; s < nSentences; s++) {
 
     const Storage1D<uint>& cur_source = source[s];
     const Storage1D<uint>& cur_target = target[s];
-    const Math2D::Matrix<uint>& cur_lookup = slookup[s]; 
-    
+    const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+
     const uint curJ = cur_source.size();
     const uint curI = cur_target.size();
 
@@ -63,16 +65,16 @@ double ibm2_perplexity( const Storage1D<Storage1D<uint> >& source,
 }
 
 void train_ibm2(const Storage1D<Storage1D<uint> >& source, 
-                const Storage1D<Math2D::Matrix<uint> >& slookup,
+                const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
                 const Storage1D<Storage1D<uint> >& target,
                 const CooccuringWordsType& wcooc,
                 const CooccuringLengthsType& lcooc,
                 uint nSourceWords, uint nTargetWords,
                 IBM2AlignmentModel& alignment_model,
-                SingleWordDictionary& dict,
+                SingleWordDictionary& dict, 
                 uint nIterations,
-                std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
-                std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments) {
+                std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
+                std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments) {
 
   std::cerr << "starting IBM 2 training" << std::endl;
 
@@ -95,6 +97,8 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
       alignment_model[I][k].set_constant(1.0 / (I+1));
     }
   }
+
+  Math2D::Matrix<uint,ushort> aux_lookup;
   
   Storage1D<Math1D::Vector<double> > fwcount(nTargetWords);
   for (uint i=0; i < nTargetWords; i++) {
@@ -134,6 +138,8 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
       const Storage1D<uint>& cur_source = source[s];
       const Storage1D<uint>& cur_target = target[s];
 
+      const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+
       const uint curJ = cur_source.size();
       const uint curI = cur_target.size();
 
@@ -155,7 +161,7 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
 
         for (uint i=0; i < curI; i++) {
           const uint t_idx = cur_target[i];
-          coeff += dict[t_idx][slookup[s](j,i)] * cur_align_model(j,i+1);
+          coeff += dict[t_idx][cur_lookup(j,i)] * cur_align_model(j,i+1);
         }
 
         coeff = 1.0 / coeff;
@@ -169,7 +175,7 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
 
         for (uint i=0; i < curI; i++) {
           const uint t_idx = cur_target[i];
-          const uint l = slookup[s](j,i);
+          const uint l = cur_lookup(j,i);
 
           addon = coeff*dict[t_idx][l]*cur_align_model(j,i+1);
 	  
@@ -234,7 +240,7 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
     }
     
     std::cerr << "IBM 2 perplexity after iteration #" << iter << ": "
-              << ibm2_perplexity(source, slookup, target, alignment_model, dict)
+              << ibm2_perplexity(source, slookup, target, alignment_model, dict, wcooc, nSourceWords)
               << std::endl;
 
 
@@ -246,34 +252,36 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
       double nErrors = 0.0;
       uint nContributors = 0;
 
-      for (size_t s=0; s < nSentences; s++) {
+      for(std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::iterator it = possible_ref_alignments.begin();
+          it != possible_ref_alignments.end(); it ++) {
 
-        if (possible_ref_alignments.find(s+1) != possible_ref_alignments.end()) {
+        uint s = it->first-1;
 
-          nContributors++;
+        nContributors++;
 
-          const uint curJ = source[s].size();
-          const uint curI = target[s].size();
-	  
-          uint k=0;
-          for(; k < alignment_model[curI].size(); k++) {
-            if (alignment_model[curI][k].xDim() == curJ)
-              break;
-          }
-	  
-          assert(k < alignment_model[curI].size());
-          const Math2D::Matrix<double>& cur_align_model = alignment_model[curI][k];
-
-          //compute viterbi alignment
-          Storage1D<ushort> viterbi_alignment;
-          compute_ibm2_viterbi_alignment(source[s], slookup[s], target[s], dict, cur_align_model,
-                                         viterbi_alignment);
-  
-          //add alignment error rate
-          sum_aer += AER(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
-          sum_fmeasure += f_measure(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
-          nErrors += nDefiniteAlignmentErrors(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
+        const uint curJ = source[s].size();
+        const uint curI = target[s].size();
+	
+        uint k=0;
+        for(; k < alignment_model[curI].size(); k++) {
+          if (alignment_model[curI][k].xDim() == curJ)
+            break;
         }
+        
+        assert(k < alignment_model[curI].size());
+        const Math2D::Matrix<double>& cur_align_model = alignment_model[curI][k];
+        
+        const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(source[s],target[s],wcooc,nSourceWords,slookup[s],aux_lookup);
+        
+        //compute viterbi alignment
+        Storage1D<AlignBaseType> viterbi_alignment;
+        compute_ibm2_viterbi_alignment(source[s], cur_lookup, target[s], dict, cur_align_model,
+                                       viterbi_alignment);
+        
+        //add alignment error rate
+        sum_aer += AER(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
+        sum_fmeasure += f_measure(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
+        nErrors += nDefiniteAlignmentErrors(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
       }
 
       sum_aer *= 100.0 / nContributors;
@@ -289,10 +297,11 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
 
 
 double reduced_ibm2_perplexity( const Storage1D<Storage1D<uint> >& source,
-                                const Storage1D<Math2D::Matrix<uint> >& slookup,
+                                const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
                                 const Storage1D< Storage1D<uint> >& target,
                                 const ReducedIBM2AlignmentModel& align_model,
-                                const SingleWordDictionary& dict) {
+                                const SingleWordDictionary& dict,
+                                const CooccuringWordsType& wcooc,uint nSourceWords) {
 
   std::cerr << "calculating reduced IBM 2 perplexity" << std::endl;
 
@@ -301,11 +310,13 @@ double reduced_ibm2_perplexity( const Storage1D<Storage1D<uint> >& source,
   const size_t nSentences = target.size();
   assert(slookup.size() == nSentences);
 
+  Math2D::Matrix<uint,ushort> aux_lookup;
+
   for (size_t s=0; s < nSentences; s++) {
 
     const Storage1D<uint>& cur_source = source[s];
     const Storage1D<uint>& cur_target = target[s];
-    const Math2D::Matrix<uint>& cur_lookup = slookup[s]; 
+    const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
     
     const uint curJ = cur_source.size();
     const uint curI = cur_target.size();
@@ -330,7 +341,7 @@ double reduced_ibm2_perplexity( const Storage1D<Storage1D<uint> >& source,
 
 
 void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
-                        const Storage1D<Math2D::Matrix<uint> >& slookup,
+                        const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
                         const Storage1D<Storage1D<uint> >& target,
                         const CooccuringWordsType& wcooc,
                         const CooccuringLengthsType& lcooc,
@@ -338,8 +349,8 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
                         ReducedIBM2AlignmentModel& alignment_model,
                         SingleWordDictionary& dict,
                         uint nIterations,
-                        std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
-                        std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments) {
+                        std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
+                        std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments) {
 
   std::cerr << "starting reduced IBM 2 training" << std::endl;
 
@@ -365,6 +376,8 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
       alignment_model[I].set_constant(1.0/(I+1));
     }
   }
+
+  Math2D::Matrix<uint,ushort> aux_lookup;
 
   //TODO: estimate first alignment model from IBM1 dictionary
   
@@ -405,6 +418,8 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
       const Math2D::Matrix<double>& cur_align_model = alignment_model[curI];
       const Math2D::Matrix<double>& cur_facount= facount[curI];
 
+      const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+
       assert(cur_align_model.xDim() >= curJ);
       assert(cur_facount.xDim() >= curJ);
 
@@ -417,7 +432,7 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
 
         for (uint i=0; i < curI; i++) {
           const uint t_idx = cur_target[i];
-          coeff += dict[t_idx][slookup[s](j,i)] * cur_align_model(j,i+1);
+          coeff += dict[t_idx][cur_lookup(j,i)] * cur_align_model(j,i+1);
         }
 
         coeff = 1.0 / coeff;
@@ -431,7 +446,7 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
 
         for (uint i=0; i < curI; i++) {
           const uint t_idx = cur_target[i];
-          const uint l = slookup[s](j,i);
+          const uint l = cur_lookup(j,i);
 
           addon = coeff*dict[t_idx][l]*cur_align_model(j,i+1);
 	  
@@ -484,7 +499,7 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
     }
 
     std::cerr << "reduced IBM 2 perplexity after iteration #" << iter << ": "
-              << reduced_ibm2_perplexity(source, slookup, target, alignment_model, dict)
+              << reduced_ibm2_perplexity(source, slookup, target, alignment_model, dict, wcooc, nSourceWords)
               << std::endl;    
 
     /************* compute alignment error rate ****************/
@@ -495,25 +510,26 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
       double nErrors = 0.0;
       uint nContributors = 0;
 
-      for (size_t s=0; s < nSentences; s++) {
 
-        if (possible_ref_alignments.find(s+1) != possible_ref_alignments.end()) {
+      for(std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::iterator it = possible_ref_alignments.begin();
+          it != possible_ref_alignments.end(); it ++) {
 
-          nContributors++;
+        uint s = it->first-1;
 
-          const uint curI = target[s].size();
-          const Math2D::Matrix<double>& cur_align_model = alignment_model[curI];
+        nContributors++;
 
-          //compute viterbi alignment
-          Storage1D<ushort> viterbi_alignment;
-          compute_ibm2_viterbi_alignment(source[s], slookup[s], target[s], dict, cur_align_model,
-                                         viterbi_alignment);
+        const uint curI = target[s].size();
+        const Math2D::Matrix<double>& cur_align_model = alignment_model[curI];
+        
+        //compute viterbi alignment
+        Storage1D<AlignBaseType> viterbi_alignment;
+        compute_ibm2_viterbi_alignment(source[s], slookup[s], target[s], dict, cur_align_model,
+                                       viterbi_alignment);
   
-          //add alignment error rate
-          sum_aer += AER(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
-          sum_fmeasure += f_measure(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
-          nErrors += nDefiniteAlignmentErrors(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
-        }
+        //add alignment error rate
+        sum_aer += AER(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
+        sum_fmeasure += f_measure(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
+        nErrors += nDefiniteAlignmentErrors(viterbi_alignment,sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
       }
 
       sum_aer *= 100.0 / nContributors;
@@ -530,7 +546,7 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
 
 
 void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source, 
-                           const Storage1D<Math2D::Matrix<uint> >& slookup,
+                           const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
                            const Storage1D<Storage1D<uint> >& target,
                            const CooccuringWordsType& wcooc,
                            const CooccuringLengthsType& lcooc,
@@ -538,8 +554,8 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
                            ReducedIBM2AlignmentModel& alignment_model,
                            SingleWordDictionary& dict,
                            uint nIterations,
-                           std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
-                           std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
+                           std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
+                           std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
                            const floatSingleWordDictionary& prior_weight) {
 
   //initialize alignment model
@@ -562,10 +578,12 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
     }
   }
 
+  Math2D::Matrix<uint,ushort> aux_lookup;
+
   const size_t nSentences = source.size();
   assert(nSentences == target.size());
   
-  Storage1D<Math1D::Vector<ushort> > viterbi_alignment(source.size());
+  Storage1D<Math1D::Vector<AlignBaseType> > viterbi_alignment(source.size());
 
   for (size_t s=0; s < nSentences; s++) {
     
@@ -599,14 +617,12 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
 
     for (size_t s=0; s < nSentences; s++) {
 
-      //std::cerr << "s: " << s << std::endl;
-
       const Storage1D<uint>& cur_source = source[s];
       const Storage1D<uint>& cur_target = target[s];
 
       const uint nCurSourceWords = cur_source.size();
       const uint nCurTargetWords = cur_target.size();
-      const Math2D::Matrix<uint>& cur_lookup = slookup[s];
+      const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
 
       const Math2D::Matrix<double>& cur_align_model = alignment_model[nCurTargetWords];
       
@@ -625,8 +641,6 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
           for (uint i=0; i < nCurTargetWords; i++) {
 
             double hyp = -std::log(dict[cur_target[i]][cur_lookup(j,i)]*cur_align_model(j,i+1) );
-
-            //std::cerr << "hyp: " << hyp << ", min: " << min << std::endl;
 	    
             if (hyp < min) {
               min = hyp;
@@ -658,8 +672,6 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
 	      
               hyp = -std::log( dict[cur_target[i]][cur_lookup(j,i)] * cur_align_model(j,i+1));
             }
-	    
-            //std::cerr << "hyp: " << hyp << ", min: " << min << std::endl;
 
             if (hyp < min) {
               min = hyp;
@@ -668,8 +680,6 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
 	    
           }
         }
-
-        //std::cerr << "arg_min: " << arg_min << std::endl;
 
         sum += min;
 	
@@ -685,8 +695,6 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
         }
       }
     }
-   
-    //std::cerr << "sum: " << sum << std::endl;
 
     /*** ICM phase ***/
 
@@ -723,7 +731,7 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
         const uint curJ = source[s].size();
         const uint curI = target[s].size();
 	
-        const Math2D::Matrix<uint>& cur_lookup = slookup[s];
+        const Math2D::Matrix<uint,ushort>& cur_lookup = slookup[s];
         const Math2D::Matrix<double>& cur_acount = acount[curI];
 	
         for (uint j=0; j < curJ; j++) {
@@ -731,22 +739,21 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
           for (uint i=0; i <= curI; i++) {
 	    
             //note: cur_aj can change during the loop over i
-            uint cur_aj = viterbi_alignment[s][j];
+            ushort cur_aj = viterbi_alignment[s][j];
 	    
             if (i != cur_aj) {
 	      
-              uint cur_dict_num = (cur_aj == 0) ? 0 : target[s][cur_aj-1];
+              uint cur_dict_num = (cur_aj == 0) ? 0 : cur_target[cur_aj-1];
 	      
               Math1D::Vector<double>& cur_dictcount = dcount[cur_dict_num]; 
               double cur_dictsum = dict_sum[cur_dict_num]; 
 	      
-              uint cur_idx = (cur_aj == 0) ? source[s][j]-1 : cur_lookup(j,cur_aj-1);
-              uint hyp_dict_num = (i == 0) ? 0 : target[s][i-1];
+              uint cur_idx = (cur_aj == 0) ? cur_source[j]-1 : cur_lookup(j,cur_aj-1);
+              uint hyp_dict_num = (i == 0) ? 0 : cur_target[i-1];
 	      
               Math1D::Vector<double>& hyp_dictcount = dcount[hyp_dict_num];
-              double hyp_dictsum = dict_sum[hyp_dict_num]; 
 	    
-              uint hyp_idx = (i == 0) ? source[s][j]-1 : cur_lookup(j,i-1);;
+              uint hyp_idx = (i == 0) ? cur_source[j]-1 : cur_lookup(j,i-1);;
 	      
               double change = 0.0;
 
@@ -873,8 +880,6 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
 
     for (uint i=0; i < nTargetWords; i++) {
 
-      //std::cerr << "i: " << i << std::endl;
-
       const double sum = dcount[i].sum();
       prev_wsum[i] = (uint) sum;
 
@@ -892,7 +897,7 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
 
           if (dcount[i][k] > 0) {
             energy -= dcount[i][k] * std::log(dcount[i][k]);
-            energy += prior_weight[i][k]; //dict_penalty; 
+            energy += prior_weight[i][k]; 
           }
         }
       }
@@ -930,7 +935,6 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
       }
     }
     
-    //std::cerr << "number of total alignments: " << sum_sum << std::endl;
     std::cerr << "energy: " << energy << std::endl;
 
     /************* compute alignment error rate ****************/
@@ -941,18 +945,17 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
       double nErrors = 0.0;
       uint nContributors = 0;
 
+      for(std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::iterator it = possible_ref_alignments.begin();
+          it != possible_ref_alignments.end(); it ++) {
 
-      for (size_t s=0; s < nSentences; s++) {
+        uint s = it->first-1;
 
-        if (possible_ref_alignments.find(s+1) != possible_ref_alignments.end()) {
+        nContributors++;
 
-          nContributors++;
-
-          //add alignment error rate
-          sum_aer += AER(viterbi_alignment[s],sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
-          sum_fmeasure += f_measure(viterbi_alignment[s],sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
-          nErrors += nDefiniteAlignmentErrors(viterbi_alignment[s],sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
-        }
+        //add alignment error rate
+        sum_aer += AER(viterbi_alignment[s],sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
+        sum_fmeasure += f_measure(viterbi_alignment[s],sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
+        nErrors += nDefiniteAlignmentErrors(viterbi_alignment[s],sure_ref_alignments[s+1],possible_ref_alignments[s+1]);
       }
 
       sum_aer *= 100.0 / nContributors;
@@ -965,5 +968,7 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
 
     }
   }
+
 }
+
 

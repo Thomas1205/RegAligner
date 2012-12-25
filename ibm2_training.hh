@@ -13,7 +13,7 @@
 #include <set>
 
 void train_ibm2(const Storage1D<Storage1D<uint> >& source, 
-                const Storage1D<Math2D::Matrix<uint> >& slookup,
+                const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
                 const Storage1D<Storage1D<uint> >& target,
                 const CooccuringWordsType& wcooc,
                 const CooccuringLengthsType& lcooc,
@@ -21,12 +21,12 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
                 IBM2AlignmentModel& alignment_model,
                 SingleWordDictionary& dict,
                 uint nIterations,
-                std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
-                std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments);
+                std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
+                std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments);
 
 
 void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
-                        const Storage1D<Math2D::Matrix<uint> >& slookup,
+                        const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
                         const Storage1D<Storage1D<uint> >& target,
                         const CooccuringWordsType& wcooc,
                         const CooccuringLengthsType& lcooc,
@@ -34,12 +34,12 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
                         ReducedIBM2AlignmentModel& alignment_model,
                         SingleWordDictionary& dict,
                         uint nIterations,
-                        std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
-                        std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments);
+                        std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
+                        std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments);
 
 
 void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source, 
-                           const Storage1D<Math2D::Matrix<uint> >& slookup,
+                           const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
                            const Storage1D<Storage1D<uint> >& target,
                            const CooccuringWordsType& wcooc,
                            const CooccuringLengthsType& lcooc,
@@ -47,8 +47,8 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
                            ReducedIBM2AlignmentModel& alignment_model,
                            SingleWordDictionary& dict,
                            uint nIterations,
-                           std::map<uint,std::set<std::pair<ushort,ushort> > >& sure_ref_alignments,
-                           std::map<uint,std::set<std::pair<ushort,ushort> > >& possible_ref_alignments,
+                           std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
+                           std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
                            const floatSingleWordDictionary& prior_weight);
 
 #endif

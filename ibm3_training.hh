@@ -14,7 +14,7 @@ class IBM3Trainer : public FertilityModelTrainer {
 public:
   
   IBM3Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
-              const Storage1D<Math2D::Matrix<uint> >& slookup,
+              const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
               const Storage1D<Storage1D<uint> >& target_sentence,
               const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
               const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
@@ -23,7 +23,7 @@ public:
               uint nSourceWords, uint nTargetWords,
               const floatSingleWordDictionary& prior_weight,
               bool parametric_distortion = false,
-              bool och_ney_empty_word = true,
+              bool och_ney_empty_word = true, 
               bool viterbi_ilp = false, double l0_fertpen = 0.0,
               bool smoothed_l0 = false, double l0_beta = 1.0);
   
@@ -50,13 +50,13 @@ public:
   void fix_p0(double p0);
 
   long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-                                         const Math2D::Matrix<uint>& lookup,
+                                         const Math2D::Matrix<uint,ushort>& lookup,
                                          Math1D::Vector<AlignBaseType>& alignment, bool ilp=false);
 
   // <code> start_alignment </code> is used as initialization for hillclimbing and later modified
   // the extracted alignment is written to <code> postdec_alignment </code>
   void compute_external_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-					  const Math2D::Matrix<uint>& lookup,
+					  const Math2D::Matrix<uint,ushort>& lookup,
 					  Math1D::Vector<AlignBaseType>& start_alignment,
 					  std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
 					  double threshold = 0.25);
@@ -79,31 +79,31 @@ protected:
 
   void par_distortion_m_step(const ReducedIBM3DistortionModel& fdistort_count, uint i);
 
+
   long double alignment_prob(uint s, const Math1D::Vector<AlignBaseType>& alignment) const;
 
   long double alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target,
-                             const Math2D::Matrix<uint>& lookup, const Math1D::Vector<AlignBaseType>& alignment) const;
-
+                             const Math2D::Matrix<uint,ushort>& lookup, const Math1D::Vector<AlignBaseType>& alignment) const;
 
   //improves the currently best known alignment using hill climbing and
   // returns the probability of the resulting alignment
   long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-                                               const Math2D::Matrix<uint>& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
+                                               const Math2D::Matrix<uint,ushort>& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
                                                Math2D::Matrix<long double>& expansion_prob,
                                                Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment);
-
 
   long double compute_itg_viterbi_alignment_noemptyword(uint s, bool extended_reordering = false);
 
   //@param time_limit: maximum amount of seconds spent in the ILP-solver.
   //          values <= 0 indicate that no time limit is set
   long double compute_viterbi_alignment_ilp(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-                                            const Math2D::Matrix<uint>& lookup, uint max_fertility,
+                                            const Math2D::Matrix<uint,ushort>& lookup, uint max_fertility,
                                             Math1D::Vector<AlignBaseType>& alignment, double time_limit = -1.0);
 
   void itg_traceback(uint s, const NamedStorage1D<Math3D::NamedTensor<uint> >& trace, uint J, uint j, uint i, uint ii);
 
   long double compute_ibmconstrained_viterbi_alignment_noemptyword(uint s, uint maxFertility, uint nMaxSkips);
+
 
   ReducedIBM3DistortionModel distortion_prob_;
   Math2D::Matrix<double> distortion_param_;

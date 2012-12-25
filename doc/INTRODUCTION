@@ -68,7 +68,29 @@ options
 
 to the command line (replace <uint> by the desired number).
 
-***** changing the type of HMM *****
+***** Changing run-time and memory consumption ******
+
+If you use EM (rather than gradient descent or Viterbi) you can reduce the
+run-time of IBM-1 and HMM by adding the option
+
+-dont-print-energy
+
+to the command line. You will then no longer see an energy printout after
+every iteration.
+
+If you want to reduce memory consumption, add 
+
+-max-lookup 400
+
+(or some other number) to the command line. By default, RegAligner stores a
+dictionary lookup table for every sentence pair, where a pair with J source
+words and I target words needs I*J lookup entries. If you add -max-lookup 400, 
+RegAligner will only store tables for sentence pairs with I*J <= 400. The
+tables for the other pairs are computed on the fly. Naturally, this takes
+quite some extra running time.
+
+
+***** Changing the type of HMM *****
 
 you can experiment with how exactly the HMM model is parameterized by exploring the options
 
@@ -78,7 +100,7 @@ and
 
 -hmm-init-type (auto | par | nonpar | fix | fix2)
 
-***** using word classes for IBM-4 *****
+***** Using word classes for IBM-4 *****
 
 To use wordclasses for the IBM-4, add 
 
@@ -185,7 +207,7 @@ add
 
 to the command line. ATTENTION: this will swap source and target for gold alignments, too.
 
-********** training with ITG and IBM constraints ***********
+********** Training with ITG and IBM constraints ***********
 
 This is not recommended, and only available for the IBM-3. If you want to use it,
 add

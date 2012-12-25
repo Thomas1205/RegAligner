@@ -17,13 +17,22 @@ struct DistortCount {
   uchar j_prev_;
 };
 
+struct IBM4CacheStruct {
 
+  IBM4CacheStruct(uchar j, WordClassType sc, WordClassType tc);
+
+  uchar j_;
+  WordClassType sclass_;
+  WordClassType tclass_;
+};
+
+bool operator<(const IBM4CacheStruct& c1, const IBM4CacheStruct& c2);
 
 class IBM4Trainer : public FertilityModelTrainer {
 public: 
 
   IBM4Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
-              const Storage1D<Math2D::Matrix<uint> >& slookup,
+              const Storage1D<Math2D::Matrix<uint, ushort> >& slookup,
               const Storage1D<Storage1D<uint> >& target_sentence,
               const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
               const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
@@ -56,13 +65,13 @@ public:
   void fix_p0(double p0);
 
   long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-                                         const Math2D::Matrix<uint>& lookup,
+                                         const Math2D::Matrix<uint, ushort>& lookup,
                                          Math1D::Vector<AlignBaseType>& alignment);
 
   // <code> start_alignment </code> is used as initialization for hillclimbing and later modified
   // the extracted alignment is written to <code> postdec_alignment </code>
   void compute_external_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-					  const Math2D::Matrix<uint>& lookup,
+					  const Math2D::Matrix<uint, ushort>& lookup,
 					  Math1D::Vector<AlignBaseType>& start_alignment,
 					  std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
 					  double threshold = 0.25);
@@ -72,8 +81,11 @@ public:
 
 protected:
 
+  double inter_distortion_prob(int j, int j_prev, uint sclass, uint tclass, uint J) const;
+
   long double alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-                             const Math2D::Matrix<uint>& lookup, const Math1D::Vector<AlignBaseType>& alignment);
+                             const Math2D::Matrix<uint, ushort>& lookup, const Math1D::Vector<AlignBaseType>& alignment);
+
 
   long double distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 			      const Math1D::Vector<AlignBaseType>& alignment);
@@ -83,14 +95,15 @@ protected:
 			      const Storage1D<std::vector<AlignBaseType> >& aligned_source_words);
 
   void print_alignment_prob_factors(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-				    const Math2D::Matrix<uint>& lookup, const Math1D::Vector<AlignBaseType>& alignment);
+				    const Math2D::Matrix<uint, ushort>& lookup, const Math1D::Vector<AlignBaseType>& alignment);
 
   long double alignment_prob(uint s, const Math1D::Vector<AlignBaseType>& alignment);
 
   long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-                                               const Math2D::Matrix<uint>& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
+                                               const Math2D::Matrix<uint, ushort>& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
                                                Math2D::Matrix<long double>& expansion_prob,
                                                Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment);
+
 
   void par2nonpar_inter_distortion();
 
@@ -123,7 +136,6 @@ protected:
 
   void start_prob_m_step(const Storage1D<Math1D::Vector<double> >& start_count);
 
-
   //indexed by (target word class idx, source word class idx, displacement)
   IBM4CeptStartModel cept_start_prob_; //note: displacements of 0 are possible here (the center of a cept need not be an aligned word)
   //indexed by (source word class, displacement)
@@ -132,8 +144,10 @@ protected:
   Math1D::NamedVector<double> sentence_start_parameters_;
   Storage1D<Math1D::Vector<double> > sentence_start_prob_;
 
-  Storage1D<Storage2D<Math2D::Matrix<float> > > inter_distortion_prob_;
+  Storage1D<Storage2D<Math2D::Matrix<float,ushort> > > inter_distortion_prob_;
   Storage1D<Math3D::Tensor<float> > intra_distortion_prob_;
+
+  mutable Storage1D<std::map<ushort, std::map<IBM4CacheStruct,float> > > inter_distortion_cache_;
 
   Storage1D<WordClassType> source_class_;
   Storage1D<WordClassType> target_class_;  
@@ -157,6 +171,8 @@ protected:
 
   uint nSourceClasses_;
   uint nTargetClasses_;
+
+  const ushort storage_limit_; //if there are many word classes, inter distortion tables are only keep for J<=storag_limit_
 };
 
 #endif
