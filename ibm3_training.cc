@@ -2103,7 +2103,7 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
   NamedStorage1D<Math1D::Vector<uint> > fwcount(nTargetWords,MAKENAME(fwcount));
   NamedStorage1D<Math1D::Vector<double> > ffert_count(nTargetWords,MAKENAME(ffert_count));
 
-  Math2D::Matrix<uint,ushort> aux;
+  SingleLookupTable aux;
 
   for (uint i=0; i < nTargetWords; i++) {
     fwcount[i].resize(dict_[i].size());

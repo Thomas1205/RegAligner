@@ -66,10 +66,10 @@ void find_cooccuring_lengths(const Storage1D<Storage1D<uint> >& source,
 void generate_wordlookup(const Storage1D<Storage1D<uint> >& source, 
                          const Storage1D<Storage1D<uint> >& target,
                          const CooccuringWordsType& cooc, uint nSourceWords,
-                         Storage1D<Math2D::Matrix<uint,ushort> >& slookup, uint max_size = MAX_UINT);
+                         LookupTable& slookup, uint max_size = MAX_UINT);
 
-const Math2D::Matrix<uint,ushort>& get_wordlookup(const Storage1D<uint>& source, const Storage1D<uint>& target,
-                                                  const CooccuringWordsType& cooc, uint nSourceWords,
-                                                  const Math2D::Matrix<uint,ushort>& lookup, Math2D::Matrix<uint,ushort>& aux);
+const SingleLookupTable& get_wordlookup(const Storage1D<uint>& source, const Storage1D<uint>& target,
+                                        const CooccuringWordsType& cooc, uint nSourceWords,
+                                        const SingleLookupTable& lookup, Math2D::Matrix<uint,ushort>& aux);
 
 #endif

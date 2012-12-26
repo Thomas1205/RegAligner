@@ -885,9 +885,9 @@ int main(int argc, char** argv) {
 
       const uint curI = target_sentence[s].size();
 
-      Math2D::Matrix<uint,ushort> aux_lookup;
-      const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(source_sentence[s],target_sentence[s],wcooc,
-                                                                     nSourceWords,slookup[s],aux_lookup);  
+      SingleLookupTable aux_lookup;
+      const SingleLookupTable& cur_lookup = get_wordlookup(source_sentence[s],target_sentence[s],wcooc,
+                                                           nSourceWords,slookup[s],aux_lookup);  
       
       if (hmm_iter > 0) {
 	

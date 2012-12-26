@@ -673,7 +673,7 @@ void find_cooccuring_lengths(const Storage1D<Storage1D<uint> >& source,
 void generate_wordlookup(const Storage1D<Storage1D<uint> >& source, 
                          const Storage1D<Storage1D<uint> >& target,
                          const CooccuringWordsType& cooc, uint nSourceWords,
-                         Storage1D<Math2D::Matrix<uint,ushort> >& slookup, uint max_size) {
+                         LookupTable& slookup, uint max_size) {
 
   const uint nSentences = source.size();
   slookup.resize_dirty(nSentences);
@@ -686,7 +686,7 @@ void generate_wordlookup(const Storage1D<Storage1D<uint> >& source,
     const uint J = cur_source.size();
     const uint I = cur_target.size();
 
-    Math2D::Matrix<uint,ushort>& cur_lookup = slookup[s];
+    SingleLookupTable& cur_lookup = slookup[s];
 
     if (J*I <= max_size) {
 
@@ -780,9 +780,9 @@ void generate_wordlookup(const Storage1D<Storage1D<uint> >& source,
   }
 }
 
-const Math2D::Matrix<uint,ushort>& get_wordlookup(const Storage1D<uint>& source, const Storage1D<uint>& target,
-                                                  const CooccuringWordsType& cooc, uint nSourceWords,
-                                                  const Math2D::Matrix<uint,ushort>& lookup, Math2D::Matrix<uint,ushort>& aux) {
+const SingleLookupTable& get_wordlookup(const Storage1D<uint>& source, const Storage1D<uint>& target,
+                                        const CooccuringWordsType& cooc, uint nSourceWords,
+                                        const SingleLookupTable& lookup, SingleLookupTable& aux) {
 
   const uint J = source.size();
   const uint I = target.size();
