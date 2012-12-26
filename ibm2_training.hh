@@ -13,7 +13,7 @@
 #include <set>
 
 void train_ibm2(const Storage1D<Storage1D<uint> >& source, 
-                const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                const LookupTable& slookup,
                 const Storage1D<Storage1D<uint> >& target,
                 const CooccuringWordsType& wcooc,
                 const CooccuringLengthsType& lcooc,
@@ -26,7 +26,7 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
 
 
 void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
-                        const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                        const LookupTable& slookup,
                         const Storage1D<Storage1D<uint> >& target,
                         const CooccuringWordsType& wcooc,
                         const CooccuringLengthsType& lcooc,
@@ -39,7 +39,7 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
 
 
 void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source, 
-                           const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                           const LookupTable& slookup,
                            const Storage1D<Storage1D<uint> >& target,
                            const CooccuringWordsType& wcooc,
                            const CooccuringLengthsType& lcooc,

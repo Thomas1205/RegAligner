@@ -10,7 +10,8 @@ $(LIB)/commonlib.opt: $(OPTDIR)/fileio.o $(OPTDIR)/stringprocessing.o $(OPTDIR)/
 
 clean:
 	rm $(DEBUGDIR)/*.o 
-	rm $(OPTDIR)/*.o 
+	rm $(OPTDIR)/*.o
+	rm lib/* 
 
 include Makefile.finish
 

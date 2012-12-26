@@ -29,7 +29,7 @@ HmmOptions::HmmOptions(uint nSourceWords,uint nTargetWords,
 
 
 long double hmm_alignment_prob(const Storage1D<uint>& source, 
-                               const Math2D::Matrix<uint,ushort>& slookup,
+                               const SingleLookupTable& slookup,
                                const Storage1D<uint>& target,
                                const SingleWordDictionary& dict,
                                const FullHMMAlignmentModel& align_model,
@@ -69,7 +69,7 @@ long double hmm_alignment_prob(const Storage1D<uint>& source,
 }
 
 double extended_hmm_perplexity(const Storage1D<Storage1D<uint> >& source, 
-                               const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                               const LookupTable& slookup,
                                const Storage1D<Storage1D<uint> >& target,
                                const FullHMMAlignmentModel& align_model,
                                const InitialAlignmentProbability& initial_prob,
@@ -81,13 +81,13 @@ double extended_hmm_perplexity(const Storage1D<Storage1D<uint> >& source,
 
   const size_t nSentences = target.size();
 
-  Math2D::Matrix<uint,ushort> aux_lookup;
+  SingleLookupTable aux_lookup;
   
   for (size_t s=0; s < nSentences; s++) {
     
     const Storage1D<uint>& cur_source = source[s];
     const Storage1D<uint>& cur_target = target[s];
-    const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+    const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
 
     const uint curJ = cur_source.size();
     const uint curI = cur_target.size();
@@ -126,7 +126,7 @@ double extended_hmm_perplexity(const Storage1D<Storage1D<uint> >& source,
 
 
 double extended_hmm_energy(const Storage1D<Storage1D<uint> >& source, 
-                           const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                           const LookupTable& slookup,
                            const Storage1D<Storage1D<uint> >& target,
                            const FullHMMAlignmentModel& align_model,
                            const InitialAlignmentProbability& initial_prob,
@@ -620,19 +620,23 @@ void par2nonpar_hmm_alignment_model(const Math1D::Vector<double>& dist_params, c
 }
 
 void init_hmm_from_ibm1(const Storage1D<Storage1D<uint> >& source, 
-                        const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                        const LookupTable& slookup,
                         const Storage1D<Storage1D<uint> >& target,
                         const SingleWordDictionary& dict,
+                        const CooccuringWordsType& wcooc,
                         FullHMMAlignmentModel& align_model,
                         Math1D::Vector<double>& dist_params, double& dist_grouping_param,
                         Math1D::Vector<double>& source_fert,
                         InitialAlignmentProbability& initial_prob,
                         Math1D::Vector<double>& init_params,
-                        HmmInitProbType init_type, HmmAlignProbType align_type,
-                        bool start_empty_word = false,
+                        const HmmOptions& options,
                         IBM1TransferMode transfer_mode = IBM1TransferViterbi) {
 
   dist_grouping_param = -1.0;
+
+  HmmInitProbType init_type = options.init_type_;
+  HmmAlignProbType align_type = options.align_type_;
+  bool start_empty_word = options.start_empty_word_;
 
   if (init_type >= HmmInitInvalid) {
     
@@ -646,6 +650,8 @@ void init_hmm_from_ibm1(const Storage1D<Storage1D<uint> >& source,
   }
 
   const uint nSentences = source.size();
+
+  SingleLookupTable aux_lookup;
 
   std::set<uint> seenIs;
 
@@ -733,13 +739,16 @@ void init_hmm_from_ibm1(const Storage1D<Storage1D<uint> >& source,
     if (align_type == HmmAlignProbReducedpar)
       dist_grouping_param = 0.0;
     dist_params.set_constant(0.0);
+
     for (uint s=0; s < source.size(); s++) {
+
+      const SingleLookupTable& cur_lookup = get_wordlookup(source[s],target[s],wcooc,options.nSourceWords_,slookup[s],aux_lookup);
 
       if (transfer_mode == IBM1TransferViterbi) {
 
         Storage1D<AlignBaseType> viterbi_alignment(source[s].size(),0);
         
-        compute_ibm1_viterbi_alignment(source[s],slookup[s],target[s], dict, viterbi_alignment);
+        compute_ibm1_viterbi_alignment(source[s],cur_lookup,target[s], dict, viterbi_alignment);
         
         for (uint j=1; j < source[s].size(); j++) {
           
@@ -763,19 +772,19 @@ void init_hmm_from_ibm1(const Storage1D<Storage1D<uint> >& source,
 
           double sum = dict[0][source[s][j]-1];
           for (uint i=0; i < target[s].size(); i++)
-            sum += dict[target[s][i]][slookup[s](j,i)];
+            sum += dict[target[s][i]][cur_lookup(j,i)];
 
           double prev_sum = dict[0][source[s][j-1]-1];
           for (uint i=0; i < target[s].size(); i++)
-            prev_sum += dict[target[s][i]][slookup[s](j-1,i)];
+            prev_sum += dict[target[s][i]][cur_lookup(j-1,i)];
 
           for (int i1 = 0; i1 < int(target[s].size()); i1++) {
 
-            const double i1_weight = (dict[target[s][i1]][slookup[s](j-1,i1)] / prev_sum);
+            const double i1_weight = (dict[target[s][i1]][cur_lookup(j-1,i1)] / prev_sum);
 
             for (int i2 = 0; i2 < int(target[s].size()); i2++) {
 
-              const double marg = (dict[target[s][i2]][slookup[s](j,i2)] / sum) * i1_weight;
+              const double marg = (dict[target[s][i2]][cur_lookup(j,i2)] / sum) * i1_weight;
 
               int diff = i2 - i1;
               if (abs(diff) <= 5 || align_type != HmmAlignProbReducedpar)
@@ -819,7 +828,7 @@ void init_hmm_from_ibm1(const Storage1D<Storage1D<uint> >& source,
 }
 
 void train_extended_hmm(const Storage1D<Storage1D<uint> >& source, 
-                        const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                        const LookupTable& slookup,
                         const Storage1D<Storage1D<uint> >& target,
                         const CooccuringWordsType& wcooc,
                         FullHMMAlignmentModel& align_model,
@@ -846,7 +855,7 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
   assert(wcooc.size() == options.nTargetWords_);
   //NOTE: the dictionary is assumed to be initialized
 
-  Math2D::Matrix<uint,ushort> aux_lookup;
+  SingleLookupTable aux_lookup;
 
   const size_t nSentences = source.size();
   assert(nSentences == target.size());
@@ -875,9 +884,8 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
   fwcount = dict;
 
 
-  init_hmm_from_ibm1(source, slookup, target, dict, align_model, dist_params, dist_grouping_param,
-                     source_fert, initial_prob, init_params, init_type, align_type, start_empty_word,
-                     options.transfer_mode_);
+  init_hmm_from_ibm1(source, slookup, target, dict, wcooc, align_model, dist_params, dist_grouping_param,
+                     source_fert, initial_prob, init_params, options, options.transfer_mode_);
   
   
   Math1D::NamedVector<double> dist_count(MAKENAME(dist_count));
@@ -933,7 +941,7 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
       const Storage1D<uint>& cur_source = source[s];
       const Storage1D<uint>& cur_target = target[s];
-      const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
       
       const uint curJ = cur_source.size();
       const uint curI = cur_target.size();
@@ -1405,7 +1413,7 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
         Math1D::Vector<AlignBaseType> viterbi_alignment;
         const uint curI = target[s].size();
 
-        const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(source[s],target[s],wcooc,nSourceWords,slookup[s],aux_lookup);
+        const SingleLookupTable& cur_lookup = get_wordlookup(source[s],target[s],wcooc,nSourceWords,slookup[s],aux_lookup);
 
         if (start_empty_word) 
           compute_sehmm_viterbi_alignment(source[s],cur_lookup, target[s], 
@@ -1458,7 +1466,7 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
 
 void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
-                                       const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                                       const LookupTable& slookup,
                                        const Storage1D<Storage1D<uint> >& target,
                                        const CooccuringWordsType& wcooc,
                                        FullHMMAlignmentModel& align_model,
@@ -1497,7 +1505,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
   const uint nSourceWords = options.nSourceWords_;
 
-  Math2D::Matrix<uint,ushort> aux_lookup;
+  SingleLookupTable aux_lookup;
 
   std::set<uint> seenIs;
 
@@ -1517,9 +1525,8 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
   uint zero_offset = maxI-1;
 
-  init_hmm_from_ibm1(source, slookup, target, dict, align_model, dist_params, dist_grouping_param,
-                     source_fert, initial_prob, init_params, init_type, align_type, start_empty_word,
-                     options.transfer_mode_);
+  init_hmm_from_ibm1(source, slookup, target, dict, wcooc, align_model, dist_params, dist_grouping_param,
+                     source_fert, initial_prob, init_params, options, options.transfer_mode_);
 
 
   double dist_grouping_grad = dist_grouping_param;
@@ -1635,7 +1642,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
       const Storage1D<uint>& cur_source = source[s];
       const Storage1D<uint>& cur_target = target[s];
-      const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
       
       const uint curJ = cur_source.size();
       const uint curI = cur_target.size();
@@ -2247,7 +2254,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
         Storage1D<AlignBaseType> viterbi_alignment;
         const uint curI = target[s].size();
 
-        const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(source[s],target[s],wcooc,nSourceWords,slookup[s],aux_lookup);
+        const SingleLookupTable& cur_lookup = get_wordlookup(source[s],target[s],wcooc,nSourceWords,slookup[s],aux_lookup);
 	
         compute_ehmm_viterbi_alignment(source[s],cur_lookup, target[s], 
                                        dict, align_model[curI-1], initial_prob[curI-1],
@@ -2282,7 +2289,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
 
 void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
-                                const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                                const LookupTable& slookup,
                                 const Storage1D<Storage1D<uint> >& target,
                                 const CooccuringWordsType& wcooc,
                                 FullHMMAlignmentModel& align_model,
@@ -2308,7 +2315,7 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
   const uint nSourceWords = options.nSourceWords_;
 
-  Math2D::Matrix<uint,ushort> aux_lookup;
+  SingleLookupTable aux_lookup;
 
   for (size_t s=0; s < nSentences; s++) {
     
@@ -2334,9 +2341,8 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       maxJ = curJ;
   }
   
-  init_hmm_from_ibm1(source, slookup, target, dict, align_model, dist_params, dist_grouping_param,
-                     source_fert, initial_prob, init_params, init_type, align_type, start_empty_word,
-                     options.transfer_mode_);
+  init_hmm_from_ibm1(source, slookup, target, dict, wcooc, align_model, dist_params, dist_grouping_param,
+                     source_fert, initial_prob, init_params, options, options.transfer_mode_);
 
   uint zero_offset = maxI-1;
 
@@ -2387,7 +2393,7 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
       const Storage1D<uint>& cur_source = source[s];
       const Storage1D<uint>& cur_target = target[s];
-      const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
             
 
       const uint curJ = cur_source.size();
@@ -2657,7 +2663,7 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
       const Math2D::Matrix<double>& cur_align_model = align_model[curI-1];
 
-      const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
     
       Math2D::Matrix<double>& cur_acount = acount[curI-1];
 
@@ -3275,7 +3281,7 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
         
         const Storage1D<uint>& cur_source = source[s];
         const Storage1D<uint>& cur_target = target[s];
-        const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+        const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
 
 
         const uint curJ = cur_source.size();
@@ -3525,7 +3531,7 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
         Storage1D<AlignBaseType> viterbi_alignment;
         const uint curI = target[s].size();
 
-        const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(source[s],target[s],wcooc,nSourceWords,slookup[s],aux_lookup);
+        const SingleLookupTable& cur_lookup = get_wordlookup(source[s],target[s],wcooc,nSourceWords,slookup[s],aux_lookup);
 	
         if (start_empty_word)
           compute_sehmm_viterbi_alignment(source[s],cur_lookup, target[s], 

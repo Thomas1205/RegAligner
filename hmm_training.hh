@@ -45,7 +45,7 @@ public:
 };
 
 void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
-                        const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                        const LookupTable& slookup,
                         const Storage1D<Storage1D<uint> >& target,
                         const CooccuringWordsType& wcooc,
                         FullHMMAlignmentModel& align_model,
@@ -59,7 +59,7 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
 
 void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
-                                       const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                                       const LookupTable& slookup,
                                        const Storage1D<Storage1D<uint> >& target,
                                        const CooccuringWordsType& wcooc,
                                        FullHMMAlignmentModel& align_model,
@@ -73,7 +73,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
 
 void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
-                                const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                                const LookupTable& slookup,
                                 const Storage1D<Storage1D<uint> >& target,
                                 const CooccuringWordsType& wcooc,
                                 FullHMMAlignmentModel& align_model,

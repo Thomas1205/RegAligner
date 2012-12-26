@@ -38,7 +38,7 @@ public:
 
 
 void train_ibm1(const Storage1D<Storage1D<uint> >& source, 
-                const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                const LookupTable& slookup,
                 const Storage1D<Storage1D<uint> >& target,
                 const CooccuringWordsType& cooc, 
                 SingleWordDictionary& dict,
@@ -46,7 +46,7 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
                 IBM1Options& options);
 
 void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source, 
-                               const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                               const LookupTable& slookup,
                                const Storage1D<Storage1D<uint> >& target,
                                const CooccuringWordsType& cooc, 
                                SingleWordDictionary& dict,
@@ -68,7 +68,7 @@ double single_dict_m_step_energy(const Math1D::Vector<double>& fdict_count,
                                  const Math1D::Vector<double>& dict, bool smoothed_l0, double l0_beta);
 
 void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source, 
-                           const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                           const LookupTable& slookup,
                            const Storage1D<Storage1D<uint> >& target,
                            const CooccuringWordsType& cooc, 
                            SingleWordDictionary& dict,

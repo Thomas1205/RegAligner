@@ -32,6 +32,9 @@ typedef Math3D::NamedTensor<double> IBM4CeptStartModel;
 //indexed by (source word class, displacement)
 typedef Math2D::NamedMatrix<double> IBM4WithinCeptModel;
 
+typedef Math2D::Matrix<uint,ushort> SingleLookupTable;
+typedef Storage1D<SingleLookupTable> LookupTable;
+
 enum HmmInitProbType {HmmInitFix, HmmInitNonpar, HmmInitPar, HmmInitFix2, HmmInitInvalid};
 
 enum HmmAlignProbType {HmmAlignProbNonpar, HmmAlignProbFullpar, HmmAlignProbReducedpar, HmmAlignProbNonpar2, HmmAlignProbInvalid};

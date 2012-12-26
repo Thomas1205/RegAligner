@@ -16,7 +16,7 @@
 #include "projection.hh"
 
 double ibm2_perplexity( const Storage1D<Storage1D<uint> >& source,
-                        const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                        const LookupTable& slookup,
                         const Storage1D< Storage1D<uint> >& target,
                         const IBM2AlignmentModel& align_model,
                         const SingleWordDictionary& dict, const CooccuringWordsType& wcooc, uint nSourceWords) {
@@ -28,13 +28,13 @@ double ibm2_perplexity( const Storage1D<Storage1D<uint> >& source,
   const size_t nSentences = target.size();
   assert(slookup.size() == nSentences);
 
-  Math2D::Matrix<uint,ushort> aux_lookup;
+  SingleLookupTable aux_lookup;
 
   for (size_t s=0; s < nSentences; s++) {
 
     const Storage1D<uint>& cur_source = source[s];
     const Storage1D<uint>& cur_target = target[s];
-    const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+    const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
 
     const uint curJ = cur_source.size();
     const uint curI = cur_target.size();
@@ -65,7 +65,7 @@ double ibm2_perplexity( const Storage1D<Storage1D<uint> >& source,
 }
 
 void train_ibm2(const Storage1D<Storage1D<uint> >& source, 
-                const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                const LookupTable& slookup,
                 const Storage1D<Storage1D<uint> >& target,
                 const CooccuringWordsType& wcooc,
                 const CooccuringLengthsType& lcooc,
@@ -98,7 +98,7 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
     }
   }
 
-  Math2D::Matrix<uint,ushort> aux_lookup;
+  SingleLookupTable aux_lookup;
   
   Storage1D<Math1D::Vector<double> > fwcount(nTargetWords);
   for (uint i=0; i < nTargetWords; i++) {
@@ -138,7 +138,7 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
       const Storage1D<uint>& cur_source = source[s];
       const Storage1D<uint>& cur_target = target[s];
 
-      const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
 
       const uint curJ = cur_source.size();
       const uint curI = cur_target.size();
@@ -271,7 +271,7 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
         assert(k < alignment_model[curI].size());
         const Math2D::Matrix<double>& cur_align_model = alignment_model[curI][k];
         
-        const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(source[s],target[s],wcooc,nSourceWords,slookup[s],aux_lookup);
+        const SingleLookupTable& cur_lookup = get_wordlookup(source[s],target[s],wcooc,nSourceWords,slookup[s],aux_lookup);
         
         //compute viterbi alignment
         Storage1D<AlignBaseType> viterbi_alignment;
@@ -297,7 +297,7 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
 
 
 double reduced_ibm2_perplexity( const Storage1D<Storage1D<uint> >& source,
-                                const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                                const LookupTable& slookup,
                                 const Storage1D< Storage1D<uint> >& target,
                                 const ReducedIBM2AlignmentModel& align_model,
                                 const SingleWordDictionary& dict,
@@ -310,13 +310,13 @@ double reduced_ibm2_perplexity( const Storage1D<Storage1D<uint> >& source,
   const size_t nSentences = target.size();
   assert(slookup.size() == nSentences);
 
-  Math2D::Matrix<uint,ushort> aux_lookup;
+  SingleLookupTable aux_lookup;
 
   for (size_t s=0; s < nSentences; s++) {
 
     const Storage1D<uint>& cur_source = source[s];
     const Storage1D<uint>& cur_target = target[s];
-    const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+    const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
     
     const uint curJ = cur_source.size();
     const uint curI = cur_target.size();
@@ -341,7 +341,7 @@ double reduced_ibm2_perplexity( const Storage1D<Storage1D<uint> >& source,
 
 
 void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
-                        const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                        const LookupTable& slookup,
                         const Storage1D<Storage1D<uint> >& target,
                         const CooccuringWordsType& wcooc,
                         const CooccuringLengthsType& lcooc,
@@ -377,7 +377,7 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
     }
   }
 
-  Math2D::Matrix<uint,ushort> aux_lookup;
+  SingleLookupTable aux_lookup;
 
   //TODO: estimate first alignment model from IBM1 dictionary
   
@@ -418,7 +418,7 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
       const Math2D::Matrix<double>& cur_align_model = alignment_model[curI];
       const Math2D::Matrix<double>& cur_facount= facount[curI];
 
-      const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
 
       assert(cur_align_model.xDim() >= curJ);
       assert(cur_facount.xDim() >= curJ);
@@ -523,7 +523,8 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
         
         //compute viterbi alignment
         Storage1D<AlignBaseType> viterbi_alignment;
-        compute_ibm2_viterbi_alignment(source[s], slookup[s], target[s], dict, cur_align_model,
+        const SingleLookupTable& cur_lookup = get_wordlookup(source[s],target[s],wcooc,nSourceWords,slookup[s],aux_lookup);;
+        compute_ibm2_viterbi_alignment(source[s], cur_lookup, target[s], dict, cur_align_model,
                                        viterbi_alignment);
   
         //add alignment error rate
@@ -546,7 +547,7 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
 
 
 void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source, 
-                           const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                           const LookupTable& slookup,
                            const Storage1D<Storage1D<uint> >& target,
                            const CooccuringWordsType& wcooc,
                            const CooccuringLengthsType& lcooc,
@@ -578,7 +579,7 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
     }
   }
 
-  Math2D::Matrix<uint,ushort> aux_lookup;
+   SingleLookupTable aux_lookup;
 
   const size_t nSentences = source.size();
   assert(nSentences == target.size());
@@ -622,7 +623,7 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
 
       const uint nCurSourceWords = cur_source.size();
       const uint nCurTargetWords = cur_target.size();
-      const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
 
       const Math2D::Matrix<double>& cur_align_model = alignment_model[nCurTargetWords];
       
@@ -731,7 +732,7 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
         const uint curJ = source[s].size();
         const uint curI = target[s].size();
 	
-        const Math2D::Matrix<uint,ushort>& cur_lookup = slookup[s];
+        const SingleLookupTable& cur_lookup = slookup[s];
         const Math2D::Matrix<double>& cur_acount = acount[curI];
 	
         for (uint j=0; j < curJ; j++) {

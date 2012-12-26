@@ -44,14 +44,14 @@ IBM1Options::IBM1Options(uint nSourceWords,uint nTargetWords,
 
 
 double ibm1_perplexity( const Storage1D<Storage1D<uint> >& source,
-                        const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                        const LookupTable& slookup,
                         const Storage1D< Storage1D<uint> >& target,
                         const SingleWordDictionary& dict,
                         const CooccuringWordsType& wcooc, uint nSourceWords) {
 
   double sum = 0.0;
 
-  Math2D::Matrix<uint,ushort> aux_lookup;
+  SingleLookupTable aux_lookup;
 
   const size_t nSentences = target.size();
   assert(slookup.size() == nSentences);
@@ -63,7 +63,7 @@ double ibm1_perplexity( const Storage1D<Storage1D<uint> >& source,
     const Storage1D<uint>& cur_source = source[s];
     const Storage1D<uint>& cur_target = target[s];
 
-    const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+    const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
 
     const uint nCurSourceWords = cur_source.size();
     const uint nCurTargetWords = cur_target.size();
@@ -86,7 +86,7 @@ double ibm1_perplexity( const Storage1D<Storage1D<uint> >& source,
 }
 
 double ibm1_energy( const Storage1D<Storage1D<uint> >& source,
-                    const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                    const LookupTable& slookup,
                     const Storage1D< Storage1D<uint> >& target,
                     const SingleWordDictionary& dict,
                     const CooccuringWordsType& wcooc, uint nSourceWords,
@@ -273,7 +273,7 @@ void dict_m_step(const SingleWordDictionary& fdict_count,
 
 
 void train_ibm1(const Storage1D<Storage1D<uint> >& source, 
-                const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                const LookupTable& slookup,
                 const Storage1D<Storage1D<uint> >& target, 
                 const CooccuringWordsType& wcooc,
                 SingleWordDictionary& dict,
@@ -297,7 +297,7 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
 
   const uint nSourceWords = options.nSourceWords_;
 
-  Math2D::Matrix<uint,ushort> aux_lookup;
+  SingleLookupTable aux_lookup;
 
   //prepare dictionary
   for (uint i=0; i < options.nTargetWords_; i++) {
@@ -322,7 +322,7 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
     const uint curJ = cur_source.size();
     const uint curI = cur_target.size();
 
-    const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+    const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
 
     for (uint i=0; i < curI; i++) {
       uint tidx = cur_target[i];
@@ -363,7 +363,7 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
 
       const uint nCurSourceWords = cur_source.size();
       const uint nCurTargetWords = cur_target.size();
-      const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
 
       if (nCurSourceWords == 0)
         std::cerr << "WARNING: empty source sentence #" << s << std::endl;
@@ -469,7 +469,7 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
 
         nContributors++;
 
-        const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(source[s],target[s],wcooc,nSourceWords,slookup[s],aux_lookup);
+        const SingleLookupTable& cur_lookup = get_wordlookup(source[s],target[s],wcooc,nSourceWords,slookup[s],aux_lookup);
 
         //compute viterbi alignment
         Storage1D<AlignBaseType> viterbi_alignment;
@@ -496,7 +496,7 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
 }
 
 void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source, 
-                               const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                               const LookupTable& slookup,
                                const Storage1D<Storage1D<uint> >& target,
                                const CooccuringWordsType& wcooc, 
                                SingleWordDictionary& dict, //uint nIter,
@@ -524,7 +524,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
 
   Math1D::Vector<double> slack_vector(options.nTargetWords_,0.0);
 
-  Math2D::Matrix<uint,ushort> aux_lookup;
+  SingleLookupTable aux_lookup;
 
   const uint nSourceWords = options.nSourceWords_;
   
@@ -541,7 +541,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
     const uint curJ = cur_source.size();
     const uint curI = cur_target.size();
 
-    const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+    const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
     
     for (uint i=0; i < curI; i++) {
       uint tidx = cur_target[i];
@@ -607,7 +607,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
 
       const uint curJ = cur_source.size();
       const uint curI = cur_target.size();
-      const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
 
       
       for (uint j=0; j < curJ; j++) {
@@ -779,7 +779,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
 
         nContributors++;
 
-        const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(source[s],target[s],wcooc,nSourceWords,slookup[s],aux_lookup);
+        const SingleLookupTable& cur_lookup = get_wordlookup(source[s],target[s],wcooc,nSourceWords,slookup[s],aux_lookup);
 
         //compute viterbi alignment
         Storage1D<AlignBaseType> viterbi_alignment;
@@ -807,7 +807,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
 
 
 void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source, 
-                           const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                           const LookupTable& slookup,
                            const Storage1D<Storage1D<uint> >& target,
                            const CooccuringWordsType& wcooc, 
                            SingleWordDictionary& dict,
@@ -831,7 +831,7 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
   }
   dict[0].set_constant(1.0 / dict[0].size());
 
-  Math2D::Matrix<uint,ushort> aux_lookup;
+  SingleLookupTable aux_lookup;
 
   const uint nSourceWords = options.nSourceWords_;
 
@@ -847,7 +847,7 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
     const uint curJ = cur_source.size();
     const uint curI = cur_target.size();
 
-    const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+    const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
 
     for (uint i=0; i < curI; i++) {
       uint tidx = cur_target[i];
@@ -904,7 +904,7 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
 
       const uint nCurSourceWords = cur_source.size();
       const uint nCurTargetWords = cur_target.size();
-      const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
 
       for (uint j=0; j < nCurSourceWords; j++) {
 	
@@ -997,7 +997,7 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
         const uint curJ = cur_source.size();
         const uint curI = cur_target.size();
 	
-        const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+        const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
 	
         Math1D::Vector<AlignBaseType>& cur_alignment = viterbi_alignment[s];
 

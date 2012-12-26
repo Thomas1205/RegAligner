@@ -42,7 +42,7 @@
 /************************** implementation of IBM3Trainer *********************/
 
 IBM3Trainer::IBM3Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
-			 const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+			 const LookupTable& slookup,
                          const Storage1D<Storage1D<uint> >& target_sentence,
                          const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
                          const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
@@ -126,15 +126,15 @@ void IBM3Trainer::init_from_hmm(const FullHMMAlignmentModel& align_model,
     fert_count[i].resize(fertility_prob_[i].size(),0);
   }
 
-  Math2D::Matrix<uint,ushort> aux_lookup;
+  SingleLookupTable aux_lookup;
 
   for (size_t s=0; s < source_sentence_.size(); s++) {
 
     const uint curI = target_sentence_[s].size();
     const uint curJ = source_sentence_[s].size();
 
-    const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
-                                                                   nSourceWords_,slookup_[s],aux_lookup);
+    const SingleLookupTable& cur_lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
+                                                         nSourceWords_,slookup_[s],aux_lookup);
 
     if (initial_prob.size() == 0) 
       compute_fullhmm_viterbi_alignment(source_sentence_[s],cur_lookup, target_sentence_[s], 
@@ -239,8 +239,8 @@ void IBM3Trainer::init_from_hmm(const FullHMMAlignmentModel& align_model,
     
     const Storage1D<uint>& cur_source = source_sentence_[s];
     const Storage1D<uint>& cur_target = target_sentence_[s];
-    const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc_,
-                                                                   nSourceWords_,slookup_[s],aux_lookup);
+    const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc_,
+                                                         nSourceWords_,slookup_[s],aux_lookup);
     
     const uint curJ = cur_source.size();
     const uint curI = cur_target.size();
@@ -586,16 +586,16 @@ void IBM3Trainer::par_distortion_m_step(const ReducedIBM3DistortionModel& fdisto
 
 long double IBM3Trainer::alignment_prob(uint s, const Math1D::Vector<AlignBaseType>& alignment) const {
 
-  Math2D::Matrix<uint, ushort> aux_lookup;
+  SingleLookupTable aux_lookup;
   
-  const Math2D::Matrix<uint, ushort>& lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
-                                                              nSourceWords_,slookup_[s],aux_lookup);
+  const SingleLookupTable& lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
+                                                   nSourceWords_,slookup_[s],aux_lookup);
 
   return alignment_prob(source_sentence_[s],target_sentence_[s],lookup,alignment);
 }
 
 long double IBM3Trainer::alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-                                        const Math2D::Matrix<uint,ushort>& cur_lookup, const Math1D::Vector<AlignBaseType>& alignment) const {
+                                        const SingleLookupTable& cur_lookup, const Math1D::Vector<AlignBaseType>& alignment) const {
 
   long double prob = 1.0;
 
@@ -656,7 +656,7 @@ long double IBM3Trainer::alignment_prob(const Storage1D<uint>& source, const Sto
 
 
 long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target,
-                                                          const Math2D::Matrix<uint, ushort>& lookup,
+                                                          const SingleLookupTable& lookup,
                                                           uint& nIter, Math1D::Vector<uint>& fertility,
                                                           Math2D::Matrix<long double>& expansion_prob,
                                                           Math2D::Matrix<long double>& swap_prob, 
@@ -1150,7 +1150,7 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
 
 long double IBM3Trainer::compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-                                                    const Math2D::Matrix<uint, ushort>& lookup,
+                                                    const SingleLookupTable& lookup,
                                                     Math1D::Vector<AlignBaseType>& alignment, bool use_ilp) {
 
   const uint J = source.size();
@@ -1288,7 +1288,7 @@ long double IBM3Trainer::compute_external_alignment(const Storage1D<uint>& sourc
 // <code> start_alignment </code> is used as initialization for hillclimbing and later modified
 // the extracted alignment is written to <code> postdec_alignment </code>
 void IBM3Trainer::compute_external_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-						     const Math2D::Matrix<uint, ushort>& lookup,
+						     const SingleLookupTable& lookup,
 						     Math1D::Vector<AlignBaseType>& alignment,
 						     std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
 						     double threshold) {
@@ -1476,8 +1476,8 @@ void IBM3Trainer::update_alignments_unconstrained() {
     const uint curI = target_sentence_[s].size();
     Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
     
-    Math2D::Matrix<uint,ushort> aux_lookup;
-    const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
+    SingleLookupTable aux_lookup;
+    const SingleLookupTable& cur_lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
                                                                    nSourceWords_,slookup_[s],aux_lookup);
 
     uint nIter=0;
@@ -1507,7 +1507,7 @@ void IBM3Trainer::train_unconstrained(uint nIter) {
     dict_weight_sum += fabs(prior_weight_[i].sum());
   }
 
-  Math2D::Matrix<uint,ushort> aux_lookup;
+  SingleLookupTable aux_lookup;
 
   if (parametric_distortion_)
     par2nonpar_distortion(distortion_prob_);
@@ -1561,8 +1561,8 @@ void IBM3Trainer::train_unconstrained(uint nIter) {
       
       const Storage1D<uint>& cur_source = source_sentence_[s];
       const Storage1D<uint>& cur_target = target_sentence_[s];
-      const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
-                                                                     nSourceWords_,slookup_[s],aux_lookup);
+      const SingleLookupTable& cur_lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
+                                                           nSourceWords_,slookup_[s],aux_lookup);
 
       const uint curI = cur_target.size();
       const uint curJ = cur_source.size();
@@ -2096,7 +2096,7 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
     fdistort_count[J].resize_dirty(distortion_prob_[J].xDim(), distortion_prob_[J].yDim());
   }
 
-  Math2D::Matrix<uint,ushort> aux_lookup;
+  SingleLookupTable aux_lookup;
 
   const uint nTargetWords = dict_.size();
 
@@ -2139,8 +2139,8 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
       
       const Storage1D<uint>& cur_source = source_sentence_[s];
       const Storage1D<uint>& cur_target = target_sentence_[s];
-      const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
-                                                                     nSourceWords_,slookup_[s],aux_lookup);
+      const SingleLookupTable& cur_lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
+                                                           nSourceWords_,slookup_[s],aux_lookup);
       
       const uint curI = cur_target.size();
       const uint curJ = cur_source.size();
@@ -2233,8 +2233,8 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
       
       const Storage1D<uint>& cur_source = source_sentence_[s];
       const Storage1D<uint>& cur_target = target_sentence_[s];
-      const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
-                                                                     nSourceWords_,slookup_[s],aux_lookup);
+      const SingleLookupTable& cur_lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
+                                                           nSourceWords_,slookup_[s],aux_lookup);
       
       Math1D::Vector<AlignBaseType>& cur_best_known_alignment = best_known_alignment_[s];
 
@@ -2628,10 +2628,10 @@ long double IBM3Trainer::compute_itg_viterbi_alignment_noemptyword(uint s, bool 
   std::cerr << "******** compute_itg_viterbi_alignment_noemptyword(" << s 
             << ") J: " << cur_source.size() << ", I: " << cur_target.size() << " **********" << std::endl;
 
-  Math2D::Matrix<uint,ushort> aux_lookup;
+  SingleLookupTable aux_lookup;
 
-  const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc_,
-                                                                 nSourceWords_,slookup_[s],aux_lookup);  
+  const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc_,
+                                                       nSourceWords_,slookup_[s],aux_lookup);  
   
   const uint curI = cur_target.size();
   const uint curJ = cur_source.size();
@@ -2936,7 +2936,7 @@ void IBM3Trainer::train_with_itg_constraints(uint nIter, bool extended_reorderin
   long double fzero_count;
   long double fnonzero_count;
 
-  Math2D::Matrix<uint,ushort> aux_lookup;
+  SingleLookupTable aux_lookup;
     
   for (uint iter=1; iter <= nIter; iter++) {
 
@@ -2986,8 +2986,8 @@ void IBM3Trainer::train_with_itg_constraints(uint nIter, bool extended_reorderin
 
       const Storage1D<uint>&  cur_source = source_sentence_[s];
       const Storage1D<uint>&  cur_target = target_sentence_[s];
-      const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
-                                                                     nSourceWords_,slookup_[s],aux_lookup);
+      const SingleLookupTable& cur_lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
+                                                           nSourceWords_,slookup_[s],aux_lookup);
 
       const uint curJ = source_sentence_[s].size();
       const uint curI = target_sentence_[s].size();
@@ -3148,12 +3148,12 @@ long double IBM3Trainer::compute_ibmconstrained_viterbi_alignment_noemptyword(ui
   //convention here: target positions start at 0, source positions start at 1 
   // (so we can express that no source position was covered yet)
 
-  Math2D::Matrix<uint,ushort> aux_lookup;
+  SingleLookupTable aux_lookup;
 
   const Storage1D<uint>& cur_source = source_sentence_[s];
   const Storage1D<uint>& cur_target = target_sentence_[s];
-  const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
-                                                                 nSourceWords_,slookup_[s],aux_lookup);
+  const SingleLookupTable& cur_lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
+                                                       nSourceWords_,slookup_[s],aux_lookup);
   
 
   const uint curI = cur_target.size();
@@ -3581,7 +3581,7 @@ IBM3IPHeuristic::IBM3IPHeuristic(const CbcHeuristic& heuristic, CbcModel& /*mode
 #endif
 
 long double IBM3Trainer::compute_viterbi_alignment_ilp(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-                                                       const Math2D::Matrix<uint, ushort>& cur_lookup, uint max_fertility,
+                                                       const SingleLookupTable& cur_lookup, uint max_fertility,
                                                        Math1D::Vector<AlignBaseType>& alignment, double time_limit) {
 
 #ifdef HAS_CBC
@@ -4103,7 +4103,7 @@ void IBM3Trainer::train_with_ibm_constraints(uint nIter, uint maxFertility, uint
   long double fzero_count;
   long double fnonzero_count;
 
-  Math2D::Matrix<uint,ushort> aux_lookup;
+  SingleLookupTable aux_lookup;
 
   compute_uncovered_sets(nMaxSkips); 
   compute_coverage_states();
@@ -4157,8 +4157,8 @@ void IBM3Trainer::train_with_ibm_constraints(uint nIter, uint maxFertility, uint
 
       const Storage1D<uint>&  cur_source = source_sentence_[s];
       const Storage1D<uint>&  cur_target = target_sentence_[s];
-      const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc_,
-                                                                     nSourceWords_,slookup_[s],aux_lookup);
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc_,
+                                                           nSourceWords_,slookup_[s],aux_lookup);
 
 
       const uint curJ = source_sentence_[s].size();
@@ -4330,10 +4330,10 @@ void IBM3Trainer::write_postdec_alignments(const std::string filename, double th
     Math1D::Vector<AlignBaseType> viterbi_alignment = best_known_alignment_[s];
     std::set<std::pair<AlignBaseType,AlignBaseType> > postdec_alignment;
   
-    Math2D::Matrix<uint,ushort> aux_lookup;
+    SingleLookupTable aux_lookup;
 
-    const Math2D::Matrix<uint,ushort>& cur_lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
-                                                                   nSourceWords_,slookup_[s],aux_lookup);
+    const SingleLookupTable& cur_lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
+                                                         nSourceWords_,slookup_[s],aux_lookup);
 
     compute_external_postdec_alignment(source_sentence_[s], target_sentence_[s], cur_lookup,
 				       viterbi_alignment, postdec_alignment, thresh);

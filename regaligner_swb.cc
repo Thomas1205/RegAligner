@@ -312,7 +312,7 @@ int main(int argc, char** argv) {
                           nSourceWords, nTargetWords, wcooc);
   
   std::cerr << "generating lookup table" << std::endl;
-  Storage1D<Math2D::Matrix<uint,ushort> > slookup;
+  LookupTable slookup;
   generate_wordlookup(source_sentence, target_sentence, wcooc, nSourceWords, slookup, max_lookup);
 
     
@@ -597,7 +597,7 @@ int main(int argc, char** argv) {
     //ibm4_trainer.update_alignments_unconstrained();
   }
 
-  Storage1D<Math2D::Matrix<uint, ushort> > dev_slookup;
+  LookupTable dev_slookup;
   if (dev_present) {
     generate_wordlookup(dev_source_sentence, dev_target_sentence, wcooc, nSourceWords, dev_slookup);
   }

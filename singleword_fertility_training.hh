@@ -16,7 +16,7 @@ class FertilityModelTrainer {
 public:
 
   FertilityModelTrainer(const Storage1D<Storage1D<uint> >& source_sentence,
-                        const Storage1D<Math2D::Matrix<uint,ushort> >& slookup,
+                        const LookupTable& slookup,
                         const Storage1D<Storage1D<uint> >& target_sentence,
                         SingleWordDictionary& dict,
                         const CooccuringWordsType& wcooc,
@@ -79,7 +79,7 @@ protected:
   
 
   const Storage1D<Storage1D<uint> >& source_sentence_;
-  const Storage1D<Math2D::Matrix<uint,ushort> >& slookup_;
+  const LookupTable& slookup_;
   const Storage1D<Storage1D<uint> >& target_sentence_;
 
   const CooccuringWordsType& wcooc_;
