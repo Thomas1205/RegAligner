@@ -36,6 +36,6 @@ $(DEBUGDIR):
 $(OPTDIR):
 	mkdir $(OPTDIR)
 
-lib:
-	mkdir lib
+$(LIB):
+        mkdir lib
 
