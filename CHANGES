@@ -1,6 +1,6 @@
 RegAligner Change History
 
-*** upcoming release (1.02?) ***
+*** release version 1.02 (released on December 29 2012) ***
 - improved Makefile (more compatible now)
 - small fix for IBM-4 dev alignment computation
 - restructured and added option -max-lookup <uint> to save memory (at the cost of run time)
