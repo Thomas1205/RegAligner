@@ -37,5 +37,5 @@ $(OPTDIR):
 	mkdir $(OPTDIR)
 
 $(LIB):
-        mkdir lib
+	mkdir lib
 

@@ -199,10 +199,15 @@ int main(int argc, char** argv) {
 
       std::cerr << "WARNING: GIZA++ would ignore sentence pair #" << (s+1) << ": J=" << curJ << ", I=" << curI << std::endl;
     }
+
+    if (curJ == 0 || curI == 0) {
+      USER_ERROR << "empty sentences are not allowed. Clean up your data!. Exiting." << std::endl;
+      exit(1);
+    }
   }
 
   if (maxJ > 254 || maxI > 254) {
-    USER_ERROR << " maximum sentence length is 254. clean up your data!. Exiting." << std::endl;
+    USER_ERROR << " maximum sentence length is 254. Clean up your data!. Exiting." << std::endl;
     exit(1);
   }
 
