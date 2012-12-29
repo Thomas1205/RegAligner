@@ -343,6 +343,11 @@ void IBM3Trainer::init_from_hmm(const FullHMMAlignmentModel& align_model,
     assert(p_norm != 0.0);
     p_zero_ /= p_norm;
     p_nonzero_ /= p_norm;
+
+
+    // p0 of IBM-3 and IBM-4 is different from p0 for the HMM: if 50% of the words align to zero, p0 is 100% for IBM3/4
+    p_zero_ = std::min(2*p_zero_,0.75);
+    p_nonzero_ = 1.0 - p_zero_;
   }
 
   std::cerr << "initial value of p_zero: " << p_zero_ << std::endl;

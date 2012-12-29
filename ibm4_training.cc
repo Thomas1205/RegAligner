@@ -218,7 +218,7 @@ IBM4Trainer::IBM4Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
       for (uint x=0; x < combi_count[J].xDim(); x++) {
         for (uint y=0; y < combi_count[J].yDim(); y++) { 
 
-          if (combi_count[J](x,y) >= 10000) {
+          if (combi_count[J](x,y) >= 1.2*J*J) {
 
             if (inter_distortion_prob_[J].xDim() <= x || inter_distortion_prob_[J].yDim() <= y)
               inter_distortion_prob_[J].resize(nSourceClasses_,nTargetClasses_);
@@ -3663,12 +3663,9 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
     if (reduce_deficiency_) {
       inter_distort_count[J].resize(inter_distortion_prob_[J].xDim(),inter_distortion_prob_[J].yDim());
 
-
-      if (J <= storage_limit_ || nSourceClasses_*nTargetClasses_ <= 10) {
-        for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
-          for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
-            inter_distort_count[J](x,y).resize(inter_distortion_prob_[J](x,y).xDim(),inter_distortion_prob_[J](x,y).yDim(),0.0);
-      }
+      for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
+        for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
+          inter_distort_count[J](x,y).resize(inter_distortion_prob_[J](x,y).xDim(),inter_distortion_prob_[J](x,y).yDim(),0.0);
 
       intra_distort_count[J].resize(intra_distortion_prob_[J].xDim(),intra_distortion_prob_[J].yDim(),
                                     intra_distortion_prob_[J].zDim(),0.0);
@@ -4551,11 +4548,10 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
     if (reduce_deficiency_) {
       inter_distort_count[J].resize(inter_distortion_prob_[J].xDim(),inter_distortion_prob_[J].yDim());
 
-      if (J <= storage_limit_) {
-        for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
-          for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
-            inter_distort_count[J](x,y).resize(inter_distortion_prob_[J](x,y).xDim(),inter_distortion_prob_[J](x,y).yDim(),0.0);
-      }
+      for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
+        for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
+          inter_distort_count[J](x,y).resize(inter_distortion_prob_[J](x,y).xDim(),inter_distortion_prob_[J](x,y).yDim(),0.0);
+      
       intra_distort_count[J].resize(intra_distortion_prob_[J].xDim(),intra_distortion_prob_[J].yDim(),
                                     intra_distortion_prob_[J].zDim(),0.0);
     }
@@ -5041,7 +5037,6 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 
       const Storage1D<uint>& cur_source = source_sentence_[s];
       const Storage1D<uint>& cur_target = target_sentence_[s];
-      //const Math2D::Matrix<uint, ushort>& cur_lookup = slookup_[s];
       const SingleLookupTable& cur_lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
                                                            nSourceWords_,slookup_[s],aux_lookup);
       

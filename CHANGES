@@ -1,9 +1,11 @@
 RegAligner Change History
 
-*** upcoming release ***
+*** upcoming release (1.02?) ***
 - improved Makefile (more compatible now)
 - small fix for IBM-4 dev alignment computation
 - restructured and added option -max-lookup <uint> to save memory (at the cost of run time)
+- revised initialization of p0 for IBM-3/4 from HMM
+- revised strategy for word classes in IBM-4 regarding run-time and memory
 
 *** release version 1.0 (released on December 09 2012) ***
 - parameterization of HMM now selectable on command line, plus added some variants
