@@ -3967,11 +3967,9 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
           std::set<int>::iterator ait = aligned_source_words[i].begin();
           first_aligned_source_word[i] = *ait;
 
-          int prev_j = *ait;
           if (fertility[i] > 1) {
             ait++;
             second_aligned_source_word[i] = *ait;
-            prev_j = *ait;
           } 	    
 
           switch (cept_start_mode_) {
@@ -3986,9 +3984,12 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
           case IBM4FIRST:
             cept_center[i] = first_aligned_source_word[i];
             break;
-          case IBM4LAST:
-            cept_center[i] = prev_j;
+          case IBM4LAST: {
+            std::set<int>::iterator ait = aligned_source_words[i].end();
+            ait--;
+            cept_center[i] = *ait;
             break;
+          }
           case IBM4UNIFORM:
 	    cept_center[i] = first_aligned_source_word[i];
             break;
@@ -4736,30 +4737,33 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
           std::set<int>::iterator ait = aligned_source_words[i].begin();
           first_aligned_source_word[i] = *ait;
 
-          uint prev_j = *ait;
           if (fertility[i] > 1) {
             ait++;
             second_aligned_source_word[i] = *ait;
-            prev_j = *ait;
           } 	    
 
-          double sum = 0.0;
-          for (std::set<int>::iterator ait = aligned_source_words[i].begin(); ait != aligned_source_words[i].end(); ait++) {
-            sum += *ait;
-          }
-
           switch (cept_start_mode_) {
-          case IBM4CENTER:
+          case IBM4CENTER: {
+
+            double sum = 0.0;
+            for (std::set<int>::iterator ait = aligned_source_words[i].begin(); ait != aligned_source_words[i].end(); ait++) {
+              sum += *ait;
+            }
+
             cept_center[i] = (uint) round(sum / fertility[i]);
             break;
+          }
           case IBM4FIRST:
             cept_center[i] = first_aligned_source_word[i];
             break;
-          case IBM4LAST:
-            cept_center[i] = prev_j;
+          case IBM4LAST: {
+            std::set<int>::iterator ait = aligned_source_words[i].end();
+            ait--;
+            cept_center[i] = *ait;
             break;
+          }
           case IBM4UNIFORM:
-            cept_center[i] = (uint) round(sum / fertility[i]);
+            cept_center[i] = first_aligned_source_word[i];
             break;
           default:
             assert(false);
