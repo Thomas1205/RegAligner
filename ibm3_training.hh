@@ -31,7 +31,7 @@ public:
                      const InitialAlignmentProbability& initial_prob, const HmmOptions& hmm_options,
                      bool viterbi = false);
 
-  //training without constraints on maximal fertility or uncovered positions.
+  //training without constraints on uncovered positions.
   //This is based on the EM-algorithm, where the E-step uses heuristics
   void train_unconstrained(uint nIter);
 

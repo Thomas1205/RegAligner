@@ -721,7 +721,7 @@ void IBM4Trainer::inter_distortion_m_step(const Storage1D<Storage2D<Math2D::Matr
     for (uint k=0; k < temp.size(); k++)
       temp[k] = new_ceptstart_prob(class1,class2,k);
     
-    projection_on_simplex(temp.direct_access(),cept_start_prob_.zDim());
+    projection_on_simplex(temp.direct_access(),cept_start_prob_.zDim()); 
 
     for (uint k=0; k < temp.size(); k++)
       new_ceptstart_prob(class1,class2,k) = temp[k];
@@ -839,9 +839,9 @@ void IBM4Trainer::intra_distortion_m_step(const Storage1D<Math3D::Tensor<double>
     for (uint k=0; k < temp.size(); k++)
       temp[k] = new_within_cept_prob(word_class,k);
     
-    projection_on_simplex(temp.direct_access(),temp.size());
+    projection_on_simplex(temp.direct_access()+1,temp.size()-1); //the entry for 0 is always 0!
 
-    for (uint k=0; k < temp.size(); k++)
+    for (uint k=1; k < temp.size(); k++)
       new_within_cept_prob(word_class,k) = temp[k];
     
 
@@ -4719,8 +4719,6 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
       Math1D::NamedVector<int> prev_cept(curI+1,-100,MAKENAME(prev_cept));
       Math1D::NamedVector<int> first_aligned_source_word(curI+1,-100,
                                                          MAKENAME(first_aligned_source_word));
-      Math1D::NamedVector<int> second_aligned_source_word(curI+1,-100,
-                                                          MAKENAME(second_aligned_source_word));
 
       for (uint j=0; j < curJ; j++) {
         const uint cur_aj = best_known_alignment_[s][j];
@@ -4736,11 +4734,6 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
 	  
           std::set<int>::iterator ait = aligned_source_words[i].begin();
           first_aligned_source_word[i] = *ait;
-
-          if (fertility[i] > 1) {
-            ait++;
-            second_aligned_source_word[i] = *ait;
-          } 	    
 
           switch (cept_start_mode_) {
           case IBM4CENTER: {

@@ -587,7 +587,7 @@ int main(int argc, char** argv) {
 
 
   if (ibm4_iter > 0) {
-    bool collect_counts = false;
+    bool collect_counts = app.is_set("-count-collection");
     
     ibm4_trainer.init_from_ibm3(ibm3_trainer,true,collect_counts,method == "viterbi");
     

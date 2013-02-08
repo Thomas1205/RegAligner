@@ -78,6 +78,15 @@ run-time of IBM-1 and HMM by adding the option
 to the command line. You will then no longer see an energy printout after
 every iteration.
 
+If you want to speed-up the IBM-4 (and reduce its memory consumption), add 
+the option 
+
+-dont-reduce-deficiency
+
+to the command line. The results will not be equivalent, but may well be very 
+similar (the implementation is then closer to GIZA++).
+
+
 If you want to reduce memory consumption, add 
 
 -max-lookup 400
