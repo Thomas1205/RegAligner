@@ -2123,9 +2123,9 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
                       incoming_prob *= cur_sentence_start_prob[j];
 
                       assert(leaving_prob > 0.0);
-
-                      incoming_prob *= cur_intra_distortion_prob(tclass,aligned_source_words[cand_aj][0],j);
                     }
+
+		    incoming_prob *= cur_intra_distortion_prob(tclass,aligned_source_words[cand_aj][0],j);
                   }
                   else {
                     const uint sclass = source_class_[source[cept_center[cand_prev_i]]];
@@ -3958,7 +3958,7 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
       }
 
       int cur_prev_cept = -100;
-      for (uint i=0; i <= curI; i++) {
+      for (uint i=1; i <= curI; i++) {
 
         assert(aligned_source_words[i].size() == fertility[i]);
 
@@ -4726,7 +4726,7 @@ void IBM4Trainer::train_viterbi(uint nIter, IBM3Trainer* ibm3) {
       }
 
       int cur_prev_cept = -100;
-      for (uint i=0; i <= curI; i++) {
+      for (uint i=1; i <= curI; i++) {
 
         assert(aligned_source_words[i].size() == fertility[i]);
 
