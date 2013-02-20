@@ -579,7 +579,8 @@ int main(int argc, char** argv) {
                            dict, wcooc, nSourceWords, nTargetWords, prior_weight, 
                            source_class, target_class, !app.is_set("-org-empty-word"), true, true,
                            !app.is_set("-dont-reduce-deficiency"), 
-                           ibm4_cept_mode, em_l0, l0_beta, l0_fertpen);
+                           ibm4_cept_mode, IBM4InterDistModePrevious, IBM4IntraDistModeSource, 
+			   em_l0, l0_beta, l0_fertpen);
 
   ibm4_trainer.set_fertility_limit(fert_limit);
   if (fert_p0 >= 0.0)

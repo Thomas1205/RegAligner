@@ -8,6 +8,12 @@
 
 enum IBM4CeptStartMode { IBM4CENTER, IBM4FIRST, IBM4LAST, IBM4UNIFORM };
 
+//what target word to condition on. Previous is as proposed by Brown et al.
+enum IBM4InterDistMode {IBM4InterDistModePrevious, IBM4InterDistModeCurrent}; 
+
+//what word to condition on for the intra probability. Source is as proposed by Brown et al.
+enum IBM4IntraDistMode {IBM4IntraDistModeSource, IBM4IntraDistModeTarget};
+
 struct DistortCount {
 
   DistortCount(uchar J, uchar j, uchar j_prev);
@@ -47,6 +53,8 @@ public:
               bool no_factorial = true, 
               bool reduce_deficiency = true,
               IBM4CeptStartMode cept_start_mode = IBM4CENTER,
+	      IBM4InterDistMode inter_dist_mode = IBM4InterDistModePrevious, 
+	      IBM4IntraDistMode intra_dist_mode = IBM4IntraDistModeSource,
               bool smoothed_l0 = false, double l0_beta = 1.0, double l0_fertpen = 0.0);
 
 
@@ -86,7 +94,6 @@ protected:
   long double alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
                              const SingleLookupTable& lookup, const Math1D::Vector<AlignBaseType>& alignment);
 
-
   long double distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 			      const Math1D::Vector<AlignBaseType>& alignment);
 
@@ -103,7 +110,6 @@ protected:
                                                const SingleLookupTable& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
                                                Math2D::Matrix<long double>& expansion_prob,
                                                Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment);
-
 
   void par2nonpar_inter_distortion();
 
@@ -136,6 +142,7 @@ protected:
 
   void start_prob_m_step(const Storage1D<Math1D::Vector<double> >& start_count);
 
+
   //indexed by (target word class idx, source word class idx, displacement)
   IBM4CeptStartModel cept_start_prob_; //note: displacements of 0 are possible here (the center of a cept need not be an aligned word)
   //indexed by (source word class, displacement)
@@ -159,6 +166,9 @@ protected:
 
   bool och_ney_empty_word_;
   IBM4CeptStartMode cept_start_mode_;
+  IBM4InterDistMode inter_dist_mode_;
+  IBM4IntraDistMode intra_dist_mode_;
+
   bool use_sentence_start_prob_;
   bool no_factorial_;
   bool reduce_deficiency_;
@@ -167,12 +177,15 @@ protected:
   double l0_beta_;
   double l0_fertpen_;
 
+  uint iter_offs_;
+
   bool fix_p0_;
 
   uint nSourceClasses_;
   uint nTargetClasses_;
 
-  const ushort storage_limit_; //if there are many word classes, inter distortion tables are only keep for J<=storag_limit_
+
+  const ushort storage_limit_; //if there are many word classes, inter distortion tables are only kept for J<=storage_limit_
 };
 
 #endif
