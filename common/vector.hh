@@ -108,9 +108,6 @@ namespace Math1D {
   template<typename T,typename ST>
   std::ostream& operator<<(std::ostream& s, const Vector<T,ST>& v);
 
-  template<typename T,typename ST>
-  bool operator<(const Vector<T,ST>& v1, const Vector<T,ST>& v2); 
-
   /******************************************** implementation *****************************************************/
 
   template<typename T,typename ST>
@@ -438,17 +435,6 @@ namespace Math1D {
     result[2] = v1[0]*v2[1] - v1[1]*v2[0];
         
     return result;
-  } 
-
-  template<typename T,typename ST>
-  bool operator<(const Vector<T,ST>& v1, const Vector<T,ST>& v2) {
-
-    for (ST k=0; k < std::min(v1.size(),v2.size()); k++) {
-      if (v1[k] != v2[k])
-        return v1[k] < v2[k];
-    }
-    
-    return (v1.size() < v2.size());
   } 
 
 

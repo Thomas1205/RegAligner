@@ -23,7 +23,7 @@ bool strings_equal(std::string s1, std::string s2);
 
 bool string_ends_with(std::string s, std::string suffix);
 
-bool string_starts_with(std::string s, std::string suffix);
+bool string_starts_with(std::string s, std::string prefix);
 
 void tokenize(const std::string& s, std::vector<std::string>& tokens, char separator, bool empty_tokens=false);
 

@@ -94,6 +94,18 @@ bool operator==(const Storage1D<T,ST>& v1, const Storage1D<T,ST>& v2);
 template<typename T, typename ST>
 bool operator!=(const Storage1D<T,ST>& v1, const Storage1D<T,ST>& v2);
 
+template<typename T,typename ST>
+bool operator<(const Storage1D<T,ST>& v1, const Storage1D<T,ST>& v2); 
+
+template<typename T,typename ST>
+bool operator<=(const Storage1D<T,ST>& v1, const Storage1D<T,ST>& v2); 
+
+template<typename T,typename ST>
+bool operator>(const Storage1D<T,ST>& v1, const Storage1D<T,ST>& v2); 
+
+template<typename T,typename ST>
+bool operator>=(const Storage1D<T,ST>& v1, const Storage1D<T,ST>& v2); 
+
 /***********************/
 
 //this class is meant to replace std::vector with its push_back() functionality.
@@ -279,7 +291,8 @@ OPTINLINE T& Storage1D<T,ST>::operator[](ST i) const {
 #ifdef SAFE_MODE
   if (i >= size_) {
     INTERNAL_ERROR << "    invalid access on element " << i 
-		   << " for Storage1D " <<  "\"" << this->name() << "\" of type " << typeid(T).name()
+		   << " for Storage1D " <<  "\"" << this->name() << "\" of type " 
+		   << Makros::get_typename(typeid(T).name())
 		   << " with " << size_ << " elements. exiting." << std::endl;
     exit(1);  
   }
@@ -486,6 +499,40 @@ bool operator!=(const Storage1D<T,ST>& v1, const Storage1D<T,ST>& v2) {
   return !operator==(v1,v2);
 }
 
+template<typename T,typename ST>
+bool operator<(const Storage1D<T,ST>& v1, const Storage1D<T,ST>& v2) {
+
+  for (ST k=0; k < std::min(v1.size(),v2.size()); k++) {
+    if (v1[k] != v2[k])
+      return (v1[k] < v2[k]);
+  }
+  
+  return (v1.size() < v2.size());
+}
+
+template<typename T,typename ST>
+bool operator<=(const Storage1D<T,ST>& v1, const Storage1D<T,ST>& v2) {
+
+  for (ST k=0; k < std::min(v1.size(),v2.size()); k++) {
+    if (v1[k] != v2[k])
+      return (v1[k] < v2[k]);
+  }
+  
+  return (v1.size() <= v2.size());
+}
+
+template<typename T,typename ST>
+bool operator>(const Storage1D<T,ST>& v1, const Storage1D<T,ST>& v2) {
+
+  return !operator<=(v1,v2);
+}
+
+template<typename T,typename ST>
+bool operator>=(const Storage1D<T,ST>& v1, const Storage1D<T,ST>& v2) {
+
+  return !operator<(v1,v2);
+}
+
 /******* implementation of FlexibleStorage1D *********/
 
 template<typename T, typename ST>
@@ -665,7 +712,8 @@ OPTINLINE T& FlexibleStorage1D<T,ST>::operator[](ST i) const {
 #ifdef SAFE_MODE
   if (i >= size_) {
     INTERNAL_ERROR << "    invalid access on element " << i 
-		   << " for FlexibleStorage1D " <<  "\"" << this->name() << "\" of type " << typeid(T).name()
+		   << " for FlexibleStorage1D " <<  "\"" << this->name() << "\" of type " 
+		   << Makros::get_typename(typeid(T).name())
 		   << " with " << size_ << " (valid) elements. exiting." << std::endl;
     exit(1);  
   }

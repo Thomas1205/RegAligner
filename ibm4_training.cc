@@ -3337,11 +3337,11 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
   return base_prob;
 }
 
-long double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-                                                    const SingleLookupTable& lookup,
-                                                    Math1D::Vector<AlignBaseType>& alignment) {
+void IBM4Trainer::prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+					     const SingleLookupTable& lookup,
+					     Math1D::Vector<AlignBaseType>& alignment) {
 
-  const uint J = source.size();
+ const uint J = source.size();
   const uint I = target.size();
 
   assert(lookup.xDim() == J && lookup.yDim() == I);
@@ -3435,12 +3435,16 @@ long double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& sourc
   for (uint t=0; t < target.size(); t++) {
     max_t = std::max<uint>(max_t,target_class_[target[t]]);
   }
+
+
   inter_distortion_prob_[J].resize(std::max<uint>(inter_distortion_prob_[J].xDim(),max_s+1),
                                    std::max<uint>(inter_distortion_prob_[J].yDim(),max_t+1));
 
-  if (intra_distortion_prob_[J].xDim() <= max_t) {
+  uint dim = (intra_dist_mode_ == IBM4IntraDistModeTarget) ? max_t+1 : max_s+1;
+
+  if (intra_distortion_prob_[J].xDim() <= dim) {
     update = true;
-    intra_distortion_prob_[J].resize(max_t+1,J,J);
+    intra_distortion_prob_[J].resize(dim,J,J);
   }
 
   if (use_sentence_start_prob_) {
@@ -3463,6 +3467,8 @@ long double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& sourc
     if (use_sentence_start_prob_) 
       par2nonpar_start_prob();
   }
+
+  //std::cerr << "run checks" << std::endl;
 
   /*** check if fertility tables are large enough ***/
   for (uint i=0; i < I; i++) {
@@ -3504,9 +3510,184 @@ long double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& sourc
     }
   }
 
+}
+
+
+long double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+                                                    const SingleLookupTable& lookup,
+                                                    Math1D::Vector<AlignBaseType>& alignment) {
+
+  const uint J = source.size();
+  const uint I = target.size();
+
+  prepare_external_alignment(source,target,lookup,alignment);
+
+  // assert(lookup.xDim() == J && lookup.yDim() == I);
+
+  // if (alignment.size() != J)
+  //   alignment.resize(J,1);
+
+  // Math1D::Vector<uint> fertility(I+1,0);
+
+  // for (uint j=0; j < J; j++) {
+  //   const uint aj = alignment[j];
+  //   fertility[aj]++;
+  // }
+
+  // if (fertility[0] > 0 && p_zero_ < 1e-12)
+  //   p_zero_ = 1e-12;
+  
+  // if (2*fertility[0] > J) {
+    
+  //   for (uint j=0; j < J; j++) {
+      
+  //     if (alignment[j] == 0) {
+	
+  //       alignment[j] = 1;
+  //       fertility[0]--;
+  //       fertility[1]++;	
+
+  // 	if (dict_[target[0]][lookup(j,0)] < 1e-12)
+  // 	  dict_[target[0]][lookup(j,0)] = 1e-12;
+  //     }
+  //   }
+  // }
+
+
+  // /*** check if respective distortion table is present. If not, create one from the parameters ***/
+
+  // int oldJ = (cept_start_prob_.zDim() + 1) / 2;
+
+  // bool update = false;
+
+  // if (oldJ < int(J)) {
+  //   update = true;
+
+  //   inter_distortion_cache_.resize(J+1);
+
+  //   //inter params
+  //   IBM4CeptStartModel new_param(cept_start_prob_.xDim(),cept_start_prob_.yDim(),2*J-1,1e-8,MAKENAME(new_param));
+  //   uint new_zero_offset = J-1;
+  //   for (int j = -int(maxJ_)+1; j <= int(maxJ_)-1; j++) {
+
+  //     for (uint w1=0; w1 < cept_start_prob_.xDim(); w1++) 
+  //       for (uint w2=0; w2 < cept_start_prob_.yDim(); w2++) 
+  //         new_param(w1,w2,new_zero_offset + j) = cept_start_prob_(w1,w2,displacement_offset_ + j);
+
+  //   }
+  //   cept_start_prob_ = new_param;
+
+  //   //intra params
+
+  //   IBM4WithinCeptModel new_wi_model(within_cept_prob_.xDim(),J,1e-8,MAKENAME(new_wi_model)); 
+
+  //   for (uint c=0; c < new_wi_model.xDim(); c++) {
+
+  //     for (uint k=0; k < within_cept_prob_.yDim(); k++)
+  // 	new_wi_model(c,k) = within_cept_prob_(c,k);
+  //   }
+
+  //   within_cept_prob_ = new_wi_model;
+
+  //   displacement_offset_ = new_zero_offset;
+
+  //   maxJ_ = J;
+
+  //   sentence_start_parameters_.resize(J,0.0);
+  // }
+
+  // if (inter_distortion_prob_.size() <= J) {
+  //   update = true;
+  //   inter_distortion_prob_.resize(J+1);
+  // }
+  // if (intra_distortion_prob_.size() <= J) {
+  //   update = true;
+  //   intra_distortion_prob_.resize(J+1);
+  // }
+ 
+  // uint max_s=0;
+  // uint max_t=0;
+  // for (uint s=0; s < source.size(); s++) {
+  //   max_s = std::max<uint>(max_s,source_class_[source[s]]);
+  // }
+  // for (uint t=0; t < target.size(); t++) {
+  //   max_t = std::max<uint>(max_t,target_class_[target[t]]);
+  // }
+  // inter_distortion_prob_[J].resize(std::max<uint>(inter_distortion_prob_[J].xDim(),max_s+1),
+  //                                  std::max<uint>(inter_distortion_prob_[J].yDim(),max_t+1));
+
+  // if (intra_distortion_prob_[J].xDim() <= max_t) {
+  //   update = true;
+  //   intra_distortion_prob_[J].resize(max_t+1,J,J);
+  // }
+
+  // if (use_sentence_start_prob_) {
+
+  //   if (sentence_start_prob_.size() <= J) {
+  //     update = true;
+  //     sentence_start_prob_.resize(J+1);
+  //   }
+
+  //   if (sentence_start_prob_[J].size() < J) {
+  //     update = true;
+  //     sentence_start_prob_[J].resize(J);
+  //   } 
+  // }  
+
+  // if (update) {
+  //   par2nonpar_inter_distortion();
+
+  //   par2nonpar_intra_distortion();
+  //   if (use_sentence_start_prob_) 
+  //     par2nonpar_start_prob();
+  // }
+
+  // /*** check if fertility tables are large enough ***/
+  // for (uint i=0; i < I; i++) {
+
+  //   if (fertility_prob_[target[i]].size() < J+1)
+  //     fertility_prob_[target[i]].resize(J+1,1e-15);
+
+  //   if (fertility_prob_[target[i]][fertility[i+1]] < 1e-15)
+  //     fertility_prob_[target[i]][fertility[i+1]] = 1e-15;
+
+  //   if (fertility_prob_[target[i]].sum() < 0.5)
+  //     fertility_prob_[target[i]].set_constant(1.0 / fertility_prob_[target[i]].size());
+
+  //   if (fertility_prob_[target[i]][fertility[i+1]] < 1e-8)
+  //     fertility_prob_[target[i]][fertility[i+1]] = 1e-8;
+  // }
+
+  // /*** check if a source word does not have a translation (with non-zero prob.) ***/
+  // for (uint j=0; j < J; j++) {
+  //   uint src_idx = source[j];
+
+  //   double sum = dict_[0][src_idx-1];
+  //   for (uint i=0; i < I; i++)
+  //     sum += dict_[target[i]][lookup(j,i)];
+
+  //   if (sum < 1e-100) {
+  //     for (uint i=0; i < I; i++)
+  //       dict_[target[i]][lookup(j,i)] = 1e-15;
+  //   }
+
+  //   uint aj = alignment[j];
+  //   if (aj == 0) {
+  //     if (dict_[0][src_idx-1] < 1e-20)
+  //       dict_[0][src_idx-1] = 1e-20;
+  //   }
+  //   else {
+  //     if (dict_[target[aj-1]][lookup(j,aj-1)] < 1e-20)
+  //       dict_[target[aj-1]][lookup(j,aj-1)] = 1e-20;
+  //   }
+  // }
+
+  
   //create matrices
   Math2D::Matrix<long double> expansion_prob(J,I+1);
   Math2D::Matrix<long double> swap_prob(J,J);
+
+  Math1D::Vector<uint> fertility(I+1,0);
   
   uint nIter;
 
@@ -3527,167 +3708,172 @@ void IBM4Trainer::compute_external_postdec_alignment(const Storage1D<uint>& sour
   const uint J = source.size();
   const uint I = target.size();
 
-  assert(lookup.xDim() == J && lookup.yDim() == I);
+  prepare_external_alignment(source,target,lookup,alignment);
 
-  if (alignment.size() != J)
-    alignment.resize(J,1);
 
-  Math1D::Vector<uint> fertility(I+1,0);
+  // assert(lookup.xDim() == J && lookup.yDim() == I);
 
-  for (uint j=0; j < J; j++) {
-    const uint aj = alignment[j];
-    fertility[aj]++;
-  }
+  // if (alignment.size() != J)
+  //   alignment.resize(J,1);
 
-  if (fertility[0] > 0 && p_zero_ < 1e-12)
-    p_zero_ = 1e-12;
+  // Math1D::Vector<uint> fertility(I+1,0);
+
+  // for (uint j=0; j < J; j++) {
+  //   const uint aj = alignment[j];
+  //   fertility[aj]++;
+  // }
+
+  // if (fertility[0] > 0 && p_zero_ < 1e-12)
+  //   p_zero_ = 1e-12;
   
-  if (2*fertility[0] > J) {
+  // if (2*fertility[0] > J) {
     
-    for (uint j=0; j < J; j++) {
+  //   for (uint j=0; j < J; j++) {
       
-      if (alignment[j] == 0) {
+  //     if (alignment[j] == 0) {
 	
-        alignment[j] = 1;
-        fertility[0]--;
-        fertility[1]++;	
+  //       alignment[j] = 1;
+  //       fertility[0]--;
+  //       fertility[1]++;	
 
-	if (dict_[target[0]][lookup(j,0)] < 1e-12)
-	  dict_[target[0]][lookup(j,0)] = 1e-12;
-      }
-    }
-  }
+  // 	if (dict_[target[0]][lookup(j,0)] < 1e-12)
+  // 	  dict_[target[0]][lookup(j,0)] = 1e-12;
+  //     }
+  //   }
+  // }
 
 
-  /*** check if respective distortion table is present. If not, create one from the parameters ***/
+  // /*** check if respective distortion table is present. If not, create one from the parameters ***/
 
-  int oldJ = (cept_start_prob_.zDim() + 1) / 2;
+  // int oldJ = (cept_start_prob_.zDim() + 1) / 2;
 
-  bool update = false;
+  // bool update = false;
 
-  if (oldJ < int(J)) {
-    update = true;
+  // if (oldJ < int(J)) {
+  //   update = true;
 
-    inter_distortion_cache_.resize(J+1);
+  //   inter_distortion_cache_.resize(J+1);
 
-    //inter params
-    IBM4CeptStartModel new_param(cept_start_prob_.xDim(),cept_start_prob_.yDim(),2*J-1,1e-8,MAKENAME(new_param));
-    uint new_zero_offset = J-1;
-    for (int j = -int(maxJ_)+1; j <= int(maxJ_)-1; j++) {
+  //   //inter params
+  //   IBM4CeptStartModel new_param(cept_start_prob_.xDim(),cept_start_prob_.yDim(),2*J-1,1e-8,MAKENAME(new_param));
+  //   uint new_zero_offset = J-1;
+  //   for (int j = -int(maxJ_)+1; j <= int(maxJ_)-1; j++) {
 
-      for (uint w1=0; w1 < cept_start_prob_.xDim(); w1++) 
-        for (uint w2=0; w2 < cept_start_prob_.yDim(); w2++) 
-          new_param(w1,w2,new_zero_offset + j) = cept_start_prob_(w1,w2,displacement_offset_ + j);
+  //     for (uint w1=0; w1 < cept_start_prob_.xDim(); w1++) 
+  //       for (uint w2=0; w2 < cept_start_prob_.yDim(); w2++) 
+  //         new_param(w1,w2,new_zero_offset + j) = cept_start_prob_(w1,w2,displacement_offset_ + j);
 
-    }
-    cept_start_prob_ = new_param;
+  //   }
+  //   cept_start_prob_ = new_param;
 
-    //intra params
+  //   //intra params
 
-    IBM4WithinCeptModel new_wi_model(within_cept_prob_.xDim(),J,1e-8,MAKENAME(new_wi_model)); 
+  //   IBM4WithinCeptModel new_wi_model(within_cept_prob_.xDim(),J,1e-8,MAKENAME(new_wi_model)); 
 
-    for (uint c=0; c < new_wi_model.xDim(); c++) {
+  //   for (uint c=0; c < new_wi_model.xDim(); c++) {
 
-      for (uint k=0; k < within_cept_prob_.yDim(); k++)
-	new_wi_model(c,k) = within_cept_prob_(c,k);
-    }
+  //     for (uint k=0; k < within_cept_prob_.yDim(); k++)
+  // 	new_wi_model(c,k) = within_cept_prob_(c,k);
+  //   }
 
-    within_cept_prob_ = new_wi_model;
+  //   within_cept_prob_ = new_wi_model;
 
-    displacement_offset_ = new_zero_offset;
+  //   displacement_offset_ = new_zero_offset;
 
-    maxJ_ = J;
+  //   maxJ_ = J;
 
-    sentence_start_parameters_.resize(J,0.0);
-  }
+  //   sentence_start_parameters_.resize(J,0.0);
+  // }
 
-  if (inter_distortion_prob_.size() <= J) {
-    update = true;
-    inter_distortion_prob_.resize(J+1);
-  }
-  if (intra_distortion_prob_.size() <= J) {
-    update = true;
-    intra_distortion_prob_.resize(J+1);
-  }
+  // if (inter_distortion_prob_.size() <= J) {
+  //   update = true;
+  //   inter_distortion_prob_.resize(J+1);
+  // }
+  // if (intra_distortion_prob_.size() <= J) {
+  //   update = true;
+  //   intra_distortion_prob_.resize(J+1);
+  // }
     
-  if (inter_distortion_prob_[J].yDim() <= J) {
-    update = true;
-    inter_distortion_prob_[J].resize(1,1);
-    for (uint c1 = 0; c1 < inter_distortion_prob_[J].xDim(); c1++)
-      for (uint c2 = 0; c2 < inter_distortion_prob_[J].yDim(); c2++)
-	inter_distortion_prob_[J](c1,c2).resize(J,J);
-  }
+  // if (inter_distortion_prob_[J].yDim() <= J) {
+  //   update = true;
+  //   inter_distortion_prob_[J].resize(1,1);
+  //   for (uint c1 = 0; c1 < inter_distortion_prob_[J].xDim(); c1++)
+  //     for (uint c2 = 0; c2 < inter_distortion_prob_[J].yDim(); c2++)
+  // 	inter_distortion_prob_[J](c1,c2).resize(J,J);
+  // }
 
-  if (intra_distortion_prob_[J].yDim() <= J) {
-    update = true;
-    intra_distortion_prob_[J].resize(within_cept_prob_.xDim(),J,J);
-  }
+  // if (intra_distortion_prob_[J].yDim() <= J) {
+  //   update = true;
+  //   intra_distortion_prob_[J].resize(within_cept_prob_.xDim(),J,J);
+  // }
 
-  if (use_sentence_start_prob_) {
+  // if (use_sentence_start_prob_) {
 
-    if (sentence_start_prob_.size() <= J) {
-      update = true;
-      sentence_start_prob_.resize(J+1);
-    }
+  //   if (sentence_start_prob_.size() <= J) {
+  //     update = true;
+  //     sentence_start_prob_.resize(J+1);
+  //   }
 
-    if (sentence_start_prob_[J].size() < J) {
-      update = true;
-      sentence_start_prob_[J].resize(J);
-    } 
-  }  
+  //   if (sentence_start_prob_[J].size() < J) {
+  //     update = true;
+  //     sentence_start_prob_[J].resize(J);
+  //   } 
+  // }  
 
-  if (update) {
+  // if (update) {
 
-    par2nonpar_inter_distortion();
+  //   par2nonpar_inter_distortion();
 
-    par2nonpar_intra_distortion();
-    if (use_sentence_start_prob_) 
-      par2nonpar_start_prob();
-  }
+  //   par2nonpar_intra_distortion();
+  //   if (use_sentence_start_prob_) 
+  //     par2nonpar_start_prob();
+  // }
 
-  /*** check if fertility tables are large enough ***/
-  for (uint i=0; i < I; i++) {
+  // /*** check if fertility tables are large enough ***/
+  // for (uint i=0; i < I; i++) {
 
-    if (fertility_prob_[target[i]].size() < J+1)
-      fertility_prob_[target[i]].resize(J+1,1e-15);
+  //   if (fertility_prob_[target[i]].size() < J+1)
+  //     fertility_prob_[target[i]].resize(J+1,1e-15);
 
-    if (fertility_prob_[target[i]][fertility[i+1]] < 1e-15)
-      fertility_prob_[target[i]][fertility[i+1]] = 1e-15;
+  //   if (fertility_prob_[target[i]][fertility[i+1]] < 1e-15)
+  //     fertility_prob_[target[i]][fertility[i+1]] = 1e-15;
 
-    if (fertility_prob_[target[i]].sum() < 0.5)
-      fertility_prob_[target[i]].set_constant(1.0 / fertility_prob_[target[i]].size());
+  //   if (fertility_prob_[target[i]].sum() < 0.5)
+  //     fertility_prob_[target[i]].set_constant(1.0 / fertility_prob_[target[i]].size());
 
-    if (fertility_prob_[target[i]][fertility[i+1]] < 1e-8)
-      fertility_prob_[target[i]][fertility[i+1]] = 1e-8;
-  }
+  //   if (fertility_prob_[target[i]][fertility[i+1]] < 1e-8)
+  //     fertility_prob_[target[i]][fertility[i+1]] = 1e-8;
+  // }
 
-  /*** check if a source word does not have a translation (with non-zero prob.) ***/
-  for (uint j=0; j < J; j++) {
-    uint src_idx = source[j];
+  // /*** check if a source word does not have a translation (with non-zero prob.) ***/
+  // for (uint j=0; j < J; j++) {
+  //   uint src_idx = source[j];
 
-    double sum = dict_[0][src_idx-1];
-    for (uint i=0; i < I; i++)
-      sum += dict_[target[i]][lookup(j,i)];
+  //   double sum = dict_[0][src_idx-1];
+  //   for (uint i=0; i < I; i++)
+  //     sum += dict_[target[i]][lookup(j,i)];
 
-    if (sum < 1e-100) {
-      for (uint i=0; i < I; i++)
-        dict_[target[i]][lookup(j,i)] = 1e-15;
-    }
+  //   if (sum < 1e-100) {
+  //     for (uint i=0; i < I; i++)
+  //       dict_[target[i]][lookup(j,i)] = 1e-15;
+  //   }
 
-    uint aj = alignment[j];
-    if (aj == 0) {
-      if (dict_[0][src_idx-1] < 1e-20)
-        dict_[0][src_idx-1] = 1e-20;
-    }
-    else {
-      if (dict_[target[aj-1]][lookup(j,aj-1)] < 1e-20)
-        dict_[target[aj-1]][lookup(j,aj-1)] = 1e-20;
-    }
-  }
+  //   uint aj = alignment[j];
+  //   if (aj == 0) {
+  //     if (dict_[0][src_idx-1] < 1e-20)
+  //       dict_[0][src_idx-1] = 1e-20;
+  //   }
+  //   else {
+  //     if (dict_[target[aj-1]][lookup(j,aj-1)] < 1e-20)
+  //       dict_[target[aj-1]][lookup(j,aj-1)] = 1e-20;
+  //   }
+  // }
 
   //create matrices
   Math2D::Matrix<long double> expansion_move_prob(J,I+1);
   Math2D::Matrix<long double> swap_move_prob(J,J);
+
+  Math1D::Vector<uint> fertility(I+1,0);
   
   uint nIter;
   long double best_prob;

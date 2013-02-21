@@ -2,6 +2,8 @@ RegAligner Change History
 
 *** upcoming release ***
 - bugfix for IBM-4 + streamlined a bit
+- major correction for word classes: now actually implementing the dependence
+  of [Brown et al. 93]
 
 *** release version 1.02 (released on December 29 2012) ***
 - improved Makefile (more compatible now)

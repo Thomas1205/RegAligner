@@ -189,9 +189,9 @@ void tokenize_with_stringsep(const std::string& org_s, std::vector<std::string>&
 
   while (true) {
 
-    int pos = s.find(sep_string);
+    size_t pos = s.find(sep_string);
 
-    if (pos > int(s.size())) {
+    if (pos >= s.size()) {
       if (s != "")
 	tokens.push_back(s);
       break;
@@ -214,8 +214,8 @@ bool string_ends_with(std::string s, std::string suffix) {
 }
 
 // kaeshammer
-bool string_starts_with(std::string s, std::string suffix) {
-	return s.compare(0, suffix.length(), suffix) == 0;
+bool string_starts_with(std::string s, std::string prefix) {
+  return s.compare(0, prefix.length(), prefix) == 0;
 }
 
 

@@ -142,6 +142,9 @@ protected:
 
   void start_prob_m_step(const Storage1D<Math1D::Vector<double> >& start_count);
 
+  void prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+				  const SingleLookupTable& lookup,
+				  Math1D::Vector<AlignBaseType>& alignment);
 
   //indexed by (target word class idx, source word class idx, displacement)
   IBM4CeptStartModel cept_start_prob_; //note: displacements of 0 are possible here (the center of a cept need not be an aligned word)
