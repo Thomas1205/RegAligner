@@ -1271,14 +1271,14 @@ void IBM4Trainer::update_alignments_unconstrained() {
   for (size_t s=0; s < source_sentence_.size(); s++) {
 
 
-    if (nSourceClasses_*nTargetClasses_ >= 10 && (s%25) == 0) {
-      for (uint J=storage_limit_+1; J < inter_distortion_prob_.size(); J++) {
+    // if (nSourceClasses_*nTargetClasses_ >= 10 && (s%25) == 0) {
+    //   for (uint J=storage_limit_+1; J < inter_distortion_prob_.size(); J++) {
         
-        for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
-          for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
-            inter_distortion_prob_[J](x,y).resize(0,0);
-      }
-    }
+    //     for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
+    //       for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
+    //         inter_distortion_prob_[J](x,y).resize(0,0);
+    //   }
+    // }
 
     const uint curI = target_sentence_[s].size();
     Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
@@ -1292,14 +1292,14 @@ void IBM4Trainer::update_alignments_unconstrained() {
 				     nIter,fertility,expansion_prob,swap_prob,best_known_alignment_[s]);
   }
 
-  if (nSourceClasses_*nTargetClasses_ >= 10) {
-    for (uint J=storage_limit_+1; J < inter_distortion_prob_.size(); J++) {
+  // if (nSourceClasses_*nTargetClasses_ >= 10) {
+  //   for (uint J=storage_limit_+1; J < inter_distortion_prob_.size(); J++) {
       
-      for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
-        for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
-          inter_distortion_prob_[J](x,y).resize(0,0);
-    }
-  }
+  //     for (uint y=0; y < inter_distortion_prob_[J].yDim(); y++)
+  //       for (uint x=0; x < inter_distortion_prob_[J].xDim(); x++)
+  //         inter_distortion_prob_[J](x,y).resize(0,0);
+  //   }
+  // }
 }
 
 
@@ -4466,7 +4466,7 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
 
                   double sum_j = 0;
                   uint nAlignedWords = 0;
-                  for (ait++; ait != exp_aligned_source_words[i].end(); ait++) {
+                  for (std::set<int>::iterator ait = exp_aligned_source_words[i].begin(); ait != exp_aligned_source_words[i].end(); ait++) {
                     sum_j += *ait;
                     nAlignedWords++;
                   }
