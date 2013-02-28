@@ -4269,8 +4269,6 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
       Math1D::NamedVector<int> prev_cept(curI+1,-100,MAKENAME(prev_cept));
       Math1D::NamedVector<int> first_aligned_source_word(curI+1,-100,
                                                          MAKENAME(first_aligned_source_word));
-      Math1D::NamedVector<int> second_aligned_source_word(curI+1,-100,
-                                                          MAKENAME(second_aligned_source_word));
 
       for (uint j=0; j < curJ; j++) {
         const uint cur_aj = best_known_alignment_[s][j];
@@ -4287,10 +4285,6 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
           std::set<int>::iterator ait = aligned_source_words[i].begin();
           first_aligned_source_word[i] = *ait;
 
-          if (fertility[i] > 1) {
-            ait++;
-            second_aligned_source_word[i] = *ait;
-          } 	    
 
           switch (cept_start_mode_) {
           case IBM4CENTER: {
