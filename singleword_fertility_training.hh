@@ -9,6 +9,8 @@
 #include "vector.hh"
 #include "tensor.hh"
 
+#include "hmm_training.hh"
+
 #include <map>
 #include <set>
 
@@ -25,6 +27,10 @@ public:
                         const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
                         uint fertility_limit = 10000);
 
+  double p_zero() const;
+
+  void fix_p0(double p0);
+
   void write_alignments(const std::string filename) const;
 
   double AER();
@@ -33,7 +39,11 @@ public:
 
   double f_measure(double alpha = 0.1);
 
+  double f_measure(const Storage1D<Math1D::Vector<AlignBaseType> >& alignments, double alpha = 0.1);
+
   double DAE_S();
+
+  double DAE_S(const Storage1D<Math1D::Vector<AlignBaseType> >& alignments);
 
   const NamedStorage1D<Math1D::Vector<double> >& fertility_prob() const;
 
@@ -56,6 +66,12 @@ protected:
   void visualize_set_graph(std::string filename);
 
   void compute_coverage_states();
+
+  void compute_postdec_alignment(const Math1D::Vector<AlignBaseType>& alignment,
+				 double best_prob, const Math2D::Matrix<long double>& expansion_move_prob,
+				 const Math2D::Matrix<long double>& swap_move_prob, double threshold,
+				 std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment);
+
 
   Math2D::NamedMatrix<ushort> uncovered_set_;
   
@@ -92,6 +108,13 @@ protected:
   uint maxI_;
 
   uint fertility_limit_;
+
+  double p_zero_;
+  double p_nonzero_;
+
+  bool fix_p0_;
+
+  uint iter_offs_;
 
   NamedStorage1D<Math1D::Vector<double> > fertility_prob_;
 

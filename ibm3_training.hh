@@ -45,10 +45,6 @@ public:
 
   void update_alignments_unconstrained();
 
-  double p_zero() const;
-
-  void fix_p0(double p0);
-
   long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
                                          const SingleLookupTable& lookup,
                                          Math1D::Vector<AlignBaseType>& alignment, bool ilp=false);
@@ -108,9 +104,6 @@ protected:
   ReducedIBM3DistortionModel distortion_prob_;
   Math2D::Matrix<double> distortion_param_;
 
-  double p_zero_;
-  double p_nonzero_;
-
   bool och_ney_empty_word_;
   const floatSingleWordDictionary& prior_weight_;
   double l0_fertpen_;
@@ -118,8 +111,6 @@ protected:
   bool viterbi_ilp_;
   bool smoothed_l0_;
   double l0_beta_;
-
-  bool fix_p0_;
 };
 
 

@@ -57,7 +57,7 @@ IBM3Trainer::IBM3Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
                           nSourceWords,nTargetWords,sure_ref_alignments,possible_ref_alignments),
     distortion_prob_(MAKENAME(distortion_prob_)), och_ney_empty_word_(och_ney_empty_word), prior_weight_(prior_weight),
     l0_fertpen_(l0_fertpen), parametric_distortion_(parametric_distortion), viterbi_ilp_(viterbi_ilp),
-    smoothed_l0_(smoothed_l0), l0_beta_(l0_beta), fix_p0_(false)
+    smoothed_l0_(smoothed_l0), l0_beta_(l0_beta)
 {
 
 #ifndef HAS_CBC
@@ -65,9 +65,6 @@ IBM3Trainer::IBM3Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
 #endif
 
   uint maxI = 0;
-
-  p_zero_ = 0.1;
-  p_nonzero_ = 0.9;
 
   for (size_t s=0; s < source_sentence_.size(); s++) {
 
@@ -95,16 +92,6 @@ IBM3Trainer::IBM3Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
     distortion_prob_[J].resize_dirty(J+1,max_I[J]);
     distortion_prob_[J].set_constant(1.0 / (J+1));
   }
-}
-
-void IBM3Trainer::fix_p0(double p0) {
-  p_zero_ = p0;
-  p_nonzero_ = 1.0 - p0;
-  fix_p0_ = true;
-}
-
-double IBM3Trainer::p_zero() const {
-  return p_zero_;
 }
 
 void IBM3Trainer::release_memory() {
@@ -1417,58 +1404,8 @@ void IBM3Trainer::compute_external_postdec_alignment(const Storage1D<uint>& sour
   
   best_prob =  update_alignment_by_hillclimbing(source, target, lookup, nIter, fertility,
                                                 expansion_move_prob, swap_move_prob, alignment);
-
   
-  const long double expansion_prob = expansion_move_prob.sum();
-  const long double swap_prob =  0.5 * swap_move_prob.sum();
-  
-  const long double sentence_prob = best_prob + expansion_prob +  swap_prob;
-  
-  /**** calculate sums ***/
-  Math2D::Matrix<long double> marg(J,I+1,0.0);
-
-  for (uint j=0; j < J; j++) {
-    marg(j, alignment[j]) += best_prob;
-    for (uint i=0; i <= I; i++) {
-      marg(j,i) += expansion_move_prob(j,i);
-      for (uint jj=0; jj < J; jj++) {
-	if (jj != j) {
-	  marg(jj,alignment[jj]) += expansion_move_prob(j,i);
-	}
-      }
-    }
-    for (uint jj=j+1; jj < J; jj++) {
-      marg(j,alignment[jj]) += swap_move_prob(j,jj);
-      marg(jj,alignment[j]) += swap_move_prob(j,jj);
-
-      for (uint jjj=0; jjj < J; jjj++)
-	if (jjj != j && jjj != jj)
-	  marg(jjj,alignment[jjj]) += swap_move_prob(j,jj);
-    }
-  }
-
-  /*** compute marginals and threshold ***/
-  for (uint j=0; j < J; j++) {
-
-    //DEBUG
-    long double check = 0.0;
-    for (uint i=0; i <= I; i++)
-      check += marg(j,i);
-    long double ratio = sentence_prob/check;
-    assert( ratio >= 0.99);
-    assert( ratio <= 1.01);
-    //END_DEBUG
-
-    for (uint i=1; i <= I; i++) {
-
-      long double cur_marg = marg(j,i) / sentence_prob;
-
-      if (cur_marg >= threshold) {
-	postdec_alignment.insert(std::make_pair(j+1,i));
-      }
-    }
-  }
-
+  compute_postdec_alignment(alignment, best_prob, expansion_move_prob, swap_move_prob, threshold, postdec_alignment);
 }
 
 void IBM3Trainer::update_alignments_unconstrained() {
@@ -1571,7 +1508,7 @@ void IBM3Trainer::train_unconstrained(uint nIter) {
 
       const uint curI = cur_target.size();
       const uint curJ = cur_source.size();
-      const Math2D::Matrix<double>& cur_distort_count = fdistort_count[curJ-1];
+      Math2D::Matrix<double>& cur_distort_count = fdistort_count[curJ-1];
 
       Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
 
@@ -2149,7 +2086,7 @@ void IBM3Trainer::train_viterbi(uint nIter, bool use_ilp) {
       
       const uint curI = cur_target.size();
       const uint curJ = cur_source.size();
-      const Math2D::Matrix<double>& cur_distort_count = fdistort_count[curJ-1];
+      Math2D::Matrix<double>& cur_distort_count = fdistort_count[curJ-1];
 
       Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
 

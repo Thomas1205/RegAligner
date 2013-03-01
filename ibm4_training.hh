@@ -70,8 +70,6 @@ public:
 
   void update_alignments_unconstrained();
 
-  void fix_p0(double p0);
-
   long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
                                          const SingleLookupTable& lookup,
                                          Math1D::Vector<AlignBaseType>& alignment);
@@ -164,9 +162,6 @@ protected:
 
   int displacement_offset_;
 
-  double p_zero_;
-  double p_nonzero_;
-
   bool och_ney_empty_word_;
   IBM4CeptStartMode cept_start_mode_;
   IBM4InterDistMode inter_dist_mode_;
@@ -179,10 +174,6 @@ protected:
   bool smoothed_l0_;
   double l0_beta_;
   double l0_fertpen_;
-
-  uint iter_offs_;
-
-  bool fix_p0_;
 
   uint nSourceClasses_;
   uint nTargetClasses_;
