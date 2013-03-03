@@ -2247,7 +2247,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
                     break;
                   }
                   case IBM4LAST : {
-                    if (insert_pos > fertility[cand_aj])
+                    if (insert_pos >= fertility[cand_aj])
                       new_cand_aj_center = j;
                     else
                       new_cand_aj_center = cept_center[cand_aj];

@@ -1,7 +1,7 @@
 RegAligner Change History
 
 *** upcoming release (1.05?) ***
-- bugfix for IBM-4 + streamlined a bit
+- two bugfixes for IBM-4
 - major correction for word classes: now actually implementing the dependence
   of [Brown et al. 93]
 - streamlining of the source code for IBM-3 and IBM-4
