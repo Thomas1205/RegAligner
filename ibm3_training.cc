@@ -1141,12 +1141,12 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 }
 
 
-long double IBM3Trainer::compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-                                                    const SingleLookupTable& lookup,
-                                                    Math1D::Vector<AlignBaseType>& alignment, bool use_ilp) {
+void IBM3Trainer::prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+					     const SingleLookupTable& lookup,
+					     Math1D::Vector<AlignBaseType>& alignment) {
 
-  const uint J = source.size();
-  const uint I = target.size();
+   const uint J = source.size();
+ const uint I = target.size();
 
   if (alignment.size() != J)
     alignment.resize(J,1);
@@ -1191,6 +1191,9 @@ long double IBM3Trainer::compute_external_alignment(const Storage1D<uint>& sourc
 
   if (distortion_prob_[J-1].yDim() < I) {
 
+    //std::cerr << "extending" << std::endl;
+    //std::cerr << "parametric distortion: " << parametric_distortion_ << std::endl;
+
     uint oldXDim = distortion_prob_[J-1].xDim();
     uint oldYDim = distortion_prob_[J-1].yDim();
 
@@ -1210,6 +1213,8 @@ long double IBM3Trainer::compute_external_alignment(const Storage1D<uint>& sourc
       }
     }
   }
+
+  //std::cerr << "run checks" << std::endl;
 
   /*** check if fertility tables are large enough ***/
   for (uint i=0; i < I; i++) {
@@ -1251,6 +1256,17 @@ long double IBM3Trainer::compute_external_alignment(const Storage1D<uint>& sourc
     }
   }
 
+}
+
+long double IBM3Trainer::compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+                                                    const SingleLookupTable& lookup,
+                                                    Math1D::Vector<AlignBaseType>& alignment, bool use_ilp) {
+
+
+  prepare_external_alignment(source,target,lookup,alignment);
+
+  const uint J = source.size();
+  const uint I = target.size();
 
 #ifndef HAS_CBC
   use_ilp = false;
@@ -1259,6 +1275,8 @@ long double IBM3Trainer::compute_external_alignment(const Storage1D<uint>& sourc
   //create matrices
   Math2D::Matrix<long double> expansion_prob(J,I+1);
   Math2D::Matrix<long double> swap_prob(J,J);
+
+  Math1D::Vector<uint> fertility(I+1,0);
   
   uint nIter;
   
@@ -1286,117 +1304,18 @@ void IBM3Trainer::compute_external_postdec_alignment(const Storage1D<uint>& sour
 						     double threshold) {
 
 
+  prepare_external_alignment(source,target,lookup,alignment);
+
   postdec_alignment.clear();
 
   const uint J = source.size();
   const uint I = target.size();
 
-  if (alignment.size() != J)
-    alignment.resize(J,1);
-
-  Math1D::Vector<uint> fertility(I+1,0);
-
-    for (uint j=0; j < J; j++) {
-    const uint aj = alignment[j];
-    fertility[aj]++;
-  }
-
-  if (fertility[0] > 0 && p_zero_ < 1e-12)
-    p_zero_ = 1e-12;
-  
-  if (2*fertility[0] > J) {
-    
-    for (uint j=0; j < J; j++) {
-      
-      if (alignment[j] == 0) {
-	
-        alignment[j] = 1;
-        fertility[0]--;
-        fertility[1]++;	
-
-	if (dict_[target[0]][lookup(j,0)] < 1e-12)
-	  dict_[target[0]][lookup(j,0)] = 1e-12;
-      }
-    }
-  }
-
-  /*** check if respective distortion table is present. If not, create one from the parameters ***/
-
-  if (parametric_distortion_) {
-    if (distortion_param_.xDim() < J)
-      distortion_param_.resize(J,distortion_param_.yDim(),1e-8);
-    if (distortion_param_.yDim() < I)
-      distortion_param_.resize(distortion_param_.xDim(),I,1e-8);
-  }
-
-  if (distortion_prob_.size() < J)
-    distortion_prob_.resize(J);
-
-  if (distortion_prob_[J-1].yDim() < I) {
-
-    uint oldXDim = distortion_prob_[J-1].xDim();
-    uint oldYDim = distortion_prob_[J-1].yDim();
-
-    ReducedIBM3DistortionModel temp_prob(J,MAKENAME(temp_prob));
-    temp_prob[J-1].resize(std::max<size_t>(J,distortion_prob_[J-1].xDim()), I, 1e-8 );
-
-    if (parametric_distortion_)
-      par2nonpar_distortion(temp_prob);
-
-    distortion_prob_[J-1].resize(std::max(J,oldXDim),std::max(I,oldYDim));
- 
-    for (uint j=0; j < std::max(J,oldXDim); j++) {
-      for (uint i=0; i  < std::max(I,oldYDim); i++) {
-
-        if (j >= oldXDim || i >= oldYDim)
-          distortion_prob_[J-1](j,i) = temp_prob[J-1](j,i);
-      }
-    }
-  }
-
-  /*** check if fertility tables are large enough ***/
-  for (uint i=0; i < I; i++) {
-
-    if (fertility_prob_[target[i]].size() < J+1)
-      fertility_prob_[target[i]].resize(J+1,1e-15);
-
-    if (fertility_prob_[target[i]][fertility[i+1]] < 1e-15)
-      fertility_prob_[target[i]][fertility[i+1]] = 1e-15;
-
-    if (fertility_prob_[target[i]].sum() < 0.5)
-      fertility_prob_[target[i]].set_constant(1.0 / fertility_prob_[target[i]].size());
-
-    if (fertility_prob_[target[i]][fertility[i+1]] < 1e-8)
-      fertility_prob_[target[i]][fertility[i+1]] = 1e-8;
-  }
-
-  /*** check if a source word does not have a translation (with non-zero prob.) ***/
-  for (uint j=0; j < J; j++) {
-    uint src_idx = source[j];
-
-    double sum = dict_[0][src_idx-1];
-    for (uint i=0; i < I; i++)
-      sum += dict_[target[i]][lookup(j,i)];
-
-    if (sum < 1e-100) {
-      for (uint i=0; i < I; i++)
-        dict_[target[i]][lookup(j,i)] = 1e-15;
-    }
-
-    uint aj = alignment[j];
-    if (aj == 0) {
-      if (dict_[0][src_idx-1] < 1e-20)
-        dict_[0][src_idx-1] = 1e-20;
-    }
-    else {
-      if (dict_[target[aj-1]][lookup(j,aj-1)] < 1e-20)
-        dict_[target[aj-1]][lookup(j,aj-1)] = 1e-20;
-    }
-  }
-
   //create matrices
   Math2D::Matrix<long double> expansion_move_prob(J,I+1);
   Math2D::Matrix<long double> swap_move_prob(J,J);
+
+  Math1D::Vector<uint> fertility(I+1,0);
   
   uint nIter;
   
