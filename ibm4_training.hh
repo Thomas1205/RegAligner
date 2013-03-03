@@ -61,7 +61,7 @@ public:
   void init_from_ibm3(IBM3Trainer& ibm3trainer, bool clear_ibm3 = true, 
 		      bool count_collection = false, bool viterbi = false);
 
-  //training without constraints on maximal fertility or uncovered positions.
+  //training without constraints on uncovered positions.
   //This is based on the EM-algorithm where the E-step uses heuristics
   void train_unconstrained(uint nIter, IBM3Trainer* ibm3 = 0);
 
@@ -140,9 +140,11 @@ protected:
 
   void start_prob_m_step(const Storage1D<Math1D::Vector<double> >& start_count);
 
+
   void prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
 				  const SingleLookupTable& lookup,
 				  Math1D::Vector<AlignBaseType>& alignment);
+
 
   //indexed by (target word class idx, source word class idx, displacement)
   IBM4CeptStartModel cept_start_prob_; //note: displacements of 0 are possible here (the center of a cept need not be an aligned word)
@@ -177,7 +179,6 @@ protected:
 
   uint nSourceClasses_;
   uint nTargetClasses_;
-
 
   const ushort storage_limit_; //if there are many word classes, inter distortion tables are only kept for J<=storage_limit_
 };
