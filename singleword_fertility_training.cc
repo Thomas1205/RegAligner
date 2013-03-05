@@ -893,21 +893,31 @@ void FertilityModelTrainer::compute_postdec_alignment(const Math1D::Vector<Align
 
   for (uint j=0; j < J; j++) {
     marg(j, alignment[j]) += best_prob;
+
     for (uint i=0; i <= I; i++) {
-      marg(j,i) += expansion_move_prob(j,i);
-      for (uint jj=0; jj < J; jj++) {
-	if (jj != j) {
-	  marg(jj,alignment[jj]) += expansion_move_prob(j,i);
+      const double cur_prob = expansion_move_prob(j,i);
+
+      if (cur_prob > 0.0) {
+	marg(j,i) += cur_prob;
+	for (uint jj=0; jj < J; jj++) {
+	  if (jj != j) {
+	    marg(jj,alignment[jj]) += cur_prob;
+	  }
 	}
       }
     }
     for (uint jj=j+1; jj < J; jj++) {
-      marg(j,alignment[jj]) += swap_move_prob(j,jj);
-      marg(jj,alignment[j]) += swap_move_prob(j,jj);
 
-      for (uint jjj=0; jjj < J; jjj++)
-	if (jjj != j && jjj != jj)
-	  marg(jjj,alignment[jjj]) += swap_move_prob(j,jj);
+      const double cur_prob = swap_move_prob(j,jj);
+
+      if (cur_prob > 0.0) {
+	marg(j,alignment[jj]) += cur_prob;
+	marg(jj,alignment[j]) += cur_prob;
+	
+	for (uint jjj=0; jjj < J; jjj++)
+	  if (jjj != j && jjj != jj)
+	    marg(jjj,alignment[jjj]) += cur_prob;
+      }
     }
   }
 
