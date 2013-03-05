@@ -895,7 +895,7 @@ void FertilityModelTrainer::compute_postdec_alignment(const Math1D::Vector<Align
     marg(j, alignment[j]) += best_prob;
 
     for (uint i=0; i <= I; i++) {
-      const double cur_prob = expansion_move_prob(j,i);
+      const long double cur_prob = expansion_move_prob(j,i);
 
       if (cur_prob > 0.0) {
 	marg(j,i) += cur_prob;
@@ -908,7 +908,7 @@ void FertilityModelTrainer::compute_postdec_alignment(const Math1D::Vector<Align
     }
     for (uint jj=j+1; jj < J; jj++) {
 
-      const double cur_prob = swap_move_prob(j,jj);
+      const long double cur_prob = swap_move_prob(j,jj);
 
       if (cur_prob > 0.0) {
 	marg(j,alignment[jj]) += cur_prob;
@@ -930,6 +930,15 @@ void FertilityModelTrainer::compute_postdec_alignment(const Math1D::Vector<Align
     for (uint i=0; i <= I; i++)
       check += marg(j,i);
     long double ratio = sentence_prob/check;
+    if ( ! (ratio >= 0.99 && ratio <= 1.01) ) {
+      
+      std::cerr << "sentence_prob: " << sentence_prob << ", check: " << check << std::endl;
+      std::cerr << "J: " << J << ", I: " << I << ", j: " << j << std::endl;
+      std::cerr << "best prob: " << best_prob << std::endl;
+      std::cerr << "expansion prob: " << expansion_move_prob << std::endl;
+      std::cerr << "swap prob: " << swap_move_prob << std::endl;
+      std::cerr << "marg: " << marg << std::endl;
+    }
     assert( ratio >= 0.99);
     assert( ratio <= 1.01);
 #endif

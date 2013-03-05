@@ -810,9 +810,10 @@ int main(int argc, char** argv) {
 
     if (dev_present) {
 
+      std::cerr << "dev sentences present" << std::endl;
+
       Math1D::Vector<AlignBaseType> viterbi_alignment;
       std::set<std::pair<AlignBaseType,AlignBaseType> > postdec_alignment;
-
       
       std::ostream* dev_alignment_stream;
       
@@ -950,6 +951,8 @@ int main(int argc, char** argv) {
     delete alignment_stream;
     
     if (dev_present) {
+
+      std::cerr << "dev sentences present" << std::endl;
       
       std::ostream* dev_alignment_stream;
       
