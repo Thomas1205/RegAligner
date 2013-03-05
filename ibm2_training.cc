@@ -151,7 +151,7 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
 
       assert(k < alignment_model[curI].size());
       const Math2D::Matrix<double>& cur_align_model = alignment_model[curI][k];
-      const Math2D::Matrix<double>& cur_facount= facount[curI][k];
+      Math2D::Matrix<double>& cur_facount= facount[curI][k];
 
       for (uint j=0; j < curJ; j++) {
 
@@ -416,7 +416,7 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
       const uint curI = cur_target.size();
 
       const Math2D::Matrix<double>& cur_align_model = alignment_model[curI];
-      const Math2D::Matrix<double>& cur_facount= facount[curI];
+      Math2D::Matrix<double>& cur_facount= facount[curI];
 
       const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
 

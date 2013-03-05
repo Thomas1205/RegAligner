@@ -263,7 +263,7 @@ void monolingual_pairs_cooc_count(const Storage1D<Storage1D<uint> >& sentence,
 
         uint w2 =  cur_sentence[i2];
 
-        uint* ptr = std::lower_bound(t_cooc[w1].direct_access(),t_cooc[w1].direct_access()+t_cooc[w1].size(), w2);
+        const uint* ptr = std::lower_bound(t_cooc[w1].direct_access(),t_cooc[w1].direct_access()+t_cooc[w1].size(), w2);
 
         uint k = ptr - t_cooc[w1].direct_access();
         t_cooc_count[w1][k] += 1;
