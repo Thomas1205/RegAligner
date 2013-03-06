@@ -1,6 +1,6 @@
 RegAligner Change History
 
-*** upcoming release (1.05?) ***
+*** release version 1.05 (released March 6 2013) ***
 - two bugfixes for IBM-4
 - major correction for word classes: now actually implementing the dependence
   of [Brown et al. 93]
