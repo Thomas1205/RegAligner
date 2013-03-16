@@ -51,8 +51,10 @@ int main(int argc, char** argv) {
               << " [-ibm3-iter <uint> ]: iterations for the IBM-3 model (default 0)" << std::endl
               << " [-ibm4-iter <uint> ]: iterations for the IBM-4 model (default 0)" << std::endl
 	      << " [-ibm4-mode (first | center | last) ] : (default first)" << std::endl
-              << " [-constraint-mode (unconstrained | itg | ibm) " << std::endl
-	      << " [-postdec-thresh <double>]" << std::endl
+	      << " [-ibm4-inter-dist-mode (previous | current) ] : with default previous: dependency as in [Brown et al.]" << std::endl
+	      << " [-ibm4-intra-dist-mode (source | target) ] : with default source: dependency as in [Brown et al.]" << std::endl
+              << " [-constraint-mode (unconstrained | itg | ibm)] : mode for IBM-3" << std::endl
+	      << " [-postdec-thresh <double>] : threshold for posterior decoding" << std::endl
 	      << " [-fert-limit <uint>]: fertility limit for IBM-3/4, default: 10000" << std::endl
 	      << " [-hmm-type (fullpar | redpar | nonpar | nonpar2)]: default redpar" << std::endl
 	      << " [-hmm-init-type (auto | par | nonpar | fix | fix2)]: default auto" << std::endl
@@ -73,7 +75,7 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  const int nParams = 36;
+  const int nParams = 38;
   ParamDescr  params[nParams] = {{"-s",mandInFilename,0,""},{"-t",mandInFilename,0,""},
                                  {"-ds",optInFilename,0,""},{"-dt",optInFilename,0,""},
                                  {"-o",optOutFilename,0,""},{"-oa",mandOutFilename,0,""},
@@ -92,7 +94,8 @@ int main(int argc, char** argv) {
                                  {"-ibm1-transfer-mode",optWithValue,1,"no"},{"-dict-struct",optWithValue,0,""},
                                  {"-dont-reduce-deficiency",flag,0,""},{"-count-collection",flag,0,""},
 				 {"-sclasses",optInFilename,0,""},{"-tclasses",optInFilename,0,""},
-                                 {"-max-lookup",optWithValue,1,"65535"}};
+                                 {"-max-lookup",optWithValue,1,"65535"},{"-ibm4-inter-dist-mode",optWithValue,1,"previous"},
+				 {"-ibm4-intra-dist-mode",optWithValue,1,"source"}};
 
   Application app(argc,argv,params,nParams);
 
@@ -121,6 +124,8 @@ int main(int argc, char** argv) {
     ibm3_iter = convert<uint>(app.getParam("-ibm3-iter"));
   if (app.is_set("-ibm4-iter"))
     ibm4_iter = convert<uint>(app.getParam("-ibm4-iter"));
+
+  bool collect_counts = app.is_set("-count-collection");
 
   std::string method = downcase(app.getParam("-method"));
 
@@ -409,6 +414,48 @@ int main(int argc, char** argv) {
   }
 
 
+  Storage1D<WordClassType> source_class(nSourceWords,0);
+  Storage1D<WordClassType> target_class(nTargetWords,0);  
+
+  if (app.is_set("-sclasses"))
+    read_word_classes(app.getParam("-sclasses"),source_class);
+  if (app.is_set("-tclasses"))
+    read_word_classes(app.getParam("-tclasses"),target_class);
+
+  IBM4CeptStartMode ibm4_cept_mode = IBM4FIRST;
+  std::string ibm4_mode = downcase(app.getParam("-ibm4-mode"));
+  if (ibm4_mode == "first")
+    ibm4_cept_mode = IBM4FIRST;
+  else if (ibm4_mode == "center")
+    ibm4_cept_mode = IBM4CENTER;
+  else if (ibm4_mode == "last")
+    ibm4_cept_mode = IBM4LAST;
+  else {
+    USER_ERROR << "unknown ibm4 mode: \"" << ibm4_mode << "\"" << std::endl;
+    exit(1);
+  }
+  
+  std::string ibm4_inter_dist_string = downcase(app.getParam("-ibm4-inter-dist-mode"));
+  std::string ibm4_intra_dist_string = downcase(app.getParam("-ibm4-intra-dist-mode"));
+  
+  IBM4InterDistMode ibm4_inter_dist_mode = IBM4InterDistModePrevious;
+  IBM4IntraDistMode ibm4_intra_dist_mode = IBM4IntraDistModeSource;
+  
+  if (ibm4_inter_dist_string == "current")
+    ibm4_inter_dist_mode = IBM4InterDistModeCurrent;
+  else if (ibm4_inter_dist_string != "previous") {
+    USER_ERROR << " unknown ibm4-inter-dist-mode: \"" << ibm4_inter_dist_string << "\" " << std::endl;
+    exit(1);
+  }
+  
+  if (ibm4_intra_dist_string == "target")
+    ibm4_intra_dist_mode = IBM4IntraDistModeTarget;
+  else if (ibm4_intra_dist_string != "source") {
+    USER_ERROR << " unknown ibm4-intra-dist-mode: \"" << ibm4_intra_dist_string << "\" " << std::endl;
+    exit(1);
+  }
+
+
   /**** now start training *****/
 
   std::cerr << "starting IBM 1 training" << std::endl;
@@ -520,8 +567,9 @@ int main(int argc, char** argv) {
   if (fert_p0 >= 0.0)
     ibm3_trainer.fix_p0(fert_p0);
 
-  if (ibm3_iter+ibm4_iter > 0)
-    ibm3_trainer.init_from_hmm(hmmalign_model,initial_prob,hmm_options,method == "viterbi");
+  if (ibm3_iter+ibm4_iter > 0) {
+    ibm3_trainer.init_from_hmm(hmmalign_model,initial_prob,hmm_options, method == "viterbi");
+  }
 
   if (ibm3_iter > 0) {
 
@@ -544,7 +592,7 @@ int main(int argc, char** argv) {
     else
       ibm3_trainer.train_viterbi(ibm3_iter,false);
   
-    if (ibm4_iter == 0 || !app.is_set("-count-collection"))
+    if (ibm4_iter == 0 || !collect_counts)
       ibm3_trainer.update_alignments_unconstrained();
   }
 
@@ -552,35 +600,12 @@ int main(int argc, char** argv) {
 
   std::cerr << "handling IBM-4" << std::endl;
 
-  Storage1D<WordClassType> source_class(nSourceWords,0);
-  Storage1D<WordClassType> target_class(nTargetWords,0);  
-
-  if (app.is_set("-sclasses"))
-    read_word_classes(app.getParam("-sclasses"),source_class);
-  if (app.is_set("-tclasses"))
-    read_word_classes(app.getParam("-tclasses"),target_class);
-
-  IBM4CeptStartMode ibm4_cept_mode = IBM4FIRST;
-  std::string ibm4_mode = app.getParam("-ibm4-mode");
-  if (ibm4_mode == "first")
-    ibm4_cept_mode = IBM4FIRST;
-  else if (ibm4_mode == "center")
-    ibm4_cept_mode = IBM4CENTER;
-  else if (ibm4_mode == "last")
-    ibm4_cept_mode = IBM4LAST;
-  else {
-    USER_ERROR << "unknown ibm4 mode: \"" << ibm4_mode << "\"" << std::endl;
-    exit(1);
-  }
-
-  
   IBM4Trainer ibm4_trainer(source_sentence, slookup, target_sentence, 
                            sure_ref_alignments, possible_ref_alignments,
                            dict, wcooc, nSourceWords, nTargetWords, prior_weight, 
                            source_class, target_class, !app.is_set("-org-empty-word"), true, true,
                            !app.is_set("-dont-reduce-deficiency"), 
-                           ibm4_cept_mode, IBM4InterDistModePrevious, IBM4IntraDistModeSource, 
-			   em_l0, l0_beta, l0_fertpen);
+                           ibm4_cept_mode, ibm4_inter_dist_mode, ibm4_intra_dist_mode, em_l0, l0_beta, l0_fertpen);
 
   ibm4_trainer.set_fertility_limit(fert_limit);
   if (fert_p0 >= 0.0)
@@ -588,7 +613,6 @@ int main(int argc, char** argv) {
 
 
   if (ibm4_iter > 0) {
-    bool collect_counts = app.is_set("-count-collection");
     
     ibm4_trainer.init_from_ibm3(ibm3_trainer,true,collect_counts,method == "viterbi");
     
@@ -642,7 +666,7 @@ int main(int argc, char** argv) {
   if (dev_present) {
     
     uint train_zero_offset = maxI - 1;
-    
+        
     //handle case where init and/or distance parameters were not estimated above for <emph>train</emph>
     if (hmm_init_mode == HmmInitNonpar || hmm_init_params.sum() < 1e-5) {
 
@@ -767,13 +791,15 @@ int main(int argc, char** argv) {
 
       for (size_t s = 0; s < dev_source_sentence.size(); s++) {
 	
+	//std::cerr << "s: " << s << std::endl;
+	
 	const uint curI = dev_target_sentence[s].size();
 
 	//initialize by HMM	
         compute_ehmm_viterbi_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
                                        dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
                                        viterbi_alignment, hmm_align_mode, false);
-		
+
 	if (postdec_thresh <= 0.0) {
 	  
 	  ibm4_trainer.compute_external_alignment(dev_source_sentence[s],dev_target_sentence[s],dev_slookup[s],
@@ -814,6 +840,7 @@ int main(int argc, char** argv) {
 
       Math1D::Vector<AlignBaseType> viterbi_alignment;
       std::set<std::pair<AlignBaseType,AlignBaseType> > postdec_alignment;
+
       
       std::ostream* dev_alignment_stream;
       
@@ -833,15 +860,10 @@ int main(int argc, char** argv) {
 	const uint curI = dev_target_sentence[s].size();	
 
 	//initialize by HMM	
-        if (hmm_align_mode == HmmAlignProbReducedpar)
-          compute_ehmm_viterbi_alignment_with_tricks(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
-                                                     dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
-                                                     viterbi_alignment, false);
-        else
-          compute_ehmm_viterbi_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
-                                         dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
-                                         viterbi_alignment, false);
-	
+        compute_ehmm_viterbi_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
+                                       dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
+                                       viterbi_alignment, hmm_align_mode, false);
+
 	if (postdec_thresh <= 0.0) {
 
 	  ibm3_trainer.compute_external_alignment(dev_source_sentence[s],dev_target_sentence[s],dev_slookup[s],
@@ -976,13 +998,13 @@ int main(int argc, char** argv) {
             
 	  if (postdec_thresh <= 0.0) {
 
-            compute_ehmm_viterbi_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
-                                           dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
-                                           viterbi_alignment, hmm_align_mode, false);
+	    compute_ehmm_viterbi_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
+					   dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],viterbi_alignment,
+					   hmm_align_mode, false);
 	  }
 	  else {
 	    compute_ehmm_postdec_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
-					   dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1], hmm_align_mode,
+					   dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1], hmm_align_mode, 
 					   postdec_alignment, postdec_thresh);
 	  }
 	}

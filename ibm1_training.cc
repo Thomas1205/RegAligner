@@ -749,9 +749,10 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
       slack_vector[i] = inv_lambda * slack_vector[i] + best_lambda * new_slack_vector[i];
     }
 
+#ifndef NDEBUG
     double check_energy = ibm1_energy(source,slookup,target,dict,wcooc,nSourceWords,prior_weight,smoothed_l0,l0_beta);
-
     assert(fabs(check_energy - hyp_energy) < 0.0025);
+#endif
 
     energy = hyp_energy;
 
