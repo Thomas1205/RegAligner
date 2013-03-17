@@ -1,6 +1,8 @@
 RegAligner Change History
 
 *** upcoming release ***
+- added alternative projection routine with better worst case complexity (no
+  speed-ups in practice)
 - made some alternative word class modes available on command line
 - removed debugging code for IBM-1 in gradient descent mode
 

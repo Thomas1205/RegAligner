@@ -9,9 +9,9 @@ $(LIB)/commonlib.opt: $(OPTDIR)/fileio.o $(OPTDIR)/stringprocessing.o $(OPTDIR)/
 	ar rs $@ $(OPTDIR)/fileio.o $(OPTDIR)/stringprocessing.o $(OPTDIR)/application.o $(OPTDIR)/timing.o $(OPTDIR)/vector.o $(OPTDIR)/matrix.o $(OPTDIR)/tensor.o  $(OPTDIR)/makros.o  $(OPTDIR)/combinatoric.o $(OPTDIR)/storage1D.o $(OPTDIR)/storage2D.o
 
 clean:
-	rm $(DEBUGDIR)/*.o 
-	rm $(OPTDIR)/*.o
-	rm lib/* 
+	rm -f $(DEBUGDIR)/*.o 
+	rm -f $(OPTDIR)/*.o
+	rm -f lib/* 
 
 include Makefile.finish
 

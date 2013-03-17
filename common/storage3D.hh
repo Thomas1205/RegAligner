@@ -21,7 +21,9 @@ public:
 
   ~Storage3D();
 
-  OPTINLINE T& operator()(ST x, ST y, ST z) const;
+  OPTINLINE const T& operator()(ST x, ST y, ST z) const;
+
+  OPTINLINE T& operator()(ST x, ST y, ST z);
 
   virtual const std::string& name() const;
 
@@ -93,6 +95,31 @@ template<typename T, typename ST>
 bool operator!=(const Storage3D<T,ST>& v1, const Storage3D<T,ST>& v2);
 
 
+namespace Makros {
+
+  template<typename T>
+  class Typename<Storage3D<T> > {
+  public:
+
+    std::string name() const {
+
+      return "Storage3D<" + Makros::Typename<T>() + "> ";
+    }
+  };
+
+  template<typename T>
+  class Typename<NamedStorage3D<T> > {
+  public:
+
+    std::string name() const {
+
+      return "NamedStorage3D<" + Makros::Typename<T>() + "> ";
+    }
+  };
+  
+}
+
+
 /******************************************** implementation **************************************************/
 template<typename T, typename ST>
 /*static*/ const std::string Storage3D<T,ST>::stor3D_name_ = "unnamed Storage3D";
@@ -148,11 +175,32 @@ Storage3D<T,ST>::~Storage3D() {
 }
 
 template<typename T, typename ST>
-OPTINLINE T& Storage3D<T,ST>::operator()(ST x, ST y, ST z) const {
+OPTINLINE const T& Storage3D<T,ST>::operator()(ST x, ST y, ST z) const {
 #ifdef SAFE_MODE
   if (x >= xDim_ || y >= yDim_ || z >= zDim_) {
+      
     INTERNAL_ERROR << "     invalid access on element (" << x << "," << y << "," << z << ") of 3D-storage \"" 
-		   << this->name() << "\" of type " << Makros::get_typename(typeid(T).name()) << ":" << std::endl;
+		   << this->name() << "\" of type " 
+		   << Makros::Typename<T>()
+      //<< Makros::get_typename(typeid(T).name()) 
+		   << ":" << std::endl;
+    std::cerr << "     dimensions " << xDim_ << "x" << yDim_ << "x" << zDim_ << " exceeded. Exiting..." << std::endl;
+    exit(1);
+  }
+#endif
+  return data_[(y*xDim_+x)*zDim_+z];
+}
+
+template<typename T, typename ST>
+OPTINLINE T& Storage3D<T,ST>::operator()(ST x, ST y, ST z) {
+#ifdef SAFE_MODE
+  if (x >= xDim_ || y >= yDim_ || z >= zDim_) {
+
+    INTERNAL_ERROR << "     invalid access on element (" << x << "," << y << "," << z << ") of 3D-storage \"" 
+		   << this->name() << "\" of type " 
+		   << Makros::Typename<T>()
+      //<< Makros::get_typename(typeid(T).name()) 
+		   << ":" << std::endl;
     std::cerr << "     dimensions " << xDim_ << "x" << yDim_ << "x" << zDim_ << " exceeded. Exiting..." << std::endl;
     exit(1);
   }
@@ -310,7 +358,6 @@ void Storage3D<T,ST>::resize_dirty(ST newxDim, ST newyDim, ST newzDim) {
     data_ = new T[size_];
   }
 }
-
 
 /***********************/
 

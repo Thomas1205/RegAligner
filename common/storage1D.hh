@@ -30,7 +30,9 @@ public:
   
   virtual const std::string& name() const;
   
-  OPTINLINE T& operator[](ST i) const;
+  OPTINLINE const T& operator[](ST i) const;
+
+  OPTINLINE T& operator[](ST i);
 
   void operator=(const Storage1D<T,ST>& toCopy);
 
@@ -105,6 +107,32 @@ bool operator>(const Storage1D<T,ST>& v1, const Storage1D<T,ST>& v2);
 
 template<typename T,typename ST>
 bool operator>=(const Storage1D<T,ST>& v1, const Storage1D<T,ST>& v2); 
+
+namespace Makros {
+
+  template<typename T>
+  class Typename<Storage1D<T> > {
+  public:
+
+    std::string name() const {
+
+      //return "Storage1D<" + Makros::Typename<T>().name() + " >";
+      return "Storage1D<" + Makros::Typename<T>() + "> ";
+    }
+  };
+
+  template<typename T>
+  class Typename<NamedStorage1D<T> > {
+  public:
+
+    std::string name() const {
+
+      //return "NamedStorage1D<" + Makros::Typename<T>().name() + " >";
+      return "NamedStorage1D<" + Makros::Typename<T>() + "> ";
+    }
+  };
+  
+}
 
 /***********************/
 
@@ -287,18 +315,38 @@ inline T Storage1D<T,ST>::direct_access(ST i) const {
 }
 
 template<typename T,typename ST>
-OPTINLINE T& Storage1D<T,ST>::operator[](ST i) const {
+OPTINLINE const T& Storage1D<T,ST>::operator[](ST i) const {
 #ifdef SAFE_MODE
   if (i >= size_) {
+
     INTERNAL_ERROR << "    invalid access on element " << i 
 		   << " for Storage1D " <<  "\"" << this->name() << "\" of type " 
-		   << Makros::get_typename(typeid(T).name())
+      //<< Makros::get_typename(typeid(T).name())
+		   << Makros::Typename<T>()
 		   << " with " << size_ << " elements. exiting." << std::endl;
     exit(1);  
   }
 #endif
   return data_[i];
 }
+
+
+template<typename T,typename ST>
+OPTINLINE T& Storage1D<T,ST>::operator[](ST i) {
+#ifdef SAFE_MODE
+  if (i >= size_) {
+
+    INTERNAL_ERROR << "    invalid access on element " << i 
+		   << " for Storage1D " <<  "\"" << this->name() << "\" of type " 
+      //<< Makros::get_typename(typeid(T).name())
+		   << Makros::Typename<T>()
+		   << " with " << size_ << " elements. exiting." << std::endl;
+    exit(1);  
+  }
+#endif
+  return data_[i];
+}
+
 
 template<typename T,typename ST>
 void Storage1D<T,ST>::operator=(const Storage1D<T,ST>& toCopy) {
@@ -713,7 +761,8 @@ OPTINLINE T& FlexibleStorage1D<T,ST>::operator[](ST i) const {
   if (i >= size_) {
     INTERNAL_ERROR << "    invalid access on element " << i 
 		   << " for FlexibleStorage1D " <<  "\"" << this->name() << "\" of type " 
-		   << Makros::get_typename(typeid(T).name())
+		   << Makros::Typename<T>()
+      //<< Makros::get_typename(typeid(T).name())
 		   << " with " << size_ << " (valid) elements. exiting." << std::endl;
     exit(1);  
   }

@@ -107,6 +107,33 @@ namespace Math3D {
 
   template<typename T, typename ST>
   Tensor<T,ST> operator-(const Tensor<T,ST>& v1, const Tensor<T,ST>& v2);
+}
+
+namespace Makros {
+
+  template<typename T>
+  class Typename<Math3D::Tensor<T> > {
+  public:
+
+    std::string name() const {
+
+      return "Math3D::Tensor<" + Makros::Typename<T>().name() + "> ";
+    }
+  };
+
+  template<typename T>
+  class Typename<Math3D::NamedTensor<T> > {
+  public:
+
+    std::string name() const {
+
+      return "Math3D::NamedTensor<" + Makros::Typename<T>().name() + "> ";
+    }
+  };  
+}
+
+
+namespace Math3D {
 
 /********************************** implementation **********************************/
 

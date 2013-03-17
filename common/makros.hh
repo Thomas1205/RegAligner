@@ -56,9 +56,58 @@ namespace Makros {
   void register_typename(const std::string& id, const std::string& fullname);
 
   std::string get_typename(const std::string& id);
+
+  template<typename T>
+  class Typename {
+  public:
+
+    std::string name() const;
+  };
+
+  template<typename T>
+  std::string Typename<T>::name() const {
+
+    return get_typename(typeid(T).name());
+  }
+
+  //specializations:
+
+  template<typename T>
+  class Typename<const T> {
+  public:
+
+    std::string name() const {
+      
+      return "const " +Typename<T>().name();
+    }
+  };
+
+
+  template<typename T>
+  class Typename<T*> {
+  public:
+    
+    std::string name() const {
+      
+      return Typename<T>().name() + "*";
+    }
+  };
+}
+
+template<typename T>
+std::ostream& operator<<(std::ostream& out, const Makros::Typename<T>& t) {
+
+  out << t.name();
+  return out;
+}
+
+template<typename T>
+std::string operator+(std::string s, const Makros::Typename<T>& t) {
+  return s + t.name();
 }
 
 /***********************/
+
 template <typename T>
 T convert(const std::string s) {
   
@@ -67,7 +116,7 @@ T convert(const std::string s) {
   
   is >> result;
   if (is.bad() || is.fail()) {
-    std::cerr << "ERROR: conversion of \"" << s << "\" to " << Makros::get_typename(typeid(T).name()) 
+    std::cerr << "ERROR: conversion of \"" << s << "\" to " << Makros::Typename<T>().name() //Makros::get_typename(typeid(T).name()) 
 	      << " failed. exiting." << std::endl; 
     exit(1);
   }

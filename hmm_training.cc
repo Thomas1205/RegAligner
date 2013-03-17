@@ -1648,7 +1648,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
       const uint curI = cur_target.size();
       
       const Math2D::Matrix<double>& cur_align_model = align_model[curI-1];
-      const Math2D::Matrix<double>& cur_align_grad = align_grad[curI-1];
+      Math2D::Matrix<double>& cur_align_grad = align_grad[curI-1];
       
       /**** Baum-Welch traininig: start with calculating forward and backward ********/
 

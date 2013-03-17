@@ -116,8 +116,36 @@ namespace Math2D {
   template<typename T, typename ST>
   Math1D::Vector<T,ST> operator*(const Matrix<T,ST>& m, const Math1D::Vector<T,ST>& v);
 
+}
 
-  /******************************** implementation ********************************/
+namespace Makros {
+
+  template<typename T>
+  class Typename<Math2D::Matrix<T> > {
+  public:
+
+    std::string name() const {
+
+      return "Math2D::Matrix<" + Typename<T>().name() + "> ";
+    }
+  };
+
+  template<typename T>
+  class Typename<Math2D::NamedMatrix<T> > {
+  public:
+
+    std::string name() const {
+
+      return "Math2D::NamedMatrix<" + Typename<T>().name() + "> ";
+    }
+  };
+  
+}
+
+
+/******************************** implementation ********************************/
+
+namespace Math2D {
 
   /****** implementation of (unnamed) Matrix ******/
 

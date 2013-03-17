@@ -26,7 +26,7 @@ extractvoc.opt.L64 : extract_vocabulary.cc common/lib/commonlib.opt
 	$(LINKER) $(OPTFLAGS) $(INCLUDE) extract_vocabulary.cc common/lib/commonlib.opt $(GZLINK) -o $@
 
 plain2indices.opt.L64 : plain2indices.cc common/lib/commonlib.opt
-	$(LINKER) $(OPTFLAGS) $(INCLUDE) plain2indices.cc common/lib/commonlib.opt common/$(DEBUGDIR)/makros.o $(GZLINK) -o $@
+	$(LINKER) $(OPTFLAGS) $(INCLUDE) plain2indices.cc common/lib/commonlib.opt $(GZLINK) -o $@
 
 
 regaligner_swb.debug.L64 : regaligner_swb.cc common/lib/commonlib.debug $(DEBUGDIR)/training_common.o $(DEBUGDIR)/ibm1_training.o $(DEBUGDIR)/ibm2_training.o $(DEBUGDIR)/ibm3_training.o $(DEBUGDIR)/ibm4_training.o $(DEBUGDIR)/hmm_training.o common/$(DEBUGDIR)/stringprocessing.o common/$(DEBUGDIR)/combinatoric.o  $(DEBUGDIR)/alignment_computation.o $(DEBUGDIR)/singleword_fertility_training.o $(DEBUGDIR)/alignment_error_rate.o $(CBCLINK) $(DEBUGDIR)/alignment_error_rate.o $(DEBUGDIR)/corpusio.o 
@@ -37,8 +37,8 @@ regaligner_swb.opt.L64 : regaligner_swb.cc common/lib/commonlib.opt $(OPTDIR)/tr
 
 clean:
 	cd common; make clean; cd -
-	rm $(DEBUGDIR)/*.o 
-	rm $(OPTDIR)/*.o 
+	rm -f $(DEBUGDIR)/*.o 
+	rm -f $(OPTDIR)/*.o 
 
 
 include common/Makefile.finish

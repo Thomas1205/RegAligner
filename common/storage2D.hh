@@ -42,7 +42,9 @@ public:
   void set_constant(T new_constant);
 
   //access on an element
-  OPTINLINE T& operator()(ST x, ST y) const;
+  OPTINLINE const T& operator()(ST x, ST y) const;
+
+  OPTINLINE T& operator()(ST x, ST y);
 
   void operator=(const Storage2D<T,ST>& toCopy);
 
@@ -100,6 +102,32 @@ bool operator==(const Storage2D<T,ST>& v1, const Storage2D<T,ST>& v2);
 
 template<typename T, typename ST>
 bool operator!=(const Storage2D<T,ST>& v1, const Storage2D<T,ST>& v2);
+
+
+namespace Makros {
+
+  template<typename T>
+  class Typename<Storage2D<T> > {
+  public:
+
+    std::string name() const {
+
+      return "Storage2D<" + Typename<T>() + "> ";
+    }
+  };
+
+  template<typename T>
+  class Typename<NamedStorage2D<T> > {
+  public:
+
+    std::string name() const {
+
+      return "NamedStorage2D<" + Typename<T>() + "> ";
+    }
+  };
+  
+}
+
 
 
 /**************************** implementation **************************************/
@@ -196,18 +224,38 @@ template<typename T, typename ST>
 inline ST Storage2D<T,ST>::size() const { return size_; }
 
 template <typename T, typename ST>
-OPTINLINE T& Storage2D<T,ST>::operator()(ST x, ST y) const {
+OPTINLINE const T& Storage2D<T,ST>::operator()(ST x, ST y) const {
 #ifdef SAFE_MODE
   if (x >= xDim_ || y >= yDim_) {
     INTERNAL_ERROR << "    access on element(" << x << "," << y 
 		   << ") exceeds storage dimensions of (" << xDim_ << "," << yDim_ << ")" << std::endl;
-    std::cerr << "   in 2Dstorage \"" << this->name() << "\" of type " << Makros::get_typename(typeid(T).name()) 
-	      << ". exiting." << std::endl;  
+    std::cerr << "   in 2Dstorage \"" << this->name() << "\" of type " 
+	      << Makros::Typename<T>()
+      //<< Makros::get_typename(typeid(T).name()) 
+	      << ". exiting." << std::endl;
     exit(1);
   }
 #endif
   return data_[y*xDim_+x];
 }
+
+
+template <typename T, typename ST>
+OPTINLINE T& Storage2D<T,ST>::operator()(ST x, ST y) {
+#ifdef SAFE_MODE
+  if (x >= xDim_ || y >= yDim_) {
+    INTERNAL_ERROR << "    access on element(" << x << "," << y 
+		   << ") exceeds storage dimensions of (" << xDim_ << "," << yDim_ << ")" << std::endl;
+    std::cerr << "   in 2Dstorage \"" << this->name() << "\" of type " 
+	      << Makros::Typename<T>()
+      //<< Makros::get_typename(typeid(T).name()) 
+	      << ". exiting." << std::endl;
+    exit(1);
+  }
+#endif
+  return data_[y*xDim_+x];
+}
+
 
 template <typename T, typename ST>
 void Storage2D<T,ST>::operator=(const Storage2D<T,ST>& toCopy) {

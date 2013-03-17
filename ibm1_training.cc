@@ -190,7 +190,7 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count,
     new_slack_entry = slack_entry;
     
     //reproject
-    projection_on_simplex_with_slack(new_dict.direct_access(), new_slack_entry, new_dict.size());
+    fast_projection_on_simplex_with_slack(new_dict.direct_access(), new_slack_entry, new_dict.size());
 
     
     double hyp_energy = 1e300; 

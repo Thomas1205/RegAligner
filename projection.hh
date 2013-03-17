@@ -3,10 +3,12 @@
 #ifndef PROJECTION_HH
 #define PROJECTION_HH
 
+#include "storage1D.hh"
+
 template <typename T>
 inline void projection_on_simplex(T* data, const uint nData) {
 
-  /**** reproject on the simplices [Michelot 1986]****/
+  /**** projection on a simplex [Michelot 1986]****/
 
   assert(nData > 0);
   
@@ -14,8 +16,8 @@ inline void projection_on_simplex(T* data, const uint nData) {
 
   //TEST
   uint iter = 0;
-  uint start = 0;
-  uint end = nData-1;
+  int start = 0;
+  int end = nData-1;
   //END_TEST
 
   while (true) {
@@ -29,6 +31,10 @@ inline void projection_on_simplex(T* data, const uint nData) {
         start++;
       while(data[end] == 0.0)
         end--;
+
+      assert(start <= end);
+      assert(end >= 0);
+      assert(start < int(nData));
     }
     //END_TEST
 
@@ -36,7 +42,7 @@ inline void projection_on_simplex(T* data, const uint nData) {
     T mean_dev = - 1.0;
 
     //for (uint k=0; k < nData; k++)
-    for (uint k=start; k <= end; k++) {
+    for (int k=start; k <= end; k++) {
       mean_dev += data[k];
       assert(fabs(data[k]) < 1e75);
     }
@@ -50,7 +56,7 @@ inline void projection_on_simplex(T* data, const uint nData) {
     const bool first_iter = (nNonZeros == nData);
 
     //for (uint k=0; k < nData; k++) {
-    for (uint k=start; k <= end; k++) {
+    for (int k=start; k <= end; k++) {
 
 
       T temp = data[k];
@@ -72,14 +78,15 @@ inline void projection_on_simplex(T* data, const uint nData) {
   }
 }
 
-inline void projection_on_simplex_with_slack(double* data, double& slack, uint nData) {
+template<typename T>
+inline void projection_on_simplex_with_slack(T* data, T& slack, uint nData) {
 
   uint nNonZeros = nData + 1;
 
   while (nNonZeros > 0) {
       
     //a) project onto the plane
-    double mean_dev = - 1.0 + slack;
+    T mean_dev = - 1.0 + slack;
     for (uint k=0; k < nData; k++) {
       mean_dev += data[k];
       assert(fabs(data[k]) < 1e75);
@@ -125,6 +132,98 @@ inline void projection_on_simplex_with_slack(double* data, double& slack, uint n
       }
     }
   }
+}
+
+
+template <typename T>
+inline void fast_projection_on_simplex(T* data, const uint nData) {
+
+  //std::cerr << "fast proj." << std::endl;
+
+  //as in [Duchi et al. ICML 2008] and [Shalev-Schwartz and Singer JMLR '06]
+  assert(nData >= 1);
+
+  Storage1D<std::pair<T,uint> > sorted(nData);
+  for (uint k=0; k < nData; k++)
+    sorted[k] = std::make_pair(data[k],k);
+
+  std::sort(sorted.direct_access(),sorted.direct_access()+nData); //highest values will be at the back now
+
+  T sum = sorted[nData-1].first - 1.0; //we already subtract 1.0 here
+
+  uint nPos = 1;
+  int k_break = nData-2;
+  while (k_break >= 0) {
+
+    double cur = sorted[k_break].first;
+    double hyp_sum = sum+cur;
+
+    if ((cur - hyp_sum / nPos) <= 0.0)
+      break;
+    
+    sum = hyp_sum;
+    k_break--;
+    nPos++;
+  }
+
+  double sub = sum / nPos;
+
+  for (int k=0; k <= k_break; k++)
+    data[sorted[k].second] = 0.0;
+  for (int k=k_break+1; k < int(nData); k++)
+    data[sorted[k].second] -= sub;
+
+}
+
+template<typename T>
+inline void fast_projection_on_simplex_with_slack(T* data, T& slack, uint nData) {
+
+  //std::cerr << "fast proj." << std::endl;
+
+  //as in [Duchi et al. ICML 2008] and [Shalev-Schwartz and Singer JMLR '06]
+
+  Storage1D<std::pair<T,uint> > sorted(nData+1);
+  for (uint k=0; k < nData; k++)
+    sorted[k] = std::make_pair(data[k],k);
+  sorted[nData] = std::make_pair(slack,nData);
+
+
+  std::sort(sorted.direct_access(),sorted.direct_access()+nData+1); //highest values will be at the back now
+
+  T sum = sorted[nData].first - 1.0; //we already subtract 1.0 here
+
+  uint nPos = 1;
+  int k_break = nData-1;
+  while (k_break >= 0) {
+
+    double cur = sorted[k_break].first;
+    double hyp_sum = sum+cur;
+
+    if ((cur - hyp_sum / nPos) <= 0.0)
+      break;
+    
+    sum = hyp_sum;
+    k_break--;
+    nPos++;
+  }
+
+  double sub = sum / nPos;
+
+  for (int k=0; k <= k_break; k++) {
+    const uint idx = sorted[k].second;
+    if (idx < nData)
+      data[idx] = 0.0;
+    else
+      slack = 0.0;
+  }
+  for (int k=k_break+1; k < int(nData+1); k++) {
+    const uint idx = sorted[k].second;
+    if (idx < nData)
+      data[idx] -= sub;
+    else
+      slack -= sub;
+  }
+
 }
 
 #endif

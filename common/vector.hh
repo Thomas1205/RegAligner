@@ -107,8 +107,36 @@ namespace Math1D {
   //streaming
   template<typename T,typename ST>
   std::ostream& operator<<(std::ostream& s, const Vector<T,ST>& v);
+}
+
+namespace Makros {
+  
+  template<typename T>
+  class Typename<Math1D::Vector<T> > {
+  public:
+
+    std::string name() const {
+
+      return "Math1D::Vector<" + Makros::Typename<T>().name() + "> ";
+    }
+  };
+
+  template<typename T>
+  class Typename<Math1D::NamedVector<T> > {
+  public:
+
+    std::string name() const {
+
+      return "Math1D::NamedVector<" + Makros::Typename<T>().name() + "> ";
+    }
+  };
+
+}
+
 
   /******************************************** implementation *****************************************************/
+
+namespace Math1D {
 
   template<typename T,typename ST>
   /*static*/ const std::string Vector<T,ST>::vector_name_ = "unnamed vector";
