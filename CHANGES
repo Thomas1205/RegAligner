@@ -5,6 +5,7 @@ RegAligner Change History
   speed-ups in practice)
 - made some alternative word class modes available on command line
 - removed debugging code for IBM-1 in gradient descent mode
+- some minor fixes and refinements
 
 *** release version 1.05 (released March 6 2013) ***
 - two bugfixes for IBM-4

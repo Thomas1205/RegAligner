@@ -257,6 +257,9 @@ void train_ibm2(const Storage1D<Storage1D<uint> >& source,
 
         uint s = it->first-1;
 
+	if (s >= nSentences)
+	  break;
+
         nContributors++;
 
         const uint curJ = source[s].size();
@@ -515,6 +518,9 @@ void train_reduced_ibm2(const Storage1D<Storage1D<uint> >& source,
           it != possible_ref_alignments.end(); it ++) {
 
         uint s = it->first-1;
+
+	if (s >= nSentences)
+	  break;
 
         nContributors++;
 
@@ -950,6 +956,9 @@ void ibm2_viterbi_training(const Storage1D<Storage1D<uint> >& source,
           it != possible_ref_alignments.end(); it ++) {
 
         uint s = it->first-1;
+
+	if (s >= nSentences)
+	  break;
 
         nContributors++;
 

@@ -1591,14 +1591,11 @@ long double IBM4Trainer::distortion_prob(const Storage1D<uint>& source, const St
   return prob;
 }
 
-void IBM4Trainer::print_alignment_prob_factors(const Storage1D<uint>& source, const Storage1D<uint>& target, 
+void IBM4Trainer::print_alignment_prob_factors(const Storage1D<uint>& cur_source, const Storage1D<uint>& cur_target, 
 					       const SingleLookupTable& cur_lookup, const Math1D::Vector<AlignBaseType>& alignment) {
 
 
   long double prob = 1.0;
-
-  const Storage1D<uint>& cur_source = source;
-  const Storage1D<uint>& cur_target = target;
 
   const uint curI = cur_target.size();
   const uint curJ = cur_source.size();
@@ -1671,10 +1668,10 @@ void IBM4Trainer::print_alignment_prob_factors(const Storage1D<uint>& source, co
 
         if (cept_start_mode_ != IBM4UNIFORM) {
 
-          const uint sclass = source_class_[source[first_j]];
+          const uint sclass = source_class_[cur_source[first_j]];
 
 	  if (inter_dist_mode_ == IBM4InterDistModePrevious)
-	    tclass = target_class_[target[prev_cept-1]];
+	    tclass = target_class_[cur_target[prev_cept-1]];
 
           prob *= inter_distortion_prob(first_j,prev_cept_center,sclass,tclass,curJ);
 
@@ -1719,8 +1716,8 @@ void IBM4Trainer::print_alignment_prob_factors(const Storage1D<uint>& source, co
 
         const int cur_j = *ait;
 
-	const uint cur_class = (intra_dist_mode_ == IBM4IntraDistModeSource) ? source_class_[source[cur_j]]
-	  : target_class_[target[i-1]];
+	const uint cur_class = (intra_dist_mode_ == IBM4IntraDistModeSource) ? source_class_[cur_source[cur_j]]
+	  : target_class_[cur_target[i-1]];
 
         prob *= dict_[ti][cur_lookup(cur_j,i-1)] * cur_intra_distortion_prob(cur_class,cur_j,prev_j);
 	
@@ -4301,8 +4298,10 @@ void IBM4Trainer::train_unconstrained(uint nIter, IBM3Trainer* ibm3) {
           const double inv_sum = 1.0 / sum;
           assert(!isnan(inv_sum));
 	  
-          for (uint f=0; f < fertility_prob_[i].size(); f++)
+          for (uint f=0; f < fertility_prob_[i].size(); f++) {
+	    const double min_prob = (f <= fertility_limit_) ? 1e-8 : 0.0;
             fertility_prob_[i][f] = inv_sum * ffert_count[i][f];
+	  }
         }
         else {
           //std::cerr << "WARNING: target word #" << i << " does not occur" << std::endl;

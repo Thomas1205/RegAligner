@@ -130,6 +130,9 @@ double FertilityModelTrainer::AER() {
     
     uint s = it->first-1;
 
+    if (s >= source_sentence_.size())
+      break;
+
     nContributors++;
     //add alignment error rate
     sum_aer += ::AER(best_known_alignment_[s],sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]);
@@ -148,6 +151,9 @@ double FertilityModelTrainer::AER(const Storage1D<Math1D::Vector<AlignBaseType> 
       it != possible_ref_alignments_.end(); it ++) {
     
     uint s = it->first-1;
+
+    if (s >= source_sentence_.size())
+      break;
   
     nContributors++;
     //add alignment error rate
@@ -168,6 +174,8 @@ double FertilityModelTrainer::f_measure(double alpha) {
     
     uint s = it->first-1;
 
+    if (s >= source_sentence_.size())
+      break;
       
     nContributors++;
     //add f-measure
@@ -197,6 +205,8 @@ double FertilityModelTrainer::f_measure(const Storage1D<Math1D::Vector<AlignBase
     
     uint s = it->first-1;
 
+    if (s >= source_sentence_.size())
+      break;
       
     nContributors++;
     //add f-measure
@@ -218,6 +228,9 @@ double FertilityModelTrainer::DAE_S() {
     
     uint s = it->first-1;
 
+    if (s >= source_sentence_.size())
+      break;
+
     nContributors++;
     //add DAE/S
     sum_errors += ::nDefiniteAlignmentErrors(best_known_alignment_[s],sure_ref_alignments_[s+1],possible_ref_alignments_[s+1]);
@@ -236,6 +249,9 @@ double FertilityModelTrainer::DAE_S(const Storage1D<Math1D::Vector<AlignBaseType
       it != possible_ref_alignments_.end(); it ++) {
     
     uint s = it->first-1;
+
+    if (s >= source_sentence_.size())
+      break;
 
     nContributors++;
     //add DAE/S

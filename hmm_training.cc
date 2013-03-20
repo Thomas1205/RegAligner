@@ -1407,6 +1407,9 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
         uint s = it->first-1;
 
+	if (s >= nSentences)
+	  break;
+
         nContributors++;
         //compute viterbi alignment
         
@@ -2247,6 +2250,9 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
           it != options.possible_ref_alignments_.end(); it ++) {
 
         uint s = it->first-1;
+
+	if (s >= nSentences)
+	  break;
 
         nContributors++;
         //compute viterbi alignment
@@ -3524,6 +3530,9 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
           it != options.possible_ref_alignments_.end(); it ++) {
 
         uint s = it->first-1;
+
+	if (s >= nSentences)
+	  break;
 
         nContributors++;
         //compute viterbi alignment

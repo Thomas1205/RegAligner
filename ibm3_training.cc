@@ -353,7 +353,7 @@ void IBM3Trainer::init_from_hmm(const FullHMMAlignmentModel& align_model,
       assert(!isnan(sum));
       
       if (sum > 1e-305) {
-        double inv_sum = 1.0 / sum;
+        const double inv_sum = 1.0 / sum;
         
         assert(!isnan(inv_sum));
         
@@ -591,11 +591,8 @@ long double IBM3Trainer::alignment_prob(const Storage1D<uint>& source, const Sto
 
   long double prob = 1.0;
 
-  const Storage1D<uint>& cur_source = source;
-  const Storage1D<uint>& cur_target = target;
-
-  const uint curI = cur_target.size();
-  const uint curJ = cur_source.size();
+  const uint curI = target.size();
+  const uint curJ = source.size();
 
   const Math2D::Matrix<double>& cur_distort_prob = distortion_prob_[curJ-1];
 
@@ -612,18 +609,18 @@ long double IBM3Trainer::alignment_prob(const Storage1D<uint>& source, const Sto
     return 0.0;
 
   for (uint i=1; i <= curI; i++) {
-    uint t_idx = cur_target[i-1];
+    uint t_idx = target[i-1];
     prob *= ldfac(fertility[i]) * fertility_prob_[t_idx][fertility[i]];
   }
   for (uint j=0; j < curJ; j++) {
     
-    uint s_idx = cur_source[j];
+    uint s_idx = source[j];
     uint aj = alignment[j];
     
     if (aj == 0)
       prob *= dict_[0][s_idx-1];
     else {
-      uint t_idx = cur_target[aj-1];
+      uint t_idx = target[aj-1];
       prob *= dict_[t_idx][cur_lookup(j,aj-1)] * cur_distort_prob(j,aj-1);
     }
   }
@@ -1145,8 +1142,8 @@ void IBM3Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
 					     const SingleLookupTable& lookup,
 					     Math1D::Vector<AlignBaseType>& alignment) {
 
-   const uint J = source.size();
- const uint I = target.size();
+  const uint J = source.size();
+  const uint I = target.size();
 
   if (alignment.size() != J)
     alignment.resize(J,1);
@@ -1851,8 +1848,10 @@ void IBM3Trainer::train_unconstrained(uint nIter) {
           const double inv_sum = 1.0 / sum;
           assert(!isnan(inv_sum));
 	  
-          for (uint f=0; f < fertility_prob_[i].size(); f++)
-            fertility_prob_[i][f] = inv_sum * ffert_count[i][f];
+          for (uint f=0; f < fertility_prob_[i].size(); f++) {
+	    const double min_prob = (f <= fertility_limit_) ? 1e-8 : 0.0;
+            fertility_prob_[i][f] = std::max(min_prob,inv_sum * ffert_count[i][f]);
+	  }
         }
         else {
           std::cerr << "WARNING: target word #" << i << " does not occur" << std::endl;

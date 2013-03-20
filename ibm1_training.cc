@@ -467,6 +467,9 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
 
         uint s = it->first-1;
 
+	if (s >= nSentences)
+	  break;
+
         nContributors++;
 
         const SingleLookupTable& cur_lookup = get_wordlookup(source[s],target[s],wcooc,nSourceWords,slookup[s],aux_lookup);
@@ -777,6 +780,9 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
           it != options.possible_ref_alignments_.end(); it ++) {
 
         uint s = it->first-1;
+
+	if (s >= nSentences)
+	  break;
 
         nContributors++;
 
@@ -1155,6 +1161,9 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
           it != options.possible_ref_alignments_.end(); it ++) {
 
         uint s = it->first-1;
+
+	if (s >= nSentences)
+	  break;
 
         nContributors++;
 
