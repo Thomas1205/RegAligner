@@ -64,16 +64,6 @@ IBM3Trainer::IBM3Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
   viterbi_ilp_ = false;
 #endif
 
-  uint maxI = 0;
-
-  for (size_t s=0; s < source_sentence_.size(); s++) {
-
-    const uint curI = target_sentence_[s].size();
-
-    if (maxI < curI)
-      maxI = curI;
-  }
-  
   distortion_prob_.resize(maxJ_);
   distortion_param_.resize(maxJ_,maxI_,1.0 / maxJ_);
 
@@ -1409,6 +1399,7 @@ void IBM3Trainer::train_unconstrained(uint nIter) {
     }
 
     max_perplexity = 0.0;
+    approx_sum_perplexity = 0.0;
 
     std::clock_t tStartLoop = std::clock();
 
