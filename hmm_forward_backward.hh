@@ -40,6 +40,16 @@ void calculate_hmm_forward_with_tricks(const Storage1D<uint>& source_sentence,
 				       Math2D::Matrix<T>& forward);
 
 
+void calculate_scaled_hmm_forward(const Storage1D<uint>& source_sentence,
+				  const Storage1D<uint>& target_sentence,
+				  const SingleLookupTable& slookup,
+				  const SingleWordDictionary& dict,
+				  const Math2D::Matrix<double>& align_model,
+				  const Math1D::Vector<double>& start_prob,
+				  Math2D::Matrix<double>& forward, Math1D::Vector<long double>& scale);
+
+
+
 template<typename T>
 void calculate_sehmm_forward(const Storage1D<uint>& source_sentence,
                              const Storage1D<uint>& target_sentence,
@@ -49,6 +59,35 @@ void calculate_sehmm_forward(const Storage1D<uint>& source_sentence,
                              const Math1D::Vector<double>& start_prob,
                              Math2D::Matrix<T>& forward);
 
+
+/*** forward sum routines ***/
+
+double calculate_hmm_forward_log_sum(const Storage1D<uint>& source_sentence,
+				     const Storage1D<uint>& target_sentence,
+				     const SingleLookupTable& slookup,
+				     const SingleWordDictionary& dict,
+				     const Math2D::Matrix<double>& align_model,
+				     const Math1D::Vector<double>& start_prob,
+				     const HmmAlignProbType align_type);
+
+
+double calculate_hmm_forward_log_sum(const Storage1D<uint>& source_sentence,
+				     const Storage1D<uint>& target_sentence,
+				     const SingleLookupTable& slookup,
+				     const SingleWordDictionary& dict,
+				     const Math2D::Matrix<double>& align_model,
+				     const Math1D::Vector<double>& start_prob);
+
+
+double calculate_hmm_forward_log_sum_with_tricks(const Storage1D<uint>& source_sentence,
+						 const Storage1D<uint>& target_sentence,
+						 const SingleLookupTable& slookup,
+						 const SingleWordDictionary& dict,
+						 const Math2D::Matrix<double>& align_model,
+						 const Math1D::Vector<double>& start_prob);
+
+
+/*** backward routines ***/
 
 template<typename T>
 void calculate_hmm_backward(const Storage1D<uint>& source_sentence,
@@ -73,6 +112,14 @@ void calculate_hmm_backward(const Storage1D<uint>& source_sentence,
                             Math2D::Matrix<T>& backward,
                             bool include_start_alignment = true);
 
+
+void calculate_scaled_hmm_backward(const Storage1D<uint>& source_sentence,
+				   const Storage1D<uint>& target_sentence,
+				   const SingleLookupTable& slookup,
+				   const SingleWordDictionary& dict,
+				   const Math2D::Matrix<double>& align_model,
+				   const Math1D::Vector<double>& start_prob,
+				   Math2D::Matrix<double>& backward, Math1D::Vector<long double>& scale);
 
 template<typename T>
 void calculate_sehmm_backward(const Storage1D<uint>& source_sentence,
@@ -157,11 +204,11 @@ void calculate_hmm_forward(const Storage1D<uint>& source,
       forward(i,j) = sum * dict[target[i]][slookup(j,i)];
     }
     
-    T cur_emptyword_prob = dict[0][s_idx-1];
+    const T cur_emptyword_prob = dict[0][s_idx-1];
     
     for (uint i=I; i < 2*I; i++) {
       
-      T sum = align_model(I,i-I) * ( forward(i,j_prev) + forward(i-I,j_prev) );
+      const T sum = align_model(I,i-I) * ( forward(i,j_prev) + forward(i-I,j_prev) );
 
       forward(i,j) = sum * cur_emptyword_prob;
     }
@@ -336,11 +383,11 @@ void calculate_hmm_forward_with_tricks(const Storage1D<uint>& source,
 #endif
 
     
-    T cur_emptyword_prob = dict[0][s_idx-1];
+    const T cur_emptyword_prob = dict[0][s_idx-1];
     
     for (int i=I; i < 2*I; i++) {
       
-      T sum = align_model(I,i-I) * ( forward(i,j_prev) + forward(i-I,j_prev) );
+      const T sum = align_model(I,i-I) * ( forward(i,j_prev) + forward(i-I,j_prev) );
 
       forward(i,j) = sum * cur_emptyword_prob;
     }

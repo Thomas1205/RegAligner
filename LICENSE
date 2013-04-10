@@ -41,6 +41,9 @@ allowed, but not required, to make these changes publicly available.
 (relevant when using gradient descent or EM with regularity terms, 
 or when emphasis on the corrected HMM training is appropriate)
 
+- [T. Schoenemann, Training Nondeficient Variants of IBM-3 and IBM-4 for Word
+  Alignment, ACL 2013] (when you use nondeficient training of IBM-3 and IBM-4)
+
 - if you use L_0 in combination with EM:
 [A. Vaswani and L. Huang and D. Chiang, Smaller Alignment Models for Better
 Translations: Unsupervised Word Alignment with the L0-norm. ACL 2012.]

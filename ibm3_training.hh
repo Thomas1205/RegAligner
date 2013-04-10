@@ -1,14 +1,13 @@
-/*** ported here from singleword_fertility_training ****/
-/** author: Thomas Schoenemann. This file was generated while Thomas Schoenemann was with the University of Düsseldorf, Germany, 2012 ***/
+/** author: Thomas Schoenemann. This file was generated from singleword_fertility_training while 
+    Thomas Schoenemann was with the University of Düsseldorf, Germany, 2012. It was subsequently 
+    modified and extended, both at the University of Düsseldorf and in his free time. ***/
 
 #ifndef IBM3_TRAINING_HH
 #define IBM3_TRAINING_HH
 
 
 #include "singleword_fertility_training.hh"
-#include "hmm_training.hh"
 
-class IBM4Trainer;
 
 class IBM3Trainer : public FertilityModelTrainer {
 public:
@@ -22,28 +21,32 @@ public:
               const CooccuringWordsType& wcooc,
               uint nSourceWords, uint nTargetWords,
               const floatSingleWordDictionary& prior_weight,
+	      const Math1D::Vector<double>& log_table,
               bool parametric_distortion = false,
               bool och_ney_empty_word = true, 
+              bool nondeficient = false, 
               bool viterbi_ilp = false, double l0_fertpen = 0.0,
               bool smoothed_l0 = false, double l0_beta = 1.0);
-  
-  void init_from_hmm(const FullHMMAlignmentModel& align_model,
-                     const InitialAlignmentProbability& initial_prob, const HmmOptions& hmm_options,
+
+
+  virtual std::string model_name() const;
+
+  void init_from_hmm(HmmWrapper& wrapper,
+		     bool count_collection = false,
                      bool viterbi = false);
 
   //training without constraints on uncovered positions.
   //This is based on the EM-algorithm, where the E-step uses heuristics
-  void train_unconstrained(uint nIter);
+  void train_unconstrained(uint nIter, HmmWrapper* wrapper = 0);
 
   //unconstrained Viterbi training
-  void train_viterbi(uint nIter, bool use_ilp = false);
+  void train_viterbi(uint nIter, HmmWrapper* wrapper = 0, bool use_ilp = false);
 
-  //training for IBM reordering constraints. This is done exactly
+  //Viterbi-training with IBM reordering constraints. 
   void train_with_ibm_constraints(uint nIter, uint maxFertility, uint nMaxSkips = 4, bool verbose = false);
 
+  //Viterbi-training with ITG reordering constraints. 
   void train_with_itg_constraints(uint nIter, bool extended_reordering = false, bool verbose = false);
-
-  void update_alignments_unconstrained();
 
   long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
                                          const SingleLookupTable& lookup,
@@ -57,13 +60,16 @@ public:
 					  std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
 					  double threshold = 0.25);
 
-  void release_memory();
-
   void write_postdec_alignments(const std::string filename, double thresh);
+
+  virtual long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
+						       const SingleLookupTable& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
+						       Math2D::Matrix<long double>& expansion_prob,
+						       Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment);
+
   
 protected:
-  
-  friend class IBM4Trainer;
+
 
   void par2nonpar_distortion(ReducedIBM3DistortionModel& prob);
 
@@ -76,17 +82,46 @@ protected:
   void par_distortion_m_step(const ReducedIBM3DistortionModel& fdistort_count, uint i);
 
 
+  double nondeficient_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
+                                    const Math2D::Matrix<double>& param, uint i);
+
+  double nondeficient_m_step_energy(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos, 
+                                    const std::vector<double>& count,
+                                    const Math2D::Matrix<double>& param, uint i);
+
+  double nondeficient_m_step_energy(const std::vector<double>& count, const Storage1D<uchar>& filled_pos,
+                                    const Math2D::Matrix<double>& param1, const Math2D::Matrix<double>& param2,
+                                    const Math1D::Vector<double>& sum1, const Math1D::Vector<double>& sum2, 
+                                    uint i, double lambda);
+  
+  double nondeficient_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
+                                    const Storage1D<Math2D::Matrix<double> >& param, uint i, uint J);
+
+  double nondeficient_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count, uint i, double start_energy);
+
+  double nondeficient_m_step_with_interpolation(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos, 
+                                                const std::vector<double>& count,
+                                                uint i, double start_energy);
+
+  double nondeficient_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count, uint i, uint J);
+
   long double alignment_prob(uint s, const Math1D::Vector<AlignBaseType>& alignment) const;
 
   long double alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target,
                              const SingleLookupTable& lookup, const Math1D::Vector<AlignBaseType>& alignment) const;
 
-  //improves the currently best known alignment using hill climbing and
-  // returns the probability of the resulting alignment
-  long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-                                               const SingleLookupTable& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
-                                               Math2D::Matrix<long double>& expansion_prob,
-                                               Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment);
+  long double nondeficient_alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target,
+                                          const SingleLookupTable& lookup, const Math1D::Vector<AlignBaseType>& alignment) const;
+
+  //this EXCLUDES the empty word
+  long double nondeficient_distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target,
+                                           const Storage1D<std::vector<AlignBaseType> >& aligned_source_words) const;
+
+  long double nondeficient_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
+                                        const SingleLookupTable& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
+                                        Math2D::Matrix<long double>& expansion_prob,
+                                        Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment);
+
 
   long double compute_itg_viterbi_alignment_noemptyword(uint s, bool extended_reordering = false);
 
@@ -100,21 +135,23 @@ protected:
 
   long double compute_ibmconstrained_viterbi_alignment_noemptyword(uint s, uint maxFertility, uint nMaxSkips);
 
+
   void prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
 				  const SingleLookupTable& lookup,
 				  Math1D::Vector<AlignBaseType>& alignment);
 
+  void add_nondef_count(const Storage1D<std::vector<uchar> >& aligned_source_words, uint i, uint J,
+                        std::map<Math1D::Vector<uchar,uchar>,double>& count_map, double count);
 
   ReducedIBM3DistortionModel distortion_prob_;
   Math2D::Matrix<double> distortion_param_;
 
-  bool och_ney_empty_word_;
-  const floatSingleWordDictionary& prior_weight_;
-  double l0_fertpen_;
   bool parametric_distortion_;
   bool viterbi_ilp_;
-  bool smoothed_l0_;
-  double l0_beta_;
+
+
+  bool nondeficient_;
+  mutable Storage1D<std::map<Storage1D<bool>,double> > denom_cache_;
 };
 
 

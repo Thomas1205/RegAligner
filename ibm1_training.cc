@@ -23,17 +23,6 @@
 #include "CglGomory/CglGomory.hpp"
 #endif
 
-double prob_penalty(double x, double beta) {
-
-  return 1.0 - std::exp(-x/beta);
-
-}
-
-double prob_pen_prime(double x, double beta) {
-  
-  return - prob_penalty(x,beta) / beta;
-}
-
 
 IBM1Options::IBM1Options(uint nSourceWords,uint nTargetWords,
                          std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
@@ -64,6 +53,7 @@ double ibm1_perplexity( const Storage1D<Storage1D<uint> >& source,
     const Storage1D<uint>& cur_target = target[s];
 
     const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+
 
     const uint nCurSourceWords = cur_source.size();
     const uint nCurTargetWords = cur_target.size();
@@ -114,164 +104,6 @@ double ibm1_energy( const Storage1D<Storage1D<uint> >& source,
   return energy;
 }
 
-double single_dict_m_step_energy(const Math1D::Vector<double>& fdict_count, 
-                                 const Math1D::Vector<float>& prior_weight,
-                                 const Math1D::Vector<double>& dict, bool smoothed_l0, double l0_beta) {
-
-
-  double energy = 0.0;
-
-  for (uint k=0; k < dict.size(); k++) {
-    if (!smoothed_l0)
-      energy += prior_weight[k] * dict[k];
-    else {
-      energy += prior_weight[k] * prob_penalty(dict[k],l0_beta);
-    }
-
-    if (dict[k] > 1e-300)
-      energy -= fdict_count[k] * std::log(dict[k]);
-    else
-      energy += fdict_count[k] * 15000.0;
-  }
-
-  return energy;
-}
-
-void single_dict_m_step(const Math1D::Vector<double>& fdict_count, 
-                        const Math1D::Vector<float>& prior_weight,
-                        Math1D::Vector<double>& dict, double alpha, uint nIter,
-                        bool smoothed_l0, double l0_beta) {
-
-  if (prior_weight.max_abs() == 0.0) {
-    
-    const double sum = fdict_count.sum();
-
-    if (sum > 1e-305) {
-      for (uint k=0; k < prior_weight.size(); k++) {
-        dict[k] = fdict_count[k] / sum;
-      }
-    }
-
-    return;
-  }
-
-
-  double energy = single_dict_m_step_energy(fdict_count,prior_weight,dict, smoothed_l0, l0_beta);
-
-  Math1D::Vector<double> dict_grad = dict;
-  Math1D::Vector<double> hyp_dict = dict;
-  Math1D::Vector<double> new_dict = dict;
-
-  double slack_entry = 1.0 - dict.sum();
-  double new_slack_entry = slack_entry;
-
-  double line_reduction_factor = 0.5;
-
-
-  for (uint iter=1; iter <= nIter; iter++) {
-
-    //set gradient to 0 and recalculate
-    for (uint k=0; k < prior_weight.size(); k++) {
-      double cur_dict_entry = std::max(1e-15, dict[k]);
-
-      if (!smoothed_l0)
-        dict_grad[k] = prior_weight[k] - fdict_count[k] / cur_dict_entry;
-      else
-        dict_grad[k] = prior_weight[k] * prob_pen_prime(cur_dict_entry,l0_beta) 
-          - fdict_count[k] / cur_dict_entry;
-    }
-
-    //go in neg. gradient direction
-    for (uint k=0; k < prior_weight.size(); k++) {
-	
-      new_dict[k] = dict[k] - alpha * dict_grad[k];
-    }
-    
-    new_slack_entry = slack_entry;
-    
-    //reproject
-    fast_projection_on_simplex_with_slack(new_dict.direct_access(), new_slack_entry, new_dict.size());
-
-    
-    double hyp_energy = 1e300; 
-    
-    double lambda  = 1.0;
-    double best_lambda = lambda;
-
-    bool decreasing = true;
-
-    uint nTries = 0;
-
-    while (decreasing || hyp_energy > energy) {
-
-      nTries++;
-
-      lambda *= line_reduction_factor;
-      double neg_lambda = 1.0 - lambda;
-      
-      for (uint k=0; k < prior_weight.size(); k++) {      
-        hyp_dict[k] = lambda * new_dict[k] + neg_lambda * dict[k];
-      }
-      
-      double new_energy = single_dict_m_step_energy(fdict_count,prior_weight,hyp_dict,smoothed_l0,l0_beta);
-
-      if (new_energy < hyp_energy) {
-        hyp_energy = new_energy;
-        decreasing = true;
-
-        best_lambda = lambda;
-      }
-      else
-        decreasing = false;      
-
-      if (hyp_energy <= 0.95*energy)
-        break;
-      if (nTries >= 4 && hyp_energy <= 0.99*energy)
-        break;
-
-      if (nTries >= 18)
-        break;
-    }
-
-    if (hyp_energy > energy) {
-      break;
-    }
-
-    if (nTries > 12)
-      line_reduction_factor *= 0.5;
-    else if (nTries > 4)
-      line_reduction_factor *= 0.8;
-    
- 
-    double best_energy = hyp_energy;
-    double neg_best_lambda = 1.0 - best_lambda;
-    
-    energy = best_energy;
-
-    for (uint k=0; k < prior_weight.size(); k++) {      
-      dict[k] = best_lambda * new_dict[k] + neg_best_lambda * dict[k];
-    }
-
-    slack_entry = best_lambda * new_slack_entry + neg_best_lambda * slack_entry;
-
-    if (best_lambda < 1e-8)
-      break;
-  }  
-}
-
-
-//NOTE: the function to be minimized can be decomposed over the target words
-void dict_m_step(const SingleWordDictionary& fdict_count, 
-                 const floatSingleWordDictionary& prior_weight,
-                 SingleWordDictionary& dict, double alpha, uint nIter,
-                 bool smoothed_l0, double l0_beta) {
-
-  for (uint k=0; k < dict.size(); k++)
-    single_dict_m_step(fdict_count[k],prior_weight[k],dict[k],alpha,nIter, smoothed_l0, l0_beta);    
-}
-
-
-
 void train_ibm1(const Storage1D<Storage1D<uint> >& source, 
                 const LookupTable& slookup,
                 const Storage1D<Storage1D<uint> >& target, 
@@ -309,7 +141,6 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
 
     dict[i].resize_dirty(size);
     dict[i].set_constant(1.0 / ((double) size));
-    //dict[i].set_constant(0.0);
   }
   dict[0].set_constant(1.0 / dict[0].size());
 
@@ -390,64 +221,14 @@ void train_ibm1(const Storage1D<Storage1D<uint> >& source,
           fcount[t_idx][k] += coeff * dict[t_idx][k];
         }
       }
-    }
+    } //loop over sentences finished
 
     std::cerr << "updating dict from counts" << std::endl;
 
     /*** update dict from counts ***/
-    if (dict_weight_sum > 0.0) {
 
-      double alpha = 100.0;
-      if (iter > 2)
-        alpha = 1.0;
-      if (iter > 5)
-        alpha = 0.1;
-     
-      for (uint i=0; i < options.nTargetWords_; i++) {
-          
-        double cur_energy = single_dict_m_step_energy(fcount[i], prior_weight[i], dict[i], smoothed_l0, l0_beta);
-
-        Math1D::Vector<double> hyp_dict = fcount[i];
-
-        const double sum = fcount[i].sum();
-        const double prev_sum = dict[i].sum();
-        
-        if (sum > 1e-305) {
-          const double inv_sum = 1.0 / sum;
-          assert(!isnan(inv_sum));
-          
-          for (uint k=0; k < fcount[i].size(); k++) {
-            hyp_dict[k] *= prev_sum * inv_sum;
-          }
-
-          double hyp_energy = single_dict_m_step_energy(fcount[i], prior_weight[i], hyp_dict, smoothed_l0, l0_beta);
-
-          if (hyp_energy < cur_energy)
-            dict[i] = hyp_dict;
-        }
-        
-        single_dict_m_step(fcount[i], prior_weight[i], dict[i], alpha, options.dict_m_step_iter_, smoothed_l0, l0_beta);
-      }
-    }
-    else {
-
-      for (uint i=0; i < options.nTargetWords_; i++) {
-	
-        const double sum = fcount[i].sum();
-        if (sum > 1e-307) {
-          const double inv_sum = 1.0 / sum;
-          assert(!isnan(inv_sum));
-	  
-          for (uint k=0; k < fcount[i].size(); k++) {
-            dict[i][k] = fcount[i][k] * inv_sum;
-          }
-        }
-        else {
-          // std::cerr << "WARNING : did not update dictionary entries for target word #" << i
-          //           << " because sum is " << sum << "( dict-size = " << dict[i].size() << " )" << std::endl;
-        }
-      }
-    }
+    update_dict_from_counts(fcount, prior_weight, dict_weight_sum, iter, 
+			    smoothed_l0, l0_beta, options.dict_m_step_iter_, dict);
 
     if (options.print_energy_) {
       std::cerr << "IBM-1 energy after iteration #" << iter << ": " 
@@ -587,6 +368,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
   double best_lower_bound = -1e300;
 
   SingleWordDictionary dict_grad(options.nTargetWords_,MAKENAME(dict_grad));
+
   for (uint i=0; i < options.nTargetWords_; i++) {
       
     const uint size = dict[i].size();
@@ -647,6 +429,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
     double lower_bound = energy;
     for (uint i=0; i < options.nTargetWords_; i++) {
 
+      //if (regularity_weight != 0.0)
       if (true)
         lower_bound += std::min(0.0,dict_grad[i].min());
       else
@@ -658,13 +441,18 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
     
     std::cerr << "lower bound: " << lower_bound << ", best known: " << best_lower_bound << std::endl;
 
-
     /**** move in gradient direction ****/
     double real_alpha = alpha;
+
     double sqr_grad_norm = 0.0;
     for (uint i=0; i < options.nTargetWords_; i++)
       sqr_grad_norm +=  dict_grad[i].sqr_norm();
     real_alpha /= sqrt(sqr_grad_norm); 
+
+    // double highest_norm = 0.0;
+    // for (uint i=0; i < options.nTargetWords_; i++)
+    //   highest_norm = std::max(highest_norm,dict_grad[i].sqr_norm());
+    // real_alpha /= sqrt(highest_norm);
 
     for (uint i=0; i < options.nTargetWords_; i++) {
 
@@ -672,6 +460,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
         new_dict[i][k] = dict[i][k] - real_alpha * dict_grad[i][k];
     }
     
+    //if (regularity_weight != 0.0)
     if (true)
       new_slack_vector = slack_vector;
 
@@ -680,9 +469,14 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
 
       const uint nCurWords = new_dict[i].size();
 
-      projection_on_simplex_with_slack(new_dict[i].direct_access(),slack_vector[i],nCurWords);
+      //if (regularity_weight != 0.0)
+      if (true)
+        projection_on_simplex_with_slack(new_dict[i].direct_access(),slack_vector[i],nCurWords);
+      else
+        projection_on_simplex(new_dict[i].direct_access(),nCurWords);
+
     }
-    
+
     double lambda = 1.0;
     double best_lambda = 1.0;
 
@@ -726,8 +520,10 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
     }
 
     //EXPERIMENTAL
+#if 0
     if (nInnerIter > 4)
       alpha *= 1.5;
+#endif
     //END_EXPERIMENTAL
 
     if (nInnerIter > 4) {
@@ -742,27 +538,29 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
       nSuccessiveReductions = 0;
     }
 
+    //     std::cerr << "alpha: " << alpha << std::endl;
+
     for (uint i=0; i < options.nTargetWords_; i++) {
 
       double inv_lambda = 1.0 - best_lambda;
       
-      for (uint k=0; k < dict[i].size(); k++) 
-        dict[i][k] = inv_lambda * dict[i][k] + best_lambda * new_dict[i][k];
+      for (uint k=0; k < dict[i].size(); k++) {
+	const double cur_new_dict = inv_lambda * dict[i][k] + best_lambda * new_dict[i][k];
 
-      slack_vector[i] = inv_lambda * slack_vector[i] + best_lambda * new_slack_vector[i];
+        dict[i][k] = cur_new_dict;
+      }
+
+      //if (regularity_weight > 0.0)
+      if (true)
+        slack_vector[i] = inv_lambda * slack_vector[i] + best_lambda * new_slack_vector[i];
     }
 
 #ifndef NDEBUG
     double check_energy = ibm1_energy(source,slookup,target,dict,wcooc,nSourceWords,prior_weight,smoothed_l0,l0_beta);
     assert(fabs(check_energy - hyp_energy) < 0.0025);
 #endif
-
+    
     energy = hyp_energy;
-
-    //     if (best_lambda == 1.0)
-    //       alpha *= 1.5;
-    //     else
-    //       alpha *= 0.75;
 
     if (options.print_energy_)
       std::cerr << "energy: " << energy << std::endl;
@@ -819,7 +617,8 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
                            const CooccuringWordsType& wcooc, 
                            SingleWordDictionary& dict,
                            const floatSingleWordDictionary& prior_weight,
-                           IBM1Options& options) {
+                           IBM1Options& options,
+			   const Math1D::Vector<double>& log_table) {
 
   uint nIterations = options.nIterations_;
 
@@ -978,7 +777,7 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
           dcount[cur_target[arg_min-1]][cur_lookup(j,arg_min-1)]++;
       }
     }
-
+   
     sum += energy_offset;
 
 
@@ -986,112 +785,110 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
 
     uint nSwitches = 0;
 
-    if (true) {
-
-      Math1D::Vector<uint> dict_sum(dcount.size());
-      for (uint k=0; k < dcount.size(); k++)
-       	dict_sum[k] = dcount[k].sum();
+    Math1D::Vector<uint> dict_sum(dcount.size());
+    for (uint k=0; k < dcount.size(); k++)
+      dict_sum[k] = dcount[k].sum();
+    
+    
+    for (size_t s=0; s < nSentences; s++) {
       
-
-      for (size_t s=0; s < nSentences; s++) {
-
-        if ((s%12500) == 0)
-          std::cerr << "s: " << s << std::endl;
-
-        const Storage1D<uint>& cur_source = source[s];
-        const Storage1D<uint>& cur_target = target[s];
-
-        const uint curJ = cur_source.size();
-        const uint curI = cur_target.size();
+      if ((s%12500) == 0)
+	std::cerr << "s: " << s << std::endl;
+      
+      const Storage1D<uint>& cur_source = source[s];
+      const Storage1D<uint>& cur_target = target[s];
+      
+      const uint curJ = cur_source.size();
+      const uint curI = cur_target.size();
+      
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
 	
-        const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
-	
-        Math1D::Vector<AlignBaseType>& cur_alignment = viterbi_alignment[s];
+      Math1D::Vector<AlignBaseType>& cur_alignment = viterbi_alignment[s];
 
-        for (uint j=0; j < curJ; j++) {
+      for (uint j=0; j < curJ; j++) {
+	
+	ushort cur_aj = cur_alignment[j];
+	ushort new_aj = cur_aj;
+	
+	uint cur_dict_num = (cur_aj == 0) ? 0 : cur_target[cur_aj-1];
+	uint cur_target_word = (cur_aj == 0) ? 0 : cur_target[cur_aj-1];
+	uint cur_idx = (cur_aj == 0) ? cur_source[j]-1 : cur_lookup(j,cur_aj-1);
+
+	double best_change = 1e300;
+
+	for (uint i=0; i <= curI; i++) {
 	  
-          ushort cur_aj = cur_alignment[j];
-          ushort new_aj = cur_aj;
-
-          uint cur_dict_num = (cur_aj == 0) ? 0 : cur_target[cur_aj-1];
-          uint cur_target_word = (cur_aj == 0) ? 0 : cur_target[cur_aj-1];
-          uint cur_idx = (cur_aj == 0) ? cur_source[j]-1 : cur_lookup(j,cur_aj-1);
-
-          double best_change = 1e300;
-
-          for (uint i=0; i <= curI; i++) {
+	  uint new_target_word = (i == 0) ? 0 : cur_target[i-1];
+	  
+	  //NOTE: IBM-1 scores don't change when the two words in question are identical
+	  if (cur_target_word != new_target_word) {
 	    
-            uint new_target_word = (i == 0) ? 0 : cur_target[i-1];
-
-	    //NOTE: IBM-1 scores don't change when the two words in question are identical
-            if (cur_target_word != new_target_word) {
-	      
-              uint hyp_idx = (i == 0) ? cur_source[j]-1 : cur_lookup(j,i-1);
-
-              uint hyp_dict_num = (i == 0) ? 0 : cur_target[i-1];
-	      
-              double change = 0.0;
-
-              if (dict_sum[new_target_word] > 0)
-                change -= double(dict_sum[new_target_word]) * std::log( dict_sum[new_target_word] );
-              change += double(dict_sum[new_target_word]+1.0) * std::log( dict_sum[new_target_word]+1.0 );
-
-              if (dcount[new_target_word][hyp_idx] > 0)
-                change -= double(dcount[new_target_word][hyp_idx]) * 
-                  (-std::log(dcount[new_target_word][hyp_idx]));
-              else
-                change += prior_weight[hyp_dict_num][hyp_idx]; 
-
-              change += double(dcount[new_target_word][hyp_idx]+1) * 
-                (-std::log(dcount[new_target_word][hyp_idx]+1.0));
-	      
-              assert(!isnan(change));
-	      
-              if (change < best_change) {
-
-                best_change = change;
-                new_aj = i;
-              }
-            }
-          }
-
-          Math1D::Vector<uint>& cur_dictcount = dcount[cur_dict_num]; 
-          uint cur_dictsum = dict_sum[cur_dict_num]; 
-
-          best_change -= double(cur_dictsum) * std::log(cur_dictsum);
-          if (cur_dictsum > 1)
-            best_change += double(cur_dictsum-1) * std::log(cur_dictsum-1.0);
-
-          best_change -= - double(cur_dictcount[cur_idx]) * std::log(cur_dictcount[cur_idx]);
-
-          if (cur_dictcount[cur_idx] > 1) {
-            best_change += double(cur_dictcount[cur_idx]-1) * (-std::log(cur_dictcount[cur_idx]-1));
-          }
-          else
-            best_change -= prior_weight[cur_dict_num][cur_idx];
-
-          if (best_change < -1e-2 && new_aj != cur_aj) {
-
-            nSwitches++;
+	    uint hyp_idx = (i == 0) ? cur_source[j]-1 : cur_lookup(j,i-1);
 	    
-            uint cur_idx = (cur_aj == 0) ? cur_source[j]-1 : cur_lookup(j,cur_aj-1);
-            uint hyp_dict_num = (new_aj == 0) ? 0 : cur_target[new_aj-1];
+	    uint hyp_dict_num = (i == 0) ? 0 : cur_target[i-1];
 	    
-            Math1D::Vector<uint>& hyp_dictcount = dcount[hyp_dict_num];
+	    double change = 0.0;
 	    
-            uint hyp_idx = (new_aj == 0) ? cur_source[j]-1 : cur_lookup(j,new_aj-1);
+	    if (dict_sum[new_target_word] > 0)
+	      change -= double(dict_sum[new_target_word]) * log_table[dict_sum[new_target_word]];
+	    change += double(dict_sum[new_target_word]+1.0) * log_table[dict_sum[new_target_word]+1];
 
-            cur_alignment[j] = new_aj;
-            cur_dictcount[cur_idx] -= 1;
-            hyp_dictcount[hyp_idx] += 1;
-            dict_sum[cur_dict_num] -= 1;
-            dict_sum[hyp_dict_num] += 1;
-          }
-        }
+	    if (dcount[new_target_word][hyp_idx] > 0)
+	      change -= double(dcount[new_target_word][hyp_idx]) * 
+		(-log_table[dcount[new_target_word][hyp_idx]]);
+	    else
+	      change += prior_weight[hyp_dict_num][hyp_idx]; 
+	    
+	    change += double(dcount[new_target_word][hyp_idx]+1) * 
+	      (-log_table[dcount[new_target_word][hyp_idx]+1]);
+	    
+	    assert(!isnan(change));
+	    
+	    if (change < best_change) {
+	      
+	      best_change = change;
+	      new_aj = i;
+	    }
+	  }
+	}
+	
+	Math1D::Vector<uint>& cur_dictcount = dcount[cur_dict_num]; 
+	uint cur_dictsum = dict_sum[cur_dict_num]; 
+	
+	best_change -= double(cur_dictsum) * log_table[cur_dictsum];
+	if (cur_dictsum > 1)
+	  best_change += double(cur_dictsum-1) * log_table[cur_dictsum-1];
+	
+	best_change -= - double(cur_dictcount[cur_idx]) * log_table[cur_dictcount[cur_idx]];
+
+
+	if (cur_dictcount[cur_idx] > 1) {
+	  best_change += double(cur_dictcount[cur_idx]-1) * (-log_table[cur_dictcount[cur_idx]-1]);
+	}
+	else
+	  best_change -= prior_weight[cur_dict_num][cur_idx];
+	
+	if (best_change < -1e-2 && new_aj != cur_aj) {
+	  
+	  nSwitches++;
+	  
+	  uint cur_idx = (cur_aj == 0) ? cur_source[j]-1 : cur_lookup(j,cur_aj-1);
+	  uint hyp_dict_num = (new_aj == 0) ? 0 : cur_target[new_aj-1];
+	  
+	  Math1D::Vector<uint>& hyp_dictcount = dcount[hyp_dict_num];
+	  
+	  uint hyp_idx = (new_aj == 0) ? cur_source[j]-1 : cur_lookup(j,new_aj-1);
+
+	  cur_alignment[j] = new_aj;
+	  cur_dictcount[cur_idx] -= 1;
+	  hyp_dictcount[hyp_idx] += 1;
+	  dict_sum[cur_dict_num] -= 1;
+	  dict_sum[hyp_dict_num] += 1;
+	}
       }
-      
-      std::cerr << nSwitches << " switches in ICM" << std::endl;
     }
+    
+    std::cerr << nSwitches << " switches in ICM" << std::endl;
 
     // Math1D::Vector<uint> count_count(6,0);
 
@@ -1110,6 +907,8 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
     double sum_sum = 0.0;
 
     for (uint i=0; i < options.nTargetWords_; i++) {
+
+      //std::cerr << "i: " << i << std::endl;
 
       const double sum = dcount[i].sum();
 
@@ -1137,6 +936,9 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
       }
     }
     
+    //std::cerr << "number of total alignments: " << sum_sum << std::endl;
+    //std::cerr.precision(10);
+
     energy /= nSentences;
     for (uint i=0; i < dcount.size(); i++)
       for (uint k=0; k < dcount[i].size(); k++)
@@ -1190,5 +992,4 @@ void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source,
     }
   }
 }
-
 

@@ -1,11 +1,17 @@
 RegAligner Change History
 
-*** upcoming release ***
+*** upcoming release (1.2?) ***
+- implemented count collection from HMM
+- added nondeficient mode for IBM-3/4 (as in [Schoenemann, ACL 2013])
+- added IBM-5
+- refined handling of counts too close to 0
+- made some alternative word class modes available on command line
+- some minor fixes and refinements, including speed-up of ICM by using log
+  lookup tables and grouping of common code patterns
+- made some alternative word class modes available on command line
 - added alternative projection routine with better worst case complexity (no
   speed-ups in practice)
-- made some alternative word class modes available on command line
-- removed debugging code for IBM-1 in gradient descent mode
-- some minor fixes and refinements
+
 
 *** release version 1.05 (released March 6 2013) ***
 - two bugfixes for IBM-4

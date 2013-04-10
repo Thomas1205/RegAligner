@@ -44,6 +44,29 @@ public:
   std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments_;
 };
 
+class HmmWrapper {
+public:
+
+  HmmWrapper(const FullHMMAlignmentModel& align_model,
+	     const InitialAlignmentProbability& initial_prob,
+	     const HmmOptions& hmm_options); 
+
+  const FullHMMAlignmentModel& align_model_;
+  const InitialAlignmentProbability& initial_prob_; 
+  const HmmOptions& hmm_options_;  
+};
+
+long double hmm_alignment_prob(const Storage1D<uint>& source, 
+                               const SingleLookupTable& slookup,
+                               const Storage1D<uint>& target,
+                               const SingleWordDictionary& dict,
+                               const FullHMMAlignmentModel& align_model,
+                               const InitialAlignmentProbability& initial_prob,
+                               const Storage1D<AlignBaseType>& alignment, bool with_dict = false);
+
+void external2internal_hmm_alignment(const Storage1D<AlignBaseType>& ext_alignment, uint curI,
+				     const HmmOptions& options, Storage1D<AlignBaseType>& int_alignment);
+
 void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
                         const LookupTable& slookup,
                         const Storage1D<Storage1D<uint> >& target,
@@ -81,9 +104,10 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
                                 Math1D::Vector<double>& source_fert,
                                 InitialAlignmentProbability& initial_prob, 
                                 Math1D::Vector<double>& init_params,
-                                SingleWordDictionary& dict, //uint nIterations, 
+                                SingleWordDictionary& dict, 
                                 const floatSingleWordDictionary& prior_weight,
-                                bool deficient_parametric, HmmOptions& options);
+                                bool deficient_parametric, HmmOptions& options,
+				const Math1D::Vector<double>& log_table);
 
 void par2nonpar_hmm_init_model(const Math1D::Vector<double>& init_params, const Math1D::Vector<double>& source_fert,
                                HmmInitProbType init_type, InitialAlignmentProbability& initial_prob, bool start_empty_word = false);
@@ -91,7 +115,6 @@ void par2nonpar_hmm_init_model(const Math1D::Vector<double>& init_params, const 
 void par2nonpar_hmm_alignment_model(const Math1D::Vector<double>& dist_params, const uint zero_offset,
                                     const double dist_grouping_param, const Math1D::Vector<double>& source_fert,
                                     HmmAlignProbType align_type, FullHMMAlignmentModel& align_model);
-
 
 void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& dist_params, uint zero_offset,
                  uint nIter, double& grouping_param);

@@ -155,7 +155,7 @@ void compute_fullhmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
 
 
 long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentence,
-					   const SingleLookupTable& slookup,
+					   const Math2D::Matrix<uint, ushort>& slookup,
 					   const Storage1D<uint>& target_sentence,
 					   const SingleWordDictionary& dict,
 					   const Math2D::Matrix<double>& align_prob,
@@ -196,7 +196,6 @@ long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentenc
   Math2D::NamedMatrix<uint> traceback(2*I,J,MAKENAME(traceback));
 
   uint cur_idx = 0;
-  uint last_idx = 1;
 
   const double start_null_dict_entry = std::max(min_dict_entry,dict[0][source_sentence[0]-1]);
 
@@ -216,14 +215,10 @@ long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentenc
 
 
   for (uint j=1; j < J; j++) {
-    // if (verbose)
-    //   std::cerr << "j: " << j << std::endl;
 
-    cur_idx = j % 2;
-    last_idx = 1 - cur_idx;
-
+    const Math1D::Vector<double>& prev_score = score[cur_idx];
+    cur_idx = 1-cur_idx;
     Math1D::Vector<double>& cur_score = score[cur_idx];
-    const Math1D::Vector<double>& prev_score = score[last_idx];
 
     const double null_dict_entry = std::max(min_dict_entry,dict[0][source_sentence[j]-1]);
 
@@ -248,12 +243,6 @@ long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& source_sentenc
           arg_max = i_prev;
         }
       }
-
-      //       if (arg_max == MAX_UINT) {
-      // 	std::cerr << "ERROR: j=" << j << ", J=" << J << ", I=" << I << std::endl;
-      //       }
-
-      //       assert(arg_max != MAX_UINT);
 
       double dict_entry = std::max(min_dict_entry,dict[target_sentence[i]][slookup(j,i)]);
 
@@ -362,7 +351,6 @@ long double compute_sehmm_viterbi_alignment(const Storage1D<uint>& source_senten
   Math2D::NamedMatrix<uint> traceback(2*I+1,J,MAKENAME(traceback));
 
   uint cur_idx = 0;
-  uint last_idx = 1;
 
   for (uint i=0; i < I; i++) {
     score[0][i] = std::max(min_dict_entry,dict[target_sentence[i]][slookup(0,i)]) * initial_prob[i];
@@ -382,11 +370,9 @@ long double compute_sehmm_viterbi_alignment(const Storage1D<uint>& source_senten
 
   for (uint j=1; j < J; j++) {
 
-    cur_idx = j % 2;
-    last_idx = 1 - cur_idx;
-
+    const Math1D::Vector<double>& prev_score = score[cur_idx];
+    cur_idx = 1-cur_idx;
     Math1D::Vector<double>& cur_score = score[cur_idx];
-    const Math1D::Vector<double>& prev_score = score[last_idx];
 
     const double null_dict_entry = std::max(min_dict_entry,dict[0][source_sentence[j]-1]);
 
@@ -419,12 +405,6 @@ long double compute_sehmm_viterbi_alignment(const Storage1D<uint>& source_senten
           arg_max = 2*I;
         }
       }
-
-      //       if (arg_max == MAX_UINT) {
-      // 	std::cerr << "ERROR: j=" << j << ", J=" << J << ", I=" << I << std::endl;
-      //       }
-
-      //       assert(arg_max != MAX_UINT);
 
       double dict_entry = std::max(min_dict_entry,dict[target_sentence[i]][slookup(j,i)]);
 
@@ -542,7 +522,6 @@ long double compute_ehmm_viterbi_alignment_with_tricks(const Storage1D<uint>& so
   Math2D::NamedMatrix<uint> traceback(2*I,J,MAKENAME(traceback));
 
   uint cur_idx = 0;
-  uint last_idx = 1;
 
   const double start_null_dict_entry = std::max(min_dict_entry,dict[0][source_sentence[0]-1]);
 
@@ -563,11 +542,9 @@ long double compute_ehmm_viterbi_alignment_with_tricks(const Storage1D<uint>& so
 
   for (uint j=1; j < J; j++) {
 
-    cur_idx = j % 2;
-    last_idx = 1 - cur_idx;
-
+    const Math1D::Vector<double>& prev_score = score[cur_idx];
+    cur_idx = 1-cur_idx;
     Math1D::Vector<double>& cur_score = score[cur_idx];
-    const Math1D::Vector<double>& prev_score = score[last_idx];
 
     const double null_dict_entry = std::max(min_dict_entry,dict[0][source_sentence[j]-1]);
     
@@ -595,7 +572,6 @@ long double compute_ehmm_viterbi_alignment_with_tricks(const Storage1D<uint>& so
       uint arg_max = MAX_UINT;
 
       if (abs(effective_best_prev-i) > 5) {
-	//if (false) {
 	//in this case we only need to visit the positions inside the window
 	
 	arg_max = arg_best_prev;
@@ -651,8 +627,6 @@ long double compute_ehmm_viterbi_alignment_with_tricks(const Storage1D<uint>& so
         arg_max = i-I;
       }
 
-      //double dict_entry = std::max(min_dict_entry,dict[0][source_sentence[j]-1]);
-
       cur_score[i] = max_score * null_dict_entry * align_prob(I,i-I);
       traceback(i,j) = arg_max;
     }
@@ -666,6 +640,8 @@ long double compute_ehmm_viterbi_alignment_with_tricks(const Storage1D<uint>& so
   /*** now extract Viterbi alignment from the score and the traceback matrix ***/
   double max_score = 0.0;
   uint arg_max = MAX_UINT;
+
+  //std::cerr << "finding max" << std::endl;
 
   const Math1D::Vector<double>& cur_score = score[cur_idx];
 

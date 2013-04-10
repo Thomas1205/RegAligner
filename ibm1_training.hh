@@ -53,32 +53,14 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
                                const floatSingleWordDictionary& prior_weight,
                                IBM1Options& options);
 
-void dict_m_step(const SingleWordDictionary& fdict_count, 
-                 const floatSingleWordDictionary& prior_weight,
-                 SingleWordDictionary& dict, double alpha, uint nIter = 100,
-                 bool smoothed_l0 = false, double l0_beta = 1.0);
-
-void single_dict_m_step(const Math1D::Vector<double>& fdict_count, 
-                        const Math1D::Vector<float>& prior_weight,
-                        Math1D::Vector<double>& dict, double alpha, uint nIter,
-                        bool smoothed_l0, double l0_beta);
-
-double single_dict_m_step_energy(const Math1D::Vector<double>& fdict_count, 
-                                 const Math1D::Vector<float>& prior_weight,
-                                 const Math1D::Vector<double>& dict, bool smoothed_l0, double l0_beta);
-
 void ibm1_viterbi_training(const Storage1D<Storage1D<uint> >& source, 
                            const LookupTable& slookup,
                            const Storage1D<Storage1D<uint> >& target,
                            const CooccuringWordsType& cooc, 
                            SingleWordDictionary& dict,
                            const floatSingleWordDictionary& prior_weight,
-                           IBM1Options& options);
-
-
-double prob_penalty(double x, double beta);
-
-double prob_pen_prime(double x, double beta);
+                           IBM1Options& options,
+			   const Math1D::Vector<double>& log_table);
 
 
 #endif

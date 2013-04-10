@@ -1,5 +1,7 @@
-/*** ported here from singleword_fertility_training ****/
-/** author: Thomas Schoenemann. This file was generated while Thomas Schoenemann was with the University of Düsseldorf, Germany, 2012 ***/
+/** author: Thomas Schoenemann. This file was generated from singleword_fertility_training while 
+    Thomas Schoenemann was with the University of Düsseldorf, Germany, 2012. It was subsequently 
+    modified and extended, both at the University of Düsseldorf and in his free time. ***/
+
 
 #ifndef IBM4_TRAINING_HH
 #define IBM4_TRAINING_HH
@@ -48,27 +50,28 @@ public:
               const floatSingleWordDictionary& prior_weight,
               const Storage1D<WordClassType>& source_class,
               const Storage1D<WordClassType>& target_class,  
+	      const Math1D::Vector<double>& log_table,
               bool och_ney_empty_word = false,
               bool use_sentence_start_prob = false,
               bool no_factorial = true, 
               bool reduce_deficiency = true,
+              bool nondeficient = false,  
               IBM4CeptStartMode cept_start_mode = IBM4CENTER,
 	      IBM4InterDistMode inter_dist_mode = IBM4InterDistModePrevious, 
 	      IBM4IntraDistMode intra_dist_mode = IBM4IntraDistModeSource,
               bool smoothed_l0 = false, double l0_beta = 1.0, double l0_fertpen = 0.0);
 
+  virtual std::string model_name() const;
 
   void init_from_ibm3(IBM3Trainer& ibm3trainer, bool clear_ibm3 = true, 
 		      bool count_collection = false, bool viterbi = false);
 
   //training without constraints on uncovered positions.
   //This is based on the EM-algorithm where the E-step uses heuristics
-  void train_unconstrained(uint nIter, IBM3Trainer* ibm3 = 0);
+  void train_unconstrained(uint nIter, FertilityModelTrainer* fert_trainer = 0, HmmWrapper* wrapper = 0);
 
   //unconstrained Viterbi training
-  void train_viterbi(uint nIter, IBM3Trainer* ibm3 = 0);
-
-  void update_alignments_unconstrained();
+  void train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer = 0, HmmWrapper* wrapper = 0);
 
   long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
                                          const SingleLookupTable& lookup,
@@ -85,12 +88,21 @@ public:
 
   void write_postdec_alignments(const std::string filename, double thresh);
 
+  virtual long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
+						       const SingleLookupTable& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
+						       Math2D::Matrix<long double>& expansion_prob,
+						       Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment);
+
+
 protected:
 
   double inter_distortion_prob(int j, int j_prev, uint sclass, uint tclass, uint J) const;
 
   long double alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
                              const SingleLookupTable& lookup, const Math1D::Vector<AlignBaseType>& alignment);
+
+  long double nondeficient_alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
+                                          const SingleLookupTable& lookup, const Math1D::Vector<AlignBaseType>& alignment);
 
   long double distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 			      const Math1D::Vector<AlignBaseType>& alignment);
@@ -99,15 +111,20 @@ protected:
   long double distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 			      const Storage1D<std::vector<AlignBaseType> >& aligned_source_words);
 
+  //NOTE: the vectors need to be sorted
+  long double nondeficient_distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, 
+                                           const Storage1D<std::vector<AlignBaseType> >& aligned_source_words);
+
   void print_alignment_prob_factors(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 				    const SingleLookupTable& lookup, const Math1D::Vector<AlignBaseType>& alignment);
 
   long double alignment_prob(uint s, const Math1D::Vector<AlignBaseType>& alignment);
 
-  long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-                                               const SingleLookupTable& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
-                                               Math2D::Matrix<long double>& expansion_prob,
-                                               Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment);
+  long double nondeficient_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
+                                        const SingleLookupTable& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
+                                        Math2D::Matrix<long double>& expansion_prob,
+                                        Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment);
+
 
   void par2nonpar_inter_distortion();
 
@@ -141,6 +158,17 @@ protected:
   void start_prob_m_step(const Storage1D<Math1D::Vector<double> >& start_count);
 
 
+  double nondeficient_inter_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
+                                          const IBM4CeptStartModel& param, uint sclass, uint tclass);
+
+  void nondeficient_inter_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
+                                 uint sclass, uint tclass, double start_energy);
+
+  double nondeficient_intra_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
+                                          const IBM4WithinCeptModel& param, uint sclass);
+
+  void nondeficient_intra_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count, uint sclass);
+
   void prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
 				  const SingleLookupTable& lookup,
 				  Math1D::Vector<AlignBaseType>& alignment);
@@ -164,7 +192,6 @@ protected:
 
   int displacement_offset_;
 
-  bool och_ney_empty_word_;
   IBM4CeptStartMode cept_start_mode_;
   IBM4InterDistMode inter_dist_mode_;
   IBM4IntraDistMode intra_dist_mode_;
@@ -172,15 +199,14 @@ protected:
   bool use_sentence_start_prob_;
   bool no_factorial_;
   bool reduce_deficiency_;
-  const floatSingleWordDictionary& prior_weight_;
-  bool smoothed_l0_;
-  double l0_beta_;
-  double l0_fertpen_;
 
   uint nSourceClasses_;
   uint nTargetClasses_;
 
-  const ushort storage_limit_; //if there are many word classes, inter distortion tables are only kept for J<=storage_limit_
+  bool nondeficient_;
+
+  //if there are many word classes, inter distortion tables are only kept for J<=storage_limit_ and some very frequent ones
+  const ushort storage_limit_; 
 };
 
 #endif

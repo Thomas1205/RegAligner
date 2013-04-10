@@ -70,6 +70,31 @@ void generate_wordlookup(const Storage1D<Storage1D<uint> >& source,
 
 const SingleLookupTable& get_wordlookup(const Storage1D<uint>& source, const Storage1D<uint>& target,
                                         const CooccuringWordsType& cooc, uint nSourceWords,
-                                        const SingleLookupTable& lookup, Math2D::Matrix<uint,ushort>& aux);
+                                        const SingleLookupTable& lookup, SingleLookupTable& aux);
+
+double prob_penalty(double x, double beta);
+
+double prob_pen_prime(double x, double beta);
+
+void update_dict_from_counts(const SingleWordDictionary& fdict_count, 
+			     const floatSingleWordDictionary& prior_weight,
+			     double dict_weight_sum, uint iter, 
+			     bool smoothed_l0, double l0_beta,
+			     uint nDictStepIter, SingleWordDictionary& dict,
+			     double min_prob = 0.0);
+
+void dict_m_step(const SingleWordDictionary& fdict_count, 
+                 const floatSingleWordDictionary& prior_weight,
+                 SingleWordDictionary& dict, double alpha, uint nIter = 100,
+                 bool smoothed_l0 = false, double l0_beta = 1.0);
+
+void single_dict_m_step(const Math1D::Vector<double>& fdict_count, 
+                        const Math1D::Vector<float>& prior_weight,
+                        Math1D::Vector<double>& dict, double alpha, uint nIter,
+                        bool smoothed_l0, double l0_beta);
+
+double single_dict_m_step_energy(const Math1D::Vector<double>& fdict_count, 
+                                 const Math1D::Vector<float>& prior_weight,
+                                 const Math1D::Vector<double>& dict, bool smoothed_l0, double l0_beta);
 
 #endif

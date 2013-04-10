@@ -7,6 +7,7 @@
 #include "alignment_error_rate.hh"
 #include "timing.hh"
 #include "alignment_computation.hh"
+#include "training_common.hh" // for get_wordlookup()
 
 #ifdef HAS_GZSTREAM
 #include "gzstream.h"
@@ -16,7 +17,7 @@
 #include <set>
 #include "stl_out.hh"
 
-/************* implementation of FertilityModelTrainer *******************************/
+/********************** implementation of FertilityModelTrainer *******************************/
 
 FertilityModelTrainer::FertilityModelTrainer(const Storage1D<Storage1D<uint> >& source_sentence,
                                              const Storage1D<Math2D::Matrix<uint, ushort> >& slookup,
@@ -24,8 +25,12 @@ FertilityModelTrainer::FertilityModelTrainer(const Storage1D<Storage1D<uint> >& 
                                              SingleWordDictionary& dict,
                                              const CooccuringWordsType& wcooc,
                                              uint nSourceWords, uint nTargetWords,
+					     const floatSingleWordDictionary& prior_weight,
+					     bool och_ney_empty_word, bool smoothed_l0,
+					     double l0_beta, double l0_fertpen,
                                              const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
                                              const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
+					     const Math1D::Vector<double>& log_table,
 					     uint fertility_limit) :
   uncovered_set_(MAKENAME(uncovered_sets_)), predecessor_sets_(MAKENAME(predecessor_sets_)), 
   nUncoveredPositions_(MAKENAME(nUncoveredPositions_)), j_before_end_skips_(MAKENAME(j_before_end_skips_)),
@@ -33,9 +38,10 @@ FertilityModelTrainer::FertilityModelTrainer(const Storage1D<Storage1D<uint> >& 
   first_state_(MAKENAME(first_state_)), predecessor_coverage_states_(MAKENAME(predecessor_coverage_states_)),
   source_sentence_(source_sentence), slookup_(slookup), target_sentence_(target_sentence), 
   wcooc_(wcooc), dict_(dict), nSourceWords_(nSourceWords), nTargetWords_(nTargetWords), iter_offs_(0),
-  fertility_prob_(nTargetWords,MAKENAME(fertility_prob_)), 
+  och_ney_empty_word_(och_ney_empty_word), smoothed_l0_(smoothed_l0), l0_beta_(l0_beta), l0_fertpen_(l0_fertpen),
+  prior_weight_(prior_weight), fertility_prob_(nTargetWords,MAKENAME(fertility_prob_)), 
   best_known_alignment_(MAKENAME(best_known_alignment_)),
-  sure_ref_alignments_(sure_ref_alignments), possible_ref_alignments_(possible_ref_alignments)
+  sure_ref_alignments_(sure_ref_alignments), possible_ref_alignments_(possible_ref_alignments), log_table_(log_table)
 {
 
   Math1D::Vector<uint> max_fertility(nTargetWords,0);
@@ -70,6 +76,11 @@ FertilityModelTrainer::FertilityModelTrainer(const Storage1D<Storage1D<uint> >& 
         max_fertility[t_idx] = curJ;
     }
   }
+
+  ld_fac_.resize(maxJ_+1);
+  ld_fac_[0] = 1.0;
+  for (uint c=1; c < ld_fac_.size(); c++)
+    ld_fac_[c] = ld_fac_[c-1] * c;
   
   for (uint i=0; i < nTargetWords; i++) {
     fertility_prob_[i].resize_dirty(max_fertility[i]+1);
@@ -262,6 +273,124 @@ double FertilityModelTrainer::DAE_S(const Storage1D<Math1D::Vector<AlignBaseType
   return sum_errors;
 }
 
+long double FertilityModelTrainer::simulate_hmm_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
+							     const SingleLookupTable& lookup,const HmmWrapper& hmm_wrapper,
+							     Math1D::Vector<uint>& fertility, 
+							     Math2D::Matrix<long double>& expansion_prob,
+							     Math2D::Matrix<long double>& swap_prob, 
+							     Math1D::Vector<AlignBaseType>& alignment) {
+
+  const uint curJ = source.size();
+  const uint curI = target.size();
+
+  //note: here the index 0 will represent alignments to 0. we will have to convert to the proper representations 
+  // when calling routines below
+  long double best_prob = compute_ehmm_viterbi_alignment(source,lookup,target,dict_,hmm_wrapper.align_model_[curI-1],
+							 hmm_wrapper.initial_prob_[curI-1],alignment,
+							 hmm_wrapper.hmm_options_.align_type_,false,false);
+
+  
+
+  fertility.resize(curI+1);
+  fertility.set_constant(0);
+
+  for (uint j=0; j < curJ; j++) {
+    fertility[alignment[j]]++;
+  }
+
+  if (2*fertility[0] > curJ) {
+
+    std::cerr << "fixing sentence pair" << std::endl;
+    
+    for (uint j=0; j < curJ && 2*fertility[0] > curJ; j++) {
+      
+      if (alignment[j] == 0) {
+	
+	alignment[j] = 1;
+	fertility[0]--;
+	fertility[1]++;
+	
+	if (dict_[target[0]][lookup(j,0)] < 0.001) {
+	  
+	  dict_[target[0]] *= 0.99;
+	  dict_[target[0]][lookup(j,0)] += 0.01;
+	} 
+      }
+    }
+    
+    //NOTE: to be 100% proper we would need to recalculate the probability now.
+    // but then we would first need to convert the alignment into internal mode
+  }
+
+
+  //NOTE: lots of room for speed-ups here!
+
+  swap_prob.resize(curJ,curJ);
+  expansion_prob.resize(curJ,curI+1);
+  swap_prob.set_constant(0.0);
+  expansion_prob.set_constant(0.0);
+
+  Math1D::Vector<AlignBaseType> internal_hyp_alignment(curJ);
+
+  Math1D::Vector<AlignBaseType> hyp_alignment = alignment;
+
+  //a) expansion moves
+  for (uint j=0; j < curJ; j++) {
+
+    const uint cur_aj = alignment[j];
+
+    for (uint i=0; i <= curI; i++) {
+
+      if (i == 0 && 2*fertility[0]+2 > curJ)
+	continue;
+
+      if (i != cur_aj) {
+
+	hyp_alignment[j] = i;
+
+	//now convert to internal mode
+	external2internal_hmm_alignment(hyp_alignment, curI, hmm_wrapper.hmm_options_, internal_hyp_alignment);
+	
+	expansion_prob(j,i) = hmm_alignment_prob(source,lookup,target,dict_,hmm_wrapper.align_model_,
+						 hmm_wrapper.initial_prob_, internal_hyp_alignment, true);
+      }
+    }
+
+    //restore for next iteration
+    hyp_alignment[j] = cur_aj;
+  }
+
+  //b) swap moves
+  for (uint j1=0; j1 < curJ-1; j1++) {
+
+    const uint cur_aj1 = alignment[j1];
+
+    for (uint j2=j1+1; j2 < curJ; j2++) {
+
+      const uint cur_aj2 = alignment[j2];
+
+      if (cur_aj1 != cur_aj2) {
+
+	std::swap(hyp_alignment[j1],hyp_alignment[j2]);
+
+	//now convert to internal mode
+	external2internal_hmm_alignment(hyp_alignment, curI, hmm_wrapper.hmm_options_, internal_hyp_alignment);
+	
+	double cur_swap_prob = hmm_alignment_prob(source,lookup,target,dict_,hmm_wrapper.align_model_,
+						  hmm_wrapper.initial_prob_, internal_hyp_alignment, true);
+
+	swap_prob(j1,j2) = cur_swap_prob;
+	swap_prob(j2,j1) = cur_swap_prob;
+
+	//reverse for next iteration
+	std::swap(hyp_alignment[j1],hyp_alignment[j2]);
+      }
+    }
+  }
+
+  return best_prob;
+}
+
 
 void FertilityModelTrainer::print_uncovered_set(uint state) const {
 
@@ -291,7 +420,6 @@ uint FertilityModelTrainer::nUncoveredPositions(uint state) const {
 
 void FertilityModelTrainer::cover(uint level) {
 
-  //  std::cerr << "*****cover(" << level << ")" << std::endl;
 
   if (level == 0) {
     next_set_idx_++;
@@ -304,22 +432,8 @@ void FertilityModelTrainer::cover(uint level) {
   assert(next_set_idx_ <= uncovered_set_.yDim());
 
   const uint ref_j = uncovered_set_(level,ref_set_idx);
-  //std::cerr << "ref_j: " << ref_j << std::endl;
-  //std::cerr << "ref_line: ";
-  //   for (uint k=0; k < uncovered_set_.xDim(); k++) {
-
-  //     if (uncovered_set_(k,ref_set_idx) == MAX_USHORT)
-  //       std::cerr << "-";
-  //     else
-  //       std::cerr << uncovered_set_(k,ref_set_idx);
-  //     std::cerr << ",";
-  //   }
-  //   std::cerr << std::endl;
-  
 
   for (uint j=1; j < ref_j; j++) {
-    
-    //std::cerr << "j: " << j << std::endl;
 
     assert(next_set_idx_ <= uncovered_set_.yDim());
     
@@ -384,26 +498,11 @@ void FertilityModelTrainer::compute_uncovered_sets(uint nMaxSkips) {
 
     std::vector<std::pair<ushort,ushort> > cur_predecessor_sets;
 
-    //     std::cerr << "processing state ";
-    //     for (uint k=0; k < nMaxSkips; k++) {
-
-    //       if (uncovered_set_(k,state) == MAX_USHORT)
-    // 	std::cerr << "-";
-    //       else
-    // 	std::cerr << uncovered_set_(k,state);
-    //       std::cerr << ",";
-    //     }
-    //     std::cerr << std::endl;
-
-    //uint maxUncoveredPos = uncovered_set_(nMaxSkips-1,state);
-
     //NOTE: a state is always its own predecessor state; to save memory we omit the entry
     bool limit_state = (uncovered_set_(0,state) != MAX_USHORT);
     //uint prev_candidate;
 
     if (limit_state) {
-      //       for (uint k=1; k < nMaxSkips; k++)
-      // 	assert(uncovered_set_(k,state) != MAX_USHORT);
 
       //predecessor states can only be states with less entries
 
@@ -449,40 +548,6 @@ void FertilityModelTrainer::compute_uncovered_sets(uint nMaxSkips) {
           }
         }
       }
-
-      // #if 0
-      //       assert(nMaxSkips >= 2); //TODO: handle the cases of nMaxSkips = 1 or 0
-
-      //       const uint highestUncoveredPos = uncovered_set_(nMaxSkips-1,state);
-      //       const uint secondHighestUncoveredPos = uncovered_set_(nMaxSkips-2,state);
-
-      //       bool is_predecessor;
-      //       for (prev_candidate = 0; prev_candidate < first_set_[secondHighestUncoveredPos+1]; prev_candidate++) {
-
-      // 	is_predecessor = true;
-      // 	if (uncovered_set_(0,prev_candidate) != MAX_USHORT)
-      // 	  is_predecessor = false;
-      // 	else {
-      // 	  const uint nCandidateSkips = nUncoveredPositions_[prev_candidate];
-      // 	  const uint nNewSkips = nMaxSkips-nCandidateSkips;
-	  
-      // 	  if (nNewSkips != nConsecutiveEndSkips)
-      // 	    is_predecessor = false;
-      // 	  else {
-      // 	    for (uint k=0; k < nCandidateSkips; k++) {
-      // 	      if (uncovered_set_(k+nNewSkips,prev_candidate) != uncovered_set_(k,state)) {
-      // 		is_predecessor = false;
-      // 		break;
-      // 	      }
-      // 	    }
-      // 	  }
-      // 	}
-
-      // 	if (is_predecessor) {
-      // 	  cur_predecessor_sets.push_back(std::make_pair(prev_candidate,highestUncoveredPos+1));
-      // 	}
-      //       }
-      // #endif
     }
     else {
 
@@ -535,70 +600,7 @@ void FertilityModelTrainer::compute_uncovered_sets(uint nMaxSkips) {
 	    
           }
         }
-
-        // #if 0
-        // 	bool match;
-	
-        // 	for (prev_candidate = 0; prev_candidate < first_set_[secondHighestUncoveredPos+1]; prev_candidate++) {
-
-        // 	  if (nUncoveredPositions_[prev_candidate] == nPrevSkips) {
-
-        // 	    //the candidate set has exactly one entry less
-        // 	    //now check if the sets match when the highest position is removed from the 
-
-        // 	    match = true;
-        // 	    for (uint k=nMaxSkips-nPrevSkips; k < nMaxSkips; k++) {
-        // 	      if (uncovered_set_(k-nConsecutiveEndSkips,state) != 
-        // 		  uncovered_set_(k,prev_candidate)) {
-        // 		match = false;
-        // 		break;
-        // 	      }
-        // 	    }
-
-        // 	    if (match)
-        // 	      cur_predecessor_sets.push_back(std::make_pair(prev_candidate,highestUncoveredPos+1));
-        // 	  }
-        // 	}
-        // #endif	
       }
-
-      // #if 0
-      //       //b) find states with exactly one entry more
-      //       for (prev_candidate = 1; prev_candidate < next_set_idx_; prev_candidate++) {
-
-      // 	if (nUncoveredPositions_[prev_candidate] == nUncoveredPositions+1) {
-
-      // 	  uint nContained = 0;
-      // 	  uint not_contained_pos = MAX_UINT;
-      // 	  bool contained;
-
-      // 	  uint k,l;
-
-      // 	  for (k= nMaxSkips-nUncoveredPositions-1; k < nMaxSkips; k++) {
-	    
-      // 	    const uint entry = uncovered_set_(k,prev_candidate);
-	    
-      // 	    contained = false;
-      // 	    for (l=nMaxSkips-nUncoveredPositions; l < nMaxSkips; l++) {
-      // 	      if (entry == uncovered_set_(l,state)) {
-      // 		contained = true;
-      // 		break;
-      // 	      }
-      // 	    }
-
-      // 	    if (contained) {
-      // 	      nContained++;
-      // 	    }
-      // 	    else
-      // 	      not_contained_pos = entry;
-      // 	  }
-	
-      // 	  if (nContained == nUncoveredPositions) {
-      // 	    cur_predecessor_sets.push_back(std::make_pair(prev_candidate,not_contained_pos));
-      // 	  }
-      // 	}
-      //       }
-      // #endif
     }
     
     const uint nCurPredecessors = cur_predecessor_sets.size();
@@ -631,8 +633,6 @@ void FertilityModelTrainer::compute_uncovered_sets(uint nMaxSkips) {
       for (uint erase_pos = 0; erase_pos < nUncoveredPositions; erase_pos++) {
         Math1D::NamedVector<uint> succ_uncovered(nUncoveredPositions-1,MAKENAME(succ_uncovered));
 
-        //std::cerr << "A" << std::endl;
-
         uint l=0;
         for (uint k=0; k < nUncoveredPositions; k++) {
           if (k != erase_pos) {
@@ -640,8 +640,6 @@ void FertilityModelTrainer::compute_uncovered_sets(uint nMaxSkips) {
             l++;
           }
         }
-
-        //std::cerr << "B" << std::endl;
 
         const uint last_uncovered_pos = succ_uncovered[nUncoveredPositions-2];
 
@@ -776,8 +774,6 @@ void FertilityModelTrainer::compute_coverage_states() {
 
   for (uint state_num = 0; state_num < nStates; state_num++) {
 
-    //std::cerr << "state #" << state_num << std::endl;
-
     std::vector<std::pair<ushort,ushort> > cur_predecessor_states;
 
     const uint highest_covered_source_pos = coverage_state_(1,state_num);
@@ -848,10 +844,6 @@ void FertilityModelTrainer::compute_coverage_states() {
         if (covered_source_pos <= highest_covered_source_pos) {
           const uint predecessor_set = predecessor_sets_[uncovered_set_idx](0,p);
 
-          // 	  std::cerr << "predecessor set ";
-          // 	  print_uncovered_set(predecessor_set);
-          // 	  std::cerr << std::endl;
-	  
           uint prev_highest_covered = highest_covered_source_pos;
           if (covered_source_pos == highest_covered_source_pos) {
             if (nUncoveredPositions_[predecessor_set] < nUncoveredPositions_[uncovered_set_idx])
@@ -866,7 +858,6 @@ void FertilityModelTrainer::compute_coverage_states() {
           }
 
           if (prev_highest_covered != MAX_UINT) {
-            // 	    std::cerr << "prev_highest_covered: " << prev_highest_covered << std::endl;
 	    
             //find the index of the predecessor state
             const uint prev_idx = cov_state_num(predecessor_set,prev_highest_covered);
@@ -887,6 +878,26 @@ void FertilityModelTrainer::compute_coverage_states() {
       predecessor_coverage_states_[state_num](1,k) = cur_predecessor_states[k].second;
     }
     
+  }
+}
+
+void FertilityModelTrainer::update_alignments_unconstrained() {
+
+  Math2D::NamedMatrix<long double> expansion_prob(MAKENAME(expansion_prob));
+  Math2D::NamedMatrix<long double> swap_prob(MAKENAME(swap_prob));
+
+  for (size_t s=0; s < source_sentence_.size(); s++) {
+
+    const uint curI = target_sentence_[s].size();
+    Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
+    
+    SingleLookupTable aux_lookup;
+    const SingleLookupTable& cur_lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
+                                                         nSourceWords_,slookup_[s],aux_lookup);
+
+    uint nIter=0;
+    update_alignment_by_hillclimbing(source_sentence_[s], target_sentence_[s], cur_lookup,nIter,fertility,
+				     expansion_prob,swap_prob, best_known_alignment_[s]);
   }
 }
 
@@ -972,6 +983,11 @@ void FertilityModelTrainer::compute_postdec_alignment(const Math1D::Vector<Align
 
 }
 
+void FertilityModelTrainer::release_memory() {
+  best_known_alignment_.resize(0);
+  fertility_prob_.resize(0);
+}
+
 
 void FertilityModelTrainer::write_alignments(const std::string filename) const {
 
@@ -1003,3 +1019,114 @@ void FertilityModelTrainer::write_alignments(const std::string filename) const {
   delete out;
 }
 
+
+void FertilityModelTrainer::update_fertility_prob(const Storage1D<Math1D::Vector<double> >& ffert_count, double min_prob) {
+
+
+  for (uint i=1; i < ffert_count.size(); i++) {
+
+    const double sum = ffert_count[i].sum();
+
+    if (sum > 1e-305) {
+      
+      if (fertility_prob_[i].size() > 0) {
+	assert(sum > 0.0);     
+	const double inv_sum = 1.0 / sum;
+	assert(!isnan(inv_sum));
+	
+	for (uint f=0; f < fertility_prob_[i].size(); f++) {
+	  const double real_min_prob = (f <= fertility_limit_) ? min_prob : 0.0;
+	  fertility_prob_[i][f] = std::max(real_min_prob,inv_sum * ffert_count[i][f]);
+	}
+      }
+      else {
+	//std::cerr << "WARNING: target word #" << i << " does not occur" << std::endl;
+      }
+    }
+    else {
+      //std::cerr << "WARNING: did not update fertility count because sum was " << sum << std::endl;
+    }
+  }
+} 
+
+
+void FertilityModelTrainer::common_prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+							      const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment) {
+
+
+
+ const uint J = source.size();
+ const uint I = target.size();
+
+  assert(lookup.xDim() == J && lookup.yDim() == I);
+
+  if (alignment.size() != J)
+    alignment.resize(J,1);
+
+  Math1D::Vector<uint> fertility(I+1,0);
+
+    for (uint j=0; j < J; j++) {
+    const uint aj = alignment[j];
+    fertility[aj]++;
+  }
+
+  if (fertility[0] > 0 && p_zero_ < 1e-12)
+    p_zero_ = 1e-12;
+  
+  if (2*fertility[0] > J) {
+    
+    for (uint j=0; j < J; j++) {
+      
+      if (alignment[j] == 0) {
+	
+        alignment[j] = 1;
+        fertility[0]--;
+        fertility[1]++;	
+
+	if (dict_[target[0]][lookup(j,0)] < 1e-12)
+	  dict_[target[0]][lookup(j,0)] = 1e-12;
+      }
+    }
+  }
+
+  /*** check if fertility tables are large enough ***/
+  for (uint i=0; i < I; i++) {
+
+    if (fertility_prob_[target[i]].size() < J+1)
+      fertility_prob_[target[i]].resize(J+1,1e-15);
+
+    if (fertility_prob_[target[i]][fertility[i+1]] < 1e-15)
+      fertility_prob_[target[i]][fertility[i+1]] = 1e-15;
+
+    if (fertility_prob_[target[i]].sum() < 0.5)
+      fertility_prob_[target[i]].set_constant(1.0 / fertility_prob_[target[i]].size());
+
+    if (fertility_prob_[target[i]][fertility[i+1]] < 1e-8)
+      fertility_prob_[target[i]][fertility[i+1]] = 1e-8;
+  }
+
+  /*** check if a source word does not have a translation (with non-zero prob.) ***/
+  for (uint j=0; j < J; j++) {
+    uint src_idx = source[j];
+
+    double sum = dict_[0][src_idx-1];
+    for (uint i=0; i < I; i++)
+      sum += dict_[target[i]][lookup(j,i)];
+
+    if (sum < 1e-100) {
+      for (uint i=0; i < I; i++)
+        dict_[target[i]][lookup(j,i)] = 1e-15;
+    }
+
+    uint aj = alignment[j];
+    if (aj == 0) {
+      if (dict_[0][src_idx-1] < 1e-20)
+        dict_[0][src_idx-1] = 1e-20;
+    }
+    else {
+      if (dict_[target[aj-1]][lookup(j,aj-1)] < 1e-20)
+        dict_[target[aj-1]][lookup(j,aj-1)] = 1e-20;
+    }
+  }
+
+}

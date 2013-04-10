@@ -158,7 +158,7 @@ inline void fast_projection_on_simplex(T* data, const uint nData) {
     double cur = sorted[k_break].first;
     double hyp_sum = sum+cur;
 
-    if ((cur - hyp_sum / nPos) <= 0.0)
+    if ((cur - hyp_sum / nPos) <= 1e-6)
       break;
     
     sum = hyp_sum;
@@ -170,8 +170,11 @@ inline void fast_projection_on_simplex(T* data, const uint nData) {
 
   for (int k=0; k <= k_break; k++)
     data[sorted[k].second] = 0.0;
-  for (int k=k_break+1; k < int(nData); k++)
-    data[sorted[k].second] -= sub;
+  for (int k=k_break+1; k < int(nData); k++) {
+    data[sorted[k].second] = sorted[k].first - sub;
+    assert(data[sorted[k].second] >= 0.0);
+  }
+  //data[sorted[k].second] -= sub;
 
 }
 
@@ -199,7 +202,7 @@ inline void fast_projection_on_simplex_with_slack(T* data, T& slack, uint nData)
     double cur = sorted[k_break].first;
     double hyp_sum = sum+cur;
 
-    if ((cur - hyp_sum / nPos) <= 0.0)
+    if ((cur - hyp_sum / nPos) <= 1e-6)
       break;
     
     sum = hyp_sum;
@@ -211,17 +214,22 @@ inline void fast_projection_on_simplex_with_slack(T* data, T& slack, uint nData)
 
   for (int k=0; k <= k_break; k++) {
     const uint idx = sorted[k].second;
-    if (idx < nData)
+    if (idx < nData) 
       data[idx] = 0.0;
     else
       slack = 0.0;
   }
   for (int k=k_break+1; k < int(nData+1); k++) {
     const uint idx = sorted[k].second;
-    if (idx < nData)
-      data[idx] -= sub;
-    else
+    if (idx < nData) {
+      data[idx] = sorted[k].first - sub;
+      //data[idx] -= sub;
+      assert(data[idx] >= 0.0);
+    }
+    else {
       slack -= sub;
+      assert(slack >= 0.0);
+    }
   }
 
 }
