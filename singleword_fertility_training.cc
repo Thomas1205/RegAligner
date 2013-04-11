@@ -1019,6 +1019,44 @@ void FertilityModelTrainer::write_alignments(const std::string filename) const {
   delete out;
 }
 
+void FertilityModelTrainer::write_postdec_alignments(const std::string filename, double thresh) {
+
+  std::ostream* out;
+
+#ifdef HAS_GZSTREAM
+  if (string_ends_with(filename,".gz")) {
+    out = new ogzstream(filename.c_str());
+  }
+  else {
+    out = new std::ofstream(filename.c_str());
+  }
+#else
+  out = new std::ofstream(filename.c_str());
+#endif
+
+
+  for (uint s=0; s < source_sentence_.size(); s++) {
+    
+    Math1D::Vector<AlignBaseType> viterbi_alignment = best_known_alignment_[s];
+    std::set<std::pair<AlignBaseType,AlignBaseType> > postdec_alignment;
+  
+    SingleLookupTable aux_lookup;
+
+    const SingleLookupTable& cur_lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
+                                                         nSourceWords_,slookup_[s],aux_lookup);
+
+    compute_external_postdec_alignment(source_sentence_[s], target_sentence_[s], cur_lookup,
+				       viterbi_alignment, postdec_alignment, thresh);
+
+    for(std::set<std::pair<AlignBaseType,AlignBaseType> >::iterator it = postdec_alignment.begin(); 
+	it != postdec_alignment.end(); it++) {
+      
+      (*out) << (it->second-1) << " " << (it->first-1) << " ";
+    }
+    (*out) << std::endl;
+    
+  }
+}
 
 void FertilityModelTrainer::update_fertility_prob(const Storage1D<Math1D::Vector<double> >& ffert_count, double min_prob) {
 

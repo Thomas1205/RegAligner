@@ -9,6 +9,7 @@
 #include "timing.hh"
 #include "projection.hh"
 #include "training_common.hh" // for get_wordlookup() and dictionary m-step 
+#include "stl_util.hh"
 
 #ifdef HAS_CBC
 #include "sparse_matrix_description.hh"
@@ -485,7 +486,7 @@ double IBM3Trainer::par_distortion_m_step_energy(const ReducedIBM3DistortionMode
   return energy;
 }
 
-void IBM3Trainer::par_distortion_m_step(const ReducedIBM3DistortionModel& fdistort_count, uint i) {
+void IBM3Trainer::par_distortion_m_step(const ReducedIBM3DistortionModel& fdistort_count, uint i, double start_energy) {
 
 
   double alpha = 0.1;
@@ -494,7 +495,7 @@ void IBM3Trainer::par_distortion_m_step(const ReducedIBM3DistortionModel& fdisto
   for (uint j=0; j < maxJ_; j++)
     start_param[j] = distortion_param_(j,i);
 
-  double energy = par_distortion_m_step_energy(fdistort_count, start_param, i);
+  double energy = start_energy; //par_distortion_m_step_energy(fdistort_count, start_param, i);
 
   Math1D::Vector<double> distortion_grad(maxJ_,0.0);
   Math1D::Vector<double> new_distortion_param(maxJ_,0.0);
@@ -974,6 +975,9 @@ double IBM3Trainer::nondeficient_m_step_with_interpolation(const std::vector<Mat
 
       if (nIter > 5 && best_energy < 0.975 * energy)
         break;
+
+      if (lambda < 1e-15)
+	break;
     }
 
     if (nIter > 6)
@@ -2283,9 +2287,10 @@ void IBM3Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
   }
 }
 
+/*virtual*/
 long double IBM3Trainer::compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
                                                     const SingleLookupTable& lookup,
-                                                    Math1D::Vector<AlignBaseType>& alignment, bool use_ilp) {
+                                                    Math1D::Vector<AlignBaseType>& alignment) {
 
   //std::cerr << "compute external alignment" << std::endl;
 
@@ -2295,6 +2300,8 @@ long double IBM3Trainer::compute_external_alignment(const Storage1D<uint>& sourc
   const uint I = target.size();
 
   //std::cerr << "calling the actual routine" << std::endl;
+
+  bool use_ilp = viterbi_ilp_;
 
 #ifndef HAS_CBC
   use_ilp = false;
@@ -2329,6 +2336,7 @@ long double IBM3Trainer::compute_external_alignment(const Storage1D<uint>& sourc
 
 // <code> start_alignment </code> is used as initialization for hillclimbing and later modified
 // the extracted alignment is written to <code> postdec_alignment </code>
+/*virtual*/
 void IBM3Trainer::compute_external_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
 						     const SingleLookupTable& lookup,
 						     Math1D::Vector<AlignBaseType>& alignment,
@@ -2366,11 +2374,157 @@ public:
 
   CountStructure() : main_count_(0.0) {}
 
+  void unpack(uint i, uint J, const Storage1D<std::vector<uchar> >& main_aligned_source_words,
+	      std::map<Math1D::Vector<uchar,uchar>,double>& nondef_count) const;
+  
   double main_count_;
 
   std::map<uchar,std::map<uchar,double> > exp_count_;
   std::map<uchar,std::map<uchar,double> > swap_count_;
 };
+
+void CountStructure::unpack(uint i, uint J, const Storage1D<std::vector<uchar> >& main_aligned_source_words,
+			    std::map<Math1D::Vector<uchar,uchar>,double>& nondef_count) const {
+
+  
+  Math1D::Vector<uchar> main_alignment(J,255);
+  for (uint ii=0; ii < main_aligned_source_words.size(); ii++) {
+    for (uint k=0; k < main_aligned_source_words[ii].size(); k++) {
+      uint j = main_aligned_source_words[ii][k];
+      main_alignment[j] = ii;
+    }
+  }
+  
+  const uint base_fert = main_aligned_source_words[i+1].size();
+
+  Storage1D<std::vector<uchar> > hyp_aligned_source_words = main_aligned_source_words;
+  
+  if (base_fert >= 1) {
+    //consider main alignment, most expansions and all swaps
+    
+    double main_count = main_count_; 
+
+    //expansions
+    for (std::map<uchar, std::map<uchar, double> >::const_iterator it = exp_count_.begin();
+	 it != exp_count_.end(); it++) {
+
+      uint j=it->first;
+      uint cur_aj = main_alignment[j];
+      
+      hyp_aligned_source_words[cur_aj].erase(std::find(hyp_aligned_source_words[cur_aj].begin(),
+						       hyp_aligned_source_words[cur_aj].end(),j));
+
+      
+      const std::map<uchar, double>& inner_exp = it->second;
+      for (std::map<uchar, double>::const_iterator inner_it = inner_exp.begin(); inner_it != inner_exp.end(); inner_it++) {
+	uint new_aj = inner_it->first;
+	double count = inner_it->second;
+	
+	bool not_null = (cur_aj != 0 && new_aj != 0);
+
+	if (not_null && ((cur_aj-1 > i && new_aj-1 > i) || (cur_aj-1 < i && new_aj-1 < i)) )
+	  main_count += count;
+	else if (base_fert > 1 || cur_aj != i+1) {
+	  
+	  // hyp_aligned_source_words[cur_aj].erase(std::find(hyp_aligned_source_words[cur_aj].begin(),
+	  // 						   hyp_aligned_source_words[cur_aj].end(),j));
+	  hyp_aligned_source_words[new_aj].push_back(j);
+	  //NOTE: sorting is probably only needed if new_aj == i+1
+	  if (new_aj == i+1)
+	    std::sort(hyp_aligned_source_words[new_aj].begin(),hyp_aligned_source_words[new_aj].end());
+	  
+	  //call routine to add counts for hyp_aligned_source_words
+	  add_nondef_count(hyp_aligned_source_words, i, J, nondef_count, count); 
+	  
+	  //restore
+	  //hyp_aligned_source_words[cur_aj] = main_aligned_source_words[cur_aj];
+	  hyp_aligned_source_words[new_aj] = main_aligned_source_words[new_aj];
+	}
+      }
+      hyp_aligned_source_words[cur_aj] = main_aligned_source_words[cur_aj];
+    }
+    
+    //swaps
+    for (std::map<uchar, std::map<uchar, double> >::const_iterator it = swap_count_.begin();
+	 it != swap_count_.end(); it++) {
+      
+      uint j1=it->first;
+      uint cur_aj1 = main_alignment[j1];
+      
+      const std::map<uchar, double>& inner_swap = it->second;
+      for (std::map<uchar, double>::const_iterator inner_it = inner_swap.begin(); inner_it != inner_swap.end(); inner_it++) {
+	uint j2 = inner_it->first;
+	uint cur_aj2 = main_alignment[j2];
+	double count = inner_it->second;
+        
+	bool not_null = (cur_aj1 != 0 && cur_aj2 != 0);
+	if (not_null && ( (cur_aj1 -1 > i && cur_aj2-1 > i) || (cur_aj1 -1 < i && cur_aj2-1 < i) )) {
+	  main_count += count;
+	}
+	else {
+
+	  hyp_aligned_source_words[cur_aj1].erase(std::find(hyp_aligned_source_words[cur_aj1].begin(),
+							    hyp_aligned_source_words[cur_aj1].end(),j1));
+	  hyp_aligned_source_words[cur_aj1].push_back(j2);
+	  //NOTE: sorting is probably only needed if cur_aj1==i+1
+	  if (cur_aj1 == i+1)
+	    std::sort(hyp_aligned_source_words[cur_aj1].begin(),hyp_aligned_source_words[cur_aj1].end());
+	  
+	  hyp_aligned_source_words[cur_aj2].erase(std::find(hyp_aligned_source_words[cur_aj2].begin(),
+							    hyp_aligned_source_words[cur_aj2].end(),j2));
+	  hyp_aligned_source_words[cur_aj2].push_back(j1);
+	  //NOTE: sorting is probably only needed if cur_aj2==i+1
+	  if (cur_aj2 == i+1)
+	    std::sort(hyp_aligned_source_words[cur_aj2].begin(),hyp_aligned_source_words[cur_aj2].end());
+	  
+	  //call routine to add counts for hyp_aligned_source_words
+	  add_nondef_count(hyp_aligned_source_words, i, J, nondef_count, count); 
+	  
+	  //restore
+	  hyp_aligned_source_words[cur_aj1] = main_aligned_source_words[cur_aj1];
+	  hyp_aligned_source_words[cur_aj2] = main_aligned_source_words[cur_aj2];
+	}
+      }
+    }
+
+    //now handle main alignment
+    add_nondef_count(main_aligned_source_words, i, J, nondef_count, main_count); 
+  }
+  else {
+    //consider only expansions to i+1 here
+
+    //expansions
+    for (std::map<uchar, std::map<uchar, double> >::const_iterator it = exp_count_.begin();
+	 it != exp_count_.end(); it++) {
+      
+      uint j=it->first;
+      uint cur_aj = main_alignment[j];
+      assert(cur_aj != i+1);
+      
+      const std::map<uchar, double>& inner_exp = it->second;
+      
+      std::map<uchar, double>::const_iterator inner_it = inner_exp.find(i+1);
+      if (inner_it != inner_exp.end()) {
+	
+	double count = inner_it->second;
+
+	assert(hyp_aligned_source_words[i+1].empty());
+		    
+	hyp_aligned_source_words[cur_aj].erase(std::find(hyp_aligned_source_words[cur_aj].begin(),
+							 hyp_aligned_source_words[cur_aj].end(),j));
+	hyp_aligned_source_words[i+1].push_back(j); //no need to sort, the array was empty
+	
+	//call routine to add counts for hyp_aligned_source_words
+	add_nondef_count(hyp_aligned_source_words, i, J, nondef_count, count); 
+	
+	//restore
+	hyp_aligned_source_words[cur_aj] = main_aligned_source_words[cur_aj];
+	hyp_aligned_source_words[i+1].clear();
+      }
+    }
+  }
+
+}
 
 
 class CompactAlignedSourceWords {
@@ -2928,140 +3082,8 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
               Storage1D<std::vector<uchar> > main_aligned_source_words;
               main_compact_aligned_source_words.get_noncompact_form(main_aligned_source_words,J);
 
-              Math1D::Vector<uchar> main_alignment(J,255);
-              for (uint ii=0; ii < main_aligned_source_words.size(); ii++) {
-                for (uint k=0; k < main_aligned_source_words[ii].size(); k++) {
-                  uint j = main_aligned_source_words[ii][k];
-                  main_alignment[j] = ii;
-                }
-              }
-
               const CountStructure& cur_count_struct = it->second;
-
-              const uint base_fert = main_aligned_source_words[i+1].size();
-
-              Storage1D<std::vector<uchar> > hyp_aligned_source_words = main_aligned_source_words;
-              
-              if (base_fert >= 1) {
-                //consider main alignment, most expansions and all swaps
-
-                double main_count = cur_count_struct.main_count_; 
-
-                //expansions
-                for (std::map<uchar, std::map<uchar, double> >::const_iterator it = cur_count_struct.exp_count_.begin();
-                     it != cur_count_struct.exp_count_.end(); it++) {
-
-                  uint j=it->first;
-                  uint cur_aj = main_alignment[j];
-
-                  const std::map<uchar, double>& inner_exp = it->second;
-                  for (std::map<uchar, double>::const_iterator inner_it = inner_exp.begin(); inner_it != inner_exp.end(); inner_it++) {
-                    uint new_aj = inner_it->first;
-                    double count = inner_it->second;
-
-                    bool not_null = (cur_aj != 0 && new_aj != 0);
-
-                    if (not_null && ((cur_aj-1 > i && new_aj-1 > i) || (cur_aj-1 < i && new_aj-1 < i)) )
-                      main_count += count;
-                    else if (base_fert > 1 || cur_aj != i+1) {
-
-                      hyp_aligned_source_words[cur_aj].erase(std::find(hyp_aligned_source_words[cur_aj].begin(),
-                                                                       hyp_aligned_source_words[cur_aj].end(),j));
-                      hyp_aligned_source_words[new_aj].push_back(j);
-                      //NOTE: sorting is probably only needed if new_aj == i+1
-                      if (new_aj == i+1)
-                        std::sort(hyp_aligned_source_words[new_aj].begin(),hyp_aligned_source_words[new_aj].end());
-                      
-                      //call routine to add counts for hyp_aligned_source_words
-                      add_nondef_count(hyp_aligned_source_words, i, J, cur_nondef_count, count); 
-
-                      //restore
-                      hyp_aligned_source_words[cur_aj] = main_aligned_source_words[cur_aj];
-                      hyp_aligned_source_words[new_aj] = main_aligned_source_words[new_aj];
-                    }
-                  }
-                }
-
-                //swaps
-                for (std::map<uchar, std::map<uchar, double> >::const_iterator it = cur_count_struct.swap_count_.begin();
-                     it != cur_count_struct.swap_count_.end(); it++) {
-
-                  uint j1=it->first;
-                  uint cur_aj1 = main_alignment[j1];
-                
-                  const std::map<uchar, double>& inner_swap = it->second;
-                  for (std::map<uchar, double>::const_iterator inner_it = inner_swap.begin(); inner_it != inner_swap.end(); inner_it++) {
-                    uint j2 = inner_it->first;
-                    uint cur_aj2 = main_alignment[j2];
-                    double count = inner_it->second;
-                  
-                    bool not_null = (cur_aj1 != 0 && cur_aj2 != 0);
-                    if (not_null && ( (cur_aj1 -1 > i && cur_aj2-1 > i) || (cur_aj1 -1 < i && cur_aj2-1 < i) )) {
-                      //if (false) {
-                      main_count += count;
-                    }
-                    else {
-
-                      hyp_aligned_source_words[cur_aj1].erase(std::find(hyp_aligned_source_words[cur_aj1].begin(),
-                                                                        hyp_aligned_source_words[cur_aj1].end(),j1));
-                      hyp_aligned_source_words[cur_aj1].push_back(j2);
-                      //NOTE: sorting is probably only needed if cur_aj1==i+1
-                      if (cur_aj1 == i+1)
-                        std::sort(hyp_aligned_source_words[cur_aj1].begin(),hyp_aligned_source_words[cur_aj1].end());
-
-                      hyp_aligned_source_words[cur_aj2].erase(std::find(hyp_aligned_source_words[cur_aj2].begin(),
-                                                                        hyp_aligned_source_words[cur_aj2].end(),j2));
-                      hyp_aligned_source_words[cur_aj2].push_back(j1);
-                      //NOTE: sorting is probably only needed if cur_aj2==i+1
-                      if (cur_aj2 == i+1)
-                        std::sort(hyp_aligned_source_words[cur_aj2].begin(),hyp_aligned_source_words[cur_aj2].end());
-
-                      //call routine to add counts for hyp_aligned_source_words
-                      add_nondef_count(hyp_aligned_source_words, i, J, cur_nondef_count, count); 
-
-                      //restore
-                      hyp_aligned_source_words[cur_aj1] = main_aligned_source_words[cur_aj1];
-                      hyp_aligned_source_words[cur_aj2] = main_aligned_source_words[cur_aj2];
-                    }
-                  }
-                }
-
-                //now handle main alignment
-                add_nondef_count(main_aligned_source_words, i, J, cur_nondef_count, main_count); 
-              }
-              else {
-                //consider only expansions to i+1 here
-
-                //expansions
-                for (std::map<uchar, std::map<uchar, double> >::const_iterator it = cur_count_struct.exp_count_.begin();
-                     it != cur_count_struct.exp_count_.end(); it++) {
-
-                  uint j=it->first;
-                  uint cur_aj = main_alignment[j];
-                  assert(cur_aj != i+1);
-
-                  const std::map<uchar, double>& inner_exp = it->second;
-
-                  std::map<uchar, double>::const_iterator inner_it = inner_exp.find(i+1);
-                  if (inner_it != inner_exp.end()) {
-                    
-                    double count = inner_it->second;
-
-                    assert(hyp_aligned_source_words[i+1].empty());
-
-                    hyp_aligned_source_words[cur_aj].erase(std::find(hyp_aligned_source_words[cur_aj].begin(),
-                                                                     hyp_aligned_source_words[cur_aj].end(),j));
-                    hyp_aligned_source_words[i+1].push_back(j); //no need to sort, the array was empty
-                    
-                    //call routine to add counts for hyp_aligned_source_words
-                    add_nondef_count(hyp_aligned_source_words, i, J, cur_nondef_count, count); 
-
-                    //restore
-                    hyp_aligned_source_words[cur_aj] = main_aligned_source_words[cur_aj];
-                    hyp_aligned_source_words[i+1].clear();
-                  }
-                }
-              }
+	      cur_count_struct.unpack(i,J,main_aligned_source_words,cur_nondef_count);
             }
           }
      
@@ -3112,9 +3134,11 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
             for (uint x = 0; x < fpar_distort_count.xDim(); x++) {
               distortion_param_(x,i) = fpar_distort_count(x,i);
             }
+
+	    start_energy = hyp_energy;
           }
 
-          par_distortion_m_step(fdistort_count,i);
+          par_distortion_m_step(fdistort_count,i,start_energy);
         }
         par2nonpar_distortion(distortion_prob_);
       }
@@ -3169,139 +3193,8 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
               Storage1D<std::vector<uchar> > main_aligned_source_words;
               main_compact_aligned_source_words.get_noncompact_form(main_aligned_source_words,J);
 
-              Math1D::Vector<uchar> main_alignment(J,255);
-              for (uint ii=0; ii < main_aligned_source_words.size(); ii++) {
-                for (uint k=0; k < main_aligned_source_words[ii].size(); k++) {
-                  uint j = main_aligned_source_words[ii][k];
-                  main_alignment[j] = ii;
-                }
-              }
-
               const CountStructure& cur_count_struct = it->second;
-	      
-              const uint base_fert = main_aligned_source_words[i+1].size();
-	      
-              Storage1D<std::vector<uchar> > hyp_aligned_source_words = main_aligned_source_words;
-              
-              if (base_fert >= 1) {
-                //consider main alignment, most expansions and all swaps
-		
-                double main_count = cur_count_struct.main_count_; 
-		
-                //expansions
-                for (std::map<uchar, std::map<uchar, double> >::const_iterator it = cur_count_struct.exp_count_.begin();
-                     it != cur_count_struct.exp_count_.end(); it++) {
-		  
-                  uint j=it->first;
-                  uint cur_aj = main_alignment[j];
-		  
-                  const std::map<uchar, double>& inner_exp = it->second;
-                  for (std::map<uchar, double>::const_iterator inner_it = inner_exp.begin(); inner_it != inner_exp.end(); inner_it++) {
-                    uint new_aj = inner_it->first;
-                    double count = inner_it->second;
-
-                    bool not_null = (cur_aj != 0 && new_aj != 0);
-		    
-                    if (not_null && ((cur_aj-1 > i && new_aj-1 > i) || (cur_aj-1 < i && new_aj-1 < i)) )
-                      main_count += count;
-                    else if (base_fert > 1 || cur_aj != i+1) {
-
-                      hyp_aligned_source_words[cur_aj].erase(std::find(hyp_aligned_source_words[cur_aj].begin(),
-                                                                       hyp_aligned_source_words[cur_aj].end(),j));
-                      hyp_aligned_source_words[new_aj].push_back(j);
-                      //NOTE: sorting is probably only needed if new_aj == i+1
-                      if (new_aj == i+1)
-                        std::sort(hyp_aligned_source_words[new_aj].begin(),hyp_aligned_source_words[new_aj].end());
-                      
-                      //call routine to add counts for hyp_aligned_source_words
-                      add_nondef_count(hyp_aligned_source_words, i, J, cur_nondef_count, count); 
-
-                      //restore
-                      hyp_aligned_source_words[cur_aj] = main_aligned_source_words[cur_aj];
-                      hyp_aligned_source_words[new_aj] = main_aligned_source_words[new_aj];
-                    }
-                  }
-                }
-
-                //swaps
-                for (std::map<uchar, std::map<uchar, double> >::const_iterator it = cur_count_struct.swap_count_.begin();
-                     it != cur_count_struct.swap_count_.end(); it++) {
-
-                  uint j1=it->first;
-                  uint cur_aj1 = main_alignment[j1];
-                
-                  const std::map<uchar, double>& inner_swap = it->second;
-                  for (std::map<uchar, double>::const_iterator inner_it = inner_swap.begin(); inner_it != inner_swap.end(); inner_it++) {
-                    uint j2 = inner_it->first;
-                    uint cur_aj2 = main_alignment[j2];
-                    double count = inner_it->second;
-                  
-                    bool not_null = (cur_aj1 != 0 && cur_aj2 != 0);
-                    if (not_null && ( (cur_aj1 -1 > i && cur_aj2-1 > i) || (cur_aj1 -1 < i && cur_aj2-1 < i) )) {
-                      main_count += count;
-                    }
-                    else {
-
-                      hyp_aligned_source_words[cur_aj1].erase(std::find(hyp_aligned_source_words[cur_aj1].begin(),
-                                                                        hyp_aligned_source_words[cur_aj1].end(),j1));
-                      hyp_aligned_source_words[cur_aj1].push_back(j2);
-                      //NOTE: sorting is probably only needed if cur_aj1==i+1
-                      if (cur_aj1 == i+1)
-                        std::sort(hyp_aligned_source_words[cur_aj1].begin(),hyp_aligned_source_words[cur_aj1].end());
-
-                      hyp_aligned_source_words[cur_aj2].erase(std::find(hyp_aligned_source_words[cur_aj2].begin(),
-                                                                        hyp_aligned_source_words[cur_aj2].end(),j2));
-                      hyp_aligned_source_words[cur_aj2].push_back(j1);
-                      //NOTE: sorting is probably only needed if cur_aj2==i+1
-                      if (cur_aj2 == i+1)
-                        std::sort(hyp_aligned_source_words[cur_aj2].begin(),hyp_aligned_source_words[cur_aj2].end());
-
-                      //call routine to add counts for hyp_aligned_source_words
-                      add_nondef_count(hyp_aligned_source_words, i, J, cur_nondef_count, count); 
-
-                      //restore
-                      hyp_aligned_source_words[cur_aj1] = main_aligned_source_words[cur_aj1];
-                      hyp_aligned_source_words[cur_aj2] = main_aligned_source_words[cur_aj2];
-                    }
-                  }
-                }
-
-                //now handle main alignment
-                add_nondef_count(main_aligned_source_words, i, J, cur_nondef_count, main_count); 
-              }
-              else {
-                //position i is unaligned in the main alignment => consider only expansions to i+1 here
-
-                //expansions
-                for (std::map<uchar, std::map<uchar, double> >::const_iterator it = cur_count_struct.exp_count_.begin();
-                     it != cur_count_struct.exp_count_.end(); it++) {
-
-                  uint j=it->first;
-                  uint cur_aj = main_alignment[j];
-                  assert(cur_aj != i+1);
-
-                  const std::map<uchar, double>& inner_exp = it->second;
-
-                  std::map<uchar, double>::const_iterator inner_it = inner_exp.find(i+1);
-                  if (inner_it != inner_exp.end()) {
-                    
-                    double count = inner_it->second;
-
-                    assert(hyp_aligned_source_words[i+1].empty());
-
-                    hyp_aligned_source_words[cur_aj].erase(std::find(hyp_aligned_source_words[cur_aj].begin(),
-                                                                     hyp_aligned_source_words[cur_aj].end(),j));
-                    hyp_aligned_source_words[i+1].push_back(j); //no need to sort, the array was empty
-                    
-                    //call routine to add counts for hyp_aligned_source_words
-                    add_nondef_count(hyp_aligned_source_words, i, J, cur_nondef_count, count); 
-
-                    //restore
-                    hyp_aligned_source_words[cur_aj] = main_aligned_source_words[cur_aj];
-                    hyp_aligned_source_words[i+1].clear();
-                  }
-                }
-              }
+	      cur_count_struct.unpack(i,J,main_aligned_source_words,cur_nondef_count);
             }
          
 	    if (cur_nondef_count.empty())
@@ -3920,9 +3813,45 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
 
     if (parametric_distortion_) {
 
+      Math2D::Matrix<double> fpar_distort_count(distortion_param_.xDim(),distortion_param_.yDim(),0.0);
+
+      for (uint J=0; J < fdistort_count.size(); J++) {
+
+        for (uint x=0; x < fdistort_count[J].xDim(); x++)
+          for (uint y=0; y < fdistort_count[J].yDim(); y++)
+            fpar_distort_count(x,y) += fdistort_count[J](x,y);
+      }
+
+      for (uint y=0; y < fpar_distort_count.yDim(); y++) {
+        
+        double sum =  0.0;
+        for (uint x = 0; x < fpar_distort_count.xDim(); x++)
+          sum += fpar_distort_count(x,y);
+
+        if (sum > 1e-305) {
+          for (uint x = 0; x < fpar_distort_count.xDim(); x++)
+            fpar_distort_count(x,y) /= sum;
+        }
+      }
+
+
       for (uint i=0; i < maxI_; i++) {
         std::cerr << "m-step for i=" << i << std::endl;
-        par_distortion_m_step(fdistort_count,i);
+
+	double start_energy = par_distortion_m_step_energy(fdistort_count,distortion_param_,i);
+
+	double hyp_energy = par_distortion_m_step_energy(fdistort_count,fpar_distort_count,i);
+	
+	if (hyp_energy < start_energy) {
+	  
+	  for (uint x = 0; x < fpar_distort_count.xDim(); x++) {
+	    distortion_param_(x,i) = fpar_distort_count(x,i);
+	  }
+	  
+	  start_energy = hyp_energy;
+	}
+
+        par_distortion_m_step(fdistort_count,i,start_energy);
       }
       par2nonpar_distortion(distortion_prob_);
     }
@@ -5642,47 +5571,8 @@ void IBM3Trainer::train_with_ibm_constraints(uint nIter, uint maxFertility, uint
   }
 }
 
-void IBM3Trainer::write_postdec_alignments(const std::string filename, double thresh) {
-
-  std::ostream* out;
-
-#ifdef HAS_GZSTREAM
-  if (string_ends_with(filename,".gz")) {
-    out = new ogzstream(filename.c_str());
-  }
-  else {
-    out = new std::ofstream(filename.c_str());
-  }
-#else
-  out = new std::ofstream(filename.c_str());
-#endif
-
-
-  for (uint s=0; s < source_sentence_.size(); s++) {
-    
-    Math1D::Vector<AlignBaseType> viterbi_alignment = best_known_alignment_[s];
-    std::set<std::pair<AlignBaseType,AlignBaseType> > postdec_alignment;
-  
-    SingleLookupTable aux_lookup;
-
-    const SingleLookupTable& cur_lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
-                                                         nSourceWords_,slookup_[s],aux_lookup);
-
-    compute_external_postdec_alignment(source_sentence_[s], target_sentence_[s], cur_lookup,
-				       viterbi_alignment, postdec_alignment, thresh);
-
-    for(std::set<std::pair<AlignBaseType,AlignBaseType> >::iterator it = postdec_alignment.begin(); 
-	it != postdec_alignment.end(); it++) {
-      
-      (*out) << (it->second-1) << " " << (it->first-1) << " ";
-    }
-    (*out) << std::endl;
-    
-  }
-}
-
-void IBM3Trainer::add_nondef_count(const Storage1D<std::vector<uchar> >& aligned_source_words, uint i, uint J,
-                                   std::map<Math1D::Vector<uchar,uchar>,double>& count_map, double count) {
+void add_nondef_count(const Storage1D<std::vector<uchar> >& aligned_source_words, uint i, uint J,
+		      std::map<Math1D::Vector<uchar,uchar>,double>& count_map, double count) {
 
   //note: i starts at zero, but the index for aligned_source_words starts at 1
   

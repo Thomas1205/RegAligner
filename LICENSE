@@ -31,7 +31,8 @@ and he/she indicates the original author and also distributes this license.
 needs. The author appreciates to be informed about useful modifications. It is
 allowed, but not required, to make these changes publicly available.
 
-5. If you use this software for publications, please consider if citing one
+5. Citing papers by the author
+If you use this software for publications, please consider if citing one
 (or more) of the following papers is appropriate:
 
 - [T. Schoenemann, Probabilistic Word Alignment Under the L_0-norm, CoNLL 2011.]
@@ -44,6 +45,24 @@ or when emphasis on the corrected HMM training is appropriate)
 - [T. Schoenemann, Training Nondeficient Variants of IBM-3 and IBM-4 for Word
   Alignment, ACL 2013] (when you use nondeficient training of IBM-3 and IBM-4)
 
+
+6. Citing papers not by the author
+If you use this software for publications, please consider if citing one
+(or more) of the following papers is appropriate:
+
 - if you use L_0 in combination with EM:
 [A. Vaswani and L. Huang and D. Chiang, Smaller Alignment Models for Better
 Translations: Unsupervised Word Alignment with the L0-norm. ACL 2012.]
+
+-you probably want to cite the seminal paper
+[P.F. Brown and S.A. Della Pietra and V.J. Della Pietra and R.L. Mercer,
+ The mathematics of statistical machine translation: Parameter estimation,
+ Computational Linguistics, 19(2), pp 263-311 1993]
+
+- for the HMM,
+[S. Vogel, H. Ney and C. Tillman, HMM-based word alignment in statistical
+translation, COLING 1996] 
+
+- for deficient empty words and evaluation issues:
+[F.J. Och and H. Ney, A systematic comparison of various statistical alignment
+modes, Computational Linguistics, 29(1), pp 19-51, 2003]

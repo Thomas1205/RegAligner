@@ -48,19 +48,17 @@ public:
   //Viterbi-training with ITG reordering constraints. 
   void train_with_itg_constraints(uint nIter, bool extended_reordering = false, bool verbose = false);
 
-  long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-                                         const SingleLookupTable& lookup,
-                                         Math1D::Vector<AlignBaseType>& alignment, bool ilp=false);
+  virtual long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+						 const SingleLookupTable& lookup,
+						 Math1D::Vector<AlignBaseType>& alignment);
 
   // <code> start_alignment </code> is used as initialization for hillclimbing and later modified
   // the extracted alignment is written to <code> postdec_alignment </code>
-  void compute_external_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-					  const SingleLookupTable& lookup,
-					  Math1D::Vector<AlignBaseType>& start_alignment,
-					  std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
-					  double threshold = 0.25);
-
-  void write_postdec_alignments(const std::string filename, double thresh);
+  virtual void compute_external_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+						  const SingleLookupTable& lookup,
+						  Math1D::Vector<AlignBaseType>& start_alignment,
+						  std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
+						  double threshold = 0.25);
 
   virtual long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 						       const SingleLookupTable& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
@@ -79,7 +77,7 @@ protected:
   double par_distortion_m_step_energy(const ReducedIBM3DistortionModel& fdistort_count,
                                       const Math1D::Vector<double>& param, uint i);
 
-  void par_distortion_m_step(const ReducedIBM3DistortionModel& fdistort_count, uint i);
+  void par_distortion_m_step(const ReducedIBM3DistortionModel& fdistort_count, uint i, double start_energy);
 
 
   double nondeficient_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
@@ -140,9 +138,6 @@ protected:
 				  const SingleLookupTable& lookup,
 				  Math1D::Vector<AlignBaseType>& alignment);
 
-  void add_nondef_count(const Storage1D<std::vector<uchar> >& aligned_source_words, uint i, uint J,
-                        std::map<Math1D::Vector<uchar,uchar>,double>& count_map, double count);
-
   ReducedIBM3DistortionModel distortion_prob_;
   Math2D::Matrix<double> distortion_param_;
 
@@ -154,6 +149,8 @@ protected:
   mutable Storage1D<std::map<Storage1D<bool>,double> > denom_cache_;
 };
 
+void add_nondef_count(const Storage1D<std::vector<uchar> >& aligned_source_words, uint i, uint J,
+		      std::map<Math1D::Vector<uchar,uchar>,double>& count_map, double count);
 
 
 #endif

@@ -40,6 +40,8 @@ public:
 
   void write_alignments(const std::string filename) const;
 
+  void write_postdec_alignments(const std::string filename, double thresh);
+
   double AER();
 
   double AER(const Storage1D<Math1D::Vector<AlignBaseType> >& alignments);
@@ -68,6 +70,18 @@ public:
 						       Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment)
   = 0;
 
+
+  virtual long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+						 const SingleLookupTable& lookup,
+						 Math1D::Vector<AlignBaseType>& alignment) = 0;
+
+  // <code> start_alignment </code> is used as initialization for hillclimbing and later modified
+  // the extracted alignment is written to <code> postdec_alignment </code>
+  virtual void compute_external_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+						  const SingleLookupTable& lookup,
+						  Math1D::Vector<AlignBaseType>& start_alignment,
+						  std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
+						  double threshold = 0.25) = 0;
 
   void update_alignments_unconstrained();
 

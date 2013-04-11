@@ -4252,6 +4252,7 @@ void IBM4Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
   }
 }
 
+/*virtual*/
 long double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
                                                     const SingleLookupTable& lookup,
                                                     Math1D::Vector<AlignBaseType>& alignment) {
@@ -4277,6 +4278,7 @@ long double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& sourc
 
 // <code> start_alignment </code> is used as initialization for hillclimbing and later modified
 // the extracted alignment is written to <code> postdec_alignment </code>
+/*virtual*/
 void IBM4Trainer::compute_external_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
 						     const SingleLookupTable& lookup,
 						     Math1D::Vector<AlignBaseType>& alignment,
@@ -6330,39 +6332,4 @@ void IBM4Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
   }
 
   iter_offs_ = iter-1;
-}
-
-
-void IBM4Trainer::write_postdec_alignments(const std::string filename, double thresh) {
-
-  std::ostream* out;
-
-#ifdef HAS_GZSTREAM
-  if (string_ends_with(filename,".gz")) {
-    out = new ogzstream(filename.c_str());
-  }
-  else {
-    out = new std::ofstream(filename.c_str());
-  }
-#else
-  out = new std::ofstream(filename.c_str());
-#endif
-
-
-  for (uint s=0; s < source_sentence_.size(); s++) {
-    
-    Math1D::Vector<AlignBaseType> viterbi_alignment = best_known_alignment_[s];
-    std::set<std::pair<AlignBaseType,AlignBaseType> > postdec_alignment;
-  
-    compute_external_postdec_alignment(source_sentence_[s], target_sentence_[s], slookup_[s],
-				       viterbi_alignment, postdec_alignment, thresh);
-
-    for(std::set<std::pair<AlignBaseType,AlignBaseType> >::iterator it = postdec_alignment.begin(); 
-	it != postdec_alignment.end(); it++) {
-      
-      (*out) << (it->second-1) << " " << (it->first-1) << " ";
-    }
-    (*out) << std::endl;
-
-  }
 }

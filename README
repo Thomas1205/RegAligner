@@ -1,6 +1,6 @@
 This toolkit primarily implements the papers
 
-[Schoenemann, CoNLL 2011] (Viterbi-mode)
+[Schoenemann, CoNLL 2011] (Viterbi-mode, with or without L0 regularity)
 
 [Schoenemann, IJCNLP 2011] (penalization of mass, gradient descent)
 
@@ -13,7 +13,7 @@ Chiang ACL 2012], which uses L0-norms together with EM.
 
 
 At the same time, it is an adequate replacement for
-GIZA++ as the models IBM-1,2,3,4 and HMM are implemented. 
+GIZA++ as the models IBM 1-5 and HMM are implemented. 
 
 There are a few restrictions however:
 - support for the IBM-2 is limited.
