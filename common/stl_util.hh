@@ -17,10 +17,17 @@ template <typename T>
 T set_sum(const std::set<T>& s);
 
 template <typename T>
-inline typename std::vector<T>::iterator vec_find(const std::vector<T>& vec, T element);
+inline typename std::vector<T>::iterator vec_find(std::vector<T>& vec, T element);
+
+template <typename T>
+inline typename std::vector<T>::const_iterator vec_find(const std::vector<T>& vec, T element);
 
 template <typename T>
 inline bool contains(const std::set<T> s, T element);
+
+
+template <typename T>
+inline void vec_sort(std::vector<T>& vec);
 
 
 namespace Makros {
@@ -94,7 +101,13 @@ T set_sum(const std::set<T>& s) {
 }
 
 template <typename T>
-inline typename std::vector<T>::iterator vec_find(const std::vector<T>& vec, T element) {
+inline typename std::vector<T>::const_iterator vec_find(const std::vector<T>& vec, T element) {
+  
+  return std::find(vec.begin(),vec.end(),element);
+}
+
+template <typename T>
+inline typename std::vector<T>::iterator vec_find(std::vector<T>& vec, T element) {
   
   return std::find(vec.begin(),vec.end(),element);
 }
@@ -105,5 +118,10 @@ inline bool contains(const std::set<T> s, T element) {
   return s.find(element) != s.end();
 }
 
+template <typename T>
+inline void vec_sort(std::vector<T>& vec) {
+
+  std::sort(vec.begin(),vec.end());
+}
 
 #endif

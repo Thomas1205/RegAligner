@@ -101,12 +101,14 @@ protected:
                                                 const std::vector<double>& count,
                                                 uint i, double start_energy);
 
-  double nondeficient_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count, uint i, uint J);
+  double nondeficient_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count, uint i, uint J, double start_energy);
 
   long double alignment_prob(uint s, const Math1D::Vector<AlignBaseType>& alignment) const;
 
   long double alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target,
                              const SingleLookupTable& lookup, const Math1D::Vector<AlignBaseType>& alignment) const;
+
+  long double nondeficient_alignment_prob(uint s, const Math1D::Vector<AlignBaseType>& alignment) const;
 
   long double nondeficient_alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target,
                                           const SingleLookupTable& lookup, const Math1D::Vector<AlignBaseType>& alignment) const;
