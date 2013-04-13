@@ -19,6 +19,7 @@ There are a few restrictions however:
 - support for the IBM-2 is limited.
 - pegging is not implemented (and usually too slow, anyway)
 - smoothing (e.g. for HMMs) is not implemented
+- we do not implement Model 6
 
 On the other hand, there are some additional features:
 - implementation of regularity terms (L_0 and weighted L_1)

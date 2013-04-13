@@ -8,14 +8,6 @@
 
 #include "ibm3_training.hh"
 
-enum IBM4CeptStartMode { IBM4CENTER, IBM4FIRST, IBM4LAST, IBM4UNIFORM };
-
-//what target word to condition on. Previous is as proposed by Brown et al.
-enum IBM4InterDistMode {IBM4InterDistModePrevious, IBM4InterDistModeCurrent}; 
-
-//what word to condition on for the intra probability. Source is as proposed by Brown et al.
-enum IBM4IntraDistMode {IBM4IntraDistModeSource, IBM4IntraDistModeTarget};
-
 struct DistortCount {
 
   DistortCount(uchar J, uchar j, uchar j_prev);
@@ -72,18 +64,6 @@ public:
 
   //unconstrained Viterbi training
   void train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer = 0, HmmWrapper* wrapper = 0);
-
-  virtual long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-						 const SingleLookupTable& lookup,
-						 Math1D::Vector<AlignBaseType>& alignment);
-
-  // <code> start_alignment </code> is used as initialization for hillclimbing and later modified
-  // the extracted alignment is written to <code> postdec_alignment </code>
-  virtual void compute_external_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-						  const SingleLookupTable& lookup,
-						  Math1D::Vector<AlignBaseType>& start_alignment,
-						  std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
-						  double threshold = 0.25);
 
   virtual long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 						       const SingleLookupTable& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
@@ -166,9 +146,9 @@ protected:
 
   void nondeficient_intra_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count, uint sclass);
 
-  void prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-				  const SingleLookupTable& lookup,
-				  Math1D::Vector<AlignBaseType>& alignment);
+  virtual void prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+					  const SingleLookupTable& lookup,
+					  Math1D::Vector<AlignBaseType>& alignment);
 
 
   //indexed by (target word class idx, source word class idx, displacement)

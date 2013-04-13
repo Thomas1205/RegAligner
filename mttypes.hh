@@ -39,6 +39,14 @@ enum HmmInitProbType {HmmInitFix, HmmInitNonpar, HmmInitPar, HmmInitFix2, HmmIni
 
 enum HmmAlignProbType {HmmAlignProbNonpar, HmmAlignProbFullpar, HmmAlignProbReducedpar, HmmAlignProbNonpar2, HmmAlignProbInvalid};
 
+enum IBM4CeptStartMode { IBM4CENTER, IBM4FIRST, IBM4LAST, IBM4UNIFORM };
+
+//what target word to condition on. Previous is as proposed by Brown et al.
+enum IBM4InterDistMode {IBM4InterDistModePrevious, IBM4InterDistModeCurrent}; 
+
+//what word to condition on for the intra probability. Source is as proposed by Brown et al.
+enum IBM4IntraDistMode {IBM4IntraDistModeSource, IBM4IntraDistModeTarget};
+
 typedef ushort WordClassType; 
 
 typedef ushort AlignBaseType;

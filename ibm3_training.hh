@@ -136,9 +136,9 @@ protected:
   long double compute_ibmconstrained_viterbi_alignment_noemptyword(uint s, uint maxFertility, uint nMaxSkips);
 
 
-  void prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-				  const SingleLookupTable& lookup,
-				  Math1D::Vector<AlignBaseType>& alignment);
+  virtual void prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+					  const SingleLookupTable& lookup,
+					  Math1D::Vector<AlignBaseType>& alignment);
 
   ReducedIBM3DistortionModel distortion_prob_;
   Math2D::Matrix<double> distortion_param_;

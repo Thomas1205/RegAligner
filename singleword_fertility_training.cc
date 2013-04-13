@@ -1168,3 +1168,55 @@ void FertilityModelTrainer::common_prepare_external_alignment(const Storage1D<ui
   }
 
 }
+
+/*virtual*/
+long double FertilityModelTrainer::compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+							      const SingleLookupTable& lookup,
+							      Math1D::Vector<AlignBaseType>& alignment) {
+
+
+  prepare_external_alignment(source, target, lookup, alignment);
+
+  const uint J = source.size();
+  const uint I = target.size();
+
+  //create matrices
+  Math2D::Matrix<long double> expansion_prob(J,I+1);
+  Math2D::Matrix<long double> swap_prob(J,J);
+
+  Math1D::Vector<uint> fertility(I+1,0);
+  
+  uint nIter;
+
+  return update_alignment_by_hillclimbing(source, target, lookup, nIter, fertility,
+					  expansion_prob, swap_prob, alignment);
+}
+
+// <code> start_alignment </code> is used as initialization for hillclimbing and later modified
+// the extracted alignment is written to <code> postdec_alignment </code>
+/*virtual*/
+void FertilityModelTrainer::compute_external_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+							       const SingleLookupTable& lookup,
+							       Math1D::Vector<AlignBaseType>& start_alignment,
+							       std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
+							       double threshold) {
+
+  prepare_external_alignment(source, target, lookup, start_alignment);
+
+  const uint J = source.size();
+  const uint I = target.size();
+
+  //create matrices
+  Math2D::Matrix<long double> expansion_prob(J,I+1);
+  Math2D::Matrix<long double> swap_prob(J,J);
+
+  Math1D::Vector<uint> fertility(I+1,0);
+  
+  uint nIter;
+
+  long double best_prob = update_alignment_by_hillclimbing(source, target, lookup, nIter, fertility,
+							   expansion_prob, swap_prob, start_alignment);
+
+  compute_postdec_alignment(start_alignment, best_prob, expansion_prob, swap_prob, threshold, postdec_alignment);
+}
+

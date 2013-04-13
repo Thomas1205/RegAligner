@@ -4151,6 +4151,7 @@ long double IBM4Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
   return base_prob;
 }
 
+/*virtual*/
 void IBM4Trainer::prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
 					     const SingleLookupTable& lookup,
 					     Math1D::Vector<AlignBaseType>& alignment) {
@@ -4250,65 +4251,6 @@ void IBM4Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
     if (use_sentence_start_prob_) 
       par2nonpar_start_prob();
   }
-}
-
-/*virtual*/
-long double IBM4Trainer::compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-                                                    const SingleLookupTable& lookup,
-                                                    Math1D::Vector<AlignBaseType>& alignment) {
-
-  //std::cerr << "compute external alignment" << std::endl;
-
-  prepare_external_alignment(source, target, lookup, alignment);
-
-  const uint J = source.size();
-  const uint I = target.size();
-
-  //create matrices
-  Math2D::Matrix<long double> expansion_prob(J,I+1);
-  Math2D::Matrix<long double> swap_prob(J,J);
-
-  Math1D::Vector<uint> fertility(I+1,0);
-  
-  uint nIter;
-
-  return update_alignment_by_hillclimbing(source, target, lookup, nIter, fertility,
-					  expansion_prob, swap_prob, alignment);
-}
-
-// <code> start_alignment </code> is used as initialization for hillclimbing and later modified
-// the extracted alignment is written to <code> postdec_alignment </code>
-/*virtual*/
-void IBM4Trainer::compute_external_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-						     const SingleLookupTable& lookup,
-						     Math1D::Vector<AlignBaseType>& alignment,
-						     std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
-						     double threshold) {
-
-  //std::cerr << "compute external alignment" << std::endl;
-
-  prepare_external_alignment(source, target, lookup, alignment);
-
-  postdec_alignment.clear();
-
-  const uint J = source.size();
-  const uint I = target.size();
-
-  //create matrices
-  Math2D::Matrix<long double> expansion_move_prob(J,I+1);
-  Math2D::Matrix<long double> swap_move_prob(J,J);
-
-  Math1D::Vector<uint> fertility(I+1,0);
-  
-  uint nIter;
-  long double best_prob;
-
-
-  best_prob = update_alignment_by_hillclimbing(source, target, lookup, nIter, fertility,
-					       expansion_move_prob, swap_move_prob, alignment);
-
-
-  compute_postdec_alignment(alignment, best_prob, expansion_move_prob, swap_move_prob, threshold, postdec_alignment);
 }
 
 DistortCount::DistortCount(uchar J, uchar j, uchar j_prev)

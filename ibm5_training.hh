@@ -31,17 +31,6 @@ public:
 
   void train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer = 0, HmmWrapper* wrapper = 0);
 
-  virtual long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-						 const SingleLookupTable& lookup,
-						 Math1D::Vector<AlignBaseType>& alignment);
-
-  // <code> start_alignment </code> is used as initialization for hillclimbing and later modified
-  // the extracted alignment is written to <code> postdec_alignment </code>
-  virtual void compute_external_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-						  const SingleLookupTable& lookup,
-						  Math1D::Vector<AlignBaseType>& start_alignment,
-						  std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
-						  double threshold = 0.25);
 
   virtual long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 						       const SingleLookupTable& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
@@ -70,9 +59,9 @@ protected:
 
   void intra_distortion_m_step(uint sclass, const Storage1D<Math2D::Matrix<double> >& count);
 
-  void prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-				  const SingleLookupTable& lookup,
-				  Math1D::Vector<AlignBaseType>& alignment);
+  virtual void prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+					  const SingleLookupTable& lookup,
+					  Math1D::Vector<AlignBaseType>& alignment);
 
 
   //dependence on the previous center (yDim) and source word classes (zDim)

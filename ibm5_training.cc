@@ -2901,86 +2901,13 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
   iter_offs_ = iter-1;
 }
 
+/*virtual*/
 void IBM5Trainer::prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
 					     const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment) {
 
   const uint J = source.size();
 
   common_prepare_external_alignment(source,target,lookup,alignment);
-
-  //const uint I = target.size();
-
-  // if (alignment.size() != J)
-  //   alignment.resize(J,1);
-
-  // assert(lookup.xDim() == J && lookup.yDim() == I);
-
-  // Math1D::Vector<uint> fertility(I+1,0);
-
-  // for (uint j=0; j < J; j++) {
-  //   const uint aj = alignment[j];
-  //   fertility[aj]++;
-  // }
-
-  // if (fertility[0] > 0 && p_zero_ < 1e-12)
-  //   p_zero_ = 1e-12;
-  
-  // if (2*fertility[0] > J) {
-    
-  //   for (uint j=0; j < J; j++) {
-      
-  //     if (alignment[j] == 0) {
-	
-  //       alignment[j] = 1;
-  //       fertility[0]--;
-  //       fertility[1]++;	
-
-  // 	if (dict_[target[0]][lookup(j,0)] < 1e-12)
-  // 	  dict_[target[0]][lookup(j,0)] = 1e-12;
-  //     }
-  //   }
-  // }
-
-  // /*** check if fertility tables are large enough ***/
-  // for (uint i=0; i < I; i++) {
-
-  //   if (fertility_prob_[target[i]].size() < J+1)
-  //     fertility_prob_[target[i]].resize(J+1,1e-15);
-
-  //   if (fertility_prob_[target[i]][fertility[i+1]] < 1e-15)
-  //     fertility_prob_[target[i]][fertility[i+1]] = 1e-15;
-
-  //   if (fertility_prob_[target[i]].sum() < 0.5)
-  //     fertility_prob_[target[i]].set_constant(1.0 / fertility_prob_[target[i]].size());
-
-  //   if (fertility_prob_[target[i]][fertility[i+1]] < 1e-8)
-  //     fertility_prob_[target[i]][fertility[i+1]] = 1e-8;
-  // }
-
-  // /*** check if a source word does not have a translation (with non-zero prob.) ***/
-  // for (uint j=0; j < J; j++) {
-  //   uint src_idx = source[j];
-
-  //   double sum = dict_[0][src_idx-1];
-  //   for (uint i=0; i < I; i++)
-  //     sum += dict_[target[i]][lookup(j,i)];
-
-  //   if (sum < 1e-100) {
-  //     for (uint i=0; i < I; i++)
-  //       dict_[target[i]][lookup(j,i)] = 1e-15;
-  //   }
-
-  //   uint aj = alignment[j];
-  //   if (aj == 0) {
-  //     if (dict_[0][src_idx-1] < 1e-20)
-  //       dict_[0][src_idx-1] = 1e-20;
-  //   }
-  //   else {
-  //     if (dict_[target[aj-1]][lookup(j,aj-1)] < 1e-20)
-  //       dict_[target[aj-1]][lookup(j,aj-1)] = 1e-20;
-  //   }
-  // }
-
 
   /*** check if distortion tables are large enough ***/
 
@@ -3066,59 +2993,8 @@ void IBM5Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
       inter_distortion_prob_[JJ].resize(inter_distortion_prob_[JJ].xDim(),J,nSourceClasses_,1e-8);
   }
   
-
 }
 
-/*virtual*/
-long double IBM5Trainer::compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-						    const SingleLookupTable& lookup,
-						    Math1D::Vector<AlignBaseType>& alignment) {
-
-  prepare_external_alignment(source,target,lookup,alignment);
-
-  const uint J = source.size();
-  const uint I = target.size();
-
-  //create matrices
-  Math2D::Matrix<long double> expansion_prob(J,I+1);
-  Math2D::Matrix<long double> swap_prob(J,J);
-
-  Math1D::Vector<uint> fertility(I+1,0);
-  
-  uint nIter;
-
-  return update_alignment_by_hillclimbing(source, target, lookup, nIter, fertility,
-					  expansion_prob, swap_prob, alignment);
-}
-
-// <code> start_alignment </code> is used as initialization for hillclimbing and later modified
-// the extracted alignment is written to <code> postdec_alignment </code>
-/*virtual*/
-void IBM5Trainer::compute_external_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-						     const SingleLookupTable& lookup,
-						     Math1D::Vector<AlignBaseType>& alignment,
-						     std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
-						     double threshold) {
-
-  prepare_external_alignment(source,target,lookup,alignment);
-
-
-  const uint J = source.size();
-  const uint I = target.size();
-
-  //create matrices
-  Math2D::Matrix<long double> expansion_move_prob(J,I+1);
-  Math2D::Matrix<long double> swap_move_prob(J,J);
-
-  Math1D::Vector<uint> fertility(I+1,0);
-  
-  uint nIter;
-
-  long double best_prob = update_alignment_by_hillclimbing(source, target, lookup, nIter, fertility,
-							   expansion_move_prob, swap_move_prob, alignment);
-
-  compute_postdec_alignment(alignment, best_prob, expansion_move_prob, swap_move_prob, threshold, postdec_alignment);
-}
 
 
 

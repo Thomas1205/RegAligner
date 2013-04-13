@@ -67,13 +67,12 @@ public:
   virtual long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 						       const SingleLookupTable& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
 						       Math2D::Matrix<long double>& expansion_prob,
-						       Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment)
-  = 0;
+						       Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment) = 0;
 
 
   virtual long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
 						 const SingleLookupTable& lookup,
-						 Math1D::Vector<AlignBaseType>& alignment) = 0;
+						 Math1D::Vector<AlignBaseType>& alignment);
 
   // <code> start_alignment </code> is used as initialization for hillclimbing and later modified
   // the extracted alignment is written to <code> postdec_alignment </code>
@@ -81,13 +80,17 @@ public:
 						  const SingleLookupTable& lookup,
 						  Math1D::Vector<AlignBaseType>& start_alignment,
 						  std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
-						  double threshold = 0.25) = 0;
+						  double threshold = 0.25);
 
   void update_alignments_unconstrained();
 
   void release_memory();
 
 protected:
+
+  virtual void prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+					  const SingleLookupTable& lookup,
+					  Math1D::Vector<AlignBaseType>& alignment) = 0;
 
   void print_uncovered_set(uint state) const;
 

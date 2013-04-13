@@ -519,13 +519,13 @@ void IBM3Trainer::par_distortion_m_step(const ReducedIBM3DistortionModel& fdisto
         double count_sum =0.0;
         
         for (uint j=0; j < cur_distort_count.xDim(); j++) {
-          sum += distortion_param_(j,i);
+          sum += std::max(1e-15,distortion_param_(j,i));
           count_sum += cur_distort_count(j,i);
         }
         
         for (uint j=0; j < cur_distort_count.xDim(); j++) {
           
-          double cur_param = std::max(1e-15,distortion_param_(j,i));
+          const double cur_param = std::max(1e-15,distortion_param_(j,i));
           
           distortion_grad[j] += count_sum / sum;
           distortion_grad[j] -= cur_distort_count(j,i) / cur_param;
@@ -2254,6 +2254,7 @@ long double IBM3Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
 }
 
 
+/*virtual*/
 void IBM3Trainer::prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
 					     const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment) {
 
