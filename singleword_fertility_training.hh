@@ -258,7 +258,8 @@ inline void FertilityModelTrainer::update_fertility_counts(const Storage1D<uint>
       
       cur_fert_count[cur_fert-1] += inv_sentence_prob * alt_addon;
     }
-    
+
+    //check for the unlikely event that all source words in best_alignment align to i    
     if (cur_fert+1 < fertility_prob_[t_idx].size()) {
       
       long double alt_addon = 0.0;

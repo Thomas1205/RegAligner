@@ -899,6 +899,14 @@ void FertilityModelTrainer::update_alignments_unconstrained() {
     update_alignment_by_hillclimbing(source_sentence_[s], target_sentence_[s], cur_lookup,nIter,fertility,
 				     expansion_prob,swap_prob, best_known_alignment_[s]);
   }
+
+  if (possible_ref_alignments_.size() > 0) {
+      
+    std::cerr << "#### AER after alignment update: " << AER() << std::endl;
+    std::cerr << "#### fmeasure after alignment update: " << f_measure() << std::endl;
+    std::cerr << "#### DAE/S after alignment update: " << DAE_S() << std::endl;
+  }
+
 }
 
 void FertilityModelTrainer::compute_postdec_alignment(const Math1D::Vector<AlignBaseType>& alignment,
