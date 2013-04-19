@@ -1227,4 +1227,3 @@ void FertilityModelTrainer::compute_external_postdec_alignment(const Storage1D<u
 
   compute_postdec_alignment(start_alignment, best_prob, expansion_prob, swap_prob, threshold, postdec_alignment);
 }
-

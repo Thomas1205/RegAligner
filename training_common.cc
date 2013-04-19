@@ -926,6 +926,7 @@ void update_dict_from_counts(const SingleWordDictionary& fdict_count,
 			     bool smoothed_l0, double l0_beta,
 			     uint nDictStepIter, SingleWordDictionary& dict, double min_prob) {
 
+
   if (dict_weight_sum > 0.0) {
     
     double alpha = 100.0;
@@ -935,30 +936,43 @@ void update_dict_from_counts(const SingleWordDictionary& fdict_count,
       alpha = 0.1;
      
     for (uint i=0; i < fdict_count.size(); i++) {
+
+      const Math1D::Vector<double>& cur_count = fdict_count[i];
+      const Math1D::Vector<float>& cur_prior = prior_weight[i];
+      Math1D::Vector<double>& cur_dict = dict[i];
       
-      double cur_energy = single_dict_m_step_energy(fdict_count[i], prior_weight[i], dict[i], smoothed_l0, l0_beta);
+      double cur_energy = single_dict_m_step_energy(cur_count, cur_prior, cur_dict, smoothed_l0, l0_beta);
       
-      Math1D::Vector<double> hyp_dict = fdict_count[i];
+      Math1D::Vector<double> hyp_dict = cur_count;
       
-      const double sum = fdict_count[i].sum();
-      const double prev_sum = dict[i].sum();
+      const double sum = cur_count.sum();
+      const double prev_sum = cur_dict.sum();
       
       if (sum > 1e-305) {
 	const double inv_sum = 1.0 / sum;
 	assert(!isnan(inv_sum));
         
-	for (uint k=0; k < fdict_count[i].size(); k++) {
+	for (uint k=0; k < cur_count.size(); k++) {
 	  hyp_dict[k] *= prev_sum * inv_sum;
 	}
 
-	double hyp_energy = single_dict_m_step_energy(fdict_count[i], prior_weight[i], hyp_dict, smoothed_l0, l0_beta);
+	double hyp_energy = single_dict_m_step_energy(cur_count, cur_prior, hyp_dict, smoothed_l0, l0_beta);
 
 	//NOTE: if the entries in prior_weight[i] are all the same, hyp_energy should always be small or equal to cur_energy
 	if (hyp_energy < cur_energy)
 	  dict[i] = hyp_dict;
       }
       
-      single_dict_m_step(fdict_count[i], prior_weight[i], dict[i], alpha, nDictStepIter, smoothed_l0, l0_beta);
+      single_dict_m_step(cur_count, cur_prior, cur_dict, alpha, nDictStepIter, smoothed_l0, l0_beta);
+
+      //EXPERIMENTAL
+      double dict_sum = cur_dict.sum();
+
+      //make sure that we roughly keep the probability mass
+      double real_min_prob = std::min(min_prob,0.0009/dict_sum);
+      for (uint k=0; k < cur_count.size(); k++) 
+	cur_dict[k] = std::max(real_min_prob,cur_dict[k]);
+      //END_EXPERIMENTAL
     }
   }
   else {
@@ -979,6 +993,12 @@ void update_dict_from_counts(const SingleWordDictionary& fdict_count,
 	for (uint k=0; k < cur_count.size(); k++) {
 	  cur_dict[k] = std::max(real_min_prob,cur_count[k] * inv_sum);
 	}
+
+	//DEBUG
+	// double dict_sum = dict[i].sum();
+	// if (dict_sum > 1.001)
+	//   std::cerr << "WARNING: dict sum=" << dict_sum << std::endl;
+	//END_DEBUG
       }
       else {
 	// std::cerr << "WARNING : did not update dictionary entries for target word #" << i
@@ -986,6 +1006,7 @@ void update_dict_from_counts(const SingleWordDictionary& fdict_count,
       }
     }
   }
+
 }
 
 

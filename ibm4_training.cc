@@ -4322,8 +4322,8 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
     ffert_count[i].resize_dirty(fertility_prob_[i].size());
   }
 
-  long double fzero_count;
-  long double fnonzero_count;
+  double fzero_count;
+  double fnonzero_count;
 
   double hillclimbtime = 0.0;
   double countcollecttime = 0.0;
@@ -4333,6 +4333,10 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 
     Storage2D<std::map<DistortCount,double> > sparse_inter_distort_count(nSourceClasses_,nTargetClasses_);
 
+    //NOTE: in the presence of many word classes using these counts is a waste of memory.
+    // It would be more prudent to keep track of the counts for every sentence (using the CountStructure from the IBM3)
+    // and to then filter out the relevant counts for the current combination. Only, that's much more complex to implement,
+    // so it may take a while (or never be done)
     Storage2D<std::map<Math1D::Vector<uchar,uchar>,double> > nondef_cept_start_count(nSourceClasses_,nTargetClasses_); 
     Storage1D<std::map<Math1D::Vector<uchar,uchar>,double> > nondef_within_cept_count(nTargetClasses_); 
     
@@ -4420,67 +4424,11 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
       
       const long double inv_sentence_prob = 1.0 / sentence_prob;
 
-      /**** update empty word counts *****/
-	
-      double cur_zero_weight = best_prob;
-      for (uint j=0; j < curJ; j++) {
-        if (best_known_alignment_[s][j] == 0) {
-	  
-          for (uint jj=j+1; jj < curJ; jj++) {
-            if (best_known_alignment_[s][jj] != 0)
-              cur_zero_weight += swap_move_prob(j,jj);
-          }
-        }
-      }
-      cur_zero_weight *= inv_sentence_prob;
-
-      assert(!isnan(cur_zero_weight));
-      assert(!isinf(cur_zero_weight));
-      
-      fzero_count += cur_zero_weight * (fertility[0]);
-      fnonzero_count += cur_zero_weight * (curJ - 2*fertility[0]);
-
-      if (curJ >= 2*(fertility[0]+1)) {
-        long double inc_zero_weight = 0.0;
-        for (uint j=0; j < curJ; j++)
-          inc_zero_weight += expansion_move_prob(j,0);
-	
-        inc_zero_weight *= inv_sentence_prob;
-        fzero_count += inc_zero_weight * (fertility[0]+1);
-        fnonzero_count += inc_zero_weight * (curJ -2*(fertility[0]+1));
-
-        assert(!isnan(inc_zero_weight));
-        assert(!isinf(inc_zero_weight));
-      }
-
-      if (fertility[0] > 1) {
-        long double dec_zero_weight = 0.0;
-        for (uint j=0; j < curJ; j++) {
-          if (best_known_alignment_[s][j] == 0) {
-            for (uint i=1; i <= curI; i++)
-              dec_zero_weight += expansion_move_prob(j,i);
-          }
-        }
-      
-        dec_zero_weight *= inv_sentence_prob;
-
-        fzero_count += dec_zero_weight * (fertility[0]-1);
-        fnonzero_count += dec_zero_weight * (curJ -2*(fertility[0]-1));
-
-        assert(!isnan(dec_zero_weight));
-        assert(!isinf(dec_zero_weight));
-      }
-
-      //DEBUG
-      if (isnan(fzero_count) || isnan(fnonzero_count)
-	  || isinf(fzero_count) || isinf(fnonzero_count) ) {
-
-	std::cerr << "zero counts: " << fzero_count << ", " << fnonzero_count << std::endl;
-	std::cerr << "sentence #" << s << ", J=" << curJ << ", I=" << curI << std::endl;
-	std::cerr << "sentence weight: " << sentence_prob << std::endl;
-	exit(1);
-      }
-      //END_DEBUG
+      /**** update empty word counts *****/	
+      update_zero_counts(best_known_alignment_[s], fertility,
+			 expansion_move_prob, swap_prob, best_prob,
+			 sentence_prob, inv_sentence_prob,
+			 fzero_count, fnonzero_count);
 
       /**** update fertility counts *****/
       update_fertility_counts(cur_target, best_known_alignment_[s], fertility,
@@ -5932,8 +5880,6 @@ void IBM4Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 
                 nondef_within_cept_count[cur_class][vec_possible] += 1;
               }
-
-              //std::cerr << "dp: tclass " << tclass << ", prob: " << cur_intra_distortion_prob(tclass,cur_j,prev_j) << std::endl;
               
               fixed[cur_j] = true;
               

@@ -11,7 +11,7 @@ RegAligner Change History
 - made some alternative word class modes available on command line
 - added alternative projection routine with better worst case complexity (no
   speed-ups in practice)
-
+- major bugfix for IBM-3/4 regarding p0 count collection (for EM)
 
 *** release version 1.05 (released March 6 2013) ***
 - two bugfixes for IBM-4

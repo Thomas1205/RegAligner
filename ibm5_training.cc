@@ -883,9 +883,6 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       uint cur_aj1 = alignment[best_swap_j1];
       uint cur_aj2 = alignment[best_swap_j2];
 
-      //std::cerr << "old aj1: " << cur_aj1 << std::endl;
-      //std::cerr << "old aj2: " << cur_aj2 << std::endl;
-
       assert(cur_aj1 != cur_aj2);
       
       alignment[best_swap_j1] = cur_aj2;
@@ -894,20 +891,15 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       for (uint k=0; k < aligned_source_words[cur_aj2].size(); k++) {
 	if (aligned_source_words[cur_aj2][k] == best_swap_j2) {
 	  aligned_source_words[cur_aj2][k] = best_swap_j1;
-          //found1 = true;
           break;
         }
       }
-      //assert(found1);
-      //bool found2 = false;
       for (uint k=0; k < aligned_source_words[cur_aj1].size(); k++) {
 	if (aligned_source_words[cur_aj1][k] == best_swap_j1) {
 	  aligned_source_words[cur_aj1][k] = best_swap_j2;
-          //found2 = true;
           break;
         }
       }
-      //assert(found2);
 
       std::sort(aligned_source_words[cur_aj1].begin(), aligned_source_words[cur_aj1].end());
       std::sort(aligned_source_words[cur_aj2].begin(), aligned_source_words[cur_aj2].end());
@@ -961,7 +953,7 @@ void IBM5Trainer::inter_distortion_m_step(uint sclass, const Storage1D<Math3D::T
 
   double energy = inter_distortion_m_step_energy(sclass,count,inter_distortion_param_);
   
-  //if (nSourceClasses_ <= 4)
+  if (nSourceClasses_ <= 4)
     std::cerr << "start energy: " << energy << std::endl;
   
   double alpha = 0.1;
@@ -971,7 +963,7 @@ void IBM5Trainer::inter_distortion_m_step(uint sclass, const Storage1D<Math3D::T
 
     if ((iter % 5) == 0) {
 
-      //if (nSourceClasses_ <= 4)
+      if (nSourceClasses_ <= 4)
 	std::cerr << "iteration #" << iter << ", energy: " << energy << std::endl;
     } 
     
@@ -1251,8 +1243,8 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
     ffert_count[i].resize_dirty(fertility_prob_[i].size());
   }
  
-  long double fzero_count;
-  long double fnonzero_count;
+  double fzero_count;
+  double fnonzero_count;
 
   Storage1D<Math3D::Tensor<double> > inter_distortion_count = inter_distortion_prob_;
   Math2D::Matrix<double> inter_distparam_count = inter_distortion_param_;
@@ -1352,175 +1344,19 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
       /****** collect counts ******/
 
       /**** update empty word counts *****/
-	
-      double cur_zero_weight = best_prob;
-      for (uint j=0; j < curJ; j++) {
-        if (best_known_alignment_[s][j] == 0) {
-	  
-          for (uint jj=j+1; jj < curJ; jj++) {
-            if (best_known_alignment_[s][jj] != 0)
-              cur_zero_weight += swap_move_prob(j,jj);
-          }
-        }
-      }
-      cur_zero_weight *= inv_sentence_prob;
-
-      assert(!isnan(cur_zero_weight));
-      assert(!isinf(cur_zero_weight));
-      
-      fzero_count += cur_zero_weight * (fertility[0]);
-      fnonzero_count += cur_zero_weight * (curJ - 2*fertility[0]);
-
-      if (curJ >= 2*(fertility[0]+1)) {
-        long double inc_zero_weight = 0.0;
-        for (uint j=0; j < curJ; j++)
-          inc_zero_weight += expansion_move_prob(j,0);
-	
-        inc_zero_weight *= inv_sentence_prob;
-        fzero_count += inc_zero_weight * (fertility[0]+1);
-        fnonzero_count += inc_zero_weight * (curJ -2*(fertility[0]+1));
-
-        assert(!isnan(inc_zero_weight));
-        assert(!isinf(inc_zero_weight));
-      }
-
-      if (fertility[0] > 1) {
-        long double dec_zero_weight = 0.0;
-        for (uint j=0; j < curJ; j++) {
-          if (best_known_alignment_[s][j] == 0) {
-            for (uint i=1; i <= curI; i++)
-              dec_zero_weight += expansion_move_prob(j,i);
-          }
-        }
-      
-        dec_zero_weight *= inv_sentence_prob;
-
-        fzero_count += dec_zero_weight * (fertility[0]-1);
-        fnonzero_count += dec_zero_weight * (curJ -2*(fertility[0]-1));
-
-        assert(!isnan(dec_zero_weight));
-        assert(!isinf(dec_zero_weight));
-      }
-
-      //DEBUG
-      if (isnan(fzero_count) || isnan(fnonzero_count)
-	  || isinf(fzero_count) || isinf(fnonzero_count) ) {
-
-	std::cerr << "zero counts: " << fzero_count << ", " << fnonzero_count << std::endl;
-	std::cerr << "sentence #" << s << ", J=" << curJ << ", I=" << curI << std::endl;
-	std::cerr << "sentence weight: " << sentence_prob << std::endl;
-	exit(1);
-      }
-      //END_DEBUG
+      update_zero_counts(best_known_alignment_[s], fertility,
+			 expansion_move_prob, swap_prob, best_prob,
+			 sentence_prob, inv_sentence_prob,
+			 fzero_count, fnonzero_count);
 
       /**** update fertility counts *****/
       update_fertility_counts(cur_target, best_known_alignment_[s], fertility,
 			      expansion_move_prob, sentence_prob, inv_sentence_prob, ffert_count);	
 
-
-      // for (uint i=1; i <= curI; i++) {
-
-      //   const uint cur_fert = fertility[i];
-      //   const uint t_idx = cur_target[i-1];
-
-      //   long double addon = sentence_prob;
-      //   for (uint j=0; j < curJ; j++) {
-      //     if (best_known_alignment_[s][j] == i) {
-      //       for (uint ii=0; ii <= curI; ii++)
-      //         addon -= expansion_move_prob(j,ii);
-      //     }
-      //     else
-      //       addon -= expansion_move_prob(j,i);
-      //   }
-      //   addon *= inv_sentence_prob;
-
-      //   double daddon = (double) addon;
-      //   if (!(daddon > 0.0)) {
-      //     std::cerr << "STRANGE: fractional weight " << daddon << " for sentence pair #" << s << " with "
-      //               << curJ << " source words and " << curI << " target words" << std::endl;
-      //     std::cerr << "best alignment prob: " << best_prob << std::endl;
-      //     std::cerr << "sentence prob: " << sentence_prob << std::endl;
-      //     std::cerr << "" << std::endl;
-
-      //     //DEBUG
-      //     exit(1);
-      //     //END_DEBUG
-      //   }
-
-      //   ffert_count[t_idx][cur_fert] += addon;
-
-      //   //NOTE: swap moves do not change the fertilities
-      //   if (cur_fert > 0) {
-      //     long double alt_addon = 0.0;
-      //     for (uint j=0; j < curJ; j++) {
-      //       if (best_known_alignment_[s][j] == i) {
-      //         for (uint ii=0; ii <= curI; ii++) {
-      //           if (ii != i)
-      //             alt_addon += expansion_move_prob(j,ii);
-      //         }
-      //       }
-      //     }
-
-      //     ffert_count[t_idx][cur_fert-1] += inv_sentence_prob * alt_addon;
-      //   }
-
-      //   if (cur_fert+1 < fertility_prob_[t_idx].size()) {
-
-      //     long double alt_addon = 0.0;
-      //     for (uint j=0; j < curJ; j++) {
-      //       if (best_known_alignment_[s][j] != i) {
-      //         alt_addon += expansion_move_prob(j,i);
-      //       }
-      //     }
-
-      //     ffert_count[t_idx][cur_fert+1] += inv_sentence_prob * alt_addon;
-      //   }
-      // }
-
       /**** update dictionary counts *****/
       update_dict_counts(cur_source, cur_target, cur_lookup, best_known_alignment_[s],
 			 expansion_move_prob, swap_move_prob, sentence_prob, inv_sentence_prob,fwcount);
 
-
-      // for (uint j=0; j < curJ; j++) {
-
-      //   const uint s_idx = cur_source[j];
-      //   const uint cur_aj = best_known_alignment_[s][j];
-
-      //   long double addon = sentence_prob;
-      //   for (uint i=0; i <= curI; i++) 
-      //     addon -= expansion_move_prob(j,i);
-      //   for (uint jj=0; jj < curJ; jj++)
-      //     addon -= swap_move_prob(j,jj);
-
-      //   addon *= inv_sentence_prob;
-      //   if (cur_aj != 0) {
-      //     fwcount[cur_target[cur_aj-1]][cur_lookup(j,cur_aj-1)] += addon;
-      //   }
-      //   else {
-      //     fwcount[0][s_idx-1] += addon;
-      //   }
-
-      //   for (uint i=0; i <= curI; i++) {
-
-      //     if (i != cur_aj) {
-
-      //       long double addon = expansion_move_prob(j,i);
-      //       for (uint jj=0; jj < curJ; jj++) {
-      //         if (best_known_alignment_[s][jj] == i)
-      //           addon += swap_move_prob(j,jj);
-      //       }
-      //       addon *= inv_sentence_prob;
-
-      //       if (i!=0) {
-      //         fwcount[cur_target[i-1]][cur_lookup(j,i-1)] += addon;
-      //       }
-      //       else {
-      //         fwcount[0][s_idx-1] += addon;
-      //       }
-      //     }
-      //   }
-      // }
 
       std::clock_t tCountCollectStart, tCountCollectEnd;
       tCountCollectStart = std::clock();

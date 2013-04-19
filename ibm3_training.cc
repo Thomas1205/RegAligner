@@ -2670,8 +2670,8 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
     ffert_count[i].resize_dirty(fertility_prob_[i].size());
   }
 
-  long double fzero_count;
-  long double fnonzero_count;
+  double fzero_count;
+  double fnonzero_count;
 
   uint iter;
   for (iter=1+iter_offs_; iter <= nIter+iter_offs_; iter++) {
@@ -2834,46 +2834,10 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
 
       //std::cerr << "updating counts " << std::endl;
 
-
-      double cur_zero_weight = best_prob;
-      for (uint j=0; j < curJ; j++) {
-	if (best_known_alignment_[s][j] == 0) {
-	  
-	  for (uint jj=j+1; jj < curJ; jj++) {
-	    if (best_known_alignment_[s][jj] != 0)
-	      cur_zero_weight += swap_move_prob(j,jj);
-	  }
-	}
-      }
-      cur_zero_weight *= inv_sentence_prob;
-	
-      fzero_count += cur_zero_weight * (fertility[0]);
-      fnonzero_count += cur_zero_weight * (curJ - 2*fertility[0]);
-	
-      if (curJ >= 2*(fertility[0]+1)) {
-	long double inc_zero_weight = 0.0;
-	for (uint j=0; j < curJ; j++)
-	  inc_zero_weight += expansion_move_prob(j,0);
-	
-	inc_zero_weight *= inv_sentence_prob;
-	fzero_count += inc_zero_weight * (fertility[0]+1);
-	fnonzero_count += inc_zero_weight * (curJ -2*(fertility[0]+1));
-      }
-	
-      if (fertility[0] > 1) {
-	long double dec_zero_weight = 0.0;
-	for (uint j=0; j < curJ; j++) {
-	  if (best_known_alignment_[s][j] == 0) {
-	    for (uint i=1; i <= curI; i++)
-	      dec_zero_weight += expansion_move_prob(j,i);
-	  }
-	}
-	
-	dec_zero_weight *= inv_sentence_prob;
-	
-	fzero_count += dec_zero_weight * (fertility[0]-1);
-	fnonzero_count += dec_zero_weight * (curJ -2*(fertility[0]-1));
-      }
+      update_zero_counts(best_known_alignment_[s], fertility,
+			 expansion_move_prob, swap_prob, best_prob,
+			 sentence_prob, inv_sentence_prob,
+			 fzero_count, fnonzero_count);
 
       //increase counts for dictionary and distortion
       for (uint j=0; j < curJ; j++) {

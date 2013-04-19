@@ -132,6 +132,13 @@ protected:
 				 const long double sentence_prob, const long double inv_sentence_prob,
 				 Storage1D<Math1D::Vector<double> >& fwcount);
     
+  inline void update_zero_counts(const Math1D::Vector<AlignBaseType>& best_alignment,
+				 const Math1D::NamedVector<uint>& fertility,
+				 const Math2D::NamedMatrix<long double>& expansion_move_prob,
+				 const long double swap_sum, const long double best_prob,
+				 const long double sentence_prob, const long double inv_sentence_prob,
+				 double& fzero_count, double& fnonzero_count);
+
   void common_prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
 					 const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment);
 
@@ -332,6 +339,74 @@ inline void FertilityModelTrainer::update_dict_counts(const Storage1D<uint>& cur
 
 }
 
+
+inline void FertilityModelTrainer::update_zero_counts(const Math1D::Vector<AlignBaseType>& best_alignment,
+						      const Math1D::NamedVector<uint>& fertility,
+						      const Math2D::NamedMatrix<long double>& expansion_move_prob,
+						      const long double swap_sum, const long double best_prob,
+						      const long double sentence_prob, const long double inv_sentence_prob,
+						      double& fzero_count, double& fnonzero_count) {
+
+  const uint curJ = expansion_move_prob.xDim();
+  const uint curI = expansion_move_prob.yDim();
+
+  assert(curJ == best_alignment.size());
+  assert(fertility.size() == curI+1);
+
+  double cur_zero_weight = best_prob;
+
+  cur_zero_weight += swap_sum; //no need to pass the matrix, we can simply pass the sum over the matrix!!!
+
+  cur_zero_weight *= inv_sentence_prob;
+  
+  assert(!isnan(cur_zero_weight));
+  assert(!isinf(cur_zero_weight));
+  
+  fzero_count += cur_zero_weight * (fertility[0]);
+  fnonzero_count += cur_zero_weight * (curJ - 2*fertility[0]);
+
+  if (curJ >= 2*(fertility[0]+1)) {
+    long double inc_zero_weight = 0.0;
+    for (uint j=0; j < curJ; j++)
+      inc_zero_weight += expansion_move_prob(j,0);
+    
+    inc_zero_weight *= inv_sentence_prob;
+    fzero_count += inc_zero_weight * (fertility[0]+1);
+    fnonzero_count += inc_zero_weight * (curJ -2*(fertility[0]+1));
+    
+    assert(!isnan(inc_zero_weight));
+    assert(!isinf(inc_zero_weight));
+  }
+  
+  if (fertility[0] > 1) {
+    long double dec_zero_weight = 0.0;
+    for (uint j=0; j < curJ; j++) {
+      if (best_alignment[j] == 0) {
+	for (uint i=1; i <= curI; i++)
+	  dec_zero_weight += expansion_move_prob(j,i);
+      }
+    }
+    
+    dec_zero_weight *= inv_sentence_prob;
+    
+    fzero_count += dec_zero_weight * (fertility[0]-1);
+    fnonzero_count += dec_zero_weight * (curJ -2*(fertility[0]-1));
+    
+    assert(!isnan(dec_zero_weight));
+    assert(!isinf(dec_zero_weight));
+  }
+
+  //DEBUG
+  if (isnan(fzero_count) || isnan(fnonzero_count)
+      || isinf(fzero_count) || isinf(fnonzero_count) ) {
+    
+    std::cerr << "zero counts: " << fzero_count << ", " << fnonzero_count << std::endl;
+    std::cerr << "J=" << curJ << ", I=" << curI << std::endl;
+    std::cerr << "sentence weight: " << sentence_prob << std::endl;
+    exit(1);
+  }
+  //END_DEBUG
+}
 
 
 #endif
