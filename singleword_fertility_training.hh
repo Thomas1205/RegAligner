@@ -354,8 +354,14 @@ inline void FertilityModelTrainer::update_zero_counts(const Math1D::Vector<Align
   assert(fertility.size() == curI+1);
 
   double cur_zero_weight = best_prob;
+  cur_zero_weight += swap_sum; 
+  for (uint j=0; j < curJ; j++) {
+    if (best_alignment[j] != 0) {
+      for (uint i=1; i <= curI; i++)
+	cur_zero_weight += expansion_move_prob(j,i);
+    }
+  }
 
-  cur_zero_weight += swap_sum; //no need to pass the matrix, we can simply pass the sum over the matrix!!!
 
   cur_zero_weight *= inv_sentence_prob;
   
