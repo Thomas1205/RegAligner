@@ -171,7 +171,8 @@ inline void fast_projection_on_simplex(T* data, const uint nData) {
   for (int k=0; k <= k_break; k++)
     data[sorted[k].second] = 0.0;
   for (int k=k_break+1; k < int(nData); k++) {
-    data[sorted[k].second] = sorted[k].first - sub;
+    //data[sorted[k].second] = sorted[k].first - sub;
+    data[sorted[k].second] = std::max(sorted[k].first - sub,0.0);
     assert(data[sorted[k].second] >= 0.0);
   }
   //data[sorted[k].second] -= sub;
@@ -222,12 +223,15 @@ inline void fast_projection_on_simplex_with_slack(T* data, T& slack, uint nData)
   for (int k=k_break+1; k < int(nData+1); k++) {
     const uint idx = sorted[k].second;
     if (idx < nData) {
-      data[idx] = sorted[k].first - sub;
+      //data[idx] = sorted[k].first - sub;
+      data[idx] = std::max(0.0, sorted[k].first - sub);
       //data[idx] -= sub;
       assert(data[idx] >= 0.0);
     }
     else {
-      slack -= sub;
+      //slack -= sub;
+      slack = std::max(0.0, slack - sub);
+
       assert(slack >= 0.0);
     }
   }
