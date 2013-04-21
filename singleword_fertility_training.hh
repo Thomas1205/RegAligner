@@ -348,7 +348,7 @@ inline void FertilityModelTrainer::update_zero_counts(const Math1D::Vector<Align
 						      double& fzero_count, double& fnonzero_count) {
 
   const uint curJ = expansion_move_prob.xDim();
-  const uint curI = expansion_move_prob.yDim();
+  const uint curI = expansion_move_prob.yDim()-1;
 
   assert(curJ == best_alignment.size());
   assert(fertility.size() == curI+1);
