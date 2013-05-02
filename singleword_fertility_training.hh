@@ -67,13 +67,14 @@ public:
   virtual long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 						       const SingleLookupTable& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
 						       Math2D::Matrix<long double>& expansion_prob,
-						       Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment) = 0;
+						       Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment)
+  = 0;
 
 
   virtual long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
 						 const SingleLookupTable& lookup,
 						 Math1D::Vector<AlignBaseType>& alignment);
-
+  
   // <code> start_alignment </code> is used as initialization for hillclimbing and later modified
   // the extracted alignment is written to <code> postdec_alignment </code>
   virtual void compute_external_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
@@ -81,6 +82,7 @@ public:
 						  Math1D::Vector<AlignBaseType>& start_alignment,
 						  std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
 						  double threshold = 0.25);
+
 
   void update_alignments_unconstrained();
 
@@ -91,6 +93,7 @@ protected:
   virtual void prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
 					  const SingleLookupTable& lookup,
 					  Math1D::Vector<AlignBaseType>& alignment) = 0;
+
 
   void print_uncovered_set(uint state) const;
 
@@ -131,7 +134,7 @@ protected:
 				 const Math2D::NamedMatrix<long double>& swap_move_prob,
 				 const long double sentence_prob, const long double inv_sentence_prob,
 				 Storage1D<Math1D::Vector<double> >& fwcount);
-    
+
   inline void update_zero_counts(const Math1D::Vector<AlignBaseType>& best_alignment,
 				 const Math1D::NamedVector<uint>& fertility,
 				 const Math2D::NamedMatrix<long double>& expansion_move_prob,
@@ -139,8 +142,16 @@ protected:
 				 const long double sentence_prob, const long double inv_sentence_prob,
 				 double& fzero_count, double& fnonzero_count);
 
+  inline long double swap_mass(const Math2D::NamedMatrix<long double>& swap_move_prob) const;
+    
   void common_prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
 					 const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment);
+
+
+  //converts the passed alignment so that it satisfies the constraints on the fertilities, including the one for the empty word.
+  // returns if the alignment was changed
+  bool make_alignment_feasible(const Storage1D<uint>& source, const Storage1D<uint>& target,
+			       const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment);
 
 
 
@@ -222,6 +233,8 @@ inline void FertilityModelTrainer::update_fertility_counts(const Storage1D<uint>
 
   assert(fertility.size() == curI+1);
 
+  //this passage exploits that entries of expansion_move_prob are 0.0 if they refer to an unchanged alignment
+  
   for (uint i=1; i <= curI; i++) {
 
     const uint t_idx = target[i-1];
@@ -257,8 +270,7 @@ inline void FertilityModelTrainer::update_fertility_counts(const Storage1D<uint>
       for (uint j=0; j < curJ; j++) {
 	if (best_alignment[j] == i) {
 	  for (uint ii=0; ii <= curI; ii++) {
-	    if (ii != i)
-	      alt_addon += expansion_move_prob(j,ii);
+	    alt_addon += expansion_move_prob(j,ii);
 	  }
 	}
       }
@@ -266,14 +278,12 @@ inline void FertilityModelTrainer::update_fertility_counts(const Storage1D<uint>
       cur_fert_count[cur_fert-1] += inv_sentence_prob * alt_addon;
     }
 
-    //check for the unlikely event that all source words in best_alignment align to i    
+    //check for the unlikely event that all source words in best_alignment align to i
     if (cur_fert+1 < fertility_prob_[t_idx].size()) {
       
       long double alt_addon = 0.0;
       for (uint j=0; j < curJ; j++) {
-	if (best_alignment[j] != i) {
-	  alt_addon += expansion_move_prob(j,i);
-	}
+	alt_addon += expansion_move_prob(j,i);
       }
 	
       cur_fert_count[cur_fert+1] += inv_sentence_prob * alt_addon;
@@ -300,11 +310,13 @@ inline void FertilityModelTrainer::update_dict_counts(const Storage1D<uint>& cur
     const uint s_idx = cur_source[j];
     const uint cur_aj = best_alignment[j];
     
+    //this passage exploits that entries of expansion_move_prob and swap_move_prob are 0.0 if they refer to an unchanged alignment
+
     long double addon = sentence_prob;
-    for (uint i=0; i <= curI; i++) 
+    for (uint i=0; i <= curI; i++)
       addon -= expansion_move_prob(j,i);
     for (uint jj=0; jj < curJ; jj++)
-      addon -= swap_move_prob(j,jj);
+      addon -= swap_move_prob(j,jj); //exploits that swap_move_prob is a symmetric matrix
     
     addon *= inv_sentence_prob;
     if (cur_aj != 0) {
@@ -362,7 +374,6 @@ inline void FertilityModelTrainer::update_zero_counts(const Math1D::Vector<Align
     }
   }
 
-
   cur_zero_weight *= inv_sentence_prob;
   
   assert(!isnan(cur_zero_weight));
@@ -412,6 +423,21 @@ inline void FertilityModelTrainer::update_zero_counts(const Math1D::Vector<Align
     exit(1);
   }
   //END_DEBUG
+}
+
+inline long double FertilityModelTrainer::swap_mass(const Math2D::NamedMatrix<long double>& swap_move_prob) const {
+
+  //return 0.5 * swap_move_prob.sum();
+
+  const uint J = swap_move_prob.xDim();
+  assert(J == swap_move_prob.yDim());
+
+  double sum = 0.0;
+  for (uint j1 = 0; j1 < J-1; j1++) 
+    for (uint j2 = j1+1; j2 < J; j2++)
+      sum += swap_move_prob(j1,j2);
+
+  return sum;
 }
 
 

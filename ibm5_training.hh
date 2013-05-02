@@ -31,7 +31,6 @@ public:
 
   void train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer = 0, HmmWrapper* wrapper = 0);
 
-
   virtual long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
 						       const SingleLookupTable& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
 						       Math2D::Matrix<long double>& expansion_prob,
