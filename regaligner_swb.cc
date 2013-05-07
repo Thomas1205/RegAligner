@@ -657,6 +657,8 @@ int main(int argc, char** argv) {
 			   dict, wcooc, nSourceWords, nTargetWords, prior_weight, 
 			   source_class, log_table, app.is_set("-nonpar-distortion"), 
 			   ibm4_cept_mode, em_l0, l0_beta, l0_fertpen);
+
+  ibm5_trainer.set_fertility_limit(fert_limit);
   
   if (ibm5_iter > 0) {
     if (collect_counts && ibm4_iter == 0) {
