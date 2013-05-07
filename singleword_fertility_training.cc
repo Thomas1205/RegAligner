@@ -1272,7 +1272,7 @@ bool FertilityModelTrainer::make_alignment_feasible(const Storage1D<uint>& sourc
 	if (fertility[i] >= fertility_limit_)
 	  continue;
 	
-	double hyp = dict_[target[i]][lookup(j,i-1)];
+	double hyp = dict_[target[i-1]][lookup(j,i-1)];
 	if (hyp > best) {
 	  
 	  best = hyp;

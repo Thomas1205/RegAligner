@@ -6,12 +6,13 @@ RegAligner Change History
 - added IBM-5
 - refined handling of counts too close to 0
 - made some alternative word class modes available on command line
-- some minor fixes and refinements, including speed-up of ICM by using log
-  lookup tables and grouping of common code patterns
-- made some alternative word class modes available on command line
 - added alternative projection routine with better worst case complexity (no
   speed-ups in practice)
 - major bugfix for IBM-3/4 regarding p0 count collection (for EM)
+- some minor fixes and refinements, including speed-up of ICM by using log
+  lookup tables and grouping of common code patterns, plus when converting general
+  alignments to satisfy the fertility constraints of IBM-3/4/5
+- run running IBM-3 and IBM-4 by default
 
 *** release version 1.05 (released March 6 2013) ***
 - two bugfixes for IBM-4

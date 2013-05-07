@@ -10,6 +10,8 @@
 #include "projection.hh"
 #include "training_common.hh" // for get_wordlookup() and dictionary m-step 
 #include "stl_util.hh"
+#include "storage_stl_interface.hh"
+
 
 #ifdef HAS_CBC
 #include "sparse_matrix_description.hh"
@@ -60,7 +62,7 @@ IBM3Trainer::IBM3Trainer(const Storage1D<Storage1D<uint> >& source_sentence,
 			prior_weight, och_ney_empty_word, smoothed_l0, l0_beta, l0_fertpen,
 			sure_ref_alignments,possible_ref_alignments,log_table),
   distortion_prob_(MAKENAME(distortion_prob_)), parametric_distortion_(parametric_distortion), viterbi_ilp_(viterbi_ilp),
-  nondeficient_(nondeficient) 
+  nondeficient_(nondeficient)
 {
 
 #ifndef HAS_CBC
@@ -123,58 +125,45 @@ void IBM3Trainer::init_from_hmm(HmmWrapper& hmm_wrapper,
     SingleLookupTable aux_lookup;
     
     for (size_t s=0; s < source_sentence_.size(); s++) {
+
+      const Storage1D<uint>& cur_source = source_sentence_[s];
+      const Storage1D<uint>& cur_target = target_sentence_[s];
       
       const uint curI = target_sentence_[s].size();
       const uint curJ = source_sentence_[s].size();
       
-      const SingleLookupTable& cur_lookup = get_wordlookup(source_sentence_[s],target_sentence_[s],wcooc_,
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc_,
 							   nSourceWords_,slookup_[s],aux_lookup);
       
+      
+      Math1D::Vector<AlignBaseType>& cur_alignment = best_known_alignment_[s];
+
       if (hmm_wrapper.initial_prob_.size() == 0) 
-	compute_fullhmm_viterbi_alignment(source_sentence_[s],cur_lookup, target_sentence_[s], 
-					  dict_, hmm_wrapper.align_model_[curI-1], best_known_alignment_[s]);
+	compute_fullhmm_viterbi_alignment(cur_source, cur_lookup, cur_target, 
+					  dict_, hmm_wrapper.align_model_[curI-1], cur_alignment);
       else {
 	if (start_empty_word) {
-	  compute_sehmm_viterbi_alignment(source_sentence_[s],cur_lookup, target_sentence_[s], 
+	  compute_sehmm_viterbi_alignment(cur_source, cur_lookup, cur_target, 
 					  dict_, hmm_wrapper.align_model_[curI-1], hmm_wrapper.initial_prob_[curI-1],
-					  best_known_alignment_[s]);
+					  cur_alignment);
 	}
 	else {
 	  
-	  compute_ehmm_viterbi_alignment(source_sentence_[s],cur_lookup, target_sentence_[s], 
+	  compute_ehmm_viterbi_alignment(cur_source, cur_lookup, cur_target, 
 					 dict_, hmm_wrapper.align_model_[curI-1], hmm_wrapper.initial_prob_[curI-1],
-					 best_known_alignment_[s],align_type);
+					 cur_alignment,align_type);
 	}
       }
       
       Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
       
       for (uint j=0; j < curJ; j++) {
-	const uint aj = best_known_alignment_[s][j];
+	const uint aj = cur_alignment[j];
 	fertility[aj]++;
       }
-      
-      if (2*fertility[0] > curJ) {
-	
-	std::cerr << "fixing sentence pair #" << s << std::endl;
-	
-	for (uint j=0; j < curJ && 2*fertility[0] > curJ; j++) {
-	  
-	  if (best_known_alignment_[s][j] == 0) {
-	    
-	    best_known_alignment_[s][j] = 1;
-	    fertility[0]--;
-	    fertility[1]++;
-	    
-	    if (dict_[target_sentence_[s][0]][cur_lookup(j,0)] < 0.001) {
 
-	      dict_[target_sentence_[s][0]] *= 0.99;
-	      dict_[target_sentence_[s][0]][cur_lookup(j,0)] += 0.01;
-	    } 
-	  }
-	}
-      }
-      
+      make_alignment_feasible(cur_source, cur_target, cur_lookup, best_known_alignment_[s]);
+
       fert_count[0][fertility[0]]++;
       
       for (uint i=0; i < curI; i++) {
@@ -343,7 +332,6 @@ void IBM3Trainer::init_from_hmm(HmmWrapper& hmm_wrapper,
       }
     }
 
-    
     if (!fix_p0_) {
       double p_norm = p_zero_ + p_nonzero_;
       assert(p_norm != 0.0);
@@ -352,10 +340,8 @@ void IBM3Trainer::init_from_hmm(HmmWrapper& hmm_wrapper,
 
       //TRIAL
       // p0 of IBM-3 and IBM-4 is different from p0 for the HMM: if 50% of the words align to zero, p0 is 100% for IBM3/4
-      if (!nondeficient_) {
-	p_zero_ = std::min(2*p_zero_,0.75);
-	p_nonzero_ = 1.0 - p_zero_;
-      }
+      p_zero_ = std::min(2*p_zero_,0.75);
+      p_nonzero_ = 1.0 - p_zero_;
       //END_TRIAL
     }
     
@@ -495,7 +481,7 @@ void IBM3Trainer::par_distortion_m_step(const ReducedIBM3DistortionModel& fdisto
   for (uint j=0; j < maxJ_; j++)
     start_param[j] = distortion_param_(j,i);
 
-  double energy = start_energy; //par_distortion_m_step_energy(fdistort_count, start_param, i);
+  double energy = start_energy; 
 
   Math1D::Vector<double> distortion_grad(maxJ_,0.0);
   Math1D::Vector<double> new_distortion_param(maxJ_,0.0);
@@ -506,7 +492,6 @@ void IBM3Trainer::par_distortion_m_step(const ReducedIBM3DistortionModel& fdisto
   for (uint iter = 1; iter <= 400; iter++) {
 
     distortion_grad.set_constant(0.0);
-
 
     /*** compute gradient ***/
     for (uint J=0; J < maxJ_; J++) {
@@ -573,6 +558,15 @@ void IBM3Trainer::par_distortion_m_step(const ReducedIBM3DistortionModel& fdisto
 
       if (nIter > 5 && best_energy < 0.975 * energy)
         break;
+
+      if (nIter > 15 && lambda < 1e-12)
+	break;
+    }
+
+
+    if (best_energy >= energy) {
+      std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
+      break;
     }
 
     if (nIter > 6)
@@ -584,9 +578,6 @@ void IBM3Trainer::par_distortion_m_step(const ReducedIBM3DistortionModel& fdisto
     //END_EXPERIMENTAL
 
     double neg_best_lambda = 1.0 - best_lambda;
-
-    if (neg_best_lambda < 1e-12)
-      break;
 
     for (uint j=0; j < distortion_param_.xDim(); j++)   
       distortion_param_(j,i) = best_lambda * new_distortion_param[j]
@@ -621,6 +612,46 @@ double IBM3Trainer::nondeficient_m_step_energy(const std::vector<std::pair<Math1
   return energy;
 }
 
+double IBM3Trainer::nondeficient_m_step_energy(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos,
+					       const std::vector<Math1D::Vector<double,uchar> >& count,
+					       const Math2D::Matrix<double>& param, uint i) {
+
+
+
+  double energy = 0.0;
+
+  const double* cur_param = param.direct_access() + i*param.xDim();
+
+  assert(open_pos.size() == count.size());
+
+  for (uint l=0; l < open_pos.size(); l++) {
+
+    const Math1D::Vector<uchar,uchar>& open_positions = open_pos[l];
+    const uchar size = open_positions.size();
+
+    double sum = 0.0;
+    for (uint k=0; k < size; k++)
+      sum += cur_param[ open_positions[k] ]; 
+    
+    const Math1D::Vector<double,uchar>& weight = count[l];
+
+    assert(weight.size() <= size); //tail 0s have been removed
+
+    for (uint k=0; k < weight.size(); k++) {
+
+      double cur_weight = weight[k];
+
+      if (cur_weight == 0.0)
+	continue;
+
+      energy -= cur_weight * std::log(cur_param[open_positions[k]]/sum);
+    }
+  }
+
+  return energy;  
+}
+
+
 double IBM3Trainer::nondeficient_m_step_energy(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos, 
                                                const std::vector<double>& count,
                                                const Math2D::Matrix<double>& param, uint i) {
@@ -647,6 +678,7 @@ double IBM3Trainer::nondeficient_m_step_energy(const std::vector<Math1D::Vector<
 }
 
 
+//with interpolation
 double IBM3Trainer::nondeficient_m_step_energy(const std::vector<double>& count, const Storage1D<uchar>& filled_position,
                                                const Math2D::Matrix<double>& param1, const Math2D::Matrix<double>& param2,
                                                const Math1D::Vector<double>& sum1, const Math1D::Vector<double>& sum2, 
@@ -671,6 +703,50 @@ double IBM3Trainer::nondeficient_m_step_energy(const std::vector<double>& count,
     double param = lambda * cur_param2[filled_pos] + neg_lambda * cur_param1[filled_pos];
 
     energy -= weight * std::log(param/sum);
+  }
+
+  return energy;
+}
+
+//with interpolation
+double IBM3Trainer::nondeficient_m_step_energy(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos,
+					       const std::vector<Math1D::Vector<double,uchar> >& count,
+					       const Math2D::Matrix<double>& param1, const Math2D::Matrix<double>& param2,
+					       const Math1D::Vector<double>& sum1, const Math1D::Vector<double>& sum2, 
+					       uint i, double lambda) {
+
+  assert(lambda >= 0.0 && lambda <= 1.0);
+
+  const double neg_lambda = 1.0 - lambda;
+
+  double energy = 0.0;
+  
+  const double* cur_param1 = param1.direct_access() + i*param1.xDim();
+  const double* cur_param2 = param2.direct_access() + i*param2.xDim();
+
+  assert(open_pos.size() == count.size());
+
+  for (uint l=0; l < open_pos.size(); l++) {
+
+    const Math1D::Vector<uchar,uchar>& open_positions = open_pos[l];
+
+    double sum = lambda * sum2[l] + neg_lambda * sum1[l];
+
+    const Math1D::Vector<double,uchar>& weight = count[l];
+
+    assert(weight.size() <= open_positions.size()); //tail 0s have been removed
+
+    for (uint k=0; k < weight.size(); k++) {
+
+      double cur_weight = weight[k];
+
+      if (cur_weight == 0.0)
+	continue;
+
+      double param = lambda * cur_param2[open_positions[k]] + neg_lambda * cur_param1[open_positions[k]];
+
+      energy -= cur_weight * std::log(param/sum);
+    }
   }
 
   return energy;
@@ -702,128 +778,6 @@ double IBM3Trainer::nondeficient_m_step_energy(const std::vector<std::pair<Math1
   return energy;
 }
 
-double IBM3Trainer::nondeficient_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
-                                        uint i, double start_energy) {
-
-
-  double alpha = 0.1;
-  
-  double energy = start_energy; 
-
-  std::cerr << "start energy: " << energy << std::endl;
-  
-  assert(distortion_param_.xDim() == maxJ_);
-
-  Math1D::Vector<double> distortion_grad(distortion_param_.xDim(),0.0);
-  Math2D::Matrix<double> new_distortion_param = distortion_param_;
-  Math2D::Matrix<double> hyp_distortion_param = distortion_param_;
-  
-  double line_reduction_factor = 0.35;
-  
-  std::clock_t tStart = std::clock();
-
-  for (uint iter = 1; iter <= 400; iter++) {
-    
-    if ((iter % 50) == 0) {
-      std::cerr << "m-step iter # " << iter << ", energy: " << energy << std::endl;
-
-      std::clock_t tInter = std::clock();
-      std::cerr << "spent " << diff_seconds(tInter,tStart) << " seconds so far" << std::endl;
-    }
-
-    distortion_grad.set_constant(0.0);
-    
-    /*** compute gradient ***/
-
-    const double* cur_param = distortion_param_.direct_access() + i*distortion_param_.xDim();
-
-    for (std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >::const_iterator it = count.begin();
-         it != count.end(); it++) {
-      
-      const Math1D::Vector<uchar,uchar>& open_positions = it->first;
-      const uchar size = open_positions.size();
-      const uchar filled_pos = open_positions[size-1];
-      const double weight = it->second;
-      
-      double sum = 0.0;
-      for (uint k=0; k < size; k++)
-        sum += cur_param[ open_positions[k] ]; 
-      sum = std::max(sum,1e-15);
-      
-      distortion_grad[filled_pos] -= weight / std::max(cur_param[filled_pos],1e-15);
-      
-      const double addon = weight / sum;
-      
-      for (uint k=0; k < open_positions.size(); k++)
-        distortion_grad[open_positions[k]] += addon;
-    }
-  
-    /*** go in neg. gradient direction and reproject ***/
-
-    for (uint j=0; j < maxJ_; j++)
-      new_distortion_param(j,i) = distortion_param_(j,i) - alpha * distortion_grad[j];
-
-    projection_on_simplex(new_distortion_param.direct_access()+i*distortion_param_.xDim(), maxJ_);
-
-
-    /*** find appropriate step-size ***/
-
-    double best_lambda = 1.0;
-    double lambda = 1.0;
-
-    double best_energy = 1e300;
-
-    uint nIter = 0;
-
-    bool decreasing = false;
-
-    while (decreasing || best_energy > energy) {
-
-      nIter++;
-
-      lambda *= line_reduction_factor;
-      double neg_lambda = 1.0 - lambda;
-
-      for (uint j=0; j < maxJ_; j++)
-        hyp_distortion_param(j,i) = lambda * new_distortion_param(j,i) + neg_lambda * distortion_param_(j,i);
-
-      double hyp_energy = nondeficient_m_step_energy(count, hyp_distortion_param,i);
-
-      if (hyp_energy < best_energy) {
-
-        best_energy = hyp_energy;
-        best_lambda = lambda;
-        decreasing = true;
-      }
-      else
-        decreasing = false;
-
-      if (nIter > 5 && best_energy < 0.975 * energy)
-        break;
-    }
-
-    if (nIter > 6)
-      line_reduction_factor *= 0.9;
-
-    double neg_best_lambda = 1.0 - best_lambda;
-
-    for (uint j=0; j < maxJ_; j++)
-      distortion_param_(j,i) = std::max(1e-8, best_lambda * new_distortion_param(j,i) + neg_best_lambda * distortion_param_(j,i));
-
-    energy = best_energy;
-
-    if (best_lambda < 1e-15)
-      break;
-  }
-
-  //FOR_SAFETY
-  for (uint j=0; j < maxJ_; j++)
-    distortion_param_(j,i) = std::max(distortion_param_(j,i),1e-15);
-  //END_FOR_SAFETY
-
-  return energy;
-}
-
 double IBM3Trainer::nondeficient_m_step_with_interpolation(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos, 
                                                            const std::vector<double>& weight,
                                                            uint i, double start_energy) {
@@ -838,7 +792,7 @@ double IBM3Trainer::nondeficient_m_step_with_interpolation(const std::vector<Mat
 
   for (uint k=0; k < weight.size(); k++) {
 
-    const Math1D::Vector<uchar,uchar>& open_positions = open_pos[k]; //count[k].first;
+    const Math1D::Vector<uchar,uchar>& open_positions = open_pos[k]; 
 
     assert(open_positions.size() > 0);
     
@@ -937,7 +891,7 @@ double IBM3Trainer::nondeficient_m_step_with_interpolation(const std::vector<Mat
     /*** find appropriate step-size ***/
     for (uint k=0; k < weight.size(); k++) {
       
-      const Math1D::Vector<uchar,uchar>& open_positions = open_pos[k]; 
+      const Math1D::Vector<uchar,uchar>& open_positions = open_pos[k];
       
       double cur_new_sum = 0.0;
       for (uchar l=0; l < open_positions.size(); l++)
@@ -976,9 +930,15 @@ double IBM3Trainer::nondeficient_m_step_with_interpolation(const std::vector<Mat
       if (nIter > 5 && best_energy < 0.975 * energy)
         break;
 
-      if (lambda < 1e-15)
+      if (nIter > 15 && lambda < 1e-12)
 	break;
     }
+
+    if (best_energy >= energy) {
+      std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
+      break;
+    }
+
 
     if (nIter > 6)
       line_reduction_factor *= 0.9;
@@ -995,11 +955,6 @@ double IBM3Trainer::nondeficient_m_step_with_interpolation(const std::vector<Mat
 
     energy = best_energy;
 
-    if (best_lambda < 1e-15) {
-      std::cerr << "CUTOFF" << std::endl;
-      break;
-    }
-
     for (uint k=0; k < weight.size(); k++) {
       sum[k] = neg_best_lambda * sum[k] + best_lambda * new_sum[k];
     }
@@ -1013,16 +968,183 @@ double IBM3Trainer::nondeficient_m_step_with_interpolation(const std::vector<Mat
   return energy;
 }
 
+double IBM3Trainer::nondeficient_m_step_with_interpolation(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos,
+							   const std::vector<Math1D::Vector<double,uchar> >& count, 
+							   uint i, double start_energy) {
+
+
+  assert(distortion_param_.xDim() == maxJ_);
+  assert(i < distortion_param_.yDim());
+
+  Math1D::Vector<double> sum(count.size());
+  Math1D::Vector<double> new_sum(count.size(),0.0);
+
+  for (uint k=0; k < count.size(); k++) {
+
+    const Math1D::Vector<uchar,uchar>& open_positions = open_pos[k]; 
+
+    assert(open_positions.size() > 0);
+    
+    double cur_sum = 0.0;
+    for (uchar l=0; l < open_positions.size(); l++) {
+      cur_sum += std::max(1e-15,distortion_param_(open_positions[l],i));
+    }
+    sum[k] = cur_sum;
+  }
+
+  double alpha = 0.01; //0.1;
+  
+  double energy = start_energy; 
+
+  std::cerr << "start energy: " << energy << std::endl;
+
+
+  Math1D::Vector<double> distortion_grad(distortion_param_.xDim(),0.0);
+  Math2D::Matrix<double> new_distortion_param = distortion_param_;
+  
+  double line_reduction_factor = 0.35;
+  
+  std::clock_t tStart = std::clock();
+
+  for (uint iter = 1; iter <= 250; iter++) {
+    
+    if ((iter % 50) == 0) {
+      std::cerr << "m-step iter # " << iter << ", energy: " << energy << std::endl;
+
+      std::clock_t tInter = std::clock();
+      std::cerr << "spent " << diff_seconds(tInter,tStart) << " seconds so far" << std::endl;
+    }
+
+    distortion_grad.set_constant(0.0);
+    
+    /*** compute gradient ***/
+
+    const double* cur_param = distortion_param_.direct_access() + i*distortion_param_.xDim();
+
+    for (uint l=0; l < open_pos.size(); l++) {
+      
+      const Math1D::Vector<uchar,uchar>& open_positions = open_pos[l];
+
+      const Math1D::Vector<double,uchar>& weight = count[l];
+      
+      double cur_sum = sum[l];
+      cur_sum = std::max(cur_sum,1e-15);
+
+      double weight_sum = 0.0;
+
+      assert(weight.size() <= open_positions.size()); //tail 0s have been removed
+
+      for (uint k=0; k < weight.size(); k++) {
+
+	const double cur_weight = weight[k];
+
+	const uint cur_pos = open_positions[k];
+
+	if (cur_weight == 0.0)
+	  continue;
+
+	weight_sum += cur_weight;
+
+	distortion_grad[cur_pos] -= cur_weight / std::max(cur_param[cur_pos],1e-15);
+      }
+
+      const double addon = weight_sum / cur_sum;
+      
+      for (uint k=0; k < open_positions.size(); k++)
+        distortion_grad[open_positions[k]] += addon;
+    }
+  
+    /*** go in neg. gradient direction and reproject ***/
+
+    for (uint j=0; j < maxJ_; j++)
+      new_distortion_param(j,i) = distortion_param_(j,i) - alpha * distortion_grad[j];
+
+    projection_on_simplex(new_distortion_param.direct_access()+i*distortion_param_.xDim(), maxJ_);
+
+    for (uint k=0; k < count.size(); k++) {
+      
+      const Math1D::Vector<uchar,uchar>& open_positions = open_pos[k];
+      
+      double cur_new_sum = 0.0;
+      for (uchar l=0; l < open_positions.size(); l++)
+        cur_new_sum += new_distortion_param(open_positions[l],i);
+      new_sum[k] = cur_new_sum;
+    }
+
+
+    /*** find appropriate step-size ***/
+
+    double best_lambda = 1.0;
+    double lambda = 1.0;
+
+    double best_energy = 1e300;
+
+    uint nIter = 0;
+
+    bool decreasing = false;
+
+    while (decreasing || best_energy > energy) {
+
+      nIter++;
+
+      lambda *= line_reduction_factor;
+
+
+      double hyp_energy = nondeficient_m_step_energy(open_pos, count, distortion_param_,new_distortion_param,
+						     sum,new_sum,i,lambda);
+
+      if (hyp_energy < best_energy) {
+
+        best_energy = hyp_energy;
+        best_lambda = lambda;
+        decreasing = true;
+      }
+      else
+        decreasing = false;
+
+      if (nIter > 5 && best_energy < 0.975 * energy)
+        break;
+
+      if (nIter > 15 && lambda < 1e-12)
+	break;
+    }
+
+    if (best_energy >= energy) {
+      std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
+      break;
+    }
+
+    if (nIter > 6)
+      line_reduction_factor *= 0.9;
+
+    double neg_best_lambda = 1.0 - best_lambda;
+
+    for (uint j=0; j < maxJ_; j++)
+      distortion_param_(j,i) = std::max(1e-8, best_lambda * new_distortion_param(j,i) + neg_best_lambda * distortion_param_(j,i));
+
+    energy = best_energy;
+
+    for (uint k=0; k < count.size(); k++) {
+      sum[k] = neg_best_lambda * sum[k] + best_lambda * new_sum[k];
+    }
+  }
+
+
+ //FOR_SAFETY
+  for (uint j=0; j < maxJ_; j++)
+    distortion_param_(j,i) = std::max(distortion_param_(j,i),1e-15);
+  //END_FOR_SAFETY
+
+  return energy;
+}
 
 //for the nonparametric model
-double IBM3Trainer::nondeficient_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count, uint i, uint J,
+double IBM3Trainer::nondeficient_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count, uint i, uint J, 
 					double start_energy) {
 
   double alpha = 0.1;
   
-  double energy = start_energy;
-
-  //std::cerr << "start energy: " << energy << std::endl;
+  double energy = start_energy; 
 
   const uint xDim = distortion_prob_[J-1].xDim();
   assert(xDim == J);
@@ -1038,7 +1160,7 @@ double IBM3Trainer::nondeficient_m_step(const std::vector<std::pair<Math1D::Vect
   
   double line_reduction_factor = 0.35;
   
-  for (uint iter = 1; iter <= /*250*/ 400; iter++) {
+  for (uint iter = 1; iter <= 250 /*400*/; iter++) {
 
     distortion_grad.set_constant(0.0);
     
@@ -1113,8 +1235,15 @@ double IBM3Trainer::nondeficient_m_step(const std::vector<std::pair<Math1D::Vect
 
       if (nIter > 5 && best_energy < 0.975 * energy)
         break;
+      
+      if (nIter > 15 && lambda < 1e-12)
+	break;
     }
-    //std::cerr << "best lambda: " << best_lambda << std::endl;
+
+    if (best_energy >= energy) {
+      std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
+      break;
+    }
 
     if (nIter > 6)
       line_reduction_factor *= 0.9;
@@ -1126,10 +1255,6 @@ double IBM3Trainer::nondeficient_m_step(const std::vector<std::pair<Math1D::Vect
         + neg_best_lambda * relevant_distortion_prob(j,i);
 
     energy = best_energy;
-
-    if (best_lambda < 1e-15)
-      break;    
-    
   }
 
   for (uint j=0; j < xDim; j++) {
@@ -1169,14 +1294,14 @@ long double IBM3Trainer::alignment_prob(const Storage1D<uint>& source, const Sto
     const uint aj = alignment[j];
     fertility[aj]++;
   }
-  
+
   if (curJ < 2*fertility[0])
     return 0.0;
 
   for (uint i=1; i <= curI; i++) {
     uint t_idx = target[i-1];
     prob *= fertility_prob_[t_idx][fertility[i]];
-    prob *= ld_fac_[fertility[i]]; 
+    prob *= ld_fac_[fertility[i]];
   }
 
   for (uint j=0; j < curJ; j++) {
@@ -1241,7 +1366,7 @@ long double IBM3Trainer::nondeficient_alignment_prob(const Storage1D<uint>& sour
     fertility[aj]++;
     aligned_source_words[aj].push_back(j);
   }
-
+  
   if (curJ < 2*fertility[0])
     return 0.0;
 
@@ -1265,8 +1390,6 @@ long double IBM3Trainer::nondeficient_alignment_prob(const Storage1D<uint>& sour
 
   prob *= nondeficient_distortion_prob(source,target,aligned_source_words);
 
-  //std::cerr << "ap before empty word: " << prob << std::endl;
-
   //handle empty word
   assert(fertility[0] <= 2*curJ);
   
@@ -1282,6 +1405,7 @@ long double IBM3Trainer::nondeficient_alignment_prob(const Storage1D<uint>& sour
 long double IBM3Trainer::nondeficient_distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target,
                                                       const Storage1D<std::vector<AlignBaseType> >& aligned_source_words) const {
 
+
   const uint curJ = source.size();
   const uint curI = target.size();
 
@@ -1290,6 +1414,8 @@ long double IBM3Trainer::nondeficient_distortion_prob(const Storage1D<uint>& sou
   long double prob = 1.0;
 
   Storage1D<bool> filled(curJ,false);
+
+  //std::cerr << "################# I=" << curI << ", J=" << curJ << std::endl;
 
   for (uint i=1; i <= curI; i++) {
 
@@ -1327,7 +1453,7 @@ long double IBM3Trainer::nondeficient_distortion_prob(const Storage1D<uint>& sou
 
       assert(nRemoved == nToRemove);
     }
-
+    
     assert(sum >= cur_param[first]-1e-4);
     
     prob *= cur_param[first] / sum;
@@ -1384,9 +1510,6 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
     return nondeficient_hillclimbing(source,target,lookup,nIter,fertility,expansion_prob,swap_prob,alignment);
   }
 
-  //std::cerr << "*************** hillclimb()" << std::endl;
-  //std::cerr << "start alignment: " << alignment << std::endl;
-
   double improvement_factor = 1.001;
   
   const uint curI = target.size();
@@ -1424,13 +1547,14 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
   //handle fertility prob
   for (uint i=0; i < curI; i++) {
-      
+
     const uint fert = fertility[i+1];
     const uint t_idx = target[i];
 
     if (!(fertility_prob_[t_idx][fert] > 0.0)) {
 
       std::cerr << "fert_prob[" << t_idx << "][" << fert << "]: " << fertility_prob_[t_idx][fert] << std::endl;
+      //std::cerr << "target sentence #" << s << ", word #" << i << std::endl;
       std::cerr << "alignment: " << alignment << std::endl;
     }
 
@@ -1487,8 +1611,8 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
   swap_prob.resize(curJ,curJ);
   expansion_prob.resize(curJ,curI+1);
-  swap_prob.set_constant(0.0);
-  expansion_prob.set_constant(0.0);
+  //swap_prob.set_constant(0.0);
+  //expansion_prob.set_constant(0.0);
 
   uint count_iter = 0;
 
@@ -1533,7 +1657,7 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       else
         fert_decrease_factor[i] = 0.0;
 
-      if (cur_fert+1 < fertility_prob_[t_idx].size()) {
+      if (cur_fert+1 < fertility_prob_[t_idx].size() && cur_fert+1 <= fertility_limit_) {
         fert_increase_factor[i] = ((long double) fertility_prob_[t_idx][cur_fert+1])
           / fertility_prob_[t_idx][cur_fert];
 
@@ -1544,8 +1668,6 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
     }
     
     //a) expansion moves
-
-    //std::cerr << "considering moves" << std::endl;
 
     long double empty_word_increase_const = 0.0;
     if (curJ >= 2*(zero_fert+1)) {
@@ -1580,7 +1702,7 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       const uint aj = alignment[j];
       assert(fertility[aj] > 0);
       expansion_prob(j,aj) = 0.0;
-
+      
       long double mod_base_prob = base_prob;
 
       if (aj > 0) {
@@ -1660,10 +1782,15 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 	    const uint t_idx = target[cand_aj-1];
 	    
 	    hyp_prob *= dict_[t_idx][lookup(j,cand_aj-1)];
-	    hyp_prob *= fert_increase_factor[cand_aj];
+	    hyp_prob *= fert_increase_factor[cand_aj]; //will be 0 if the fertility limit is already reached
 	    hyp_prob *= cur_distort_prob(j,cand_aj-1);
           }
           else {
+	    if (2*fertility[0]+2 > curJ) {
+	      expansion_prob(j,cand_aj) = 0.0;
+	      continue;
+	    } 
+
             hyp_prob *= empty_word_increase_const * dict_[0][s_idx-1];
           }
 
@@ -1758,14 +1885,8 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       }
     }
 
-    //     if (improvement) {
-    //       std::cerr << "expansion improvement for sentence pair #" << s << std::endl;
-    //     }
-
     //b) swap_moves (NOTE that swaps do not affect the fertilities)
     for (uint j1=0; j1 < curJ; j1++) {
-
-      swap_prob(j1,j1) = 0.0;
       
       const uint aj1 = alignment[j1];
       const uint s_j1 = source[j1];
@@ -1822,10 +1943,9 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
             best_swap_j2 = j2;
           }
         }
-        swap_prob(j2,j1) = swap_prob(j1,j2);
       }
     }
-    
+
     if (!improvement)
       break;
 
@@ -1854,9 +1974,6 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       alignment[best_swap_j2] = cur_aj1;
     }
 
-    //std::cerr << "probability improved from " << base_prob << " to " << best_prob << std::endl;
-
-    //THIS IS SLOW-> outcomment in release version
 #ifndef NDEBUG
     long double check_ratio = best_prob / alignment_prob(source,target,lookup,alignment);
     if (best_prob > 1e-300 && !(check_ratio > 0.995 && check_ratio < 1.005)) {
@@ -1875,7 +1992,6 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       std::cerr << "check_ratio: " << check_ratio << std::endl;
     }
     
-    //std::cerr << "check_ratio: " << check_ratio << std::endl;
     if (best_prob > 1e-275)
       assert(check_ratio > 0.995 && check_ratio < 1.005);
 #endif
@@ -1887,6 +2003,18 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
   assert(2*fertility[0] <= curJ);
 
+
+  //symmetrize swap_prob
+  for (uint j1=0; j1 < curJ; j1++) {
+
+    swap_prob(j1,j1) = 0.0;
+    
+    for (uint j2 = j1+1; j2 < curJ; j2++) {
+      
+      swap_prob(j2,j1) = swap_prob(j1,j2);
+    }
+  }
+
   return base_prob;
 }
 
@@ -1897,7 +2025,6 @@ long double IBM3Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
                                                    Math2D::Matrix<long double>& swap_prob, 
                                                    Math1D::Vector<AlignBaseType>& alignment) {
 
-  //std::cerr << "nondef hc" << std::endl;
 
   /**** calculate probability of the passed alignment *****/
 
@@ -1955,12 +2082,13 @@ long double IBM3Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
 
   uint count_iter = 0;
 
+  //Math1D::Vector<AlignBaseType> hyp_alignment = alignment;
   Storage1D<std::vector<AlignBaseType> > hyp_aligned_source_words = aligned_source_words;
 
   swap_prob.resize(curJ,curJ);
   expansion_prob.resize(curJ,curI+1);
-  swap_prob.set_constant(0.0);
-  expansion_prob.set_constant(0.0);
+  //swap_prob.set_constant(0.0);
+  //expansion_prob.set_constant(0.0);
 
   while (true) {    
 
@@ -1999,11 +2127,11 @@ long double IBM3Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
     /**** scan neighboring alignments and keep track of the best one that is better 
      ****  than the current alignment  ****/
 
+    //Math1D::Vector<AlignBaseType> hyp_alignment = alignment;
+
     /**** expansion moves ****/
     
     for (uint j=0; j < curJ; j++) {
-
-      //std::cerr << "j: " << j << std::endl;
 
       const uint s_idx = source[j];
 
@@ -2020,6 +2148,16 @@ long double IBM3Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
           expansion_prob(j,cand_aj) = 0.0;
           continue;
         }
+	if (cand_aj > 0) {
+	  if ((fertility[cand_aj]+1) > fertility_limit_) { //better to check this before computing distortion probs
+	    expansion_prob(j,cand_aj) = 0.0;
+	    continue;
+	  }
+	}
+	if (cand_aj == 0 && 2*fertility[0]+2 > curJ) { //better to check this before computing distortion probs
+	  expansion_prob(j,cand_aj) = 0.0;
+	  continue;
+	}
 
         const double new_dict_prob = (cand_aj == 0) ? dict_[0][s_idx-1] : dict_[target[cand_aj-1]][lookup(j,cand_aj-1)];
 
@@ -2027,7 +2165,7 @@ long double IBM3Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
           expansion_prob(j,cand_aj) = 0.0;
         else {
           hyp_aligned_source_words[cand_aj].push_back(j);
-          std::sort(hyp_aligned_source_words[cand_aj].begin(),hyp_aligned_source_words[cand_aj].end());
+	  vec_sort(hyp_aligned_source_words[cand_aj]);
 
           long double leaving_prob = base_distortion_prob * old_dict_prob;
           long double incoming_prob = nondeficient_distortion_prob(source,target,hyp_aligned_source_words)
@@ -2048,16 +2186,18 @@ long double IBM3Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
           if (cand_aj > 0) {
             uint tidx = target[cand_aj-1];
             leaving_prob *= fertility_prob_[tidx][fertility[cand_aj]];
-            incoming_prob *= fertility_prob_[tidx][fertility[cand_aj]+1]; 
+	    if (fertility[cand_aj]+1 <= fertility_limit_) 
+	      incoming_prob *= fertility_prob_[tidx][fertility[cand_aj]+1]; 
+	    else
+	      incoming_prob = 0.0;
           }
           else {
             if (curJ < 2*fertility[0]+2)
               incoming_prob = 0.0;
             else {
               
-              //compute null-fert-model (zero-fert goes up by 1)
-              
-              incoming_prob *= empty_word_increase_const;
+              //compute null-fert-model (zero-fert goes up by 1)              
+              incoming_prob *= empty_word_increase_const; //will be 0.0 if no more words can be aligned to the empty word
             }
           }
 
@@ -2065,7 +2205,8 @@ long double IBM3Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
 
           //DEBUG
 	  //Math1D::Vector<AlignBaseType> hyp_alignment = alignment;
-	  //hyp_alignment[j] = cand_aj;
+          //hyp_alignment[j] = cand_aj;
+
           // long double cand_prob = nondeficient_alignment_prob(source,target,lookup,hyp_alignment);
 
           // long double ratio = incremental_cand_prob / cand_prob;
@@ -2100,15 +2241,10 @@ long double IBM3Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
     /**** swap moves ****/
     for (uint j1=0; j1 < curJ; j1++) {
 
-      swap_prob(j1,j1) = 0.0;
-      //std::cerr << "j1: " << j1 << std::endl;
-      
       const uint aj1 = alignment[j1];
       const uint s_j1 = source[j1];
 
       for (uint j2 = j1+1; j2 < curJ; j2++) {
-
-        //std::cerr << "j2: " << j2 << std::endl;
 
         const uint aj2 = alignment[j2];
         const uint s_j2 = source[j2];
@@ -2125,7 +2261,6 @@ long double IBM3Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
               break;
             }
           }
-          //assert(found1);
           for (uint k=0; k < hyp_aligned_source_words[aj1].size(); k++) {
             if (hyp_aligned_source_words[aj1][k] == j1) {
               hyp_aligned_source_words[aj1][k] = j2;
@@ -2133,9 +2268,9 @@ long double IBM3Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
             }
           }
 
-          std::sort(hyp_aligned_source_words[aj1].begin(),hyp_aligned_source_words[aj1].end());
-          std::sort(hyp_aligned_source_words[aj2].begin(),hyp_aligned_source_words[aj2].end());
-          
+	  vec_sort(hyp_aligned_source_words[aj1]);
+	  vec_sort(hyp_aligned_source_words[aj2]);          
+
           long double incremental_prob = base_prob / base_distortion_prob * 
             nondeficient_distortion_prob(source,target,hyp_aligned_source_words);
 
@@ -2159,7 +2294,6 @@ long double IBM3Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
           //DEBUG
 	  //Math1D::Vector<AlignBaseType> hyp_alignment = alignment;
           //std::swap(hyp_alignment[j1],hyp_alignment[j2]);
-
           // long double cand_prob = nondeficient_alignment_prob(source,target,lookup,hyp_alignment);          
 
           // if (cand_prob > 1e-250) {
@@ -2181,11 +2315,10 @@ long double IBM3Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
           }
 
           //restore for the next iteration
+          //std::swap(hyp_alignment[j1],hyp_alignment[j2]);
           hyp_aligned_source_words[aj1] = aligned_source_words[aj1];
           hyp_aligned_source_words[aj2] = aligned_source_words[aj2];
         }
-
-        swap_prob(j2,j1) = swap_prob(j1,j2);
       }
     }
 
@@ -2208,7 +2341,7 @@ long double IBM3Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
 
       aligned_source_words[cur_aj].erase(std::find(aligned_source_words[cur_aj].begin(),aligned_source_words[cur_aj].end(),best_move_j));
       aligned_source_words[best_move_aj].push_back(best_move_j);
-      std::sort(aligned_source_words[best_move_aj].begin(),aligned_source_words[best_move_aj].end());
+      vec_sort(aligned_source_words[best_move_aj]);
 
       hyp_aligned_source_words[cur_aj] = aligned_source_words[cur_aj];
       hyp_aligned_source_words[best_move_aj] = aligned_source_words[best_move_aj];
@@ -2238,8 +2371,8 @@ long double IBM3Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
         }
       }
 
-      std::sort(aligned_source_words[cur_aj1].begin(), aligned_source_words[cur_aj1].end());
-      std::sort(aligned_source_words[cur_aj2].begin(), aligned_source_words[cur_aj2].end());
+      vec_sort(aligned_source_words[cur_aj1]);
+      vec_sort(aligned_source_words[cur_aj2]);
 
       hyp_aligned_source_words[cur_aj1] = aligned_source_words[cur_aj1];
       hyp_aligned_source_words[cur_aj2] = aligned_source_words[cur_aj2];
@@ -2250,11 +2383,23 @@ long double IBM3Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
   }
 
 
+  //symmetrize swap_prob
+  for (uint j1=0; j1 < curJ; j1++) {
+
+    swap_prob(j1,j1) = 0.0;
+    
+    for (uint j2 = j1+1; j2 < curJ; j2++) {
+      
+      swap_prob(j2,j1) = swap_prob(j1,j2);
+    }
+  }
+
+
   return base_prob;
 }
 
 
-/*virtual*/
+/* virtual */
 void IBM3Trainer::prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
 					     const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment) {
 
@@ -2299,19 +2444,16 @@ void IBM3Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
   }
 }
 
-/*virtual*/
+/*virtual */
 long double IBM3Trainer::compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-                                                    const SingleLookupTable& lookup,
-                                                    Math1D::Vector<AlignBaseType>& alignment) {
+						    const SingleLookupTable& lookup,
+						    Math1D::Vector<AlignBaseType>& alignment) {
 
-  //std::cerr << "compute external alignment" << std::endl;
 
   prepare_external_alignment(source, target, lookup, alignment);
 
   const uint J = source.size();
   const uint I = target.size();
-
-  //std::cerr << "calling the actual routine" << std::endl;
 
   bool use_ilp = viterbi_ilp_;
 
@@ -2326,29 +2468,22 @@ long double IBM3Trainer::compute_external_alignment(const Storage1D<uint>& sourc
   Math1D::Vector<uint> fertility(I+1,0);
   
   uint nIter;
-  
-  long double hc_prob;
 
-  if (nondeficient_)
-    hc_prob =  nondeficient_hillclimbing(source, target, lookup, nIter, fertility,
-                                         expansion_prob, swap_prob, alignment);
-  else
-    hc_prob =  update_alignment_by_hillclimbing(source, target, lookup, nIter, fertility,
-                                                expansion_prob, swap_prob, alignment);
+  long double hc_prob =  update_alignment_by_hillclimbing(source, target, lookup, nIter, fertility,
+							  expansion_prob, swap_prob, alignment);
   
   if (use_ilp) {
     
-    return compute_viterbi_alignment_ilp(source, target, lookup, std::min(J,fertility_limit_), alignment);
+    return compute_viterbi_alignment_ilp(source, target, lookup, alignment);
   }
   else
     return hc_prob;
-  
 }
 
 
 // <code> start_alignment </code> is used as initialization for hillclimbing and later modified
 // the extracted alignment is written to <code> postdec_alignment </code>
-/*virtual*/
+/* virtual */
 void IBM3Trainer::compute_external_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
 						     const SingleLookupTable& lookup,
 						     Math1D::Vector<AlignBaseType>& alignment,
@@ -2361,8 +2496,6 @@ void IBM3Trainer::compute_external_postdec_alignment(const Storage1D<uint>& sour
 
   const uint J = source.size();
   const uint I = target.size();
-
-  //std::cerr << "calling the actual routine" << std::endl;
 
   //create matrices
   Math2D::Matrix<long double> expansion_move_prob(J,I+1);
@@ -2388,7 +2521,11 @@ public:
 
   void unpack(uint i, uint J, const Storage1D<std::vector<uchar> >& main_aligned_source_words,
 	      std::map<Math1D::Vector<uchar,uchar>,double>& nondef_count) const;
-  
+
+  void unpack(uint i, uint J, const Storage1D<std::vector<uchar> >& main_aligned_source_words,
+	      std::map<Math1D::Vector<uchar,uchar>,Math1D::Vector<double,uchar> >& nondef_count) const;
+
+
   double main_count_;
 
   std::map<uchar,std::map<uchar,double> > exp_count_;
@@ -2438,18 +2575,15 @@ void CountStructure::unpack(uint i, uint J, const Storage1D<std::vector<uchar> >
 	  main_count += count;
 	else if (base_fert > 1 || cur_aj != i+1) {
 	  
-	  // hyp_aligned_source_words[cur_aj].erase(std::find(hyp_aligned_source_words[cur_aj].begin(),
-	  // 						   hyp_aligned_source_words[cur_aj].end(),j));
 	  hyp_aligned_source_words[new_aj].push_back(j);
-	  //NOTE: sorting is probably only needed if new_aj == i+1
+	  //NOTE: sorting is only needed if new_aj == i+1
 	  if (new_aj == i+1)
-	    std::sort(hyp_aligned_source_words[new_aj].begin(),hyp_aligned_source_words[new_aj].end());
+	    vec_sort(hyp_aligned_source_words[new_aj]);
 	  
 	  //call routine to add counts for hyp_aligned_source_words
 	  add_nondef_count(hyp_aligned_source_words, i, J, nondef_count, count); 
 	  
 	  //restore
-	  //hyp_aligned_source_words[cur_aj] = main_aligned_source_words[cur_aj];
 	  hyp_aligned_source_words[new_aj] = main_aligned_source_words[new_aj];
 	}
       }
@@ -2478,16 +2612,16 @@ void CountStructure::unpack(uint i, uint J, const Storage1D<std::vector<uchar> >
 	  hyp_aligned_source_words[cur_aj1].erase(std::find(hyp_aligned_source_words[cur_aj1].begin(),
 							    hyp_aligned_source_words[cur_aj1].end(),j1));
 	  hyp_aligned_source_words[cur_aj1].push_back(j2);
-	  //NOTE: sorting is probably only needed if cur_aj1==i+1
+	  //NOTE: sorting is only needed if cur_aj1==i+1
 	  if (cur_aj1 == i+1)
-	    std::sort(hyp_aligned_source_words[cur_aj1].begin(),hyp_aligned_source_words[cur_aj1].end());
+	    vec_sort(hyp_aligned_source_words[cur_aj1]);
 	  
 	  hyp_aligned_source_words[cur_aj2].erase(std::find(hyp_aligned_source_words[cur_aj2].begin(),
 							    hyp_aligned_source_words[cur_aj2].end(),j2));
 	  hyp_aligned_source_words[cur_aj2].push_back(j1);
 	  //NOTE: sorting is probably only needed if cur_aj2==i+1
 	  if (cur_aj2 == i+1)
-	    std::sort(hyp_aligned_source_words[cur_aj2].begin(),hyp_aligned_source_words[cur_aj2].end());
+	    vec_sort(hyp_aligned_source_words[cur_aj2]);
 	  
 	  //call routine to add counts for hyp_aligned_source_words
 	  add_nondef_count(hyp_aligned_source_words, i, J, nondef_count, count); 
@@ -2536,6 +2670,145 @@ void CountStructure::unpack(uint i, uint J, const Storage1D<std::vector<uchar> >
     }
   }
 
+}
+
+void CountStructure::unpack(uint i, uint J, const Storage1D<std::vector<uchar> >& main_aligned_source_words,
+			    std::map<Math1D::Vector<uchar,uchar>,Math1D::Vector<double,uchar> >& nondef_count) const {
+
+
+  Math1D::Vector<uchar> main_alignment(J,255);
+  for (uint ii=0; ii < main_aligned_source_words.size(); ii++) {
+    for (uint k=0; k < main_aligned_source_words[ii].size(); k++) {
+      uint j = main_aligned_source_words[ii][k];
+      main_alignment[j] = ii;
+    }
+  }
+  
+  const uint base_fert = main_aligned_source_words[i+1].size();
+
+  Storage1D<std::vector<uchar> > hyp_aligned_source_words = main_aligned_source_words;
+  
+  if (base_fert >= 1) {
+    //consider main alignment, most expansions and all swaps
+    
+    double main_count = main_count_; 
+
+    //expansions
+    for (std::map<uchar, std::map<uchar, double> >::const_iterator it = exp_count_.begin();
+	 it != exp_count_.end(); it++) {
+
+      uint j=it->first;
+      uint cur_aj = main_alignment[j];
+      
+      hyp_aligned_source_words[cur_aj].erase(std::find(hyp_aligned_source_words[cur_aj].begin(),
+						       hyp_aligned_source_words[cur_aj].end(),j));
+
+      
+      const std::map<uchar, double>& inner_exp = it->second;
+      for (std::map<uchar, double>::const_iterator inner_it = inner_exp.begin(); inner_it != inner_exp.end(); inner_it++) {
+	uint new_aj = inner_it->first;
+	double count = inner_it->second;
+	
+	bool not_null = (cur_aj != 0 && new_aj != 0);
+
+	if (not_null && ((cur_aj-1 > i && new_aj-1 > i) || (cur_aj-1 < i && new_aj-1 < i)) )
+	  main_count += count;
+	else if (base_fert > 1 || cur_aj != i+1) {
+	  
+	  hyp_aligned_source_words[new_aj].push_back(j);
+	  //NOTE: sorting is only needed if new_aj == i+1
+	  if (new_aj == i+1)
+	    vec_sort(hyp_aligned_source_words[new_aj]);
+	  
+	  //call routine to add counts for hyp_aligned_source_words
+	  add_nondef_count(hyp_aligned_source_words, i, J, nondef_count, count); 
+	  
+	  //restore
+	  hyp_aligned_source_words[new_aj] = main_aligned_source_words[new_aj];
+	}
+      }
+      hyp_aligned_source_words[cur_aj] = main_aligned_source_words[cur_aj];
+    }
+    
+    //swaps
+    for (std::map<uchar, std::map<uchar, double> >::const_iterator it = swap_count_.begin();
+	 it != swap_count_.end(); it++) {
+      
+      uint j1=it->first;
+      uint cur_aj1 = main_alignment[j1];
+      
+      const std::map<uchar, double>& inner_swap = it->second;
+      for (std::map<uchar, double>::const_iterator inner_it = inner_swap.begin(); inner_it != inner_swap.end(); inner_it++) {
+	uint j2 = inner_it->first;
+	uint cur_aj2 = main_alignment[j2];
+	double count = inner_it->second;
+        
+	bool not_null = (cur_aj1 != 0 && cur_aj2 != 0);
+	if (not_null && ( (cur_aj1 -1 > i && cur_aj2-1 > i) || (cur_aj1 -1 < i && cur_aj2-1 < i) )) {
+	  main_count += count;
+	}
+	else {
+
+	  hyp_aligned_source_words[cur_aj1].erase(std::find(hyp_aligned_source_words[cur_aj1].begin(),
+							    hyp_aligned_source_words[cur_aj1].end(),j1));
+	  hyp_aligned_source_words[cur_aj1].push_back(j2);
+	  //NOTE: sorting is only needed if cur_aj1==i+1
+	  if (cur_aj1 == i+1)
+	    vec_sort(hyp_aligned_source_words[cur_aj1]);
+	  
+	  hyp_aligned_source_words[cur_aj2].erase(std::find(hyp_aligned_source_words[cur_aj2].begin(),
+							    hyp_aligned_source_words[cur_aj2].end(),j2));
+	  hyp_aligned_source_words[cur_aj2].push_back(j1);
+	  //NOTE: sorting is probably only needed if cur_aj2==i+1
+	  if (cur_aj2 == i+1)
+	    vec_sort(hyp_aligned_source_words[cur_aj2]);
+	  
+	  //call routine to add counts for hyp_aligned_source_words
+	  add_nondef_count(hyp_aligned_source_words, i, J, nondef_count, count); 
+	  
+	  //restore
+	  hyp_aligned_source_words[cur_aj1] = main_aligned_source_words[cur_aj1];
+	  hyp_aligned_source_words[cur_aj2] = main_aligned_source_words[cur_aj2];
+	}
+      }
+    }
+
+    //now handle main alignment
+    add_nondef_count(main_aligned_source_words, i, J, nondef_count, main_count); 
+  }
+  else {
+    //consider only expansions to i+1 here
+
+    //expansions
+    for (std::map<uchar, std::map<uchar, double> >::const_iterator it = exp_count_.begin();
+	 it != exp_count_.end(); it++) {
+      
+      uint j=it->first;
+      uint cur_aj = main_alignment[j];
+      assert(cur_aj != i+1);
+      
+      const std::map<uchar, double>& inner_exp = it->second;
+      
+      std::map<uchar, double>::const_iterator inner_it = inner_exp.find(i+1);
+      if (inner_it != inner_exp.end()) {
+	
+	double count = inner_it->second;
+
+	assert(hyp_aligned_source_words[i+1].empty());
+		    
+	hyp_aligned_source_words[cur_aj].erase(std::find(hyp_aligned_source_words[cur_aj].begin(),
+							 hyp_aligned_source_words[cur_aj].end(),j));
+	hyp_aligned_source_words[i+1].push_back(j); //no need to sort, the array was empty
+	
+	//call routine to add counts for hyp_aligned_source_words
+	add_nondef_count(hyp_aligned_source_words, i, J, nondef_count, count); 
+	
+	//restore
+	hyp_aligned_source_words[cur_aj] = main_aligned_source_words[cur_aj];
+	hyp_aligned_source_words[i+1].clear();
+      }
+    }
+  }
 }
 
 
@@ -2705,7 +2978,7 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
 
     for (size_t s=0; s < source_sentence_.size(); s++) {
       
-      if ((s% 500) == 0)
+      if ((s% 10000) == 0)
         std::cerr << "sentence pair #" << s << std::endl;
       
       const Storage1D<uint>& cur_source = source_sentence_[s];
@@ -2735,19 +3008,12 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
       }      
 
       assert(!isnan(best_prob));
-      
-      //std::cerr << "back from hillclimbing" << std::endl;
 
-      // uint maxFert = 15;
-      // if (2*curI <= curJ)
-      // 	maxFert = 25;
-
-      uint maxFert = std::min(curJ,fertility_limit_);
 
       long double viterbi_prob = 0.0;
       if (viterbi_ilp_) {
         viterbi_alignment[s] = best_known_alignment_[s];
-        viterbi_prob = compute_viterbi_alignment_ilp(cur_source,cur_target,cur_lookup,maxFert,viterbi_alignment[s]);
+        viterbi_prob = compute_viterbi_alignment_ilp(cur_source,cur_target,cur_lookup,viterbi_alignment[s]);
         //OPTIONAL
         //best_known_alignment_[s] = viterbi_alignment[s];
         //best_prob = update_alignment_by_hillclimbing(s,sum_iter,fertility,
@@ -2768,13 +3034,6 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
 	  
           if (ratio > 1.01) {
             nViterbiBetter++;
-	    
-            // std::cerr << "pair #" << s << std::endl;
-            // std::cerr << "ilp prob:          " << viterbi_prob << std::endl;
-            // std::cerr << "ilp alignment: " << viterbi_alignment[s] << std::endl;
-	    
-            // std::cerr << "hillclimbing prob: " << best_prob << std::endl;
-            // std::cerr << "hc. alignment: " << best_known_alignment_[s] << std::endl;
           }
           else if (ratio < 0.99) {
             nViterbiWorse++;
@@ -2812,7 +3071,7 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
       max_perplexity -= std::log(best_prob);
       
       const long double expansion_prob = expansion_move_prob.sum();
-      const long double swap_prob =  0.5 * swap_move_prob.sum();
+      const long double swap_prob =  swap_mass(swap_move_prob); //0.5 * swap_move_prob.sum();
 
       const long double sentence_prob = best_prob + expansion_prob +  swap_prob;
 
@@ -2832,8 +3091,6 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
 
       assert(!isnan(inv_sentence_prob));
 
-      //std::cerr << "updating counts " << std::endl;
-
       update_zero_counts(best_known_alignment_[s], fertility,
 			 expansion_move_prob, swap_prob, best_prob,
 			 sentence_prob, inv_sentence_prob,
@@ -2845,7 +3102,7 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
         const uint s_idx = cur_source[j];
 
 	const uint cur_aj = best_known_alignment_[s][j];
-
+	
 	long double addon = sentence_prob;
 	for (uint i=0; i <= curI; i++) 
 	  addon -= expansion_move_prob(j,i);
@@ -2853,9 +3110,9 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
 	  addon -= swap_move_prob(j,jj);
 	
 	addon *= inv_sentence_prob;
-
+	
 	assert(!isnan(addon));
-
+	
 	if (cur_aj != 0) {
 	  fwcount[cur_target[cur_aj-1]][cur_lookup(j,cur_aj-1)] += addon;
 	  cur_distort_count(j,cur_aj-1) += addon;
@@ -2864,18 +3121,18 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
 	else {
 	  fwcount[0][s_idx-1] += addon;
 	}
-	
+
 	for (uint i=0; i <= curI; i++) {
-	  
+
 	  if (i != cur_aj) {
 	    
 	    long double addon = expansion_move_prob(j,i);
 	    for (uint jj=0; jj < curJ; jj++) {
 	      if (best_known_alignment_[s][jj] == i)
 		addon += swap_move_prob(j,jj);
-	      }
+	    }
 	    addon *= inv_sentence_prob;
-	    
+
 	    assert(!isnan(addon));
 	
 	    if (i!=0) {
@@ -2885,7 +3142,7 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
 	    }
 	    else {
 	      fwcount[0][s_idx-1] += addon;
-            }
+	    }
           }
         }
       }
@@ -2921,7 +3178,7 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
               assert(aj != cur_aj);
 
               hyp_aligned_source_words[aj].push_back(jj);
-              std::sort(hyp_aligned_source_words[aj].begin(),hyp_aligned_source_words[aj].end());
+	      vec_sort(hyp_aligned_source_words[aj]);
 
               cur_refined_count.exp_count_[jj][aj] += contrib;
 
@@ -2948,11 +3205,11 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
               hyp_aligned_source_words[aj1].erase(std::find(hyp_aligned_source_words[aj1].begin(),
                                                             hyp_aligned_source_words[aj1].end(),j1));
               hyp_aligned_source_words[aj1].push_back(j2);
-              std::sort(hyp_aligned_source_words[aj1].begin(),hyp_aligned_source_words[aj1].end());
+	      vec_sort(hyp_aligned_source_words[aj1]);
               hyp_aligned_source_words[aj2].erase(std::find(hyp_aligned_source_words[aj2].begin(),
                                                             hyp_aligned_source_words[aj2].end(),j2));
               hyp_aligned_source_words[aj2].push_back(j1);
-              std::sort(hyp_aligned_source_words[aj2].begin(),hyp_aligned_source_words[aj2].end());
+	      vec_sort(hyp_aligned_source_words[aj2]);
 
               cur_refined_count.swap_count_[j1][j2] += contrib;
               
@@ -2964,6 +3221,7 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
       }
 
       //update fertility counts
+
       update_fertility_counts(cur_target, best_known_alignment_[s], fertility,
 			      expansion_move_prob, sentence_prob, inv_sentence_prob, ffert_count);	
       
@@ -3012,6 +3270,8 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
     //update distortion prob from counts
     if (parametric_distortion_) {
 
+      assert(!nondeficient_ || estep_mode_ == FertEStepHillclimbing);
+      
       Math2D::Matrix<double> fpar_distort_count(distortion_param_.xDim(),distortion_param_.yDim(),0.0);
 
       for (uint J=0; J < fdistort_count.size(); J++) {
@@ -3037,13 +3297,11 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
 
         for (uint i=0; i < maxI_; i++) {
 
-          std::vector<Math1D::Vector<uchar,uchar> > open_pos;
-          std::vector<double> vec_nondef_count;
 
           std::map<Math1D::Vector<uchar,uchar>,double> cur_nondef_count;
+	  //std::map<Math1D::Vector<uchar,uchar>,Math1D::Vector<double,uchar> > cur_nondef_count;
 
           for (uint J=1; J <= refined_nondef_aligned_words_count.size(); J++) {
-
 
 	    //unpack the compactly stored counts
 
@@ -3058,6 +3316,7 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
               Storage1D<std::vector<uchar> > main_aligned_source_words;
               main_compact_aligned_source_words.get_noncompact_form(main_aligned_source_words,J);
 
+
               const CountStructure& cur_count_struct = it->second;
 	      cur_count_struct.unpack(i,J,main_aligned_source_words,cur_nondef_count);
             }
@@ -3065,15 +3324,41 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
      
           if (cur_nondef_count.empty())
             continue;
-          
+
+	  //copy map->vector for faster access
+          std::vector<Math1D::Vector<uchar,uchar> > open_pos;
+	  //std::vector<Math1D::Vector<double,uchar> > vec_count;
+          std::vector<double> vec_nondef_count;
+	  
+
           vec_nondef_count.reserve(cur_nondef_count.size());
+          //vec_count.reserve(cur_nondef_count.size());
           open_pos.reserve(cur_nondef_count.size());
+
           for (std::map<Math1D::Vector<uchar,uchar>,double>::const_iterator it = cur_nondef_count.begin(); 
                it != cur_nondef_count.end(); it++) {
             
             open_pos.push_back(it->first);
             vec_nondef_count.push_back(it->second);
           }
+          // for (std::map<Math1D::Vector<uchar,uchar>,Math1D::Vector<double,uchar> >::const_iterator it = cur_nondef_count.begin(); 
+          //      it != cur_nondef_count.end(); it++) {
+            
+          //   open_pos.push_back(it->first);
+          //   vec_count.push_back(it->second);
+	    
+	  //   //truncate the counts: remove tail 0s
+	  //   Math1D::Vector<double,uchar>& cur_count = vec_count.back();
+	  //   int s;
+	  //   for (s=cur_count.size()-1; s > 0; s--) {
+	  //     if (cur_count[s] != 0.0)
+	  // 	break;
+	  //   }
+
+	  //   if (s != cur_count.size()-1)
+	  //     cur_count.resize(s+1);
+          // }
+
           cur_nondef_count.clear();
 
           std::cerr << "calling  m-step for i=" << i << std::endl;
@@ -3081,6 +3366,10 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
           double start_energy = nondeficient_m_step_energy(open_pos, vec_nondef_count, distortion_param_,i);
 
           double hyp_energy = nondeficient_m_step_energy(open_pos, vec_nondef_count, fpar_distort_count,i);
+
+          //double start_energy = nondeficient_m_step_energy(open_pos, vec_count, distortion_param_,i);
+
+          //double hyp_energy = nondeficient_m_step_energy(open_pos, vec_count, fpar_distort_count,i);
 
           if (hyp_energy < start_energy) {
 
@@ -3094,6 +3383,7 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
           }
 
           nondeficient_m_step_with_interpolation(open_pos,vec_nondef_count,i,start_energy);
+          //nondeficient_m_step_with_interpolation(open_pos,vec_count,i,start_energy);
         }
       } 
       else {
@@ -3153,8 +3443,9 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
 
           std::cerr << "calling nondeficient m-steps for i=" << i << std::endl;
 
-
           for (uint J=1; J <= refined_nondef_aligned_words_count.size(); J++) {
+
+	    //unpack the compactly stored counts
 
             std::map<Math1D::Vector<uchar,uchar>,double> cur_nondef_count;
 
@@ -3165,17 +3456,21 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
 	      
               if (main_compact_aligned_source_words.size() <= i)
                 continue;
+
+              const CountStructure& cur_count_struct = it->second;
+
 	      
               Storage1D<std::vector<uchar> > main_aligned_source_words;
               main_compact_aligned_source_words.get_noncompact_form(main_aligned_source_words,J);
 
-              const CountStructure& cur_count_struct = it->second;
+
 	      cur_count_struct.unpack(i,J,main_aligned_source_words,cur_nondef_count);
-            }
+	    }
          
 	    if (cur_nondef_count.empty())
 	      continue;
 
+	    //copy map->vector for faster access
             std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> > vec_nondef_count;	    
 	    vec_nondef_count.reserve(cur_nondef_count.size());
 	    for (std::map<Math1D::Vector<uchar,uchar>,double>::const_iterator it = cur_nondef_count.begin(); 
@@ -3191,8 +3486,6 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
 
             if (hyp_energy < start_energy) {
 
-              //std::cerr << "switching to normalized counts: " << start_energy << " -> " << hyp_energy << std::endl;
-
               start_energy = hyp_energy;
 
 	      for (uint j=0; j < distortion_prob_[J-1].xDim(); j++)
@@ -3207,7 +3500,7 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
 	//deficient mode
 
         for (uint J=0; J < distortion_prob_.size(); J++) {
-
+	
           for (uint i=0; i < distortion_prob_[J].yDim(); i++) {
 	  
             double sum = 0.0;
@@ -3239,7 +3532,7 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
 
 
     update_fertility_prob(ffert_count,1e-8);
-    
+
     double reg_term = 0.0;
     for (uint i=0; i < dict_.size(); i++)
       for (uint k=0; k < dict_[i].size(); k++) {
@@ -3272,7 +3565,6 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
       std::cerr << "Viterbi-ILP better in " << nViterbiBetter << ", worse in " << nViterbiWorse << " cases." << std::endl;
       
       std::cerr << "max-ratio: " << max_ratio << std::endl;
-      //std::cerr << "inv min-ratio: " << (1.0 / min_ratio) << std::endl;
     }
 
     if (possible_ref_alignments_.size() > 0) {
@@ -3421,31 +3713,7 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
 						   best_known_alignment_[s], wrapper->hmm_options_.align_type_,
 						   false, false);
 
-	for (uint j=0; j < curJ; j++) {
-	  const uint aj = best_known_alignment_[s][j];
-	  fertility[aj]++;
-	}
-	
-	if (2*fertility[0] > curJ) {
-	
-	  std::cerr << "fixing sentence pair #" << s << std::endl;
-	  
-	  for (uint j=0; j < curJ && 2*fertility[0] > curJ; j++) {
-	    
-	    if (best_known_alignment_[s][j] == 0) {
-	      
-	      best_known_alignment_[s][j] = 1;
-	      fertility[0]--;
-	      fertility[1]++;
-	      
-	      if (dict_[target_sentence_[s][0]][cur_lookup(j,0)] < 0.001) {
-		
-		dict_[target_sentence_[s][0]] *= 0.99;
-		dict_[target_sentence_[s][0]][cur_lookup(j,0)] += 0.01;
-	      } 
-	    }
-	  }
-	}
+	make_alignment_feasible(cur_source, cur_target, cur_lookup, best_known_alignment_[s]);
 
 	//NOTE: to be 100% proper we should recalculate the prob of the alignment if fertility[0] was corrected
 	//(would need to convert the alignment to internal mode first). But this only affects the energy printout at the end of 
@@ -3455,15 +3723,13 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
 
 	best_prob = update_alignment_by_hillclimbing(cur_source,cur_target,cur_lookup,sum_iter,fertility,
 						     expansion_move_prob,swap_move_prob,best_known_alignment_[s]);
-
       }
 
 #ifdef HAS_CBC
       if (use_ilp) {
 
         Math1D::Vector<AlignBaseType> alignment = best_known_alignment_[s];
-        compute_viterbi_alignment_ilp(cur_source, cur_target, cur_lookup, std::min(curJ,fertility_limit_), 
-				      alignment, 0.25);
+        compute_viterbi_alignment_ilp(cur_source, cur_target, cur_lookup, alignment, 0.25);
 
         if (alignment_prob(s,alignment) > 1e-300) {
 
@@ -3477,7 +3743,9 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
 
       assert(2*fertility[0] <= curJ);
 
+
       max_perplexity -= std::log(best_prob);
+      
 
       fzero_count += fertility[0];
       fnonzero_count += curJ - 2*fertility[0];
@@ -3613,7 +3881,7 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
 	      }
   
 	      uint new_target_word = (i == 0) ? 0 : cur_target[i-1];
-	      	      
+	      
 	      double change = 0.0;
 	      
 	      Math1D::Vector<double>& cur_dictcount = fwcount[cur_word]; 
@@ -3666,7 +3934,6 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
 		  change -= -std::log(p_zero_);
 		  
 		  if (och_ney_empty_word_) {
-		    
 		    change -= -std::log(((long double) zero_fert) / curJ);
 		  }
 		
@@ -3691,8 +3958,8 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
 		  double c2 = ffert_count[cur_word][cur_fertilities[cur_aj]-1];
 		  
 		  if (c2 > 0)
-		    change -= -c2 * log_table_[c2]; 
-		  change += -(c2+1) * log_table_[c2+1]; 
+		    change -= -c2 * log_table_[c2];
+		  change += -(c2+1) * log_table_[c2+1];
 		}
 		
 		if (i == 0) {
@@ -3711,7 +3978,6 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
 		  change += -std::log(p_zero_);
 		  
 		  if (och_ney_empty_word_) {
-		    
 		    change += -std::log(((long double) new_zero_fert) / curJ);
 		  }
 		}
@@ -3720,7 +3986,7 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
 		  change += - log_table_[cur_fertilities[i]+1]; 
 		  
 		  double c = ffert_count[new_target_word][cur_fertilities[i]];
-		  change -= -c * log_table_[c];
+		  change -= -c * log_table_[c]; 
 		  if (c > 1)
 		    change += -(c-1) * log_table_[c-1];
 		  else
@@ -4203,8 +4469,6 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
 
             if (hyp_energy < start_energy) {
 
-              //std::cerr << "switching to normalized counts: " << start_energy << " -> " << hyp_energy << std::endl;
-
               start_energy = hyp_energy;
 
 	      for (uint j=0; j < distortion_prob_[J-1].xDim(); j++)
@@ -4360,8 +4624,6 @@ long double IBM3Trainer::compute_itg_viterbi_alignment_noemptyword(uint s, bool 
   }
 
   for (uint J=2; J <= curJ; J++) {
-
-    //std::cerr << "J: " << J << std::endl;
 
     score[J].set_name("score[" + toString(J) + "]");
     score[J].resize(curJ,curI,curI,0.0);
@@ -4532,8 +4794,6 @@ void IBM3Trainer::itg_traceback(uint s, const NamedStorage1D<Math3D::NamedTensor
                                 uint J, uint j, uint i, uint ii) {
 
 
-  //std::cerr << "****itg_traceback(" << J << "," << j << "," << i << "," << ii << ")" << std::endl; 
-
   uint trace_entry = trace[J](j,i,ii);
 
   if (J == 1) {
@@ -4652,7 +4912,7 @@ void IBM3Trainer::train_with_itg_constraints(uint nIter, bool extended_reorderin
           nEqual++;
         else if (check_prob > hillclimbprob)
           nBetter++;
-
+	
         assert(check_ratio >= 0.999 && check_ratio < 1.001);
       }
 
@@ -4747,6 +5007,7 @@ void IBM3Trainer::train_with_itg_constraints(uint nIter, bool extended_reorderin
     }
 
     update_fertility_prob(ffert_count);
+
 
     if (possible_ref_alignments_.size() > 0) {
       
@@ -4954,6 +5215,8 @@ long double IBM3Trainer::compute_ibmconstrained_viterbi_alignment_noemptyword(ui
       cur_score(state,0) = best_prev_score[state];
     }
 
+    //std::cerr << " fert 1" << std::endl; 
+
     //fertility 1
     for (uint state=0; state <= fertone_max_reachable_state; state++) {
 
@@ -5032,6 +5295,7 @@ long double IBM3Trainer::compute_ibmconstrained_viterbi_alignment_noemptyword(ui
         cur_score(state,fert) *= fert_factor;
     }
 
+
     //compute fert_trace and best_prev_score
     for (uint state=0; state <= allfert_max_reachable_state; state++) {
 
@@ -5066,11 +5330,6 @@ long double IBM3Trainer::compute_ibmconstrained_viterbi_alignment_noemptyword(ui
   uint state = end_state;
 
   while (true) {
-
-    //     std::cerr << "**** traceback: i=" << i << ", fert=" << fert << ", state #" << state
-    // 	      << ", uncovered set=";
-    //     print_uncovered_set(coverage_state_(0,state));
-    //     std::cerr << " ; max_covered_j=" << coverage_state_(1,state) << std::endl;
 
     //default values apply to the case with fertility 0
     uint prev_i = i-1;
@@ -5211,7 +5470,7 @@ IBM3IPHeuristic::IBM3IPHeuristic(const CbcHeuristic& heuristic, CbcModel& /*mode
 #endif
 
 long double IBM3Trainer::compute_viterbi_alignment_ilp(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-                                                       const SingleLookupTable& cur_lookup, uint max_fertility,
+                                                       const SingleLookupTable& cur_lookup, 
                                                        Math1D::Vector<AlignBaseType>& alignment, double time_limit) {
 
 #ifdef HAS_CBC
@@ -5222,15 +5481,12 @@ long double IBM3Trainer::compute_viterbi_alignment_ilp(const Storage1D<uint>& so
   const uint curJ = cur_source.size();
   const Math2D::Matrix<double>& cur_distort_prob = distortion_prob_[curJ-1];
 
-  uint nFertVarsPerWord = std::min(curJ,max_fertility) + 1;
-
-  //std::cerr << "computing lp-relax for sentence pair #" << s << ", I= " << curI << ", J= " << curJ << std::endl;
+  uint nFertVarsPerWord = std::min(curJ,fertility_limit_) + 1;
 
   uint nVars = (curI+1)*curJ  //alignment variables
     + (curI+1)*nFertVarsPerWord; //fertility variables
   
   uint fert_var_offs = (curI+1)*curJ;
-  //std::cerr << "fert_var_offs: " << fert_var_offs << std::endl;
 
   uint nConstraints = curJ // alignment variables must sum to 1 for each source word
     + curI + 1 //fertility variables must sum to 1 for each target word including the empty word
@@ -5259,14 +5515,14 @@ long double IBM3Trainer::compute_viterbi_alignment_ilp(const Storage1D<uint>& so
 
       if (i == 0) {
 	
-        cost[cur_offs] = - logl(dict_[0][s_idx-1]); //distortion is here handled by the fertilities
+        cost[cur_offs] = - std::log(dict_[0][s_idx-1]); //distortion is here handled by the fertilities
         assert(!isnan(cost[cur_offs]));
 	
       }
       else {
         const uint ti = cur_target[i-1];
 	
-        cost[cur_offs + i] = -logl(dict_[ti][cur_lookup(j,i-1) ]) - logl( cur_distort_prob(j,i-1) );
+        cost[cur_offs + i] = -std::log(dict_[ti][cur_lookup(j,i-1) ]) - std::log( cur_distort_prob(j,i-1) );
         assert(!isnan(cost[cur_offs+i]));
       }
 
@@ -5395,9 +5651,7 @@ long double IBM3Trainer::compute_viterbi_alignment_ilp(const Storage1D<uint>& so
     double min_cost = approx_icost(i,0);
 
     for (uint f=1; f < nFertVarsPerWord; f++) {
-      //for (uint f=1; f < cur_limit; f++) {
 
-      //approx_icost(i,f) = cost[fert_var_offs+i*nFertVarsPerWord+f] + values[f-1];
       if (i == 0)
         approx_icost(i,f) = cost[fert_var_offs+f] + values[f-1];
       else
@@ -5452,10 +5706,6 @@ long double IBM3Trainer::compute_viterbi_alignment_ilp(const Storage1D<uint>& so
       var_ub[v] = 0.0;
     }
   }
-
-  //if (nHighCost > 0) //std::cerr << "WARNING: dampened " << nHighCost << " cost entries" << std::endl;
-
-  //   std::cerr << "highest cost: " << cost.max() << std::endl;
 
   Math1D::NamedVector<double> rhs(nConstraints,1.0,MAKENAME(rhs));
   
@@ -5521,7 +5771,7 @@ long double IBM3Trainer::compute_viterbi_alignment_ilp(const Storage1D<uint>& so
   clp_interface.loadProblem (coinMatrix, var_lb.direct_access(), var_ub.direct_access(),   
                              cost.direct_access(), rhs.direct_access(), rhs.direct_access());
 
-  for (uint v=0 /*fert_var_offs*/; v < nVars; v++) {
+  for (uint v=0; v < nVars; v++) {
     clp_interface.setInteger(v);
   }
 
@@ -5561,21 +5811,14 @@ long double IBM3Trainer::compute_viterbi_alignment_ilp(const Storage1D<uint>& so
     energy += cost[v] * var_val;
   }
 
-  //std::cerr << nNonIntegral << " non-integral variables (" << (nNonIntegral - nNonIntegralFert)  
-  //    << "/" << nNonIntegralFert << ")" << std::endl;
-
   const double* solution = lp_solution;
 
   CbcModel cbc_model(clp_interface);
 
   if (nNonIntegral > 0) {
 
-    //std::cerr << "lp-relax for sentence pair #" << s << ", I= " << curI << ", J= " << curJ << std::endl;
-
-    //clp_interface.findIntegersAndSOS(false);
     clp_interface.setupForRepeatedUse();
     
-    //if (curI <= 30 || curJ <= 30) 
     cbc_model.messageHandler()->setLogLevel(0);
     cbc_model.setLogLevel(0);
 
@@ -5708,16 +5951,9 @@ long double IBM3Trainer::compute_viterbi_alignment_ilp(const Storage1D<uint>& so
     alignment[j] = arg_max;
     fert[arg_max]++;
   }
-
-  //std::cerr << nNonIntegralVars << " non-integral variables after branch and cut" << std::endl;
   
   long double clp_prob =  expl(-energy);
   long double actual_prob = alignment_prob(cur_source,cur_target,cur_lookup,alignment);
-
-  //std::cerr << "clp alignment: " << clp_alignment << std::endl;
-  //std::cerr << "clp-prob:    " << clp_prob << std::endl;
-  //std::cerr << "direct prob: " << direct_prob << std::endl;
-  //std::cerr << "actual prob:      " << actual_prob << std::endl;
 
   return actual_prob;
 #else
@@ -5860,6 +6096,7 @@ void IBM3Trainer::train_with_ibm_constraints(uint nIter, uint maxFertility, uint
 
     //update distortion prob from counts
     for (uint J=0; J < distortion_prob_.size(); J++) {
+
       for (uint i=0; i < distortion_prob_[J].yDim(); i++) {
 
         double sum = 0.0;
@@ -5888,7 +6125,7 @@ void IBM3Trainer::train_with_ibm_constraints(uint nIter, uint maxFertility, uint
     }
 
     update_fertility_prob(ffert_count);
-    
+
     if (possible_ref_alignments_.size() > 0) {
       
       std::cerr << "#### IBM3-AER in between iterations #" << (iter-1) << " and " << iter << ": " << AER() << std::endl;
@@ -5907,6 +6144,7 @@ void IBM3Trainer::train_with_ibm_constraints(uint nIter, uint maxFertility, uint
     std::cerr << "max-fertility after iteration #" << (iter - 1) << ": " << max_perplexity << std::endl;
   }
 }
+
 
 void add_nondef_count(const Storage1D<std::vector<uchar> >& aligned_source_words, uint i, uint J,
 		      std::map<Math1D::Vector<uchar,uchar>,double>& count_map, double count) {
@@ -5954,15 +6192,82 @@ void add_nondef_count(const Storage1D<std::vector<uchar> >& aligned_source_words
 
     if (possible.size() > 1) { //no use adding counts when there is only one position left
 
-      if (pos != possible.size()-1)
+      if (pos != possible.size()-1) // the chosen position must be the last listed one
         std::swap(possible[pos],possible[possible.size()-1]);
 
       Math1D::Vector<uchar,uchar> vec_possible(possible.size());
-
-      for (uint k=0; k < possible.size(); k++)
-        vec_possible[k] = possible[k];
+      assign(vec_possible,possible);
       
       count_map[vec_possible] += count;
+    }
+
+    fixed[j] = true;
+    prev_j = j;
+  }
+}
+
+
+
+
+void add_nondef_count(const Storage1D<std::vector<uchar> >& aligned_source_words, uint i, uint J,
+		      std::map<Math1D::Vector<uchar,uchar>,Math1D::Vector<double,uchar> >& count_map, double count) {
+
+  //note: i starts at zero, but the index for aligned_source_words starts at 1
+  
+  if (aligned_source_words[i+1].empty()) {
+    std::cerr << "WARNING: useless call!" << std::endl;
+    return;
+  }
+
+  Storage1D<bool> fixed(J,false);
+  for (uint ii=0; ii < i; ii++) {
+    const std::vector<uchar>& words = aligned_source_words[ii+1];
+    for (uint k=0; k < words.size(); k++)
+      fixed[words[k]] = true;
+  }
+
+  uint prev_j = MAX_UINT;
+   
+  for (uint k=0; k < aligned_source_words[i+1].size(); k++) {
+    
+    uint j = aligned_source_words[i+1][k];
+
+    uint nFollowing = aligned_source_words[i+1].size() - k - 1;
+
+    const uint start = (prev_j == MAX_UINT) ? 0 : prev_j+1;
+
+    uint pos = MAX_UINT;
+    
+    std::vector<uchar> possible;
+    possible.reserve(J);
+    for (uint jj=start; jj < J; jj++) {
+      if (!fixed[jj]) {
+        if (jj == j)
+          pos = possible.size();
+        possible.push_back(jj);
+      }
+    }
+    
+    if (nFollowing > 0)
+      possible.resize(possible.size()-nFollowing);
+
+    if (possible.size() > 1) { //no use adding counts when there is only one position left
+
+      Math1D::Vector<uchar,uchar> vec_possible(possible.size());
+      assign(vec_possible,possible);
+
+      std::map<Math1D::Vector<uchar,uchar>,Math1D::Vector<double,uchar> >::iterator it = count_map.find(vec_possible);
+
+      if (it != count_map.end())
+	it->second[pos] += count;
+      else {
+	//avoid double access to count_map
+
+	Math1D::Vector<double,uchar> temp(vec_possible.size(),0.0);
+	temp[pos] = count;
+
+	count_map[vec_possible] = temp;
+      }
     }
 
     fixed[j] = true;

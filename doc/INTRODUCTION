@@ -25,11 +25,11 @@ that are included in RegAligner.
 ***** Default behavior ****
 
 By default, RegAligner runs 5 EM-iterations of the IBM-1, then 5
-EM-iterations of the HMM. By default no regularity terms are used.
+EM-iterations of the HMM, 5 of the IBM-3 and 5 of the IBM-4. By default no regularity terms are used.
 
-For IBM-3/4/5 (which are not run by default), the default initialization of
-the models is a specific estimation. If you want to use count collection as
-proposed by [Brown et al. 1993], add
+For IBM-3/4/5, the default initialization of the models is a specific
+estimation. If you want to use count collection as proposed by [Brown et
+al. 1993], add
 
 -count-collection
 
@@ -66,8 +66,7 @@ though this violates the assumptions in the implemented models.
 
 ***** Changing the number of iterations ****
 
-To change the iterations, in particular activate IBM-3, IBM-4 and IBM-5 add the
-options
+To change the number of iterations run for a model, add the options
 
 -ibm1-iter <uint>
 -ibm2-iter <uint>

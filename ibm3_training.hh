@@ -8,7 +8,6 @@
 
 #include "singleword_fertility_training.hh"
 
-
 class IBM3Trainer : public FertilityModelTrainer {
 public:
   
@@ -48,10 +47,15 @@ public:
   //Viterbi-training with ITG reordering constraints. 
   void train_with_itg_constraints(uint nIter, bool extended_reordering = false, bool verbose = false);
 
+  virtual long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
+						       const SingleLookupTable& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
+						       Math2D::Matrix<long double>& expansion_prob,
+						       Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment);
+
   virtual long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
 						 const SingleLookupTable& lookup,
 						 Math1D::Vector<AlignBaseType>& alignment);
-
+  
   // <code> start_alignment </code> is used as initialization for hillclimbing and later modified
   // the extracted alignment is written to <code> postdec_alignment </code>
   virtual void compute_external_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
@@ -59,15 +63,8 @@ public:
 						  Math1D::Vector<AlignBaseType>& start_alignment,
 						  std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
 						  double threshold = 0.25);
-
-  virtual long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-						       const SingleLookupTable& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
-						       Math2D::Matrix<long double>& expansion_prob,
-						       Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment);
-
   
 protected:
-
 
   void par2nonpar_distortion(ReducedIBM3DistortionModel& prob);
 
@@ -81,26 +78,44 @@ protected:
 
 
   double nondeficient_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
-                                    const Math2D::Matrix<double>& param, uint i);
+				    const Math2D::Matrix<double>& param, uint i);
 
   double nondeficient_m_step_energy(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos, 
                                     const std::vector<double>& count,
                                     const Math2D::Matrix<double>& param, uint i);
 
+  double nondeficient_m_step_energy(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos,
+				    const std::vector<Math1D::Vector<double,uchar> >& count,
+				    const Math2D::Matrix<double>& param, uint i);
+
+
+  //with interpolation
   double nondeficient_m_step_energy(const std::vector<double>& count, const Storage1D<uchar>& filled_pos,
                                     const Math2D::Matrix<double>& param1, const Math2D::Matrix<double>& param2,
                                     const Math1D::Vector<double>& sum1, const Math1D::Vector<double>& sum2, 
                                     uint i, double lambda);
-  
+
+  //with interpolation
+  double nondeficient_m_step_energy(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos,
+				    const std::vector<Math1D::Vector<double,uchar> >& count,
+				    const Math2D::Matrix<double>& param1, const Math2D::Matrix<double>& param2,
+				    const Math1D::Vector<double>& sum1, const Math1D::Vector<double>& sum2, 
+				    uint i, double lambda);
+
+
+  //for the nonparametric setting
   double nondeficient_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
                                     const Storage1D<Math2D::Matrix<double> >& param, uint i, uint J);
-
-  double nondeficient_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count, uint i, double start_energy);
 
   double nondeficient_m_step_with_interpolation(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos, 
                                                 const std::vector<double>& count,
                                                 uint i, double start_energy);
 
+  double nondeficient_m_step_with_interpolation(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos,
+						const std::vector<Math1D::Vector<double,uchar> >& count, uint i, double start_energy);
+
+
+  //for the nonparametric setting
   double nondeficient_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count, uint i, uint J, double start_energy);
 
   long double alignment_prob(uint s, const Math1D::Vector<AlignBaseType>& alignment) const;
@@ -128,7 +143,7 @@ protected:
   //@param time_limit: maximum amount of seconds spent in the ILP-solver.
   //          values <= 0 indicate that no time limit is set
   long double compute_viterbi_alignment_ilp(const Storage1D<uint>& source, const Storage1D<uint>& target, 
-                                            const SingleLookupTable& lookup, uint max_fertility,
+                                            const SingleLookupTable& lookup, 
                                             Math1D::Vector<AlignBaseType>& alignment, double time_limit = -1.0);
 
   void itg_traceback(uint s, const NamedStorage1D<Math3D::NamedTensor<uint> >& trace, uint J, uint j, uint i, uint ii);
@@ -146,13 +161,16 @@ protected:
   bool parametric_distortion_;
   bool viterbi_ilp_;
 
-
   bool nondeficient_;
   mutable Storage1D<std::map<Storage1D<bool>,double> > denom_cache_;
 };
 
+
 void add_nondef_count(const Storage1D<std::vector<uchar> >& aligned_source_words, uint i, uint J,
 		      std::map<Math1D::Vector<uchar,uchar>,double>& count_map, double count);
+
+void add_nondef_count(const Storage1D<std::vector<uchar> >& aligned_source_words, uint i, uint J,
+		      std::map<Math1D::Vector<uchar,uchar>,Math1D::Vector<double,uchar> >& count_map, double count);
 
 
 #endif

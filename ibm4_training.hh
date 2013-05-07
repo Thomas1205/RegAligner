@@ -2,11 +2,10 @@
     Thomas Schoenemann was with the University of Düsseldorf, Germany, 2012. It was subsequently 
     modified and extended, both at the University of Düsseldorf and in his free time. ***/
 
-
 #ifndef IBM4_TRAINING_HH
 #define IBM4_TRAINING_HH
 
-#include "ibm3_training.hh"
+#include "singleword_fertility_training.hh"
 
 struct DistortCount {
 
@@ -55,7 +54,7 @@ public:
 
   virtual std::string model_name() const;
 
-  void init_from_ibm3(IBM3Trainer& ibm3trainer, bool clear_ibm3 = true, 
+  void init_from_ibm3(FertilityModelTrainer& fert_trainer, bool clear_ibm3 = true, 
 		      bool count_collection = false, bool viterbi = false);
 
   //training without constraints on uncovered positions.
@@ -138,7 +137,13 @@ protected:
   double nondeficient_inter_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
                                           const IBM4CeptStartModel& param, uint sclass, uint tclass);
 
+  double nondeficient_inter_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,Math1D::Vector<double,uchar> > >& count,
+                                          const IBM4CeptStartModel& param, uint sclass, uint tclass);
+
   void nondeficient_inter_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
+                                 uint sclass, uint tclass, double start_energy);
+
+  void nondeficient_inter_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,Math1D::Vector<double,uchar> > >& count,
                                  uint sclass, uint tclass, double start_energy);
 
   double nondeficient_intra_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,

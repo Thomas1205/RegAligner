@@ -8,6 +8,7 @@
 #include "ibm1_training.hh" //for the dictionary m-step
 #include "training_common.hh" // for get_wordlookup()
 #include "stl_util.hh"
+#include "alignment_computation.hh"
 
 #ifdef HAS_GZSTREAM
 #include "gzstream.h"
@@ -616,8 +617,8 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
   swap_prob.resize(curJ,curJ);
   expansion_prob.resize(curJ,curI+1);
-  swap_prob.set_constant(0.0);
-  expansion_prob.set_constant(0.0);
+  //swap_prob.set_constant(0.0);
+  //expansion_prob.set_constant(0.0);
 
   while (true) {    
 
@@ -679,6 +680,17 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
           continue;
         }
 
+	if (cand_aj > 0) {
+	  if ((fertility[cand_aj]+1) > fertility_limit_) { //better to check this before computing distortion probs
+	    expansion_prob(j,cand_aj) = 0.0;
+	    continue;
+	  }
+	}
+	if (cand_aj == 0 && 2*fertility[0]+2 > curJ) { //better to check this before computing distortion probs
+	  expansion_prob(j,cand_aj) = 0.0;
+	  continue;
+	}
+
         const double new_dict_prob = (cand_aj == 0) ? dict_[0][s_idx-1] : dict_[target[cand_aj-1]][lookup(j,cand_aj-1)];
 
         if (new_dict_prob < 1e-8)
@@ -716,7 +728,7 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
               
               //compute null-fert-model (zero-fert goes up by 1)
               
-              incoming_prob *= empty_word_increase_const;
+              incoming_prob *= empty_word_increase_const; 
             }
           }
 
@@ -757,7 +769,7 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
     /**** swap moves ****/
     for (uint j1=0; j1 < curJ; j1++) {
-
+      
       const uint aj1 = alignment[j1];
       const uint s_j1 = source[j1];
 
@@ -772,8 +784,6 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
         }
         else {
 
-          //std::swap(hyp_alignment[j1],hyp_alignment[j2]);
-          
           for (uint k=0; k < hyp_aligned_source_words[aj2].size(); k++) {
             if (hyp_aligned_source_words[aj2][k] == j2) {
               hyp_aligned_source_words[aj2][k] = j1;
@@ -855,6 +865,7 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       alignment[best_move_j] = best_move_aj;
       fertility[cur_aj]--;
       fertility[best_move_aj]++;
+      //zero_fert = fertility[0];
 
       aligned_source_words[cur_aj].erase(std::find(aligned_source_words[cur_aj].begin(),aligned_source_words[cur_aj].end(),best_move_j));
       aligned_source_words[best_move_aj].push_back(best_move_j);
@@ -869,6 +880,7 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
       uint cur_aj1 = alignment[best_swap_j1];
       uint cur_aj2 = alignment[best_swap_j2];
+
 
       assert(cur_aj1 != cur_aj2);
       
@@ -1043,7 +1055,7 @@ void IBM5Trainer::inter_distortion_m_step(uint sclass, const Storage1D<Math3D::T
       if (nIter > 5 && best_energy < 0.975 * energy)
         break;
 
-      if (nIter > 15)
+      if (nIter > 15 && lambda < 1e-12)
 	break;
     }
     //std::cerr << "best lambda: " << best_lambda << std::endl;
@@ -1193,7 +1205,7 @@ void IBM5Trainer::intra_distortion_m_step(uint sclass, const Storage1D<Math2D::M
       if (nIter > 5 && best_energy < 0.975 * energy)
         break;
 
-      if (nIter > 15)
+      if (nIter > 15 && lambda < 1e-12)
 	break;
     }
     //std::cerr << "best lambda: " << best_lambda << std::endl;
@@ -1303,6 +1315,8 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
       const uint curI = cur_target.size();
       const uint curJ = cur_source.size();
 
+      //std::cerr << "J=" << curJ << ", I=" << curI << std::endl;
+
       Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
 
       Math2D::NamedMatrix<long double> swap_move_prob(curJ,curJ,MAKENAME(swap_move_prob));
@@ -1363,7 +1377,7 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
       tCountCollectStart = std::clock();
 
       /**** update distortion counts *****/
-
+      
       //1. Viterbi alignment
       NamedStorage1D<std::vector<ushort> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
       for (uint j=0; j < curJ; j++)
@@ -1492,7 +1506,7 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 
       //2. expansion moves
       for (uint j=0; j < curJ; j++) {
-	
+
 	uint cur_aj = best_known_alignment_[s][j];
 
 	hyp_aligned_source_words[cur_aj].erase(std::find(hyp_aligned_source_words[cur_aj].begin(),
@@ -2078,6 +2092,8 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
       const uint curI = cur_target.size();
       const uint curJ = cur_source.size();
 
+      //std::cerr << "J=" << curJ << ", I=" << curI << std::endl;
+
       Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
 
       Math2D::NamedMatrix<long double> swap_move_prob(curJ,curJ,MAKENAME(swap_move_prob));
@@ -2093,15 +2109,25 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 								   expansion_move_prob,swap_move_prob,best_known_alignment_[s]);
       }
       else if (wrapper != 0 && iter == 1) {
-	best_prob = simulate_hmm_hillclimbing(cur_source, cur_target, cur_lookup, *wrapper,
-					      fertility, expansion_move_prob, swap_move_prob, best_known_alignment_[s]);
+	//we can skip calling hillclimbing here - we don't look at the neighbors anyway
+	//but note that we have to deal with alignments that have 2*fertility[0] > curJ
+
+	best_prob = compute_ehmm_viterbi_alignment(cur_source,cur_lookup,cur_target,dict_,
+						   wrapper->align_model_[curI-1], wrapper->initial_prob_[curI-1],
+						   best_known_alignment_[s], wrapper->hmm_options_.align_type_,
+						   false, false);
+
+	make_alignment_feasible(cur_source, cur_target, cur_lookup, best_known_alignment_[s]);
+
+	//NOTE: to be 100% proper we should recalculate the prob of the alignment if fertility[0] was corrected
+	//(would need to convert the alignment to internal mode first). But this only affects the energy printout at the end of 
+	// the iteration
       }
       else {
 	best_prob = update_alignment_by_hillclimbing(cur_source,cur_target,cur_lookup,sum_iter,fertility,
 						     expansion_move_prob,swap_move_prob,best_known_alignment_[s]);
       }
       max_perplexity -= std::log(best_prob);
-
 
       tHillclimbEnd = std::clock();
 
