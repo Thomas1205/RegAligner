@@ -3516,20 +3516,28 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
 	  //EXPERIMENTAL (prune constellations with very unlikely translation probs.)
 	  if (aj1 != 0) {
-	    if (dict_[taj1][lookup(j2,aj1-1)] < 1e-10)
+	    if (dict_[taj1][lookup(j2,aj1-1)] < 1e-10) {
+	      swap_prob(j1,j2) = 0.0;
 	      continue;
+	    }
 	  }
 	  else {
-	    if (dict_[0][source[j2]-1] < 1e-10)
+	    if (dict_[0][source[j2]-1] < 1e-10) {
+	      swap_prob(j1,j2) = 0.0;
 	      continue;
+	    }
 	  }
 	  if (aj2 != 0) {
-	    if (dict_[taj2][lookup(j1,aj2-1)] < 1e-10)
+	    if (dict_[taj2][lookup(j1,aj2-1)] < 1e-10) {
+	      swap_prob(j1,j2) = 0.0;
 	      continue;
+	    }
 	  }
 	  else {
-	    if (dict_[0][source[j1]-1] < 1e-10)
+	    if (dict_[0][source[j1]-1] < 1e-10) {
+	      swap_prob(j1,j2) = 0.0;
 	      continue;
+	    }
 	  }
 	  //END_EXPERIMENTAL
 
