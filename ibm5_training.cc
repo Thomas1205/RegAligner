@@ -314,7 +314,7 @@ void IBM5Trainer::init_from_ibm4(IBM4Trainer& ibm4, bool count_collection, bool 
   }
   else {
 
-    for (uint k=0; k < fertility_prob_.size(); k++) {
+    for (uint k=1; k < fertility_prob_.size(); k++) {
       fertility_prob_[k] = ibm4.fertility_prob()[k];
       
       //EXPERIMENTAL
@@ -681,7 +681,7 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
         }
 
 	if (cand_aj > 0) {
-	  if ((fertility[cand_aj]+1) > fertility_limit_) { //better to check this before computing distortion probs
+	  if ((fertility[cand_aj]+1) > fertility_limit_) {
 	    expansion_prob(j,cand_aj) = 0.0;
 	    continue;
 	  }
@@ -728,7 +728,7 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
               
               //compute null-fert-model (zero-fert goes up by 1)
               
-              incoming_prob *= empty_word_increase_const; 
+              incoming_prob *= empty_word_increase_const;
             }
           }
 
@@ -769,7 +769,7 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
     /**** swap moves ****/
     for (uint j1=0; j1 < curJ; j1++) {
-      
+
       const uint aj1 = alignment[j1];
       const uint s_j1 = source[j1];
 
@@ -784,6 +784,8 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
         }
         else {
 
+          //std::swap(hyp_alignment[j1],hyp_alignment[j2]);
+          
           for (uint k=0; k < hyp_aligned_source_words[aj2].size(); k++) {
             if (hyp_aligned_source_words[aj2][k] == j2) {
               hyp_aligned_source_words[aj2][k] = j1;
@@ -865,7 +867,6 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       alignment[best_move_j] = best_move_aj;
       fertility[cur_aj]--;
       fertility[best_move_aj]++;
-      //zero_fert = fertility[0];
 
       aligned_source_words[cur_aj].erase(std::find(aligned_source_words[cur_aj].begin(),aligned_source_words[cur_aj].end(),best_move_j));
       aligned_source_words[best_move_aj].push_back(best_move_j);
@@ -880,7 +881,6 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
       uint cur_aj1 = alignment[best_swap_j1];
       uint cur_aj2 = alignment[best_swap_j2];
-
 
       assert(cur_aj1 != cur_aj2);
       
@@ -940,7 +940,9 @@ double IBM5Trainer::inter_distortion_m_step_energy(uint sclass, const Storage1D<
       for (uint j=0; j < J; j++) {
 	
 	double cur_weight = count[J](j,prev_pos,sclass);
-	double cur_param = std::max(1e-15,param(displacement_offset_+j-prev_pos,sclass));
+	double cur_param = param(displacement_offset_+j-prev_pos,sclass);
+
+	assert(cur_param >= 1e-15);
 	
 	count_sum += cur_weight;
 	param_sum += cur_param;
@@ -956,6 +958,9 @@ double IBM5Trainer::inter_distortion_m_step_energy(uint sclass, const Storage1D<
 }
 
 void IBM5Trainer::inter_distortion_m_step(uint sclass, const Storage1D<Math3D::Tensor<double> >& count) {
+
+  for (uint k=0; k < inter_distortion_param_.xDim(); k++)
+    inter_distortion_param_(k,sclass) = std::max(1e-15,inter_distortion_param_(k,sclass));
 
   Math1D::Vector<double> gradient(inter_distortion_param_.xDim());
   Math1D::Vector<double> new_param(inter_distortion_param_.xDim());
@@ -992,9 +997,11 @@ void IBM5Trainer::inter_distortion_m_step(uint sclass, const Storage1D<Math3D::T
 	  
 	  const uint pos = displacement_offset_+j-prev_pos;
 	  
-	  double cur_weight = count[J](j,prev_pos,sclass);
-	  double cur_param = std::max(1e-15,inter_distortion_param_(pos,sclass));
-	  
+	  const double cur_weight = count[J](j,prev_pos,sclass);
+	  const double cur_param = inter_distortion_param_(pos,sclass);
+
+	  assert(cur_param >= 1e-15);
+
 	  count_sum += cur_weight;
 	  param_sum += cur_param;
 	  
@@ -1019,6 +1026,8 @@ void IBM5Trainer::inter_distortion_m_step(uint sclass, const Storage1D<Math3D::T
     /*** 3. reproject ***/
     projection_on_simplex(new_param.direct_access(), new_param.size()); 
 
+    for (uint j=0; j < gradient.size(); j++)
+      new_param[j] = std::max(1e-15,new_param[j]);
     
     /*** 4. find appropriate step size ***/
     double best_lambda = 1.0;
@@ -1058,7 +1067,6 @@ void IBM5Trainer::inter_distortion_m_step(uint sclass, const Storage1D<Math3D::T
       if (nIter > 15 && lambda < 1e-12)
 	break;
     }
-    //std::cerr << "best lambda: " << best_lambda << std::endl;
 
     if (best_energy >= energy) {
       std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
@@ -1080,7 +1088,6 @@ void IBM5Trainer::inter_distortion_m_step(uint sclass, const Storage1D<Math3D::T
         + neg_best_lambda * inter_distortion_param_(j,sclass);
 
     energy = best_energy;
-
   }
 }
 
@@ -1208,7 +1215,6 @@ void IBM5Trainer::intra_distortion_m_step(uint sclass, const Storage1D<Math2D::M
       if (nIter > 15 && lambda < 1e-12)
 	break;
     }
-    //std::cerr << "best lambda: " << best_lambda << std::endl;
 
     if (best_energy >= energy) {
       std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
@@ -1315,8 +1321,6 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
       const uint curI = cur_target.size();
       const uint curJ = cur_source.size();
 
-      //std::cerr << "J=" << curJ << ", I=" << curI << std::endl;
-
       Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
 
       Math2D::NamedMatrix<long double> swap_move_prob(curJ,curJ,MAKENAME(swap_move_prob));
@@ -1346,7 +1350,7 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
       hillclimbtime += diff_seconds(tHillclimbEnd,tHillclimbStart);
 
       const long double expansion_prob = expansion_move_prob.sum();
-      const long double swap_prob =  swap_mass(swap_move_prob); //0.5 * swap_move_prob.sum();
+      const long double swap_prob =  swap_mass(swap_move_prob);
 
       const long double sentence_prob = best_prob + expansion_prob +  swap_prob;
 
@@ -1377,7 +1381,7 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
       tCountCollectStart = std::clock();
 
       /**** update distortion counts *****/
-      
+
       //1. Viterbi alignment
       NamedStorage1D<std::vector<ushort> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
       for (uint j=0; j < curJ; j++)
@@ -1506,7 +1510,7 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 
       //2. expansion moves
       for (uint j=0; j < curJ; j++) {
-
+	
 	uint cur_aj = best_known_alignment_[s][j];
 
 	hyp_aligned_source_words[cur_aj].erase(std::find(hyp_aligned_source_words[cur_aj].begin(),
@@ -1645,6 +1649,8 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 
       //3. swap moves
       for (uint j1 = 0; j1 < curJ-1; j1++) {
+
+	//std::cerr << "j1: " << j1 << std::endl;
 
 	const uint aj1 = best_known_alignment_[s][j1];
 
@@ -1885,7 +1891,7 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 	assert(sum > 1e-305);
 
 	for (uint j=0; j < inter_distortion_param_.xDim(); j++)
-	  hyp_param(j,s) = inter_distparam_count(j,s) / sum;
+	  hyp_param(j,s) = std::max(1e-15, inter_distparam_count(j,s) / sum);
 
 	double hyp_energy = inter_distortion_m_step_energy(s, inter_distortion_count, hyp_param);
 
@@ -1949,18 +1955,18 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 	for (uint j=0; j < intra_distparam_count.xDim(); j++)
 	  sum += intra_distparam_count(j,s);
 
-	assert(sum > 1e-305);
-
-	for (uint j=0; j < intra_distparam_count.xDim(); j++)
-	  hyp_param(j,s) = intra_distparam_count(j,s) / sum;
-
-	double hyp_energy = intra_distortion_m_step_energy(s,intra_distortion_count,hyp_param);
-	
-	if (hyp_energy < cur_energy) {
+	if (sum > 1e-305) {
 	  for (uint j=0; j < intra_distparam_count.xDim(); j++)
-	    intra_distortion_param_(j,s) = hyp_param(j,s);
+	    hyp_param(j,s) = std::max(1e-15,intra_distparam_count(j,s) / sum);
 
-	  cur_energy = hyp_energy;
+	  double hyp_energy = intra_distortion_m_step_energy(s,intra_distortion_count,hyp_param);
+	
+	  if (hyp_energy < cur_energy) {
+	    for (uint j=0; j < intra_distparam_count.xDim(); j++)
+	      intra_distortion_param_(j,s) = hyp_param(j,s);
+	    
+	    cur_energy = hyp_energy;
+	  }
 	}
 
 	intra_distortion_m_step(s,intra_distortion_count);
@@ -2092,8 +2098,6 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
       const uint curI = cur_target.size();
       const uint curJ = cur_source.size();
 
-      //std::cerr << "J=" << curJ << ", I=" << curI << std::endl;
-
       Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
 
       Math2D::NamedMatrix<long double> swap_move_prob(curJ,curJ,MAKENAME(swap_move_prob));
@@ -2105,6 +2109,7 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
       long double best_prob = 0.0;
 
       if (fert_trainer != 0 && iter == 1) {
+
 	best_prob = fert_trainer->update_alignment_by_hillclimbing(cur_source,cur_target,cur_lookup,sum_iter,fertility,
 								   expansion_move_prob,swap_move_prob,best_known_alignment_[s]);
       }
@@ -2382,17 +2387,20 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 
 	assert(sum > 1e-305);
 
-	for (uint j=0; j < inter_distortion_param_.xDim(); j++)
-	  hyp_param(j,s) = inter_distparam_count(j,s) / sum;
-
-	double hyp_energy = inter_distortion_m_step_energy(s, inter_distortion_count, hyp_param);
-
-	if (hyp_energy < cur_energy) {
+	if (sum > 1e-305) {
 
 	  for (uint j=0; j < inter_distortion_param_.xDim(); j++)
-	    inter_distortion_param_(j,s) = hyp_param(j,s);
-
-	  cur_energy = hyp_energy;
+	    hyp_param(j,s) = std::max(1e-15,inter_distparam_count(j,s) / sum);
+	  
+	  double hyp_energy = inter_distortion_m_step_energy(s, inter_distortion_count, hyp_param);
+	  
+	  if (hyp_energy < cur_energy) {
+	    
+	    for (uint j=0; j < inter_distortion_param_.xDim(); j++)
+	      inter_distortion_param_(j,s) = hyp_param(j,s);
+	    
+	    cur_energy = hyp_energy;
+	  }
 	}
 
 	inter_distortion_m_step(s, inter_distortion_count);
@@ -2434,25 +2442,25 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 	for (uint j=0; j < intra_distparam_count.xDim(); j++)
 	  sum += intra_distparam_count(j,s);
 
-	assert(sum > 1e-305);
+	if (sum > 1e-305) {
 
-	for (uint j=0; j < intra_distparam_count.xDim(); j++)
-	  hyp_param(j,s) = intra_distparam_count(j,s) / sum;
-
-	double hyp_energy = intra_distortion_m_step_energy(s,intra_distortion_count,hyp_param);
-	
-	if (hyp_energy < cur_energy) {
 	  for (uint j=0; j < intra_distparam_count.xDim(); j++)
-	    intra_distortion_param_(j,s) = hyp_param(j,s);
+	    hyp_param(j,s) = std::max(1e-15,intra_distparam_count(j,s) / sum);
 
-	  cur_energy = hyp_energy;
+	  double hyp_energy = intra_distortion_m_step_energy(s,intra_distortion_count,hyp_param);
+	  
+	  if (hyp_energy < cur_energy) {
+	    for (uint j=0; j < intra_distparam_count.xDim(); j++)
+	      intra_distortion_param_(j,s) = hyp_param(j,s);
+
+	    cur_energy = hyp_energy;
+	  }
 	}
 
 	intra_distortion_m_step(s,intra_distortion_count);
       }
 
       par2nonpar_intra_distortion();
-
     }
 
 
