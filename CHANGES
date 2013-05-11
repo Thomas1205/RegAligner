@@ -1,6 +1,6 @@
 RegAligner Change History
 
-*** upcoming release (1.2?) ***
+*** upcoming release (1.2, expected end of May) ***
 - implemented count collection from HMM
 - added nondeficient mode for IBM-3/4 (as in [Schoenemann, ACL 2013])
 - added IBM-5
@@ -12,7 +12,8 @@ RegAligner Change History
 - some minor fixes and refinements, including speed-up of ICM by using log
   lookup tables and grouping of common code patterns, plus when converting general
   alignments to satisfy the fertility constraints of IBM-3/4/5
-- run running IBM-3 and IBM-4 by default
+- now running IBM-3 and IBM-4 by default, plus reducing deficiency is no
+  longer the default
 
 *** release version 1.05 (released March 6 2013) ***
 - two bugfixes for IBM-4

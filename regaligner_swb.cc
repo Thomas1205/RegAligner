@@ -62,7 +62,7 @@ int main(int argc, char** argv) {
               << " [-count-collection] : do IBM-3 hillclimbing when initializing IBM-4" << std::endl
 	      << " [-p0 <double>]: fix probability for empty alignments for IBM-3/4 " << std::endl
               << " [-org-empty-word] : for IBM 3/4 use empty word as originally published" << std::endl
-              << " [-dont-reduce-deficiency] : use non-normalized probabilities for IBM-4 (as in Brown et al.)" << std::endl
+	      << " [-reduce-deficiency] : renormalize probabilities for IBM-4 to stay inside the sentence" << std::endl
               << " [-nondeficient] : train nondeficient variants of IBM-3/4" << std::endl
               << " [-nonpar-distortion] : use extended set of distortion parameters for IBM-3" << std::endl
               << " [-dont-print-energy] : do not print the energy (speeds up EM for IBM-1 and HMM)" << std::endl
@@ -93,7 +93,7 @@ int main(int argc, char** argv) {
                                  {"-org-empty-word",flag,0,""},{"-nonpar-distortion",flag,0,""},
                                  {"-hmm-init-type",optWithValue,1,"auto"},{"-dont-print-energy",flag,0,""},
                                  {"-ibm1-transfer-mode",optWithValue,1,"no"},{"-dict-struct",optWithValue,0,""},
-                                 {"-dont-reduce-deficiency",flag,0,""},{"-count-collection",flag,0,""},
+                                 {"-reduce-deficiency",flag,0,""},{"-count-collection",flag,0,""},
 				 {"-sclasses",optInFilename,0,""},{"-tclasses",optInFilename,0,""},
                                  {"-max-lookup",optWithValue,1,"65535"},{"-ibm4-inter-dist-mode",optWithValue,1,"previous"},
 				 {"-ibm4-intra-dist-mode",optWithValue,1,"source"},{"-nondeficient",flag,0,""}};
@@ -618,7 +618,7 @@ int main(int argc, char** argv) {
                            sure_ref_alignments, possible_ref_alignments,
                            dict, wcooc, nSourceWords, nTargetWords, prior_weight, 
                            source_class, target_class, log_table, !app.is_set("-org-empty-word"), true, true,
-                           !app.is_set("-dont-reduce-deficiency"), app.is_set("-nondeficient"),
+                           app.is_set("-reduce-deficiency"), app.is_set("-nondeficient"),
                            ibm4_cept_mode, ibm4_inter_dist_mode, ibm4_intra_dist_mode, em_l0, l0_beta, l0_fertpen);
 
   ibm4_trainer.set_fertility_limit(fert_limit);
@@ -727,6 +727,7 @@ int main(int argc, char** argv) {
 
     uint train_zero_offset = maxI - 1;
     
+    //std::cerr << "AA" << std::endl;
     
     //handle case where init and/or distance parameters were not estimated above for <emph>train</emph>
     if (hmm_init_mode == HmmInitNonpar || hmm_init_params.sum() < 1e-5) {
@@ -746,7 +747,8 @@ int main(int argc, char** argv) {
       assert(sum > 0.0);
       hmm_init_params *= 1.0 / sum;
     }
-
+    
+    //std::cerr << "BB" << std::endl;
 
     if (hmm_align_mode == HmmAlignProbNonpar || hmm_align_mode == HmmAlignProbNonpar2 || hmm_dist_params.sum() < 1e-5) {
 
@@ -773,6 +775,7 @@ int main(int argc, char** argv) {
       source_fert[1] = 0.98;
     }
 
+    //std::cerr << "CC" << std::endl;
 
     for (uint i=0; i < std::min<uint>(max_devI,hmm_init_params.size()); i++) {
       dev_hmm_init_params[i] = hmm_init_params[i];	
@@ -780,7 +783,8 @@ int main(int argc, char** argv) {
       dev_hmm_dist_params[dev_zero_offset - i] = hmm_dist_params[train_zero_offset - i];
       dev_hmm_dist_params[dev_zero_offset + i] = hmm_dist_params[train_zero_offset + i];
     }
-
+    
+    //std::cerr << "DD" << std::endl;
 
     dev_hmmalign_model.resize(max_devI+1);
     dev_initial_prob.resize(max_devI+1);
@@ -792,7 +796,8 @@ int main(int argc, char** argv) {
       dev_hmmalign_model[I-1].resize(I+1,I,0.0); //because of empty words
       dev_initial_prob[I-1].resize(2*I,0.0);
     }
-
+    
+    //std::cerr << "EE" << std::endl;
 
     if (hmm_init_mode != HmmInitFix && hmm_init_mode != HmmInitFix2) {
       par2nonpar_hmm_init_model(dev_hmm_init_params, source_fert, HmmInitPar, dev_initial_prob);
@@ -806,7 +811,8 @@ int main(int argc, char** argv) {
     else {
       par2nonpar_hmm_init_model(dev_hmm_init_params, source_fert, hmm_init_mode, dev_initial_prob);
     }
-
+    
+    //std::cerr << "FF" << std::endl;
 
     HmmAlignProbType mode = hmm_align_mode;
     if (mode == HmmAlignProbNonpar || hmm_align_mode == HmmAlignProbNonpar2)
@@ -868,6 +874,8 @@ int main(int argc, char** argv) {
       
       for (size_t s = 0; s < dev_source_sentence.size(); s++) {
 	
+	//std::cerr << "s: " << s << std::endl;
+	
 	const uint curI = dev_target_sentence[s].size();
 	
 	//initialize by HMM
@@ -876,6 +884,8 @@ int main(int argc, char** argv) {
 				       viterbi_alignment, hmm_align_mode, false);
 	
 	if (postdec_thresh <= 0.0) {
+	  
+	  //std::cerr << "standard alignment computation" << std::endl;
 	  
 	  fert_trainer->compute_external_alignment(dev_source_sentence[s],dev_target_sentence[s],dev_slookup[s],
 						   viterbi_alignment);
@@ -903,6 +913,204 @@ int main(int argc, char** argv) {
       delete dev_alignment_stream;
     }
   }
+//   if (ibm5_iter > 0) {
+
+//     if (postdec_thresh <= 0.0) 
+//       ibm5_trainer.write_alignments(app.getParam("-oa"));
+//     else
+//       ibm5_trainer.write_postdec_alignments(app.getParam("-oa"),postdec_thresh);
+    
+//     if (dev_present) {
+      
+//       std::cerr << "dev sentences present" << std::endl;
+      
+//       Math1D::Vector<AlignBaseType> viterbi_alignment;
+//       std::set<std::pair<AlignBaseType,AlignBaseType> > postdec_alignment;
+      
+//       std::ostream* dev_alignment_stream;
+      
+// #ifdef HAS_GZSTREAM
+//       if (string_ends_with(app.getParam("-oa"),".gz")) {
+// 	dev_alignment_stream = new ogzstream(dev_file.c_str());
+//       }
+//       else
+// 	dev_alignment_stream = new std::ofstream(dev_file.c_str());
+
+// #else
+//       dev_alignment_stream = new std::ofstream(dev_file.c_str());
+// #endif
+
+//       for (size_t s = 0; s < dev_source_sentence.size(); s++) {
+	
+// 	//std::cerr << "s: " << s << std::endl;
+	
+// 	const uint curI = dev_target_sentence[s].size();
+	
+// 	//initialize by HMM
+// 	compute_ehmm_viterbi_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
+// 				       dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
+// 				       viterbi_alignment, hmm_align_mode, false);
+	
+// 	if (postdec_thresh <= 0.0) {
+	  
+// 	  //std::cerr << "standard alignment computation" << std::endl;
+	  
+// 	  ibm5_trainer.compute_external_alignment(dev_source_sentence[s],dev_target_sentence[s],dev_slookup[s],
+// 						  viterbi_alignment);
+	  
+// 	  for (uint j=0; j < viterbi_alignment.size(); j++) { 
+// 	    if (viterbi_alignment[j] > 0)
+// 	      (*dev_alignment_stream) << (viterbi_alignment[j]-1) << " " << j << " ";
+// 	  }
+	  
+// 	  (*dev_alignment_stream) << std::endl;
+// 	}
+// 	else {
+
+// 	  ibm5_trainer.compute_external_postdec_alignment(dev_source_sentence[s],dev_target_sentence[s],dev_slookup[s],
+// 							  viterbi_alignment, postdec_alignment, postdec_thresh);
+	  
+// 	  for(std::set<std::pair<AlignBaseType,AlignBaseType> >::iterator it = postdec_alignment.begin(); 
+// 	      it != postdec_alignment.end(); it++) {
+	    
+// 	    (*dev_alignment_stream) << (it->second-1) << " " << (it->first-1) << " ";
+// 	  }
+// 	  (*dev_alignment_stream) << std::endl;
+// 	}
+//       }
+//       delete dev_alignment_stream;
+
+//     }
+//   }  
+//   else if (ibm4_iter > 0) {
+//     if (postdec_thresh <= 0.0) 
+//       ibm4_trainer.write_alignments(app.getParam("-oa"));
+//     else
+//       ibm4_trainer.write_postdec_alignments(app.getParam("-oa"),postdec_thresh);
+
+//     if (dev_present) {
+      
+//       std::cerr << "dev sentences present" << std::endl;
+      
+//       Math1D::Vector<AlignBaseType> viterbi_alignment;
+//       std::set<std::pair<AlignBaseType,AlignBaseType> > postdec_alignment;
+
+//       std::ostream* dev_alignment_stream;
+      
+// #ifdef HAS_GZSTREAM
+//       if (string_ends_with(app.getParam("-oa"),".gz")) {
+// 	dev_alignment_stream = new ogzstream(dev_file.c_str());
+//       }
+//       else {
+// #else
+//       if (true) {
+// #endif
+//         dev_alignment_stream = new std::ofstream(dev_file.c_str());
+//       }
+
+//       for (size_t s = 0; s < dev_source_sentence.size(); s++) {
+	
+// 	//std::cerr << "s: " << s << std::endl;
+	
+// 	const uint curI = dev_target_sentence[s].size();
+
+// 	//initialize by HMM	
+//         compute_ehmm_viterbi_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
+//                                        dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
+//                                        viterbi_alignment, hmm_align_mode, false);
+
+// 	if (postdec_thresh <= 0.0) {
+	  
+// 	  ibm4_trainer.compute_external_alignment(dev_source_sentence[s],dev_target_sentence[s],dev_slookup[s],
+// 						  viterbi_alignment);
+	    
+// 	  for (uint j=0; j < viterbi_alignment.size(); j++) { 
+// 	    if (viterbi_alignment[j] > 0)
+// 	      (*dev_alignment_stream) << (viterbi_alignment[j]-1) << " " << j << " ";
+// 	  }
+	  
+// 	  (*dev_alignment_stream) << std::endl;
+// 	}
+// 	else {
+	  
+// 	  ibm4_trainer.compute_external_postdec_alignment(dev_source_sentence[s],dev_target_sentence[s],dev_slookup[s],
+// 							  viterbi_alignment, postdec_alignment, postdec_thresh);
+	  
+// 	  for(std::set<std::pair<AlignBaseType,AlignBaseType> >::iterator it = postdec_alignment.begin(); 
+// 	      it != postdec_alignment.end(); it++) {
+	    
+// 	    (*dev_alignment_stream) << (it->second-1) << " " << (it->first-1) << " ";
+// 	  }
+// 	  (*dev_alignment_stream) << std::endl;
+// 	}
+//       }
+//       delete dev_alignment_stream;
+//     }
+//   }
+//   else if (ibm3_iter > 0) {
+//     if (postdec_thresh <= 0.0) 
+//       ibm3_trainer.write_alignments(app.getParam("-oa"));
+//     else
+//       ibm3_trainer.write_postdec_alignments(app.getParam("-oa"),postdec_thresh);
+
+//     if (dev_present) {
+
+//       std::cerr << "dev sentences present" << std::endl;
+
+//       Math1D::Vector<AlignBaseType> viterbi_alignment;
+//       std::set<std::pair<AlignBaseType,AlignBaseType> > postdec_alignment;
+
+      
+//       std::ostream* dev_alignment_stream;
+      
+// #ifdef HAS_GZSTREAM
+//       if (string_ends_with(app.getParam("-oa"),".gz")) {
+// 	dev_alignment_stream = new ogzstream(dev_file.c_str());
+//       }
+//       else {
+// #else
+//       if (true) {
+// #endif
+//         dev_alignment_stream = new std::ofstream(dev_file.c_str());
+//       }
+
+//       for (size_t s = 0; s < dev_source_sentence.size(); s++) {
+	  
+// 	const uint curI = dev_target_sentence[s].size();	
+
+// 	//initialize by HMM	
+//         compute_ehmm_viterbi_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
+//                                        dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
+//                                        viterbi_alignment, hmm_align_mode, false);
+
+// 	if (postdec_thresh <= 0.0) {
+
+// 	  ibm3_trainer.compute_external_alignment(dev_source_sentence[s],dev_target_sentence[s],dev_slookup[s],
+// 						  viterbi_alignment);
+	  
+// 	  for (uint j=0; j < viterbi_alignment.size(); j++) { 
+// 	    if (viterbi_alignment[j] > 0)
+// 	      (*dev_alignment_stream) << (viterbi_alignment[j]-1) << " " << j << " ";
+// 	  }
+	  
+// 	  (*dev_alignment_stream) << std::endl;
+// 	}
+// 	else {
+	  
+// 	  ibm3_trainer.compute_external_postdec_alignment(dev_source_sentence[s],dev_target_sentence[s],dev_slookup[s],
+// 							  viterbi_alignment, postdec_alignment, postdec_thresh);
+	  
+// 	  for(std::set<std::pair<AlignBaseType,AlignBaseType> >::iterator it = postdec_alignment.begin(); 
+// 	      it != postdec_alignment.end(); it++) {
+	    
+// 	    (*dev_alignment_stream) << (it->second-1) << " " << (it->first-1) << " ";
+// 	  }
+// 	  (*dev_alignment_stream) << std::endl;  
+// 	}
+//       }
+//       delete dev_alignment_stream;
+//     }  
+//   }
   else {
 
     std::ostream* alignment_stream;
@@ -1012,6 +1220,16 @@ int main(int argc, char** argv) {
               compute_ehmm_viterbi_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
                                              dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
                                              viterbi_alignment, hmm_align_mode, false);
+
+
+            // if (hmm_align_mode == HmmAlignProbReducedpar)
+            //   compute_ehmm_viterbi_alignment_with_tricks(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
+            //                                              dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
+            //                                              viterbi_alignment, false);
+            // else
+            //   compute_ehmm_viterbi_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
+            //                                  dict, dev_hmmalign_model[curI-1], dev_initial_prob[curI-1],
+            //                                  viterbi_alignment, false);
 	  }
 	  else {
 	    compute_ehmm_postdec_alignment(dev_source_sentence[s],dev_slookup[s], dev_target_sentence[s], 
