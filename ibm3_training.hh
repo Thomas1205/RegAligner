@@ -91,28 +91,29 @@ protected:
 
   //with interpolation
   double nondeficient_m_step_energy(const std::vector<double>& count, const Storage1D<uchar>& filled_pos,
-                                    const Math2D::Matrix<double>& param1, const Math2D::Matrix<double>& param2,
+                                    const double* param1, const Math1D::Vector<double>& param2,
                                     const Math1D::Vector<double>& sum1, const Math1D::Vector<double>& sum2, 
-                                    uint i, double lambda);
+                                    double lambda);
 
   //with interpolation
   double nondeficient_m_step_energy(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos,
 				    const std::vector<Math1D::Vector<double,uchar> >& count,
-				    const Math2D::Matrix<double>& param1, const Math2D::Matrix<double>& param2,
+				    const double* param1, const Math1D::Vector<double>& param2,
 				    const Math1D::Vector<double>& sum1, const Math1D::Vector<double>& sum2, 
-				    uint i, double lambda);
-
+				    double lambda);
 
   //for the nonparametric setting
   double nondeficient_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
                                     const Storage1D<Math2D::Matrix<double> >& param, uint i, uint J);
 
+
   double nondeficient_m_step_with_interpolation(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos, 
                                                 const std::vector<double>& count,
                                                 uint i, double start_energy);
 
-  double nondeficient_m_step_with_interpolation(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos,
-						const std::vector<Math1D::Vector<double,uchar> >& count, uint i, double start_energy);
+  double nondeficient_m_step_with_interpolation(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos, 
+                                                const std::vector<Math1D::Vector<double,uchar> >& count,
+                                                uint i, double start_energy);
 
 
   //for the nonparametric setting
