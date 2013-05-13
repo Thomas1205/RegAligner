@@ -1050,7 +1050,7 @@ void FertilityModelTrainer::update_alignments_unconstrained() {
 }
 
 void FertilityModelTrainer::compute_postdec_alignment(const Math1D::Vector<AlignBaseType>& alignment,
-						      double best_prob, const Math2D::Matrix<long double>& expansion_move_prob,
+						      long double best_prob, const Math2D::Matrix<long double>& expansion_move_prob,
 						      const Math2D::Matrix<long double>& swap_move_prob, double threshold,
 						      std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment) {
 
