@@ -3916,7 +3916,7 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
 	    
 	    if (allowed) {
 
-	      if (!nondeficient_) {
+	      if (nondeficient_) {
 		hyp_aligned_source_words[cur_aj].erase(std::find(hyp_aligned_source_words[cur_aj].begin(),
 								 hyp_aligned_source_words[cur_aj].end(),j));
 		hyp_aligned_source_words[i].push_back(j);
