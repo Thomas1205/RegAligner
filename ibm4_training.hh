@@ -137,11 +137,21 @@ protected:
   double nondeficient_inter_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
                                           const IBM4CeptStartModel& param, uint sclass, uint tclass);
 
+  //with interpolation
+  double nondeficient_inter_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
+					  const Math1D::Vector<double>& param1, const Math1D::Vector<double>& param2, 
+					  const Math1D::Vector<double>& sum1, const Math1D::Vector<double>& sum2, 
+					  double lambda);
+
+
   double nondeficient_inter_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,Math1D::Vector<double,uchar> > >& count,
                                           const IBM4CeptStartModel& param, uint sclass, uint tclass);
 
   void nondeficient_inter_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
                                  uint sclass, uint tclass, double start_energy);
+
+  void nondeficient_inter_m_step_with_interpolation(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
+						    uint sclass, uint tclass, double start_energy);
 
   void nondeficient_inter_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,Math1D::Vector<double,uchar> > >& count,
                                  uint sclass, uint tclass, double start_energy);

@@ -527,8 +527,6 @@ double IBM4Trainer::inter_distortion_m_step_energy(const Storage1D<Storage2D<Mat
 
   for (int J=1; J <= (int) maxJ_; J++) {
 
-    //std::cerr << "J:" << J << std::endl;
-
     if (inter_distort_count[J].xDim() > class1 && inter_distort_count[J].yDim() > class2) {
 
       const Math2D::Matrix<double>& cur_count = inter_distort_count[J](class1,class2);
@@ -646,6 +644,9 @@ void IBM4Trainer::inter_distortion_m_step(const Storage1D<Storage2D<Math2D::Matr
 
   double alpha = 0.01;
 
+  for (uint k=0; k < cept_start_prob_.zDim(); k++) 
+    cept_start_prob_(class1,class2,k) = std::max(1e-15,cept_start_prob_(class1,class2,k));
+
   double energy = inter_distortion_m_step_energy(inter_distort_count,vec_sparse_inter_distort_count,cept_start_prob_,class1,class2);
 
   if (nSourceClasses_*nTargetClasses_ <= 4)
@@ -672,12 +673,9 @@ void IBM4Trainer::inter_distortion_m_step(const Storage1D<Storage2D<Math2D::Matr
           double sum = 0.0;
 
           for (int j2=0; j2 < J; j2++) {
-            sum += std::max(1e-15,cept_start_prob_(class1,class2,j2-j1 + displacement_offset_));
+            sum += cept_start_prob_(class1,class2,j2-j1 + displacement_offset_);
             assert(!isnan(cept_start_prob_(class1,class2,j2-j1 + displacement_offset_)));
           }
-
-          // if (sum < 1e-100)
-          //   continue;  //this can happen for j1=0 (and J=1)
 
           double count_sum = 0.0;
           for (int j2=0; j2 < J; j2++) {
@@ -689,7 +687,7 @@ void IBM4Trainer::inter_distortion_m_step(const Storage1D<Storage2D<Math2D::Matr
 
             count_sum += count;
 
-            const double cur_param = std::max(1e-15,cept_start_prob_(class1,class2,j2-j1 + displacement_offset_));
+            const double cur_param = cept_start_prob_(class1,class2,j2-j1 + displacement_offset_);
             ceptstart_grad[j2-j1 + displacement_offset_] -= 
               count / cur_param;
             assert(!isnan(ceptstart_grad[j2-j1 + displacement_offset_]));
@@ -733,10 +731,9 @@ void IBM4Trainer::inter_distortion_m_step(const Storage1D<Storage2D<Math2D::Matr
     }
 
     //go in neg. gradient direction
-    for (uint k=0; k < cept_start_prob_.zDim(); k++) {
-
+    for (uint k=0; k < cept_start_prob_.zDim(); k++) 
       new_ceptstart_prob(class1,class2,k) = cept_start_prob_(class1,class2,k) - alpha * ceptstart_grad[k];
-    }
+
 
     //reproject
     Math1D::Vector<double> temp(cept_start_prob_.zDim());
@@ -746,7 +743,7 @@ void IBM4Trainer::inter_distortion_m_step(const Storage1D<Storage2D<Math2D::Matr
     projection_on_simplex(temp.direct_access(),cept_start_prob_.zDim());
 
     for (uint k=0; k < temp.size(); k++)
-      new_ceptstart_prob(class1,class2,k) = temp[k];
+      new_ceptstart_prob(class1,class2,k) = std::max(1e-15,temp[k]);
     
 
     double best_energy = 1e300;
@@ -815,6 +812,9 @@ void IBM4Trainer::intra_distortion_m_step(const Storage1D<Math3D::Tensor<double>
 
   double alpha = 0.01;
 
+  for (uint k=0; k < within_cept_prob_.yDim(); k++) 
+    within_cept_prob_(word_class,k) = std::max(1e-15,within_cept_prob_(word_class,k));
+
   double energy = intra_distortion_m_step_energy(intra_distort_count,within_cept_prob_,word_class);
 
   if (nTargetClasses_ <= 4)
@@ -839,7 +839,7 @@ void IBM4Trainer::intra_distortion_m_step(const Storage1D<Math3D::Tensor<double>
           double sum = 0.0;
 
           for (int j2=j1+1; j2 < J; j2++) {
-            sum += std::max(1e-15,within_cept_prob_(word_class,j2-j1));
+            sum += within_cept_prob_(word_class,j2-j1);
           }
 
           if (sum < 1e-100)
@@ -848,11 +848,11 @@ void IBM4Trainer::intra_distortion_m_step(const Storage1D<Math3D::Tensor<double>
           double count_sum = 0.0;
           for (int j2=j1+1; j2 < J; j2++) {
 
-            double cur_count = cur_distort_count(word_class,j2,j1);
+            const double cur_count = cur_distort_count(word_class,j2,j1);
 
             count_sum += cur_count;
 
-            double cur_param = std::max(1e-15,within_cept_prob_(word_class,j2-j1));
+            const double cur_param = within_cept_prob_(word_class,j2-j1);
             within_cept_grad[j2-j1] -= cur_count / cur_param;
           }
 
@@ -880,7 +880,7 @@ void IBM4Trainer::intra_distortion_m_step(const Storage1D<Math3D::Tensor<double>
     projection_on_simplex(temp.direct_access()+1,temp.size()-1); //the entry for 0 is always 0!
 
     for (uint k=1; k < temp.size(); k++)
-      new_within_cept_prob(word_class,k) = temp[k];
+      new_within_cept_prob(word_class,k) = std::max(1e-15,temp[k]);
     
 
     double best_energy = 1e300;
@@ -973,13 +973,16 @@ void IBM4Trainer::start_prob_m_step(const Storage1D<Math1D::Vector<double> >& st
   Math1D::Vector<double> new_param = sentence_start_parameters_;
   Math1D::Vector<double> hyp_param = sentence_start_parameters_;
 
+  for (uint k=0; k < sentence_start_parameters_.size(); k++)
+    sentence_start_parameters_[k] = std::max(1e-15,sentence_start_parameters_[k]);
+
   double energy = start_prob_m_step_energy(start_count,sentence_start_parameters_);
 
   std::cerr << "start energy: " << energy << std::endl;
 
   double alpha = 0.01;
 
-  for (uint iter=1; iter <= 50; iter++) {
+  for (uint iter=1; iter <= 250; iter++) {
 
     param_grad.set_constant(0.0);
 
@@ -993,23 +996,26 @@ void IBM4Trainer::start_prob_m_step(const Storage1D<Math1D::Vector<double> >& st
 	
         for (uint j=0; j < J; j++) {
           count_sum += start_count[J][j];
-          sum += std::max(1e-15,sentence_start_parameters_[j]);
+          sum += sentence_start_parameters_[j];
         }
 	
         for (uint j=0; j < J; j++) {
 
-          param_grad[j] -= start_count[J][j] / std::max(1e-15,sentence_start_parameters_[j]);
+          param_grad[j] -= start_count[J][j] / sentence_start_parameters_[j];
           param_grad[j] += count_sum / sum;
         }
       }
     }
 
     //go in neg. gradient direction
-    for (uint k=0; k < param_grad.size(); k++)
+    for (uint k=0; k < sentence_start_parameters_.size(); k++)
       new_param[k] = sentence_start_parameters_[k] - alpha * param_grad[k];
 
     //reproject
     projection_on_simplex(new_param.direct_access(), new_param.size());
+
+    for (uint k=0; k < sentence_start_parameters_.size(); k++)
+      new_param[k] = std::max(1e-15,new_param[k]);
 
     //find step-size
     double best_energy = 1e300;
@@ -1074,7 +1080,7 @@ void IBM4Trainer::init_from_ibm3(FertilityModelTrainer& fert_trainer, bool clear
   std::cerr << "******** initializing IBM-4 from IBM-3 *******" << std::endl;
 
   fertility_prob_.resize(fert_trainer.fertility_prob().size());
-  for (uint k=0; k < fertility_prob_.size(); k++) {
+  for (uint k=1; k < fertility_prob_.size(); k++) {
     fertility_prob_[k] = fert_trainer.fertility_prob()[k];
 
     //EXPERIMENTAL
@@ -1266,16 +1272,10 @@ void IBM4Trainer::init_from_ibm3(FertilityModelTrainer& fert_trainer, bool clear
 
     //c) sentence start prob
     if (use_sentence_start_prob_) {
-      sentence_start_parameters_ *= 1.0 / sentence_start_parameters_.sum();
 
-      //TEMP
-      for (uint J=1; J <= maxJ_; J++) {
-	if (sentence_start_prob_[J].size() > 0) {
-	  for (uint j=0; j < J; j++)
-	    sentence_start_prob_[J][j] = sentence_start_parameters_[j];
-	}
-      }
-      //END_TEMP
+      double sum = sentence_start_parameters_.sum();
+      for (uint k=0; k < sentence_start_parameters_.size(); k++)
+	sentence_start_parameters_[k] *= std::max(1e-15,sentence_start_parameters_[k] / sum);
 
       par2nonpar_start_prob();
     }
@@ -1497,7 +1497,7 @@ long double IBM4Trainer::nondeficient_alignment_prob(const Storage1D<uint>& sour
                                                      const SingleLookupTable& cur_lookup, const Math1D::Vector<AlignBaseType>& alignment) {
 
 
-  //this is exactly like IBM-3 (the difference is in the subroutine nondeficient_distortion_prob())
+  //this is exactly like for the IBM-3 (the difference is in the subroutine nondeficient_distortion_prob())
   
   long double prob = 1.0;
 
@@ -1725,6 +1725,7 @@ long double IBM4Trainer::nondeficient_distortion_prob(const Storage1D<uint>& sou
 
           double num = cept_start_prob_(sclass,tclass,first_j-prev_cept_center+displacement_offset_);
           double denom = 0.0;
+
           for (int j=0; j < int(curJ); j++) {
             if (!fixed[j])
               denom += cept_start_prob_(sclass,tclass,j-prev_cept_center+displacement_offset_);
@@ -1742,7 +1743,6 @@ long double IBM4Trainer::nondeficient_distortion_prob(const Storage1D<uint>& sou
             }
             assert(nRemoved == nToRemove);
           }
-
           prob *= num / denom;
         }
         else
@@ -1772,6 +1772,7 @@ long double IBM4Trainer::nondeficient_distortion_prob(const Storage1D<uint>& sou
         double num = within_cept_prob_(cur_class,cur_j-prev_j);
 
         double denom = 0.0;
+
         for (uint j=prev_j+1; j < curJ; j++) {
           denom += within_cept_prob_(cur_class,j-prev_j);
         }
@@ -1791,7 +1792,7 @@ long double IBM4Trainer::nondeficient_distortion_prob(const Storage1D<uint>& sou
         }
 
         prob *= num / denom;
-
+	
         fixed[cur_j] = true;
 
         prev_j = cur_j;
@@ -2044,9 +2045,9 @@ double IBM4Trainer::nondeficient_inter_m_step_energy(const std::vector<std::pair
 
     double sum = 0.0;
     for (uchar i=0; i < open_diffs.size(); i++)
-      sum += std::max(1e-15,param(sclass,tclass,open_diffs[i]));
+      sum += param(sclass,tclass,open_diffs[i]);
 
-    const double cur_param = std::max(1e-15,param(sclass,tclass,chosen_diff));
+    const double cur_param = param(sclass,tclass,chosen_diff);
 
     energy -= weight * std::log(cur_param/sum);
   }
@@ -2054,6 +2055,36 @@ double IBM4Trainer::nondeficient_inter_m_step_energy(const std::vector<std::pair
   return energy;
 }
 
+//with interpolation
+double IBM4Trainer::nondeficient_inter_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
+						     const Math1D::Vector<double>& param1, const Math1D::Vector<double>& param2, 
+						     const Math1D::Vector<double>& sum1, const Math1D::Vector<double>& sum2, 
+						     double lambda) {
+
+
+  const double neg_lambda = 1.0 - lambda;
+
+  double energy = 0.0;
+
+  //NOTE: here we don't need to consider the displacement offset, it is included in the values in count already
+  
+  for (uint k=0; k < count.size(); k++) {
+
+    const Math1D::Vector<uchar,uchar>& open_diffs = count[k].first;
+    const double weight = count[k].second;
+
+    uchar chosen_diff = open_diffs[open_diffs.size()-1];
+
+    double sum = lambda * sum2[k] + neg_lambda * sum1[k];
+
+    const double cur_param = lambda * param2[chosen_diff] +  neg_lambda * param1[chosen_diff];
+
+
+    energy -= weight * std::log(cur_param/sum);
+  }
+  
+  return energy;
+}
 
 double IBM4Trainer::nondeficient_inter_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,Math1D::Vector<double,uchar> > >& count,
 						     const IBM4CeptStartModel& param, uint sclass, uint tclass) {
@@ -2073,7 +2104,7 @@ double IBM4Trainer::nondeficient_inter_m_step_energy(const std::vector<std::pair
 
     double sum = 0.0;
     for (uchar i=0; i < size; i++)
-      sum += std::max(1e-15,param(sclass,tclass,open_diffs[i]));
+      sum += param(sclass,tclass,open_diffs[i]);
 
     const Math1D::Vector<double,uchar>& weight = count[k].second;
     assert(weight.size() <= size);
@@ -2084,7 +2115,10 @@ double IBM4Trainer::nondeficient_inter_m_step_energy(const std::vector<std::pair
       if (cur_weight == 0.0)
 	continue;
 
-      const double cur_param = std::max(1e-15,param(sclass,tclass,open_diffs[k]));
+      const double cur_param = param(sclass,tclass,open_diffs[k]);
+
+      assert(cur_param >= 1e-15);
+
       energy -= cur_weight * std::log(cur_param/sum);
     }
   }
@@ -2110,6 +2144,9 @@ void IBM4Trainer::nondeficient_inter_m_step(const std::vector<std::pair<Math1D::
 
   double alpha = 0.01;
   double line_reduction_factor = 0.35;
+
+  for (uint k=0; k < cept_start_prob_.zDim(); k++)
+    cept_start_prob_(sclass,tclass,k) = std::max(1e-15,cept_start_prob_(sclass,tclass,k));
 
   for (uint iter = 1; iter <= 250 /*400*/; iter++) {
 
@@ -2140,9 +2177,11 @@ void IBM4Trainer::nondeficient_inter_m_step(const std::vector<std::pair<Math1D::
       
       double sum = 0.0;
       for (uchar i=0; i < size; i++)
-        sum += std::max(1e-15,cept_start_prob_(sclass,tclass,open_diffs[i]));
+        sum += cept_start_prob_(sclass,tclass,open_diffs[i]);
       
-      const double cur_param = std::max(1e-15,cept_start_prob_(sclass,tclass,chosen_diff));
+      const double cur_param = cept_start_prob_(sclass,tclass,chosen_diff);
+
+      assert(cur_param >= 1e-15);
 
       gradient[chosen_diff] -= weight / cur_param;
 
@@ -2152,12 +2191,14 @@ void IBM4Trainer::nondeficient_inter_m_step(const std::vector<std::pair<Math1D::
     }
 
     /*** go in neg. gradient direction ***/
-    for (uint i=0; i < gradient.size(); i++) {
+    for (uint i=0; i < gradient.size(); i++) 
       new_cept_start_prob[i] = cept_start_prob_(sclass,tclass,i) - alpha * gradient[i];
-    }
 
     /*** reproject ***/
     projection_on_simplex(new_cept_start_prob.direct_access(), gradient.size());
+
+    for (uint i=0; i < gradient.size(); i++) 
+      new_cept_start_prob[i] = std::max(1e-15,new_cept_start_prob[i]);
 
     /*** find appropriate step-size ***/
 
@@ -2198,7 +2239,6 @@ void IBM4Trainer::nondeficient_inter_m_step(const std::vector<std::pair<Math1D::
       if (nIter > 15 && lambda < 1e-12)
 	break;
     }
-    //std::cerr << "best lambda: " << best_lambda << std::endl;
 
     if (best_energy >= energy) {
       if (nSourceClasses_ * nTargetClasses_ <= 4)
@@ -2218,10 +2258,179 @@ void IBM4Trainer::nondeficient_inter_m_step(const std::vector<std::pair<Math1D::
     energy = best_energy;
   }
 
-  //FOR_SAFETY
+  //DEBUG
   for (uint k=0; k < gradient.size(); k++)
-    cept_start_prob_(sclass,tclass,k) = std::max(cept_start_prob_(sclass,tclass,k),1e-15);
-  //END_FOR_SAFETY
+    assert(cept_start_prob_(sclass,tclass,k) >= 1e-15);
+  //END_DEBUG
+}
+
+void IBM4Trainer::nondeficient_inter_m_step_with_interpolation(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
+							       uint sclass, uint tclass, double start_energy) {
+
+
+  double energy = start_energy; 
+
+  if (nSourceClasses_ * nTargetClasses_ <= 4)
+    std::cerr << "start energy: " << energy << std::endl;
+
+  double save_energy = energy;
+
+  Math1D::Vector<double> cur_cept_start_prob(cept_start_prob_.zDim());
+  Math1D::Vector<double> gradient(cept_start_prob_.zDim());
+
+  Math1D::Vector<double> new_cept_start_prob(cept_start_prob_.zDim());
+
+  double alpha = 0.01;
+  double line_reduction_factor = 0.35;
+
+  for (uint k=0; k < cept_start_prob_.zDim(); k++) {
+    cur_cept_start_prob[k] = std::max(1e-15,cept_start_prob_(sclass,tclass,k));
+  }
+
+  Math1D::Vector<double> sum(count.size());
+  Math1D::Vector<double> new_sum(count.size(),0.0);
+
+  for (uint k=0; k < count.size(); k++) {
+
+    double cur_sum = 0.0;
+
+    const Math1D::Vector<uchar,uchar>& open_diffs = count[k].first;
+
+    for (uchar i=0; i < open_diffs.size(); i++)
+      cur_sum += cur_cept_start_prob[open_diffs[i]];
+
+    sum[k] = cur_sum;
+  }
+
+  for (uint iter = 1; iter <= 250 /*400*/; iter++) {
+
+    if ((iter%50) == 0) {
+      if (nSourceClasses_ * nTargetClasses_ <= 4)
+        std::cerr << "inter energy after iter #" << iter << ": " << energy << std::endl;
+
+
+      if (save_energy - energy < 0.15)
+        break;
+      if (iter >= 100 && save_energy - energy < 0.5)
+        break;
+
+      save_energy = energy;
+    }
+
+    gradient.set_constant(0.0);
+
+    /*** compute the gradient ***/
+    for (uint k=0; k < count.size(); k++) {
+
+      const Math1D::Vector<uchar,uchar>& open_diffs = count[k].first;
+      double weight = count[k].second;
+      
+      const uint size = open_diffs.size();
+
+      uchar chosen_diff = open_diffs[size-1];
+      
+      const double cur_param = cur_cept_start_prob[chosen_diff];
+
+      assert(cur_param >= 1e-15);
+
+      gradient[chosen_diff] -= weight / cur_param;
+
+      const double addon = weight / sum[k];
+      for (uchar i=0; i < size; i++)
+        gradient[open_diffs[i]] += addon;
+    }
+
+    /*** go in neg. gradient direction ***/
+    Math1D::Vector<double> temp(gradient.size());
+
+    for (uint i=0; i < gradient.size(); i++) 
+      temp[i] = cur_cept_start_prob[i] - alpha * gradient[i];
+
+    /*** reproject ***/
+    projection_on_simplex(temp.direct_access(), gradient.size());
+
+    for (uint i=0; i < gradient.size(); i++) 
+      new_cept_start_prob[i] = std::max(1e-15,temp[i]);
+
+    for (uint k=0; k < count.size(); k++) {
+      
+      double cur_sum = 0.0;
+    
+      const Math1D::Vector<uchar,uchar>& open_diffs = count[k].first;
+      
+      for (uchar i=0; i < open_diffs.size(); i++)
+	cur_sum += new_cept_start_prob[open_diffs[i]];
+      
+      new_sum[k] = cur_sum;
+    }
+
+
+    /*** find appropriate step-size ***/
+    
+    double best_lambda = 1.0;
+    double lambda = 1.0;
+
+    double best_energy = 1e300;
+
+    uint nIter = 0;
+
+    bool decreasing = false;
+
+    while (decreasing || best_energy > energy) {
+
+      nIter++;
+
+      lambda *= line_reduction_factor;
+
+      double hyp_energy = nondeficient_inter_m_step_energy(count, cur_cept_start_prob,new_cept_start_prob,
+							   sum,new_sum,/*sclass,tclass,*/lambda);
+
+      if (hyp_energy < best_energy) {
+
+        best_energy = hyp_energy;
+        best_lambda = lambda;
+        decreasing = true;
+      }
+      else
+        decreasing = false;
+
+      if (nIter > 5 && best_energy < 0.975 * energy)
+        break;
+
+      if (nIter > 15 && lambda < 1e-12)
+	break;
+    }
+
+    if (best_energy >= energy) {
+      if (nSourceClasses_ * nTargetClasses_ <= 4)
+	std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
+      break;
+    }
+
+    if (nIter > 6)
+      line_reduction_factor *= 0.9;
+
+    double neg_best_lambda = 1.0 - best_lambda;
+
+    for (uint k=0; k < gradient.size(); k++)
+      cur_cept_start_prob[k] = best_lambda * new_cept_start_prob[k] 
+	+ neg_best_lambda * cur_cept_start_prob[k];
+
+    for (uint k=0; k < count.size(); k++) {
+      
+      sum[k] = best_lambda * new_sum[k] + neg_best_lambda * sum[k];
+    }
+
+    energy = best_energy;
+  }
+
+
+  //copy back
+  for (uint k=0; k < gradient.size(); k++) {
+
+    cept_start_prob_(sclass,tclass,k) = cur_cept_start_prob[k];
+    assert(cept_start_prob_(sclass,tclass,k) >= 1e-15);
+  }
 }
 
 void IBM4Trainer::nondeficient_inter_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,Math1D::Vector<double,uchar> > >& count,
@@ -2243,6 +2452,9 @@ void IBM4Trainer::nondeficient_inter_m_step(const std::vector<std::pair<Math1D::
 
   double alpha = 0.01;
   double line_reduction_factor = 0.35;
+
+  for (uint k=0; k < cept_start_prob_.zDim(); k++)
+    cept_start_prob_(sclass,tclass,k) = std::max(1e-15,cept_start_prob_(sclass,tclass,k));
 
   for (uint iter = 1; iter <= 250 /*400*/; iter++) {
 
@@ -2270,7 +2482,7 @@ void IBM4Trainer::nondeficient_inter_m_step(const std::vector<std::pair<Math1D::
       
       double sum = 0.0;
       for (uchar i=0; i < size; i++)
-        sum += std::max(1e-15,cept_start_prob_(sclass,tclass,open_diffs[i]));
+        sum += cept_start_prob_(sclass,tclass,open_diffs[i]);
 
       const Math1D::Vector<double,uchar>& weight = count[k].second;
 
@@ -2289,7 +2501,9 @@ void IBM4Trainer::nondeficient_inter_m_step(const std::vector<std::pair<Math1D::
 
 	const uchar cur_diff = open_diffs[i];
 
-	const double cur_param = std::max(1e-15,cept_start_prob_(sclass,tclass,cur_diff));
+	const double cur_param = cept_start_prob_(sclass,tclass,cur_diff);
+
+	assert(cur_param >= 1e-15);
 
 	gradient[cur_diff] -= cur_weight / cur_param;
       }
@@ -2300,12 +2514,14 @@ void IBM4Trainer::nondeficient_inter_m_step(const std::vector<std::pair<Math1D::
     }
 
     /*** go in neg. gradient direction ***/
-    for (uint i=0; i < gradient.size(); i++) {
+    for (uint i=0; i < gradient.size(); i++) 
       new_cept_start_prob[i] = cept_start_prob_(sclass,tclass,i) - alpha * gradient[i];
-    }
 
     /*** reproject ***/
     projection_on_simplex(new_cept_start_prob.direct_access(), gradient.size());
+
+    for (uint i=0; i < gradient.size(); i++) 
+      new_cept_start_prob[i] = std::max(1e-15,new_cept_start_prob[i]);
 
     /*** find appropriate step-size ***/
 
@@ -2346,7 +2562,6 @@ void IBM4Trainer::nondeficient_inter_m_step(const std::vector<std::pair<Math1D::
       if (nIter > 15 && lambda < 1e-12)
 	break;
     }
-    //std::cerr << "best lambda: " << best_lambda << std::endl;
 
     if (best_energy >= energy) {
       if (nSourceClasses_ * nTargetClasses_ <= 4)
@@ -2366,10 +2581,10 @@ void IBM4Trainer::nondeficient_inter_m_step(const std::vector<std::pair<Math1D::
     energy = best_energy;
   }
 
-  //FOR_SAFETY
+  //DEBUG
   for (uint k=0; k < gradient.size(); k++)
-    cept_start_prob_(sclass,tclass,k) = std::max(cept_start_prob_(sclass,tclass,k),1e-15);
-  //END_FOR_SAFETY
+    assert(cept_start_prob_(sclass,tclass,k) >= 1e-15);
+  //END_DEBUG
 
 }
 
@@ -2387,9 +2602,11 @@ double IBM4Trainer::nondeficient_intra_m_step_energy(const std::vector<std::pair
 
     double sum = 0.0;
     for (uchar i=0; i < open_diffs.size(); i++)
-      sum += std::max(1e-15,param(sclass,open_diffs[i]));
+      sum += param(sclass,open_diffs[i]);
 
-    const double cur_param = std::max(1e-15,param(sclass,chosen_diff));
+    const double cur_param = param(sclass,chosen_diff);
+
+    assert(cur_param >= 1e-15);
 
     energy -= weight * std::log(cur_param/sum);
   }
@@ -2398,6 +2615,10 @@ double IBM4Trainer::nondeficient_intra_m_step_energy(const std::vector<std::pair
 }
 
 void IBM4Trainer::nondeficient_intra_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count, uint sclass) {
+
+
+  for (uint k=1; k < within_cept_prob_.yDim(); k++)
+    within_cept_prob_(sclass,k) = std::max(1e-15,within_cept_prob_(sclass,k));
 
   double energy = nondeficient_intra_m_step_energy(count,within_cept_prob_,sclass);
 
@@ -2414,7 +2635,7 @@ void IBM4Trainer::nondeficient_intra_m_step(const std::vector<std::pair<Math1D::
   double alpha = 0.01;
   double line_reduction_factor = 0.35;
 
-  for (uint iter = 1; iter <= 50 /*400*/; iter++) {
+  for (uint iter = 1; iter <= 250 /*400*/; iter++) {
 
     gradient.set_constant(0.0);
 
@@ -2440,9 +2661,11 @@ void IBM4Trainer::nondeficient_intra_m_step(const std::vector<std::pair<Math1D::
       
       double sum = 0.0;
       for (uchar i=0; i < open_diffs.size(); i++)
-        sum += std::max(1e-15,within_cept_prob_(sclass,open_diffs[i]));
+        sum += within_cept_prob_(sclass,open_diffs[i]);
       
-      const double cur_param = std::max(1e-15,within_cept_prob_(sclass,chosen_diff));
+      const double cur_param = within_cept_prob_(sclass,chosen_diff);
+
+      assert(cur_param >= 1e-15);
 
       gradient[chosen_diff] -= weight / cur_param;
 
@@ -2452,13 +2675,14 @@ void IBM4Trainer::nondeficient_intra_m_step(const std::vector<std::pair<Math1D::
     }
 
     /*** go in neg. gradient direction ***/
-    for (uint i=0; i < gradient.size(); i++) {
+    for (uint i=1; i < gradient.size(); i++) 
       new_within_cept_prob[i] = within_cept_prob_(sclass,i) - alpha * gradient[i];
-    }
 
     /*** reproject ***/
-    projection_on_simplex(new_within_cept_prob.direct_access(), gradient.size());
+    projection_on_simplex(new_within_cept_prob.direct_access()+1, gradient.size()-1);
     
+    for (uint i=1; i < gradient.size(); i++) 
+      new_within_cept_prob[i] = std::max(1e-15, new_within_cept_prob[i]);
 
     /*** find appropriate step-size ***/
 
@@ -2499,7 +2723,6 @@ void IBM4Trainer::nondeficient_intra_m_step(const std::vector<std::pair<Math1D::
       if (nIter > 15 && lambda < 1e-12)
 	break;
     }
-    //std::cerr << "best lambda: " << best_lambda << std::endl;
 
     if (best_energy >= energy) {
       if (nTargetClasses_ <= 4)
@@ -2520,10 +2743,10 @@ void IBM4Trainer::nondeficient_intra_m_step(const std::vector<std::pair<Math1D::
     energy = best_energy;
   }
 
-  //FOR_SAFETY
+  //DEBUG
   for (uint k=0; k < gradient.size(); k++)
-    within_cept_prob_(sclass,k) = std::max(within_cept_prob_(sclass,k),1e-15);
-  //END_FOR_SAFETY
+    assert(within_cept_prob_(sclass,k) >= 1e-15);
+  //END_DEBUG
 }
 
 long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
@@ -2541,13 +2764,17 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
   const uint curI = target.size();
   const uint curJ = source.size(); 
 
+  //std::cerr << "*************** hillclimb: J = " << curJ << ", I=" << curI << std::endl;
+  //std::cerr << "start alignment: " << alignment << std::endl;
+
+
   fertility.resize(curI+1);
 
   long double base_prob = alignment_prob(source,target,lookup,alignment);
 
   //DEBUG
-  if (isnan(base_prob)) {
-    std::cerr << "ERROR: base_prob in hillclimbing is nan" << std::endl;
+  if (isnan(base_prob) || isinf(base_prob) || base_prob <= 0.0) {
+    std::cerr << "ERROR: base_prob in hillclimbing is " << base_prob << std::endl;
     print_alignment_prob_factors(source, target, lookup, alignment);
     exit(1);
   }
@@ -2731,6 +2958,8 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
                   if (aligned_source_words[aj][jnum] == j)
                     break;
                 }
+
+                //std::cerr << "jnum: " << jnum << std::endl;
 
                 assert (jnum < aligned_source_words[aj].size());
 
@@ -3301,7 +3530,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
                 long double check_ratio = hyp_prob / check_prob;
 		
                 if (! (check_ratio > 0.99 && check_ratio < 1.01) ) {
-                  //if (true) {
                   
                   std::cerr << "incremental prob: " << hyp_prob << std::endl;
                   std::cerr << "actual prob: " << check_prob << std::endl;
@@ -3351,7 +3579,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 	    assert(leaving_prob > 0.0);
 	    
 	    if (!no_factorial_) {
-	      //if (cand_aj != 0)
               leaving_prob *= ld_fac_[fertility[cand_aj]]; 
 	      if (aj != 0)
 		leaving_prob *= ld_fac_[fertility[aj]]; 
@@ -3472,7 +3699,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
           assert(!isinf(expansion_prob(j,cand_aj)));
 	  
           if (hyp_prob > improvement_factor*best_prob) {
-            //std::cerr << "improvement of " << (hyp_prob - best_prob) << std::endl;
 	    
             best_prob = hyp_prob;
             improvement = true;
@@ -3499,6 +3725,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
     //b) swap moves
     for (uint j1=0; j1 < curJ; j1++) {
 
+      
       const uint aj1 = alignment[j1];
       const uint taj1 = (aj1 > 0) ? target[aj1-1] : 0;
 
@@ -3611,7 +3838,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
             // 2. leaving cept temp_aj1 and entering cept temp_aj2
             if (prev_cept[temp_aj2] != temp_aj1) {
-
+	      
               //a) leaving cept aj1
               const uint next_i = next_cept[temp_aj1];
               if (next_i != MAX_UINT) {
@@ -3736,7 +3963,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
             }
             default: assert(false);
             }
-	    
+
             const int old_head1 = aligned_source_words[temp_aj1][0];
             const int new_head1 = new_temp_aj1_aligned_source_words[0];
 
@@ -3994,8 +4221,6 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       aligned_source_words[cur_aj].erase(it);
     }
     else {
-      //std::cerr << "swapping: j1=" << best_swap_j1 << std::endl;
-      //std::cerr << "swapping: j2=" << best_swap_j2 << std::endl;
 
       uint cur_aj1 = alignment[best_swap_j1];
       uint cur_aj2 = alignment[best_swap_j2];
@@ -4064,7 +4289,6 @@ long double IBM4Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
 
   //this is just like for the IBM-3, only a different distortion routine is called
 
-  //std::cerr << "nondef hc" << std::endl;
 
   /**** calculate probability of the passed alignment *****/
 
@@ -4189,8 +4413,8 @@ long double IBM4Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
           expansion_prob(j,cand_aj) = 0.0;
           continue;
         }
-	if (cand_aj > 0) {
-	  if ((fertility[cand_aj]+1) > fertility_limit_) { //better to check this before computing distortion probs
+	if (cand_aj > 0) { //better to check this before computing distortion probs
+	  if ((fertility[cand_aj]+1) > fertility_limit_) {
 	    expansion_prob(j,cand_aj) = 0.0;
 	    continue;
 	  }
@@ -4199,7 +4423,6 @@ long double IBM4Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
 	  expansion_prob(j,cand_aj) = 0.0;
 	  continue;
 	}
-
 
         const double new_dict_prob = (cand_aj == 0) ? dict_[0][s_idx-1] : dict_[target[cand_aj-1]][lookup(j,cand_aj-1)];
 
@@ -4662,7 +4885,7 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
     for (size_t s=0; s < source_sentence_.size(); s++) {
 
       if ((s% 10000) == 0)
-        std::cerr << "sentence pair #" << s << std::endl;
+	std::cerr << "sentence pair #" << s << std::endl;
 
       const Storage1D<uint>& cur_source = source_sentence_[s];
       const Storage1D<uint>& cur_target = target_sentence_[s];
@@ -4733,12 +4956,15 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
       tCountCollectStart = std::clock();
 
       /**** update distortion counts *****/
+      //std::cerr << "update of distortion counts" << std::endl;
       
       NamedStorage1D<std::vector<int> > aligned_source_words(curI+1,MAKENAME(aligned_source_words));
       for (uint j=0; j < curJ; j++) {
         const uint cur_aj = best_known_alignment_[s][j];
         aligned_source_words[cur_aj].push_back(j);	
       }
+
+      //std::cerr << "a) viterbi" << std::endl;
 
       // 1. handle viterbi alignment
       int cur_prev_cept = -1;
@@ -4825,6 +5051,8 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 	  cur_prev_cept = i;
         }
       }
+
+      //std::cerr << "b) expansion" << std::endl;
 
       // 2. handle expansion moves
       NamedStorage1D<std::vector<int> > exp_aligned_source_words(MAKENAME(exp_aligned_source_words));
@@ -4942,6 +5170,8 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 						   
 	exp_aligned_source_words[cur_aj] = aligned_source_words[cur_aj];
       }
+      
+      //std::cerr << "c) swap" << std::endl;
 
       //3. handle swap moves
       NamedStorage1D<std::vector<int> > swap_aligned_source_words(MAKENAME(swap_aligned_source_words));
@@ -5114,7 +5344,7 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 
               if (possible_diffs.size() > 1) { //no use storing cases where only one pos. is available
               
-                if (pos != possible_diffs.size()-1) // the chosen position must be the last listed one
+                if (pos != possible_diffs.size()-1) // the chosen difference must be the last listed one
                   std::swap(possible_diffs[pos],possible_diffs[possible_diffs.size()-1]);
 
                 Math1D::Vector<uchar,uchar> vec_possible_diffs(possible_diffs.size());
@@ -5166,7 +5396,7 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
               }
 
               if (possible_diffs.size() > 1) { //no use storing cases where only one pos. is available
-                if (pos != possible_diffs.size()-1)
+                if (pos != possible_diffs.size()-1) //the chosen difference must be the last listed one
                   std::swap(possible_diffs[pos],possible_diffs[possible_diffs.size()-1]);
 
                 Math1D::Vector<uchar,uchar> vec_possible_diffs(possible_diffs.size());
@@ -5277,7 +5507,7 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
                       
                       if (possible_diffs.size() > 1) { //no use storing cases where only one pos. is available
 
-                        if (pos != possible_diffs.size()-1) // the chosen position must be the last listed one
+                        if (pos != possible_diffs.size()-1) // the chosen difference must be the last listed one
                           std::swap(possible_diffs[pos],possible_diffs[possible_diffs.size()-1]);
 
                         Math1D::Vector<uchar,uchar> vec_possible_diffs(possible_diffs.size());
@@ -5330,7 +5560,7 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
                     
                     if (possible_diffs.size() > 1) { //no use storing cases where only one pos. is available
 
-                      if (pos != possible_diffs.size()-1)
+                      if (pos != possible_diffs.size()-1) //the chosen difference must be the last listed one
                         std::swap(possible_diffs[pos],possible_diffs[possible_diffs.size()-1]);
 
                       Math1D::Vector<uchar,uchar> vec_possible_diffs(possible_diffs.size());
@@ -5338,7 +5568,7 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
                     
                       nondef_within_cept_count[cur_class][vec_possible_diffs] += contrib;
                     }
-              
+
                     fixed[cur_j] = true;
                     
                     prev_j = cur_j;
@@ -5447,7 +5677,7 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
                      
                       if (possible_diffs.size() > 1) { //no use storing cases where only one pos. is available
  
-                        if (pos != possible_diffs.size()-1)   // the chosen position must be the last listed one
+                        if (pos != possible_diffs.size()-1)   // the chosen difference must be the last listed one
                           std::swap(possible_diffs[pos],possible_diffs[possible_diffs.size()-1]);
 
                         Math1D::Vector<uchar,uchar> vec_possible_diffs(possible_diffs.size());
@@ -5500,7 +5730,7 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
                     
                     if (possible_diffs.size() > 1) { //no use storing cases where only one pos. is available
 
-                      if (pos != possible_diffs.size()-1)
+                      if (pos != possible_diffs.size()-1) //the chosen difference must be the last listed one
                         std::swap(possible_diffs[pos],possible_diffs[possible_diffs.size()-1]);
 
                       Math1D::Vector<uchar,uchar> vec_possible_diffs(possible_diffs.size());
@@ -5601,11 +5831,12 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
     update_fertility_prob(ffert_count,1e-8);
 
 
-
     //update distortion probabilities
 
     //a) inter distortion
     if (nondeficient_) {
+
+      IBM4CeptStartModel hyp_cept_start_prob = cept_start_prob_;
 
       for (uint x=0; x < cept_start_prob_.xDim(); x++) {
         std::cerr << "nondeficient inter-m-step(" << x << ",*)" << std::endl;
@@ -5631,7 +5862,6 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
           }
 
 
-
           cur_map.clear();
 
           double cur_energy = nondeficient_inter_m_step_energy(count,cept_start_prob_,x,y);
@@ -5643,25 +5873,28 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 
           if (sum > 1e-300) {
 
-            IBM4CeptStartModel hyp_cept_start_prob = cept_start_prob_;
-
             for (uint k=0; k < cept_start_prob_.zDim(); k++) {
-              hyp_cept_start_prob(x,y,k) = fceptstart_count(x,y,k) / sum;
+              hyp_cept_start_prob(x,y,k) = std::max(1e-15,fceptstart_count(x,y,k) / sum);
             }
 
-            double hyp_energy = nondeficient_inter_m_step_energy(count,hyp_cept_start_prob,x,y);
+            const double hyp_energy = nondeficient_inter_m_step_energy(count,hyp_cept_start_prob,x,y);
 
-            if (hyp_energy < cur_energy) {          
-              cept_start_prob_ = hyp_cept_start_prob;
+            if (hyp_energy < cur_energy) {
+	      for (uint k=0; k < cept_start_prob_.zDim(); k++)
+		cept_start_prob_(x,y,k) = hyp_cept_start_prob(x,y,k);
               cur_energy = hyp_energy;
             }
           }
           
-          nondeficient_inter_m_step(count,x,y,cur_energy);
+          nondeficient_inter_m_step_with_interpolation(count,x,y,cur_energy);
         }
       }
     }
     else {
+
+      IBM4CeptStartModel hyp_cept_start_prob;
+      if (reduce_deficiency_)
+	hyp_cept_start_prob = cept_start_prob_;
 
       for (uint x=0; x < cept_start_prob_.xDim(); x++) {
         std::cerr << "inter-m-step(" << x << ",*)" << std::endl;
@@ -5681,19 +5914,21 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
                 cept_start_prob_(x,y,d) = std::max(1e-8,inv_sum * fceptstart_count(x,y,d));
             }
             else {
-
-              IBM4CeptStartModel hyp_cept_start_prob = cept_start_prob_;
               
               for (uint d=0; d < cept_start_prob_.zDim(); d++) 
-                hyp_cept_start_prob(x,y,d) = inv_sum * fceptstart_count(x,y,d);
+                hyp_cept_start_prob(x,y,d) = std::max(1e-15,inv_sum * fceptstart_count(x,y,d));
               
               double cur_energy = inter_distortion_m_step_energy(inter_distort_count,sparse_inter_distort_count(x,y),
                                                                  cept_start_prob_,x,y);
               double hyp_energy = inter_distortion_m_step_energy(inter_distort_count,sparse_inter_distort_count(x,y),
                                                                  hyp_cept_start_prob,x,y);
               
-              if (hyp_energy < cur_energy)
-                cept_start_prob_ = hyp_cept_start_prob;
+              if (hyp_energy < cur_energy) {
+		for (uint d=0; d < cept_start_prob_.zDim(); d++) 
+		  cept_start_prob_(x,y,d) = hyp_cept_start_prob(x,y,d);
+
+		cur_energy = hyp_energy;
+	      }
             }
           }
 
@@ -5705,9 +5940,10 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
       par2nonpar_inter_distortion();
     }
 
-
     //b) within-cept
     if (nondeficient_) {
+
+      IBM4WithinCeptModel hyp_withincept_prob = within_cept_prob_;
 
       for (uint x=0; x < within_cept_prob_.xDim(); x++) {
         std::cerr << "calling nondeficient intra-m-step(" << x << ")" << std::endl;
@@ -5726,7 +5962,6 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 
         cur_map.clear();
 
-        IBM4WithinCeptModel hyp_withincept_prob = within_cept_prob_;
         double sum = 0.0;
         for (uint d=0; d < within_cept_prob_.yDim(); d++)
           sum += fwithincept_count(x,d);
@@ -5735,22 +5970,28 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
             
           const double inv_sum = 1.0 / sum;
           for (uint d=0; d < within_cept_prob_.yDim(); d++)
-            hyp_withincept_prob(x,d) = inv_sum * fwithincept_count(x,d);
+            hyp_withincept_prob(x,d) = std::max(1e-15,inv_sum * fwithincept_count(x,d));
 
           double cur_energy = nondeficient_intra_m_step_energy(count,within_cept_prob_,x);
           double hyp_energy = nondeficient_intra_m_step_energy(count,hyp_withincept_prob,x);
 
-          if (hyp_energy < cur_energy)
-            within_cept_prob_ = hyp_withincept_prob; 
+          if (hyp_energy < cur_energy) {
+	    for (uint d=0; d < within_cept_prob_.yDim(); d++)
+	      within_cept_prob_(x,d) = hyp_withincept_prob(x,d);
+	  }
         }
         
         nondeficient_intra_m_step(count,x);        
       }
     }
     else {
+
+      IBM4WithinCeptModel hyp_withincept_prob;
+      if (reduce_deficiency_)
+	hyp_withincept_prob = within_cept_prob_;
+
       for (uint x=0; x < within_cept_prob_.xDim(); x++) {
       
-        IBM4WithinCeptModel hyp_withincept_prob = within_cept_prob_;
         double sum = 0.0;
         for (uint d=0; d < within_cept_prob_.yDim(); d++)
           sum += fwithincept_count(x,d);
@@ -5765,13 +6006,15 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
           }
           else {
             for (uint d=0; d < within_cept_prob_.yDim(); d++)
-              hyp_withincept_prob(x,d) = inv_sum * fwithincept_count(x,d);
+              hyp_withincept_prob(x,d) = std::max(1e-15,inv_sum * fwithincept_count(x,d));
             
             double cur_energy = intra_distortion_m_step_energy(intra_distort_count,within_cept_prob_,x);
             double hyp_energy = intra_distortion_m_step_energy(intra_distort_count,hyp_withincept_prob,x);
             
-            if (hyp_energy < cur_energy)
-              within_cept_prob_ = hyp_withincept_prob; 
+            if (hyp_energy < cur_energy) {
+	      for (uint d=0; d < within_cept_prob_.yDim(); d++)
+		within_cept_prob_(x,d) = hyp_withincept_prob(x,d); 
+	    }
           }
         }
         
@@ -5786,9 +6029,22 @@ void IBM4Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
     //c) sentence start prob
     if (use_sentence_start_prob_) {
 
-      if (iter == 1) {
-        fsentence_start_count *= 1.0 / fsentence_start_count.sum();
-        sentence_start_parameters_ = fsentence_start_count;
+      double cur_energy = start_prob_m_step_energy(sentence_start_count, sentence_start_parameters_);
+
+      double sum = fsentence_start_count.sum();
+
+      if (sum > 1e-305) {
+
+	for (uint k=0; k < fsentence_start_count.size(); k++)
+	  fsentence_start_count[k] = std::max(1e-15,fsentence_start_count[k] / sum);
+
+	double hyp_energy = start_prob_m_step_energy(sentence_start_count, sentence_start_parameters_);
+
+	if (hyp_energy < cur_energy) {
+
+	  sentence_start_parameters_ = fsentence_start_count;
+	  cur_energy = hyp_energy;
+	}
       }
 
       start_prob_m_step(sentence_start_count);
@@ -6314,6 +6570,11 @@ void IBM4Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 
     //a) cept-start
     if (!nondeficient_) {
+
+      IBM4CeptStartModel hyp_cept_start_prob;
+      if (reduce_deficiency_)
+	hyp_cept_start_prob = cept_start_prob_;
+
       for (uint x=0; x < cept_start_prob_.xDim(); x++) {
 
 	std::cerr << "inter m-step(" << x << ",*)" << std::endl; 
@@ -6333,18 +6594,21 @@ void IBM4Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 		cept_start_prob_(x,y,d) = std::max(1e-8,inv_sum * fceptstart_count(x,y,d));
 	    }
 	    else {
-	      IBM4CeptStartModel hyp_cept_start_prob = cept_start_prob_;
 	      
 	      for (uint d=0; d < cept_start_prob_.zDim(); d++) 
-		hyp_cept_start_prob(x,y,d) = inv_sum * fceptstart_count(x,y,d);
+		hyp_cept_start_prob(x,y,d) = std::max(1e-15,inv_sum * fceptstart_count(x,y,d));
 	      
 	      double cur_energy = inter_distortion_m_step_energy(inter_distort_count,sparse_inter_distort_count(x,y),
 								 cept_start_prob_,x,y);
 	      double hyp_energy = inter_distortion_m_step_energy(inter_distort_count,sparse_inter_distort_count(x,y),
 								 hyp_cept_start_prob,x,y);
             
-	      if (hyp_energy < cur_energy)
-		cept_start_prob_ = hyp_cept_start_prob;
+	      if (hyp_energy < cur_energy) {
+		for (uint d=0; d < cept_start_prob_.zDim(); d++) 
+		  cept_start_prob_(x,y,d) = hyp_cept_start_prob(x,y,d);
+
+		cur_energy = hyp_energy;
+	      }
 	    }
 	  }
 	  
@@ -6385,7 +6649,7 @@ void IBM4Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
             IBM4CeptStartModel hyp_cept_start_prob = cept_start_prob_;
 
             for (uint k=0; k < cept_start_prob_.zDim(); k++) {
-              hyp_cept_start_prob(x,y,k) = fceptstart_count(x,y,k) / sum;
+              hyp_cept_start_prob(x,y,k) = std::max(1e-15,fceptstart_count(x,y,k) / sum);
             }
 
             double hyp_energy = nondeficient_inter_m_step_energy(count,hyp_cept_start_prob,x,y);
@@ -6396,7 +6660,7 @@ void IBM4Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
             }
           }
           
-          nondeficient_inter_m_step(count,x,y,cur_energy);
+          nondeficient_inter_m_step_with_interpolation(count,x,y,cur_energy);
         }
       }
     }
@@ -6405,9 +6669,12 @@ void IBM4Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
     //b) within-cept
     if (!nondeficient_) {
 
+      IBM4WithinCeptModel hyp_withincept_prob;
+      if (reduce_deficiency_)
+	hyp_withincept_prob = within_cept_prob_;
+
       for (uint x=0; x < within_cept_prob_.xDim(); x++) {
 	
-	IBM4WithinCeptModel hyp_withincept_prob = within_cept_prob_;
 	double sum = 0.0;
 	for (uint d=0; d < within_cept_prob_.yDim(); d++)
 	  sum += fwithincept_count(x,d);
@@ -6422,13 +6689,15 @@ void IBM4Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 	  }
 	  else {
 	    for (uint d=0; d < within_cept_prob_.yDim(); d++)
-	      hyp_withincept_prob(x,d) = inv_sum * fwithincept_count(x,d);
+	      hyp_withincept_prob(x,d) = std::max(1e-15,inv_sum * fwithincept_count(x,d));
 	    
 	    double cur_energy = intra_distortion_m_step_energy(intra_distort_count,within_cept_prob_,x);
 	    double hyp_energy = intra_distortion_m_step_energy(intra_distort_count,hyp_withincept_prob,x);
 	    
-	    if (hyp_energy < cur_energy)
-	      within_cept_prob_ = hyp_withincept_prob; 
+	    if (hyp_energy < cur_energy) {
+	      for (uint d=0; d < within_cept_prob_.yDim(); d++)
+		within_cept_prob_(x,d) = hyp_withincept_prob(x,d);
+	    }
 	  }
 	}
         
@@ -6440,6 +6709,8 @@ void IBM4Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
       par2nonpar_intra_distortion();
     }
     else {
+
+      IBM4WithinCeptModel hyp_withincept_prob = within_cept_prob_;
 
       for (uint x=0; x < within_cept_prob_.xDim(); x++) {
         std::cerr << "calling nondeficient intra-m-step(" << x << ")" << std::endl;
@@ -6458,7 +6729,6 @@ void IBM4Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 
         cur_map.clear();
 
-        IBM4WithinCeptModel hyp_withincept_prob = within_cept_prob_;
         double sum = 0.0;
         for (uint d=0; d < within_cept_prob_.yDim(); d++)
           sum += fwithincept_count(x,d);
@@ -6467,13 +6737,17 @@ void IBM4Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
             
           const double inv_sum = 1.0 / sum;
           for (uint d=0; d < within_cept_prob_.yDim(); d++)
-            hyp_withincept_prob(x,d) = inv_sum * fwithincept_count(x,d);
+            hyp_withincept_prob(x,d) = std::max(1e-15,inv_sum * fwithincept_count(x,d));
 
           double cur_energy = nondeficient_intra_m_step_energy(count,within_cept_prob_,x);
           double hyp_energy = nondeficient_intra_m_step_energy(count,hyp_withincept_prob,x);
 
-          if (hyp_energy < cur_energy)
-            within_cept_prob_ = hyp_withincept_prob; 
+          if (hyp_energy < cur_energy) {
+	    for (uint d=0; d < within_cept_prob_.yDim(); d++)
+	      within_cept_prob_(x,d) = hyp_withincept_prob(x,d); 
+
+	    cur_energy = hyp_energy;
+	  }
         }
         
         nondeficient_intra_m_step(count,x);        
@@ -6484,9 +6758,22 @@ void IBM4Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
     //c) sentence start prob
     if (use_sentence_start_prob_) {
 
-      if (iter == 1) {
-        fsentence_start_count *= 1.0 / fsentence_start_count.sum();
-        sentence_start_parameters_ = fsentence_start_count;
+      double cur_energy = start_prob_m_step_energy(sentence_start_count, sentence_start_parameters_);
+
+      double sum = fsentence_start_count.sum();
+
+      if (sum > 1e-305) {
+
+	for (uint k=0; k < fsentence_start_count.size(); k++)
+	  fsentence_start_count[k] = std::max(1e-15,fsentence_start_count[k] / sum);
+
+	const double hyp_energy = start_prob_m_step_energy(sentence_start_count, sentence_start_parameters_);
+
+	if (hyp_energy < cur_energy) {
+
+	  sentence_start_parameters_ = fsentence_start_count;
+	  cur_energy = hyp_energy;
+	}
       }
 
       start_prob_m_step(sentence_start_count);
