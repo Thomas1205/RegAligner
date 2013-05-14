@@ -326,10 +326,6 @@ int main(int argc, char** argv) {
     
   floatSingleWordDictionary prior_weight(nTargetWords, MAKENAME(prior_weight));
       
-  if (app.is_set("-ibm3-iter"))
-    ibm3_iter = convert<uint>(app.getParam("-ibm3-iter"));
-  if (app.is_set("-ibm4-iter"))
-    ibm4_iter = convert<uint>(app.getParam("-ibm4-iter"));
 
   Math1D::Vector<double> distribution_weight;
 
@@ -583,6 +579,9 @@ int main(int argc, char** argv) {
     if (!collect_counts || ibm3_iter > 0)
       ibm3_trainer.init_from_hmm(hmm_wrapper, collect_counts, method == "viterbi");
   }
+
+  if (collect_counts && ibm3_iter > 0)
+    ibm3_iter--;
 
   if (ibm3_iter > 0) {
 

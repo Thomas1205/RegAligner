@@ -4057,11 +4057,19 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
 		  }
 		  else {
 		    
-		    uint c = cur_distort_count(j,cur_aj-1);
+		    int c = cur_distort_count(j,cur_aj-1); //must be signed (negation below)!!
 		    
-		    change -= -c * log_table_[c];
+		    change -= -c * log_table_[c]; 
 		    if (c > 1)
-		      change += -(c-1) * log_table_[c-1];
+		      change += -(c-1) * log_table_[c-1]; 
+
+		    int total_c = 0;
+		    for (uint jj=0; jj < cur_distort_count.xDim(); jj++)
+		      total_c += cur_distort_count(jj,cur_aj-1);
+		    
+		    change -= total_c * log_table_[total_c];
+		    if (total_c > 0)
+		      change += (total_c-1) * log_table_[total_c-1];
 		  }
 		}
 		if (i != 0) {
@@ -4071,11 +4079,20 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
 		    change += -std::log(cur_distort_prob(j,i-1));
 		  }
 		  else {
-		    
-		    uint c = cur_distort_count(j,i-1);
+
+		    int c = cur_distort_count(j,i-1); //must be signed (negation below)!!
 		    if (c > 0)
 		      change -= -c * log_table_[c];
 		    change += -(c+1) * log_table_[c+1];
+
+		    int total_c = 0;
+		    for (uint jj=0; jj < cur_distort_count.xDim(); jj++)
+		      total_c += cur_distort_count(jj,i-1);
+
+
+		    if (total_c > 0)
+		      change -= total_c * log_table_[total_c];
+		    change += (total_c+1) * log_table_[total_c+1];
 		  }
 		}
 	      }	
