@@ -6251,7 +6251,10 @@ void IBM4Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 
 	make_alignment_feasible(cur_source, cur_target, cur_lookup, best_known_alignment_[s]);
 
-	//NOTE: to be 100% proper we should recalculate the prob of the alignment if fertility[0] was corrected
+	for (uint j=0; j < curJ; j++)
+	  fertility[best_known_alignment_[s][j]]++;
+
+	//NOTE: to be 100% proper we should recalculate the prob of the alignment if it was made feasible
 	//(would need to convert the alignment to internal mode first). But this only affects the energy printout at the end of 
 	// the iteration
       }
