@@ -2469,7 +2469,6 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 
     if (fert_trainer == 0 && wrapper == 0) { // no point doing ICM in a transfer iteration 
 
-
       std::cerr << "starting ICM" << std::endl;
       
       Math1D::NamedVector<uint> dict_sum(fwcount.size(),MAKENAME(dict_sum));
@@ -2512,9 +2511,11 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 
 	  for (uint i = 0; i <= curI; i++) {
 	    
-	    uint cur_aj = best_known_alignment_[s][j];
-	    uint cur_word = (cur_aj == 0) ? 0 : cur_target[cur_aj-1];
+	    const uint cur_aj = best_known_alignment_[s][j];
+	    const uint cur_word = (cur_aj == 0) ? 0 : cur_target[cur_aj-1];
 	    
+	    const uint new_target_word = (i == 0) ? 0 : cur_target[i-1];
+
 	    /**** dict ***/
 	    
 	    bool allowed = (cur_aj != i && (i != 0 || 2*fertility[0]+2 <= curJ));
@@ -2529,18 +2530,16 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 	      hyp_aligned_source_words[i].push_back(j);
 	      vec_sort(hyp_aligned_source_words[i]);
 	      
-	      uint new_target_word = (i == 0) ? 0 : cur_target[i-1];
-	      
 	      double change = 0.0;
 	      
 	      Math1D::Vector<double>& cur_dictcount = fwcount[cur_word]; 
 	      Math1D::Vector<double>& hyp_dictcount = fwcount[new_target_word]; 
 	      
-	      uint cur_idx = (cur_aj == 0) ? cur_source[j]-1 : cur_lookup(j,cur_aj-1);
+	      const uint cur_idx = (cur_aj == 0) ? cur_source[j]-1 : cur_lookup(j,cur_aj-1);
 	      
 	      double cur_dictsum = dict_sum[cur_word];
 	    
-	      uint hyp_idx = (i == 0) ? cur_source[j]-1 : cur_lookup(j,i-1);
+	      const uint hyp_idx = (i == 0) ? cur_source[j]-1 : cur_lookup(j,i-1);
 	    
 	      
 	      if (cur_word != new_target_word) {
@@ -2570,8 +2569,8 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 		}
 		else
 		  change -= prior_weight_[cur_word][cur_idx];
-	    
-		/***** fertilities (only affected if the old and new target word differ) ****/
+
+		/***** fertilities for the (easy) case where the old and the new word differ ****/
 		
 		//note: currently not updating f_zero / f_nonzero
 		if (cur_aj == 0) {
@@ -2602,38 +2601,59 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 		    change -= -c2 * std::log(c2);
 		  change += -(c2+1) * std::log(c2+1);
 		}
-	      }
 	      
-	      if (i == 0) {
-		
-		uint zero_fert = fertility[0];
-		
-		change -= -std::log(ldchoose(curJ-zero_fert,zero_fert));
-		change -= 2.0*(-std::log(p_nonzero_));
-		
-		uint new_zero_fert = zero_fert+1;
-		change += - std::log(ldchoose(curJ-new_zero_fert,new_zero_fert));
-		change += -std::log(p_zero_);
-	      
-		if (och_ney_empty_word_) {
-		  change += -std::log(((long double) new_zero_fert) / curJ);
+		if (i == 0) {
+		  
+		  uint zero_fert = fertility[0];
+		  
+		  change -= -std::log(ldchoose(curJ-zero_fert,zero_fert));
+		  change -= 2.0*(-std::log(p_nonzero_));
+		  
+		  uint new_zero_fert = zero_fert+1;
+		  change += - std::log(ldchoose(curJ-new_zero_fert,new_zero_fert));
+		  change += -std::log(p_zero_);
+		  
+		  if (och_ney_empty_word_) {
+		    change += -std::log(((long double) new_zero_fert) / curJ);
+		  }
+		}
+		else {
+		  
+		  double c = ffert_count[new_target_word][fertility[i]];
+		  change -= -c * std::log(c);
+		  if (c > 1)
+		    change += -(c-1) * std::log(c-1);
+		  else
+		    change -= l0_fertpen_;
+		  
+		  double c2 = ffert_count[new_target_word][fertility[i]+1];
+		  if (c2 > 0)
+		    change -= -c2 * std::log(c2);
+		  else
+		    change += l0_fertpen_;
+		  change += -(c2+1) * std::log(c2+1);
 		}
 	      }
 	      else {
-		
-		double c = ffert_count[new_target_word][fertility[i]];
-		change -= -c * std::log(c);
-		if (c > 1)
-		  change += -(c-1) * std::log(c-1);
-		else
-		  change -= l0_fertpen_;
-		
-		double c2 = ffert_count[new_target_word][fertility[i]+1];
-		if (c2 > 0)
-		  change -= -c2 * std::log(c2);
-		else
-		  change += l0_fertpen_;
-		change += -(c2+1) * std::log(c2+1);
+		//the old and the new word are the same. 
+		//No dictionary terms affected, but the fertilities are tricky in this case
+
+		assert(cur_aj != 0);
+		assert(i != 0);
+
+		const Math1D::Vector<double>& cur_count = ffert_count[cur_word];
+		Math1D::Vector<double> new_count = cur_count;
+		new_count[fertility[cur_aj]]--;
+		new_count[fertility[cur_aj]-1]++;
+		new_count[fertility[i]]--;
+		new_count[fertility[i]+1]++;
+
+		for (uint k=0; k < cur_count.size(); k++) {
+		  if (cur_count[k] != new_count[k]) {
+		    change += cur_count[k] * log_table_[cur_count[k]]; // - - = +
+		    change -= new_count[k] * log_table_[new_count[k]];
+		  }
+		}
 	      }
 	      
 	      /***** distortion ****/
@@ -2647,10 +2667,6 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 		cur_best_known_alignment[j] = i;
 		
 		nSwitches++;
-		
-		uint cur_idx = (cur_aj == 0) ? cur_source[j]-1 : cur_lookup(j,cur_aj-1);
-		
-		uint hyp_idx = (i == 0) ? cur_source[j]-1 : cur_lookup(j,i-1);
 		
 		//dict
 		cur_dictcount[cur_idx] -= 1;
