@@ -2739,6 +2739,8 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 
     std::string transfer = ((fert_trainer != 0 || wrapper != 0) && iter == 1) ? " (transfer) " : ""; 
 
+    max_perplexity /= source_sentence_.size();
+
     std::cerr << "IBM-5 max-perplex-energy in between iterations #" << (iter-1) << " and " << iter << transfer << ": "
               << max_perplexity << std::endl;
     if (possible_ref_alignments_.size() > 0) {
