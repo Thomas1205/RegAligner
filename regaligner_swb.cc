@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
 	      << " [-hmm-type (fullpar | redpar | nonpar | nonpar2)]: default redpar" << std::endl
 	      << " [-hmm-init-type (auto | par | nonpar | fix | fix2)]: default auto" << std::endl
               << " [-ibm1-transfer-mode (no | viterbi | posterior) ] : how to init HMM from IBM1, default: no" << std::endl
-              << " [-count-collection] : do IBM-3 hillclimbing when initializing IBM-4" << std::endl
+	      << " [-count-collection] : collect counts from the previous model when initializing IBM-3/4/5" << std::endl
 	      << " [-p0 <double>]: fix probability for empty alignments for IBM-3/4 " << std::endl
               << " [-org-empty-word] : for IBM 3/4 use empty word as originally published" << std::endl
 	      << " [-reduce-deficiency] : renormalize probabilities for IBM-4 to stay inside the sentence" << std::endl
