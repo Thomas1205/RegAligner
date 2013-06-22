@@ -39,7 +39,7 @@ FertilityModelTrainer::FertilityModelTrainer(const Storage1D<Storage1D<uint> >& 
   source_sentence_(source_sentence), slookup_(slookup), target_sentence_(target_sentence), 
   wcooc_(wcooc), dict_(dict), nSourceWords_(nSourceWords), nTargetWords_(nTargetWords), iter_offs_(0),
   och_ney_empty_word_(och_ney_empty_word), smoothed_l0_(smoothed_l0), l0_beta_(l0_beta), l0_fertpen_(l0_fertpen),
-  prior_weight_(prior_weight), fertility_prob_(nTargetWords,MAKENAME(fertility_prob_)), 
+  hillclimb_mode_(HillclimbingReuse), prior_weight_(prior_weight), fertility_prob_(nTargetWords,MAKENAME(fertility_prob_)), 
   best_known_alignment_(MAKENAME(best_known_alignment_)),
   sure_ref_alignments_(sure_ref_alignments), possible_ref_alignments_(possible_ref_alignments), log_table_(log_table)
 {
@@ -102,6 +102,11 @@ void FertilityModelTrainer::fix_p0(double p0) {
 
 double FertilityModelTrainer::p_zero() const {
   return p_zero_;
+}
+
+void FertilityModelTrainer::set_hillclimbing_mode(HillclimbingMode new_mode) {
+
+  hillclimb_mode_ = new_mode;
 }
 
 void FertilityModelTrainer::release_memory() {
@@ -276,6 +281,27 @@ double FertilityModelTrainer::DAE_S(const Storage1D<Math1D::Vector<AlignBaseType
   
   sum_errors /= nContributors;
   return sum_errors;
+}
+
+void FertilityModelTrainer::set_hmm_alignments(const HmmWrapper& hmm_wrapper) {
+
+  SingleLookupTable aux_lookup;
+
+  for (uint s = 0; s < source_sentence_.size(); s++) {
+
+    const Storage1D<uint>& cur_source = source_sentence_[s];
+    const Storage1D<uint>& cur_target = target_sentence_[s];
+    const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc_,
+                                                         nSourceWords_,slookup_[s],aux_lookup);
+
+    const uint curI = cur_target.size();
+
+    compute_ehmm_viterbi_alignment(cur_source,cur_lookup,cur_target,dict_,hmm_wrapper.align_model_[curI-1],
+				   hmm_wrapper.initial_prob_[curI-1],best_known_alignment_[s],
+				   hmm_wrapper.hmm_options_.align_type_,false,false);
+   
+    make_alignment_feasible(cur_source, cur_target, cur_lookup, best_known_alignment_[s]); 
+  }
 }
 
 long double FertilityModelTrainer::simulate_hmm_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, 
@@ -1199,6 +1225,8 @@ void FertilityModelTrainer::write_postdec_alignments(const std::string filename,
     (*out) << std::endl;
     
   }
+
+  delete out;
 }
 
 void FertilityModelTrainer::update_fertility_prob(const Storage1D<Math1D::Vector<double> >& ffert_count, double min_prob) {

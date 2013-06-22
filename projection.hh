@@ -140,7 +140,7 @@ inline void fast_projection_on_simplex(T* data, const uint nData) {
 
   //std::cerr << "fast proj." << std::endl;
 
-  //as in [Duchi et al. ICML 2008] and [Shalev-Schwartz and Singer JMLR '06]
+  //as in [Duchi et al. ICML 2008] and [Shalev-Shwartz and Singer JMLR '06]
   assert(nData >= 1);
 
   Storage1D<std::pair<T,uint> > sorted(nData);
@@ -184,7 +184,7 @@ inline void fast_projection_on_simplex_with_slack(T* data, T& slack, uint nData)
 
   //std::cerr << "fast proj." << std::endl;
 
-  //as in [Duchi et al. ICML 2008] and [Shalev-Schwartz and Singer JMLR '06]
+  //as in [Duchi et al. ICML 2008] and [Shalev-Shwartz and Singer JMLR '06]
 
   Storage1D<std::pair<T,uint> > sorted(nData+1);
   for (uint k=0; k < nData; k++)

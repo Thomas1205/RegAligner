@@ -76,12 +76,12 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  const int nParams = 40;
+  const int nParams = 41;
   ParamDescr  params[nParams] = {{"-s",mandInFilename,0,""},{"-t",mandInFilename,0,""},
                                  {"-ds",optInFilename,0,""},{"-dt",optInFilename,0,""},
                                  {"-o",optOutFilename,0,""},{"-oa",mandOutFilename,0,""},
                                  {"-refa",optInFilename,0,""},{"-invert-biling-data",flag,0,""},
-                                 {"-dict-regularity",optWithValue,1,"0.0"},
+                                 {"-dict-regularity",optWithValue,1,"0.0"},{"-hillclimb-mode",optWithValue,1,"reuse"},
                                  {"-sparse-reg",flag,0,""},{"-prior-dict",optInFilename,0,""},
                                  {"-hmm-iter",optWithValue,1,"5"},{"-method",optWithValue,1,"em"},
                                  {"-ibm1-iter",optWithValue,1,"5"},{"-ibm2-iter",optWithValue,1,"0"},
@@ -124,6 +124,16 @@ int main(int argc, char** argv) {
 
 
   bool collect_counts = app.is_set("-count-collection");
+
+  HillclimbingMode hillclimb_mode = HillclimbingReuse;
+
+  std::string hillclimb_string = downcase(app.getParam("-hillclimb-mode"));
+  if (hillclimb_string == "restart") 
+    hillclimb_mode =   HillclimbingRestart;
+  else if (hillclimb_string != "reuse") {
+    USER_ERROR << "unknown hillclimbing mode \"" << hillclimb_string << "\". Exiting." << std::endl;
+    exit(1);
+  }
 
   std::string method = downcase(app.getParam("-method"));
 
@@ -326,7 +336,6 @@ int main(int argc, char** argv) {
     
   floatSingleWordDictionary prior_weight(nTargetWords, MAKENAME(prior_weight));
       
-
   Math1D::Vector<double> distribution_weight;
 
   std::set<std::pair<uint, uint> > known_pairs;
@@ -569,6 +578,8 @@ int main(int argc, char** argv) {
                            !app.is_set("-nonpar-distortion"), !app.is_set("-org-empty-word"), 
                            app.is_set("-nondeficient"), false, l0_fertpen, em_l0, l0_beta);
 
+  ibm3_trainer.set_hillclimbing_mode(hillclimb_mode);
+
   HmmWrapper hmm_wrapper(hmmalign_model,initial_prob,hmm_options);
 
   ibm3_trainer.set_fertility_limit(fert_limit);
@@ -620,12 +631,14 @@ int main(int argc, char** argv) {
                            app.is_set("-reduce-deficiency"), app.is_set("-nondeficient"),
                            ibm4_cept_mode, ibm4_inter_dist_mode, ibm4_intra_dist_mode, em_l0, l0_beta, l0_fertpen);
 
+  ibm4_trainer.set_hillclimbing_mode(hillclimb_mode);
+  
   ibm4_trainer.set_fertility_limit(fert_limit);
   if (fert_p0 >= 0.0)
     ibm4_trainer.fix_p0(fert_p0);
 
 
-  if (ibm4_iter > 0) {
+  if (ibm4_iter + ibm5_iter > 0) {
     
     if (collect_counts && ibm3_iter == 0) {
       if (method == "viterbi")
@@ -633,9 +646,17 @@ int main(int argc, char** argv) {
       else
 	ibm4_trainer.train_unconstrained(1,0,&hmm_wrapper);
     }
-    else
+    else {
+
+      if (collect_counts && hillclimb_mode == HillclimbingRestart)
+	ibm4_trainer.set_hmm_alignments(hmm_wrapper);
+
       ibm4_trainer.init_from_ibm3(ibm3_trainer,true,collect_counts,method == "viterbi");
     
+      if (hillclimb_mode == HillclimbingRestart)
+	ibm4_trainer.set_hmm_alignments(hmm_wrapper);
+    }
+
     if (collect_counts)
       ibm4_iter--;
     
@@ -657,10 +678,18 @@ int main(int argc, char** argv) {
 			   source_class, log_table, app.is_set("-nonpar-distortion"), 
 			   ibm4_cept_mode, em_l0, l0_beta, l0_fertpen);
 
+  ibm5_trainer.set_hillclimbing_mode(hillclimb_mode);
+
   ibm5_trainer.set_fertility_limit(fert_limit);
   
   if (ibm5_iter > 0) {
+    
+    if (collect_counts && hillclimb_mode == HillclimbingRestart)
+      ibm5_trainer.set_hmm_alignments(hmm_wrapper);
+
+
     if (collect_counts && ibm4_iter == 0) {
+
       if (ibm3_iter > 0) {
 	if (method == "viterbi")
 	  ibm5_trainer.train_viterbi(1,&ibm3_trainer);
@@ -676,6 +705,9 @@ int main(int argc, char** argv) {
     }
     else
       ibm5_trainer.init_from_ibm4(ibm4_trainer,collect_counts,method == "viterbi");
+
+    if (hillclimb_mode == HillclimbingRestart)
+      ibm5_trainer.set_hmm_alignments(hmm_wrapper);
     
     if (collect_counts)
       ibm5_iter--;

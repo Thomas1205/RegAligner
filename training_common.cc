@@ -768,7 +768,7 @@ void generate_wordlookup(const Storage1D<Storage1D<uint> >& source,
                 exit(1);
               }
               
-              if (slookup[s].size() > 0) {
+              if (cur_lookup.size() > 0) {
                 const uint idx = ptr - start;
                 assert(idx < cooc[tidx].size());
                 cur_lookup(j,i) = idx;

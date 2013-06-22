@@ -1252,6 +1252,11 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
   double max_perplexity = 0.0;
   double approx_sum_perplexity = 0.0;
 
+  Storage1D<Math1D::Vector<AlignBaseType> > initial_alignment;
+  if (hillclimb_mode_ == HillclimbingRestart)
+    initial_alignment = best_known_alignment_; //CAUTION: we will save here the alignment from the IBM-4, NOT from the HMM
+
+
   SingleLookupTable aux_lookup;
 
   double dict_weight_sum = 0.0;
@@ -1331,6 +1336,9 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 
       long double best_prob = 0.0;
 
+      if (hillclimb_mode_ == HillclimbingRestart)
+	best_known_alignment_[s] = initial_alignment[s];
+
       if (fert_trainer != 0 && iter == 1) {
 	best_prob = fert_trainer->update_alignment_by_hillclimbing(cur_source,cur_target,cur_lookup,sum_iter,fertility,
 							   expansion_move_prob,swap_move_prob,best_known_alignment_[s]);
@@ -1338,6 +1346,9 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
       else if (wrapper != 0 && iter == 1) {
 	best_prob = simulate_hmm_hillclimbing(cur_source, cur_target, cur_lookup, *wrapper,
 					      fertility, expansion_move_prob, swap_move_prob, best_known_alignment_[s]);
+
+	if (hillclimb_mode_ == HillclimbingRestart)
+	  initial_alignment[s] = best_known_alignment_[s]; //since before we have saved nothing useful
       }
       else {
 	best_prob = update_alignment_by_hillclimbing(cur_source,cur_target,cur_lookup,sum_iter,fertility,
@@ -2028,6 +2039,10 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
     std::cerr << " (init from HMM) ";
   std::cerr << std::endl;
 
+  Storage1D<Math1D::Vector<AlignBaseType> > initial_alignment;
+  if (hillclimb_mode_ == HillclimbingRestart)
+    initial_alignment = best_known_alignment_; //CAUTION: we will save here the alignment from the IBM-4, NOT from the HMM
+
   double max_perplexity = 0.0;
 
   SingleLookupTable aux_lookup;
@@ -2108,6 +2123,9 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 
       long double best_prob = 0.0;
 
+      if (hillclimb_mode_ == HillclimbingRestart)
+	best_known_alignment_[s] = initial_alignment[s];
+
       if (fert_trainer != 0 && iter == 1) {
 
 	best_prob = fert_trainer->update_alignment_by_hillclimbing(cur_source,cur_target,cur_lookup,sum_iter,fertility,
@@ -2126,6 +2144,10 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 
 	for (uint j=0; j < curJ; j++)
 	  fertility[best_known_alignment_[s][j]]++;
+
+
+	if (hillclimb_mode_ == HillclimbingRestart)
+	  initial_alignment[s] = best_known_alignment_[s]; //since before we have saved nothing useful
 
 	//NOTE: to be 100% proper we should recalculate the prob of the alignment if it was made feasible
 	//(would need to convert the alignment to internal mode first). But this only affects the energy printout at the end of 
@@ -2471,6 +2493,9 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 
       std::cerr << "starting ICM" << std::endl;
       
+      const double log_pzero = std::log(p_zero_);
+      const double log_pnonzero = std::log(p_nonzero_);
+
       Math1D::NamedVector<uint> dict_sum(fwcount.size(),MAKENAME(dict_sum));
       for (uint k=0; k < fwcount.size(); k++)
 	dict_sum[k] = fwcount[k].sum();
@@ -2541,7 +2566,7 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 	    
 	      const uint hyp_idx = (i == 0) ? cur_source[j]-1 : cur_lookup(j,i-1);
 	    
-	      
+
 	      if (cur_word != new_target_word) {
 		
 		if (dict_sum[new_target_word] > 0)
@@ -2571,6 +2596,7 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 		  change -= prior_weight_[cur_word][cur_idx];
 
 		/***** fertilities for the (easy) case where the old and the new word differ ****/
+		//std::cerr << "fert-part" << std::endl;
 		
 		//note: currently not updating f_zero / f_nonzero
 		if (cur_aj == 0) {
@@ -2578,15 +2604,15 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 		  uint zero_fert = fertility[0];
 		  
 		  change -= -std::log(ldchoose(curJ-zero_fert,zero_fert));
-		  change -= -std::log(p_zero_);
-		  
+		  change += log_pzero;
+
 		  if (och_ney_empty_word_) {
 		    change -= -std::log(((long double) zero_fert) / curJ);
 		  }
 		  
 		  uint new_zero_fert = zero_fert-1;
 		  change += - std::log(ldchoose(curJ-new_zero_fert,new_zero_fert));
-		  change += 2.0*(-std::log(p_nonzero_));
+		  change -= 2.0*log_pnonzero;
 		}
 		else {
 		  
@@ -2607,12 +2633,12 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 		  uint zero_fert = fertility[0];
 		  
 		  change -= -std::log(ldchoose(curJ-zero_fert,zero_fert));
-		  change -= 2.0*(-std::log(p_nonzero_));
-		  
+		  change += 2.0*log_pnonzero;
+
 		  uint new_zero_fert = zero_fert+1;
 		  change += - std::log(ldchoose(curJ-new_zero_fert,new_zero_fert));
-		  change += -std::log(p_zero_);
-		  
+		  change -= log_pzero;
+
 		  if (och_ney_empty_word_) {
 		    change += -std::log(((long double) new_zero_fert) / curJ);
 		  }

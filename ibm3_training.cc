@@ -2949,6 +2949,11 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
   if (viterbi_ilp_)
     viterbi_alignment.resize(source_sentence_.size());
 
+  Storage1D<Math1D::Vector<AlignBaseType> > initial_alignment;
+  if (hillclimb_mode_ == HillclimbingRestart) 
+    initial_alignment = best_known_alignment_;
+
+
   double dict_weight_sum = 0.0;
   for (uint i=0; i < nTargetWords_; i++) {
     dict_weight_sum += fabs(prior_weight_[i].sum());
@@ -3034,6 +3039,9 @@ void IBM3Trainer::train_unconstrained(uint nIter, HmmWrapper* wrapper) {
 					      fertility, expansion_move_prob, swap_move_prob, best_known_alignment_[s]);
       }
       else {
+
+	if (hillclimb_mode_ == HillclimbingRestart)
+	  best_known_alignment_[s] = initial_alignment[s];
 
 	best_prob = update_alignment_by_hillclimbing(cur_source,cur_target,cur_lookup,sum_iter,fertility,
 						     expansion_move_prob,swap_move_prob,best_known_alignment_[s]);
@@ -3668,6 +3676,10 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
 
   double max_perplexity = 0.0;
 
+  Storage1D<Math1D::Vector<AlignBaseType> > initial_alignment;
+  if (hillclimb_mode_ == HillclimbingRestart) 
+    initial_alignment = best_known_alignment_;
+
   ReducedIBM3DistortionModel fdistort_count(distortion_prob_.size(),MAKENAME(fdistort_count));
   for (uint J=0; J < fdistort_count.size(); J++) {
     fdistort_count[J].resize_dirty(distortion_prob_[J].xDim(), distortion_prob_[J].yDim());
@@ -3758,6 +3770,10 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
       }
       else {
 
+	if (hillclimb_mode_ == HillclimbingRestart)
+	  best_known_alignment_[s] = initial_alignment[s];
+
+
 	best_prob = update_alignment_by_hillclimbing(cur_source,cur_target,cur_lookup,sum_iter,fertility,
 						     expansion_move_prob,swap_move_prob,best_known_alignment_[s]);
       }
@@ -3826,6 +3842,10 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
     if (wrapper == 0 && !nondeficient_) { 
       //no use doing ICM in a transfer iteration. 
       //in nondeficient mode, ICM does well at decreasing the energy, but it heavily aligns to the rare words
+
+
+      const double log_pzero = std::log(p_zero_);
+      const double log_pnonzero = std::log(p_nonzero_);
 
       Math1D::NamedVector<uint> dict_sum(fwcount.size(),MAKENAME(dict_sum));
       for (uint k=0; k < fwcount.size(); k++)
@@ -3950,8 +3970,8 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
 		  uint zero_fert = cur_fertilities[0];
 		  
 		  change -= - std::log(ldchoose(curJ-zero_fert,zero_fert));
-		  change -= -std::log(p_zero_);
-		  
+		  change += log_pzero; // - -  = +
+
 		  if (och_ney_empty_word_) {
 		    
 		    change -= -std::log(((long double) zero_fert) / curJ);
@@ -3959,11 +3979,7 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
 		
 		  uint new_zero_fert = zero_fert-1;
 		  change += - std::log(ldchoose(curJ-new_zero_fert,new_zero_fert));
-		  change += 2.0*(-std::log(p_nonzero_));
-		  
-		  
-		  if (och_ney_empty_word_) {
-		  }
+		  change -= 2.0*log_pnonzero;
 		}
 		else {
 
@@ -3986,14 +4002,12 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
 		  uint zero_fert = cur_fertilities[0];
 		  
 		  change -= -std::log(ldchoose(curJ-zero_fert,zero_fert));
-		  change -= 2.0*(-std::log(p_nonzero_));
-		  
-		  if (och_ney_empty_word_) {
-		  }
-		  
+
+		  change += 2.0*log_pnonzero;
+
 		  uint new_zero_fert = zero_fert+1;
 		  change += - std::log(ldchoose(curJ-new_zero_fert,new_zero_fert));
-		  change += -std::log(p_zero_);
+		  change -= log_pzero;
 		  
 		  if (och_ney_empty_word_) {
 		    change += -std::log(((long double) new_zero_fert) / curJ);
@@ -4001,7 +4015,7 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
 		}
 		else {
 
-		  change += - log_table_[cur_fertilities[i]+1];
+		  change += - log_table_[cur_fertilities[i]+1]; 
 		  
 		  double c = ffert_count[new_target_word][cur_fertilities[i]];
 		  change -= -c * log_table_[c];
@@ -4025,9 +4039,11 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
 		assert(cur_aj != 0);
 		assert(i != 0);
 
+		
 		change += std::log(cur_fertilities[cur_aj]); // - - = +
 		change -= std::log(cur_fertilities[i]+1);
-				
+		
+		
 		const Math1D::Vector<double>& cur_count = ffert_count[cur_word];
 		Math1D::Vector<double> new_count = cur_count;
 		new_count[cur_fertilities[cur_aj]]--;
@@ -4042,7 +4058,7 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
 		  }
 		}
 	      }
-	      
+
 	      /***** distortion ****/
 	      if (!nondeficient_) {
 		if (cur_aj != 0) {
@@ -4137,8 +4153,32 @@ void IBM3Trainer::train_viterbi(uint nIter, HmmWrapper* wrapper, bool use_ilp) {
 		  cur_distort_count(j,cur_aj-1)--;
 		if (i != 0)
 		  cur_distort_count(j,i-1)++;
-
+		
 		if (nondeficient_) {
+
+		  //DEBUG
+		  // if (s < 5) {
+
+		  //   std::cerr << "changing alignment of j=" << j << " from aj=" << cur_aj << " to " << i << std::endl;
+		  //   std::cerr << "new alignment: " << cur_best_known_alignment << std::endl;
+		  //   std::cerr << "previous log dist prob: " << cur_dist_log << ", new one: " << hyp_dist_log << std::endl;
+		  //   std::cerr << "change: " << change << ", after dict: " << dict_change << ", after fert: " << fert_change  << std::endl;
+		  //   std::cerr << "new alignment prob under previous parameters: " 
+		  // 	      << nondeficient_alignment_prob(cur_source, cur_target, cur_lookup, cur_best_known_alignment)
+		  // 	      << std::endl;
+		  //   std::cerr << "old alignment prob under previous parameters: " 
+		  // 	      << nondeficient_alignment_prob(cur_source, cur_target, cur_lookup, prev_alignment)
+		  // 	      << std::endl;
+
+		  //   if (cur_aj != 0) {
+		  //     std::cerr << "prev dict prob under previous parameters: " << dict_[cur_word][cur_idx]  << std::endl;
+		  //   }
+		  //   if (i != 0) {
+		  //     std::cerr << "new dict prob under previous parameters: " << dict_[new_target_word][hyp_idx] << std::endl;
+		  //     std::cerr << "under new parameters: " << (hyp_dictcount[hyp_idx] / dict_sum[new_target_word]) << std::endl; 
+		  //   }
+		  // }
+		  //END_DEBUG
 
 		  aligned_source_words[i] = hyp_aligned_source_words[i];
 		  aligned_source_words[cur_aj] = hyp_aligned_source_words[cur_aj];

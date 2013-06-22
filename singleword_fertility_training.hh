@@ -14,6 +14,8 @@
 #include <map>
 #include <set>
 
+enum HillclimbingMode {HillclimbingReuse,HillclimbingRestart};
+
 /*abstract*/ class FertilityModelTrainer {
 public:
 
@@ -38,6 +40,12 @@ public:
 
   void fix_p0(double p0);
 
+  void set_hillclimbing_mode(HillclimbingMode new_mode);
+
+  void set_hmm_alignments(const HmmWrapper& hmm_wrapper);
+
+  void set_fertility_limit(uint new_limit);
+
   void write_alignments(const std::string filename) const;
 
   void write_postdec_alignments(const std::string filename, double thresh);
@@ -57,8 +65,6 @@ public:
   const NamedStorage1D<Math1D::Vector<double> >& fertility_prob() const;
 
   const NamedStorage1D<Math1D::Vector<AlignBaseType> >& best_alignments() const;
-
-  void set_fertility_limit(uint new_limit);
 
   void write_fertilities(std::string filename);
 
@@ -202,6 +208,8 @@ protected:
   bool smoothed_l0_;
   double l0_beta_;
   double l0_fertpen_;
+
+  HillclimbingMode hillclimb_mode_; 
 
   const floatSingleWordDictionary& prior_weight_;
 
