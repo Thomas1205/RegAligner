@@ -27,7 +27,7 @@ public:
                         uint nSourceWords, uint nTargetWords,
 			const floatSingleWordDictionary& prior_weight,
 			bool och_ney_empty_word, bool smoothed_l0_,
-			double l0_beta,	double l0_fertpen,
+			double l0_beta,	double l0_fertpen, bool no_factorial,
                         const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
                         const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
 			const Math1D::Vector<double>& log_table,
@@ -149,6 +149,15 @@ protected:
 				 double& fzero_count, double& fnonzero_count);
 
   inline long double swap_mass(const Math2D::NamedMatrix<long double>& swap_move_prob) const;
+
+  inline double common_icm_change(const Math1D::Vector<uint>& cur_fertilities,
+				  const double log_pzero, const double log_pnonzero,
+				  const Math1D::NamedVector<uint>& dict_sum,
+				  const Math1D::Vector<double>& cur_dictcount, const Math1D::Vector<double>& hyp_dictcount,
+				  const Math1D::Vector<double>& cur_fert_count, const Math1D::Vector<double>& hyp_fert_count,
+				  const uint cur_target_word, const uint hyp_target_word,
+				  const uint cur_idx, const uint hyp_idx,
+				  const uint cur_aj, const uint hyp_aj, const uint curJ) const;
     
   void common_prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
 					 const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment);
@@ -208,6 +217,8 @@ protected:
   bool smoothed_l0_;
   double l0_beta_;
   double l0_fertpen_;
+
+  bool no_factorial_;
 
   HillclimbingMode hillclimb_mode_; 
 
@@ -446,6 +457,167 @@ inline long double FertilityModelTrainer::swap_mass(const Math2D::NamedMatrix<lo
       sum += swap_move_prob(j1,j2);
 
   return sum;
+}
+
+inline double FertilityModelTrainer::common_icm_change(const Math1D::Vector<uint>& cur_fertilities,
+						       const double log_pzero, const double log_pnonzero,
+						       const Math1D::NamedVector<uint>& dict_sum,
+						       const Math1D::Vector<double>& cur_dictcount,
+						       const Math1D::Vector<double>& hyp_dictcount,
+						       const Math1D::Vector<double>& cur_fert_count,
+						       const Math1D::Vector<double>& hyp_fert_count,
+						       const uint cur_word, const uint new_target_word,
+						       const uint cur_idx, const uint hyp_idx,
+						       const uint cur_aj, const uint hyp_aj,
+						       const uint curJ) const {
+
+
+  double change = 0.0;
+
+
+  const uint cur_fert = cur_fertilities[cur_aj];
+  const uint cur_hyp_fert = cur_fertilities[hyp_aj];
+
+
+  if (cur_word != new_target_word) {
+    
+    uint cur_dictsum = dict_sum[cur_word];
+    
+    if (dict_sum[new_target_word] > 0)
+      change -= double(dict_sum[new_target_word]) * log_table_[ dict_sum[new_target_word] ];
+    change += double(dict_sum[new_target_word]+1) * log_table_[ dict_sum[new_target_word]+1 ];
+		
+    if (hyp_dictcount[hyp_idx] > 0)
+      change += double(hyp_dictcount[hyp_idx]) * 
+	log_table_[hyp_dictcount[hyp_idx]];
+    else
+      change += prior_weight_[new_target_word][hyp_idx]; 
+    
+    change -= double(hyp_dictcount[hyp_idx]+1) * 
+      log_table_[hyp_dictcount[hyp_idx]+1];
+    
+    change -= double(cur_dictsum) * log_table_[cur_dictsum];
+    if (cur_dictsum > 1)
+      change += double(cur_dictsum-1) * log_table_[cur_dictsum-1];
+    
+    change -= - double(cur_dictcount[cur_idx]) * log_table_[cur_dictcount[cur_idx]];
+    
+    
+    if (cur_dictcount[cur_idx] > 1) {
+      change += double(cur_dictcount[cur_idx]-1) * (-log_table_[cur_dictcount[cur_idx]-1]);
+    }
+    else
+      change -= prior_weight_[cur_word][cur_idx];
+
+    
+    /***** fertilities for the (easy) case where the old and the new word differ ****/
+		
+    //note: currently not updating f_zero / f_nonzero
+    if (cur_aj == 0) {
+      
+      const uint zero_fert = cur_fert;
+      const uint new_zero_fert = zero_fert-1;
+      
+      
+      //changes regarding ldchoose()
+      change -= log_table_[curJ-new_zero_fert];
+      change += log_table_[zero_fert]; // - - = +
+      change += log_table_[curJ-2*zero_fert+1] + log_table_[curJ-2*new_zero_fert];
+		  
+      change += log_pzero; // - -  = +
+
+      if (och_ney_empty_word_) {
+	
+	change -= log_table_[curJ] - log_table_[zero_fert];
+      }
+		
+      change -= 2.0*log_pnonzero;
+    }
+    else {
+
+      if (!no_factorial_)
+	change -= - log_table_[cur_fert];
+		  
+      const int c = cur_fert_count[cur_fert];
+      change -= -c * log_table_[c];
+      if (c > 1)
+	change += -(c-1) * log_table_[c-1];
+      
+      const int c2 = cur_fert_count[cur_fert-1];
+		  
+      if (c2 > 0)
+	change -= -c2 * log_table_[c2];
+      change += -(c2+1) * log_table_[c2+1];
+    }
+    
+    if (hyp_aj == 0) {
+		  
+      const uint zero_fert = cur_hyp_fert;
+      const uint new_zero_fert = zero_fert+1;
+
+      //changes regarding ldchoose()
+      change += log_table_[curJ-zero_fert]; // - -  = +
+      change -= log_table_[curJ-2*zero_fert] + log_table_[curJ-2*zero_fert-1];
+      change += log_table_[new_zero_fert]; 
+
+      change += 2.0*log_pnonzero;
+
+      change -= log_pzero;
+		  
+      if (och_ney_empty_word_) {
+	
+	change += log_table_[curJ] - log_table_[new_zero_fert];
+      }
+    }
+    else {
+      
+      if (!no_factorial_)
+	change += - log_table_[cur_hyp_fert+1]; 
+      
+      const int c = hyp_fert_count[cur_hyp_fert];
+      change -= -c * log_table_[c];
+      if (c > 1)
+	change += -(c-1) * log_table_[c-1];
+      else
+	change -= l0_fertpen_;
+      
+      const int c2 = hyp_fert_count[cur_hyp_fert+1];
+      if (c2 > 0)
+	change -= -c2 * log_table_[c2];
+      else
+	change += l0_fertpen_;
+      change += -(c2+1) * log_table_[c2+1];
+    }
+  }
+  else {
+    //the old and the new word are the same. 
+    //No dictionary terms affected, but the fertilities are tricky in this case
+    
+    assert(cur_aj != 0);
+    assert(hyp_aj != 0);
+
+    if (!no_factorial_) {
+
+      change += log_table_[cur_fert]; // - - = +
+      change -= log_table_[cur_hyp_fert+1];
+    }
+		
+    const Math1D::Vector<double>& cur_count = cur_fert_count;
+    Math1D::Vector<double> new_count = cur_count;
+    new_count[cur_fert]--;
+    new_count[cur_fert-1]++;
+    new_count[cur_hyp_fert]--;
+    new_count[cur_hyp_fert+1]++;
+    
+    for (uint k=0; k < cur_count.size(); k++) {
+      if (cur_count[k] != new_count[k]) {
+	change += cur_count[k] * log_table_[cur_count[k]]; // - - = +
+	change -= new_count[k] * log_table_[new_count[k]];
+      }
+    }
+  }
+
+  return change;
 }
 
 

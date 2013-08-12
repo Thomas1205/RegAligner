@@ -45,9 +45,6 @@ long double hmm_alignment_prob(const Storage1D<uint>& source,
   const uint I = target.size();
   const uint J = source.size();
 
-  //std::cerr << "J: " << J << ", I: " << I << std::endl;
-  //std::cerr << "alignment: " << alignment << std::endl;
-
   assert(J == alignment.size());
 
   long double prob = (alignment[0] == 2*I) ? initial_prob[I-1][I] : initial_prob[I-1][alignment[0]];
@@ -114,7 +111,6 @@ double extended_hmm_perplexity(const Storage1D<Storage1D<uint> >& source,
                                const CooccuringWordsType& wcooc, uint nSourceWords,
 			       HmmAlignProbType align_type, bool start_empty_word) {
 
-  //std::cerr << "start empty word: " << start_empty_word << std::endl;
 
   double sum = 0.0;
 
@@ -201,7 +197,7 @@ double ehmm_m_step_energy(const FullHMMAlignmentModel& facount, const Math1D::Ve
                           uint zero_offset, double grouping_param) {
 
   double energy = 0.0;
-
+  
   for (uint I=1; I <= facount.size(); I++) {
 
     if (facount[I-1].size() > 0) {
@@ -272,7 +268,7 @@ void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& d
 
   for (uint k=start_idx; k <= end_idx; k++)
     dist_params[k] = std::max(1e-15,dist_params[k]);
-  
+
   Math1D::Vector<double> m_dist_grad = dist_params;
   Math1D::Vector<double> new_dist_params = dist_params;
   Math1D::Vector<double> hyp_dist_params = dist_params;
@@ -283,9 +279,83 @@ void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& d
 
   double energy = ehmm_m_step_energy(facount, dist_params, zero_offset, grouping_param);
 
+  //test if normalized counts give a better starting point
+  {
+
+    Math1D::Vector<double> dist_count(dist_params.size(),0.0);
+    double dist_grouping_count = (grouping_param < 0.0) ? -1.0 : 0.0;
+
+    for (uint I=1; I <= facount.size(); I++) {
+
+      if (facount[I-1].xDim() != 0) {
+	
+	for (int i=0; i < (int) I; i++) {
+	  
+	  for (int ii=0; ii < (int) I; ii++) {
+	    if (grouping_param < 0.0 || abs(ii-i) <= 5)
+	      dist_count[zero_offset + ii - i] += facount[I-1](ii,i);
+	    else {
+	      double grouping_norm = std::max(0,i-5);
+	      grouping_norm += std::max(0,int(I)-1-(i+5));
+	      
+	      assert(grouping_norm > 1e-305);
+	      
+	      dist_grouping_count += facount[I-1](ii,i) / grouping_norm;
+	    }
+	  }
+	}
+      }
+    }
+
+    if (grouping_param >= 0.0) {
+      //reduced parametric
+
+      double norm = 0.0;
+      for (int k = -5; k <= 5; k++)
+	norm += dist_count[zero_offset + k];
+      norm += dist_grouping_count;
+      
+      if (norm > 1e-305) {
+
+	for (uint k=0; k < dist_count.size(); k++)
+	  dist_count[k] = std::max(1e-15,dist_count[k]/norm);
+	
+	dist_grouping_count = std::max(1e-15,dist_grouping_count / norm);
+	
+	double hyp_energy = ehmm_m_step_energy(facount,dist_count,zero_offset,dist_grouping_count);
+	
+	if (hyp_energy < energy) {
+	  
+	  dist_params = dist_count;
+	  grouping_param = dist_grouping_count;
+	  energy = hyp_energy;
+	}
+      }
+    }
+    else {
+      //fully parametric
+
+      double sum = dist_count.sum();
+
+      if (sum > 1e-305) {
+	for (uint k=0; k < dist_count.size(); k++)
+	  dist_count[k] = std::max(1e-15,dist_count[k] / sum);
+	
+	double hyp_energy = ehmm_m_step_energy(facount,dist_count,zero_offset,grouping_param);        
+	
+	if (hyp_energy < energy) {
+	  dist_params = dist_count;
+	  energy = hyp_energy;
+	}
+      }
+
+    }
+  }
+
   assert(grouping_param < 0.0 || grouping_param >= 1e-15);
 
   double alpha = 100.0;
+
 
   for (uint iter = 1; iter <= nIter; iter++) {
 
@@ -354,21 +424,10 @@ void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& d
 
     double real_alpha = alpha;
 
-    //TRIAL
-    // double sqr_grad_norm  = 0.0;
-    // for (uint k=0; k < dist_params.size(); k++)
-    //   sqr_grad_norm += m_dist_grad.direct_access(k) * m_dist_grad.direct_access(k);
-    // sqr_grad_norm += m_grouping_grad * m_grouping_grad;
-
-    // real_alpha /= sqrt(sqr_grad_norm);
-    //END_TRIAL
-
-
     for (uint k=start_idx; k <= end_idx; k++)
       new_dist_params.direct_access(k) = dist_params.direct_access(k) - real_alpha * m_dist_grad.direct_access(k);
 
     new_grouping_param = grouping_param - real_alpha * m_grouping_grad;
-
 
     for (uint k=end_idx; k <= end_idx; k++) {
       if (new_dist_params[k] >= 1e75)
@@ -392,7 +451,6 @@ void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& d
 
     for (uint k=start_idx; k <= end_idx; k++)
       new_dist_params[k] = std::max(1e-15,new_dist_params[k]);
-
 
     //find step-size
 
@@ -436,11 +494,7 @@ void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& d
       else {
         decreasing = false;
       }
-
     }
-
-    // if (nIter > 4)
-    //   alpha *= 1.5;
 
     if (nIter > 15 || fabs(energy - best_energy) < 1e-4) {
       std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
@@ -457,8 +511,8 @@ void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& d
 
     if (grouping_param >= 0.0) 
       grouping_param = std::max(1e-15,best_lambda * new_grouping_param + neg_best_lambda * grouping_param);
-
   }
+
 }
 
 
@@ -497,6 +551,27 @@ void ehmm_init_m_step(const InitialAlignmentProbability& init_acount, Math1D::Ve
   Math1D::Vector<double> hyp_init_params = init_params;
 
   double energy = ehmm_init_m_step_energy(init_acount, init_params);
+
+  { //try to find a better starting point
+    Math1D::Vector<double> init_count(init_params.size(),0.0);
+
+    for (uint I=1; I <= init_acount.size(); I++) {
+      
+      if (init_acount[I-1].size() != 0) {
+	for (uint i=0; i < I; i++) {
+	  init_count[i] += init_acount[I-1][i];
+	}
+      }
+    }
+    init_count *= 1.0 / init_count.sum();
+
+    double hyp_energy = ehmm_init_m_step_energy(init_acount, init_count);
+
+    if (hyp_energy < energy) {
+      init_params = init_count;
+      energy = hyp_energy;
+    }
+  }
 
   std::cerr << "start m-energy: " << energy << std::endl;
 
@@ -968,16 +1043,7 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
   init_hmm_from_ibm1(source, slookup, target, dict, wcooc, align_model, dist_params, dist_grouping_param,
                      source_fert, initial_prob, init_params, options, options.transfer_mode_);
   
-  
-  Math1D::NamedVector<double> dist_count(MAKENAME(dist_count));
-  dist_count = dist_params;
-
-  double dist_grouping_count = dist_grouping_param;
-  
   Math1D::Vector<double> source_fert_count = source_fert;
-  
-  Math1D::NamedVector<double> init_count(MAKENAME(init_count));
-  init_count = init_params;
   
   uint zero_offset = maxI-1;
   
@@ -1008,19 +1074,10 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       ficount[I-1].set_constant(0.0);
     }
 
-    if (align_type != HmmAlignProbNonpar) {
-      dist_count.set_constant(0.0);
+    if (align_type != HmmAlignProbNonpar || init_type == HmmInitPar) 
       source_fert_count.set_constant(0.0);
-      dist_grouping_count = 0.0;
-    }
-
-    if (init_type == HmmInitPar) {
-      init_count.set_constant(0.0);
-    }
 
     for (size_t s=0; s < nSentences; s++) {
-
-      //std::cerr << "s: " << s << std::endl;
 
       const Storage1D<uint>& cur_source = source[s];
       const Storage1D<uint>& cur_target = target[s];
@@ -1029,8 +1086,6 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       const uint curJ = cur_source.size();
       const uint curI = cur_target.size();
 
-      //std::cerr << "J = " << curJ << ", curI = " << curI << std::endl;
-      
       const Math2D::Matrix<double>& cur_align_model = align_model[curI-1];
       Math2D::Matrix<double>& cur_facount = facount[curI-1];
       
@@ -1102,8 +1157,6 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       if (! (sentence_prob > 0.0)) {
         std::cerr << "sentence_prob " << sentence_prob << " for sentence pair " << s << " with I=" << curI
                   << ", J= " << curJ << std::endl;
-
-	//exit(1);
       }
       assert(sentence_prob > 0.0);
       
@@ -1231,7 +1284,6 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
     std::cerr << "perplexity after iteration #" << (iter-1) << ": " << prev_perplexity << std::endl;
     std::cerr << "computing alignment and dictionary probabilities from normalized counts" << std::endl;
 
-
     if (align_type != HmmAlignProbNonpar) {
 
       //compute the expectations of the parameters from the expectations of the models
@@ -1244,16 +1296,6 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
             for (int ii=0; ii < (int) I; ii++) {
               source_fert_count[1] += facount[I-1](ii,i);
-	      if (align_type != HmmAlignProbReducedpar || abs(ii-i) <= 5)
-		dist_count[zero_offset + ii - i] += facount[I-1](ii,i);
-	      else {
-                double grouping_norm = std::max(0,i-5);
-                grouping_norm += std::max(0,int(I)-1-(i+5));
-
-                assert(grouping_norm > 1e-305);
-
-                dist_grouping_count += facount[I-1](ii,i) / grouping_norm;
-              }
             }
             source_fert_count[0] += facount[I-1](I,i);
           }
@@ -1263,48 +1305,6 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
 
     if (align_type != HmmAlignProbNonpar && align_type != HmmAlignProbNonpar2) {
-
-      double cur_energy = ehmm_m_step_energy(facount,dist_params,zero_offset,dist_grouping_param);
-
-      if (align_type == HmmAlignProbFullpar) {
-
-	double sum = dist_count.sum();
-
-	if (sum > 1e-305) {
-	  for (uint k=0; k < dist_count.size(); k++)
-	    dist_count[k] = std::max(1e-15,dist_count[k] / sum);
-
-	  double hyp_energy = ehmm_m_step_energy(facount,dist_count,zero_offset,dist_grouping_param);        
-	  
-	  if (hyp_energy < cur_energy)
-	    dist_params = dist_count;
-	}
-      }
-      else if (align_type == HmmAlignProbReducedpar) {
-
-        double norm = 0.0;
-        for (int k = -5; k <= 5; k++)
-          norm += dist_count[zero_offset + k];
-        norm += dist_grouping_count;
-        
-	if (norm > 1e-305) {
-
-	  for (uint k=0; k < dist_count.size(); k++)
-	    dist_count[k] = std::max(1e-15,dist_count[k]/norm);
-
-	  dist_grouping_count = std::max(1e-15,dist_grouping_count / norm);
-	  
-	  double hyp_energy = ehmm_m_step_energy(facount,dist_count,zero_offset,dist_grouping_count);
-	
-	  std::cerr << "hyp energy: " << hyp_energy << std::endl;
-
-	  if (hyp_energy < cur_energy) {
-	    
-	    dist_params = dist_count;
-	    dist_grouping_param = dist_grouping_count;
-	  }
-	}
-      }
 
       //call m-step
       ehmm_m_step(facount, dist_params, zero_offset, options.align_m_step_iter_, dist_grouping_param);
@@ -1317,27 +1317,11 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
         if (initial_prob[I-1].size() != 0) {
           for (uint i=0; i < I; i++) {
             source_fert_count[1] += ficount[I-1][i];
-            init_count[i] += ficount[I-1][i];
           }
           for (uint i=I; i < ficount[I-1].size(); i++) {
             source_fert_count[0] += ficount[I-1][i];
           }
         }
-      }
-
-      double cur_energy = ehmm_init_m_step_energy(ficount,init_params);
-
-      const double sum = init_count.sum();
-
-      if (sum > 1e-305) {
-
-	for (uint k=0; k < init_count.size(); k++)
-	  init_count[k] = std::max(1e-15,init_count[k]/sum);
-	
-	double hyp_energy = ehmm_init_m_step_energy(ficount,init_count);
-
-	if (hyp_energy < cur_energy)
-	  init_params = init_count;
       }
 
       ehmm_init_m_step(ficount, init_params, options.init_m_step_iter_);
@@ -1438,7 +1422,7 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
     /************* compute alignment error rate ****************/
     if (!options.possible_ref_alignments_.empty()) {
-      
+
       double sum_aer = 0.0;
       double sum_marg_aer = 0.0;
       double sum_fmeasure = 0.0;
@@ -1888,8 +1872,6 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
                 non_zero_sum += dist_params[zero_offset + ii - i];
               }
 	      
-              //std::cerr << "I: " << I << ", i: " << i << ", non_zero_sum: " << non_zero_sum << std::endl;
-	      
               double factor = source_fert[1] / (non_zero_sum * non_zero_sum);
 	      
               assert(!isnan(factor));
@@ -2170,6 +2152,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 	
         par2nonpar_hmm_alignment_model(hyp_dist_params, zero_offset, hyp_dist_grouping_param, hyp_source_fert,
                                        align_type, hyp_align_prob);
+	
       }
       else {
 
@@ -2186,7 +2169,6 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 					      align_type, start_empty_word, smoothed_l0, l0_beta);   
 
       std::cerr << "new: " << new_energy << ", prev: " << hyp_energy << std::endl;
-
 
       if (new_energy < hyp_energy) {
 
@@ -2409,9 +2391,6 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
   InitialAlignmentProbability icount(maxI,MAKENAME(icount));
   icount = initial_prob;
 
-  Math1D::NamedVector<double> init_count(MAKENAME(init_count) );
-  init_count = init_params;
-
   FullHMMAlignmentModel acount(maxI,MAKENAME(acount));
   for (uint I = 1; I <= maxI; I++) {
     if (seenIs.find(I) != seenIs.end()) {
@@ -2419,7 +2398,8 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
     }
   }
 
-  Math1D::NamedVector<double> dist_count(MAKENAME(dist_count));
+
+  Math1D::NamedVector<double> dist_count(MAKENAME(dist_count)); //used in deficient mode
   dist_count = dist_params;
 
   for (uint iter = 1; iter <= nIterations; iter++) {
@@ -2439,8 +2419,6 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
     }
 
     source_fert_count.set_constant(0.0);
-    init_count.set_constant(0.0);
-    dist_count.set_constant(0.0);      
 
     for (size_t s=0; s < nSentences; s++) {
 
@@ -2565,7 +2543,6 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
             //we need to divide as we are truly minimizing the perplexity WITHOUT division plus the l0-term
             energy += prior_weight[i][k] / nSentences; 
       
-      //std::cerr << "perplexity after iteration #" << (iter-1) <<": " << prev_perplexity << std::endl;
       std::cerr << "energy after iteration #" << (iter-1) <<": " << energy << std::endl;
     }
 
@@ -2578,27 +2555,11 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
         if (initial_prob[I-1].size() != 0) {
           for (uint i=0; i < I; i++) {
             source_fert_count[1] += icount[I-1][i];
-            init_count[i] += icount[I-1][i];
           }
           for (uint i=I; i < icount[I-1].size(); i++) {
             source_fert_count[0] += icount[I-1][i];
           }
         }
-      }
-
-      double cur_energy = ehmm_init_m_step_energy(icount,init_params);
-
-      double sum = init_count.sum();
-
-      if (sum > 1e-305) {
-
-	for (uint k=0; k < init_count.size(); k++)
-	  init_count[k] = std::max(1e-15,init_count[k] / sum);
-
-	double hyp_energy = ehmm_init_m_step_energy(icount,init_count);
-	
-	if (hyp_energy < cur_energy)
-	  init_params = init_count;
       }
 
       ehmm_init_m_step(icount, init_params, options.init_m_step_iter_);
@@ -2624,75 +2585,6 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
     if (!deficient_parametric && align_type != HmmAlignProbNonpar) {
 
-      double dist_grouping_count = 0.0;
-
-
-      for (uint I=1; I <= maxI; I++) {
-        
-        if (align_model[I-1].xDim() != 0) {
-          
-          for (int i=0; i < (int) I; i++) {
-            
-            for (int ii=0; ii < (int) I; ii++) {
-              dist_count[zero_offset + ii - i] += acount[I-1](ii,i);
-		
-              if (align_type == HmmAlignProbReducedpar && abs(ii-i) > 5) {
-                double grouping_norm = std::max(0,i-5);
-                grouping_norm += std::max(0,int(I)-1-(i+5));
-		
-                assert(grouping_norm > 0.0);
-                  
-                dist_grouping_count += acount[I-1](ii,i) / grouping_norm;
-              }
-            }
-          }
-        }
-      }
-      
-      double cur_energy = ehmm_m_step_energy(acount,dist_params,zero_offset,dist_grouping_param);
-
-      std::cerr << "cur_energy: " << cur_energy << std::endl;
-
-      if (align_type == HmmAlignProbFullpar) {
-
-	double sum = dist_count.sum();
-
-	if (sum > 1e-305) {
-	  for (uint k=0; k < dist_count.size(); k++)
-	    dist_count[k] = std::max(1e-15,dist_count[k]/sum);
-
-	  double hyp_energy = ehmm_m_step_energy(acount,dist_count,zero_offset,dist_grouping_param);        
-
-	  std::cerr << "hyp_energy: " << hyp_energy << std::endl;
-
-	  if (hyp_energy < cur_energy)
-	    dist_params = dist_count;
-	}
-      }
-      else if (align_type == HmmAlignProbReducedpar) {
-
-        double norm = 0.0;
-        for (int k = -5; k <= 5; k++)
-          norm += dist_count[zero_offset + k];
-        norm += dist_grouping_count;
-        
-	if (norm > 1e-305) {
-
-	  for (int k = -5; k <= 5; k++)
-	    dist_count[zero_offset + k] = std::max(1e-15,dist_count[zero_offset + k]/norm);
-
-	  dist_grouping_count = std::max(1e-15,dist_grouping_count/norm);
-	  
-	  double hyp_energy = ehmm_m_step_energy(acount,dist_count,zero_offset,dist_grouping_count);
-	  
-	  if (hyp_energy < cur_energy) {
-
-	    dist_params = dist_count;
-	    dist_grouping_param = dist_grouping_count;
-	  }
-	}
-      }
-
       //call m-step
       ehmm_m_step(acount, dist_params, zero_offset, options.align_m_step_iter_, dist_grouping_param);
 
@@ -2706,6 +2598,7 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
     std::cerr << "source_fert_count before ICM: " << source_fert_count << std::endl;
 
+#if 1
     std::cerr << "starting ICM stage" << std::endl;
 
     /**** ICM stage ****/
@@ -2735,7 +2628,7 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       Math2D::Matrix<double>& cur_acount = acount[curI-1];
 
       for (uint j=0; j < curJ; j++) {
-	
+
         ushort cur_aj = cur_alignment[j];
         ushort new_aj = cur_aj;
 
@@ -3063,7 +2956,7 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
               change -= double(cur_dictsum) * log_table[cur_dictsum];
               if (cur_dictsum > 1)
                 change += double(cur_dictsum-1) * log_table[cur_dictsum-1];
-
+	      
               change -= - double(cur_dictcount[cur_idx]) * log_table[cur_dictcount[cur_idx]];
 
               if (cur_dictcount[cur_idx] > 1) {
@@ -3253,7 +3146,7 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 	      
 	    icount[curI-1][cur_aj]--;
 	    icount[curI-1][new_aj]++;
-
+            
             if (init_type == HmmInitPar) {
 
               if (cur_aj < curI && new_aj >= curI) {
@@ -3418,6 +3311,7 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
     //END_DEBUG
 #endif
 
+#endif
 
     /***** compute alignment and dictionary probabilities from normalized counts ******/
 
@@ -3425,17 +3319,6 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
     update_dict_from_counts(dcount, prior_weight, 0.0, iter,  false, 0.0, 0, dict);
 
     if (init_type == HmmInitPar) {
-      
-      init_count.set_constant(0.0);
-
-      for (uint I=1; I <= maxI; I++) {
-        
-        if (initial_prob[I-1].size() != 0) {
-          for (uint i=0; i < I; i++) {
-            init_count[i] += icount[I-1][i];
-          }
-        }
-      }
       
       ehmm_init_m_step(icount, init_params, options.init_m_step_iter_);
     }
@@ -3618,6 +3501,3 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
   } //end for (iter)
 
 }
-
-
-

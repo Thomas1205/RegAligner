@@ -74,7 +74,7 @@ protected:
   double par_distortion_m_step_energy(const ReducedIBM3DistortionModel& fdistort_count,
                                       const Math1D::Vector<double>& param, uint i);
 
-  void par_distortion_m_step(const ReducedIBM3DistortionModel& fdistort_count, uint i, double start_energy);
+  void par_distortion_m_step(const ReducedIBM3DistortionModel& fdistort_count, uint i);
 
 
   double nondeficient_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
@@ -105,6 +105,12 @@ protected:
   //for the nonparametric setting
   double nondeficient_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
                                     const Storage1D<Math2D::Matrix<double> >& param, uint i, uint J);
+
+  //double nondeficient_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count, uint i, 
+  //                           double start_energy);
+
+  //double nondeficient_m_step(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos,
+  //			     const std::vector<Math1D::Vector<double,uchar> >& count, uint i, double start_energy);
 
 
   double nondeficient_m_step_with_interpolation(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos, 

@@ -211,6 +211,8 @@ void find_cooc_monolingual_pairs(const Storage1D<Storage1D<uint> >& sentence,
 
   for (uint s=0; s < nSentences; s++) {
 
+    //std::cerr << "s: " << s << std::endl;
+
     const Storage1D<uint>& cur_sentence = sentence[s];
 
     const uint curI = cur_sentence.size();
@@ -840,8 +842,6 @@ const SingleLookupTable& get_wordlookup(const Storage1D<uint>& source, const Sto
       }
       else {
 
-        //const uint* last = start + cur_size/2;
-
         for (uint j=0; j < J; j++) {
 
           const uint prev_occ = s_prev_occ[j];
@@ -855,7 +855,6 @@ const SingleLookupTable& get_wordlookup(const Storage1D<uint>& source, const Sto
             
             const uint* ptr;
 
-#if 1            
             //const uint guess_idx = sidx-1;
             const uint guess_idx = floor((sidx-1)*ratio);
 
@@ -875,18 +874,6 @@ const SingleLookupTable& get_wordlookup(const Storage1D<uint>& source, const Sto
             }
             else
               ptr = std::lower_bound(start, end, sidx);
-#else   
-            //experimental result: slower
-            uint p = *last;
-            if (p == sidx) 
-              ptr = last;
-            else if (p < sidx)
-              ptr = std::lower_bound(last, end, sidx);
-            else
-              ptr = std::lower_bound(start, last, sidx);
-
-            last = ptr;
-#endif
            
 #ifdef SAFE_MODE
             if (ptr == end || (*ptr) != sidx) {
@@ -925,7 +912,6 @@ void update_dict_from_counts(const SingleWordDictionary& fdict_count,
 			     double dict_weight_sum, uint iter, 
 			     bool smoothed_l0, double l0_beta,
 			     uint nDictStepIter, SingleWordDictionary& dict, double min_prob) {
-
 
   if (dict_weight_sum > 0.0) {
     
@@ -1006,7 +992,6 @@ void update_dict_from_counts(const SingleWordDictionary& fdict_count,
       }
     }
   }
-
 }
 
 
@@ -1086,7 +1071,8 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count,
     new_slack_entry = slack_entry;
     
     //reproject
-    fast_projection_on_simplex_with_slack(new_dict.direct_access(), new_slack_entry, new_dict.size());
+    projection_on_simplex_with_slack(new_dict.direct_access(), new_slack_entry, new_dict.size());
+    //fast_projection_on_simplex_with_slack(new_dict.direct_access(), new_slack_entry, new_dict.size());
 
     
     double hyp_energy = 1e300; 
@@ -1110,7 +1096,6 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count,
       }
       
       double new_energy = single_dict_m_step_energy(fdict_count,prior_weight,hyp_dict,smoothed_l0,l0_beta);
-      //std::cerr << "lambda = " << lambda << ", hyp_energy = " << new_energy << std::endl;
 
       if (new_energy < hyp_energy) {
         hyp_energy = new_energy;
@@ -1165,4 +1150,183 @@ void dict_m_step(const SingleWordDictionary& fdict_count,
 
   for (uint k=0; k < dict.size(); k++)
     single_dict_m_step(fdict_count[k],prior_weight[k],dict[k],alpha,nIter, smoothed_l0, l0_beta);    
+}
+
+void par2nonpar_start_prob(const Math1D::Vector<double>& sentence_start_parameters,
+			   Storage1D<Math1D::Vector<double> >& sentence_start_prob) {
+
+  
+  for (uint J=1; J < sentence_start_prob.size(); J++) {
+    if (sentence_start_prob[J].size() > 0) {
+
+      double sum = 0.0;
+
+      for (uint j=0; j < J; j++)
+        sum += sentence_start_parameters[j];
+
+      if (sum > 1e-305) {
+        const double inv_sum = 1.0 / sum;
+        for (uint j=0; j < J; j++)
+          sentence_start_prob[J][j] = std::max(1e-8,inv_sum * sentence_start_parameters[j]);
+      }
+      else {
+        std::cerr << "WARNING: sum too small for start prob " << J << ", not updating." << std::endl;
+      }
+    }
+  }
+
+}
+
+double start_prob_m_step_energy(const Storage1D<Math1D::Vector<double> >& start_count, const Math1D::Vector<double>& param) {
+
+
+  double energy = 0.0;
+
+  for (uint J=1; J < start_count.size(); J++) {
+
+    if (start_count[J].size() > 0) {
+
+      double sum = 0.0;
+      double count_sum = 0.0;
+
+      for (uint j=0; j < J; j++) {
+        count_sum += start_count[J][j];
+        sum += param[j];
+      }
+
+      for (uint j=0; j < J; j++) {
+        energy -= start_count[J][j] * std::log(std::max(1e-15,param[j]));
+      }
+
+      energy += count_sum * std::log(sum);
+    }
+  }
+
+  return energy;
+}
+
+void start_prob_m_step(const Storage1D<Math1D::Vector<double> >& start_count, 
+		       Math1D::Vector<double>& sentence_start_parameters) {
+
+  
+  Math1D::Vector<double> param_grad = sentence_start_parameters;
+  Math1D::Vector<double> new_param = sentence_start_parameters;
+  Math1D::Vector<double> hyp_param = sentence_start_parameters;
+
+  for (uint j=0; j < sentence_start_parameters.size(); j++)
+    sentence_start_parameters[j] = std::max(1e-15,sentence_start_parameters[j]);
+
+  double energy = start_prob_m_step_energy(start_count,sentence_start_parameters);
+
+  Math1D::NamedVector<double> fsentence_start_count(sentence_start_parameters.size(),0.0,MAKENAME(fsentence_start_count));
+  for (uint J=0; J < start_count.size(); J++)
+    for (uint j=0; j < start_count[J].size(); j++)
+      fsentence_start_count[j] += start_count[J][j];
+
+  double sum = fsentence_start_count.sum();
+  if (sum > 1e-305) {
+
+    for (uint j=0; j < fsentence_start_count.size(); j++) 
+      fsentence_start_count[j] = std::max(1e-15, fsentence_start_count[j] / sum);
+    
+    double hyp_energy = start_prob_m_step_energy(start_count,fsentence_start_count);
+    if (hyp_energy < energy) {
+      
+      sentence_start_parameters = fsentence_start_count;
+      energy = hyp_energy;
+    }
+  }
+
+  std::cerr << "start energy: " << energy << std::endl;
+
+  double alpha = 0.01;
+
+  for (uint iter=1; iter <= 250; iter++) {
+
+    param_grad.set_constant(0.0);
+
+    //calculate gradient
+    for (uint J=1; J < start_count.size(); J++) {
+
+      if (start_count[J].size() > 0) {
+
+        double sum = 0.0;
+        double count_sum = 0.0;
+	
+        for (uint j=0; j < J; j++) {
+          count_sum += start_count[J][j];
+          sum += sentence_start_parameters[j];
+        }
+	
+        for (uint j=0; j < J; j++) {
+
+          param_grad[j] -= start_count[J][j] / sentence_start_parameters[j];
+          param_grad[j] += count_sum / sum;
+        }
+      }
+    }
+
+    //go in neg. gradient direction
+    for (uint k=0; k < sentence_start_parameters.size(); k++)
+      new_param[k] = sentence_start_parameters[k] - alpha * param_grad[k];
+
+    //reproject
+    projection_on_simplex(new_param.direct_access(), new_param.size());
+
+    for (uint k=0; k < sentence_start_parameters.size(); k++)
+      new_param[k] = std::max(1e-15,new_param[k]);
+
+    //find step-size
+    double best_energy = 1e300;
+    bool decreasing = true;
+
+    double lambda = 1.0;
+    double best_lambda = 1.0;
+
+    uint nIter = 0;
+
+    while (best_energy > energy || decreasing) {
+
+      nIter++;
+
+      lambda *= 0.5;
+      double neg_lambda = 1.0 - lambda;
+
+      for (uint k=0; k < new_param.size(); k++)
+        hyp_param[k] = neg_lambda * sentence_start_parameters[k] + lambda * new_param[k];
+
+      double hyp_energy = start_prob_m_step_energy(start_count,hyp_param);
+
+      if (hyp_energy < best_energy) {
+
+        decreasing = true;
+        best_lambda = lambda;
+        best_energy = hyp_energy;
+      }
+      else
+        decreasing = false;
+
+      if (nIter > 5 && best_energy < 0.975 * energy)
+	break;
+
+      if (nIter > 15 && lambda < 1e-12)
+	break;
+    }
+
+    if (best_energy >= energy) {
+      std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
+      break;
+    }
+
+    double neg_best_lambda = 1.0 - best_lambda;
+    
+    for (uint k=0; k < new_param.size(); k++)
+      sentence_start_parameters[k] = neg_best_lambda * sentence_start_parameters[k]
+        + best_lambda * new_param[k];
+    
+    energy = best_energy;
+
+    if ((iter % 5) == 0)
+      std::cerr << "energy: " << energy << std::endl;
+  }
 }

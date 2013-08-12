@@ -28,7 +28,7 @@ FertilityModelTrainer::FertilityModelTrainer(const Storage1D<Storage1D<uint> >& 
                                              uint nSourceWords, uint nTargetWords,
 					     const floatSingleWordDictionary& prior_weight,
 					     bool och_ney_empty_word, bool smoothed_l0,
-					     double l0_beta, double l0_fertpen,
+					     double l0_beta, double l0_fertpen, bool no_factorial,
                                              const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
                                              const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
 					     const Math1D::Vector<double>& log_table, uint fertility_limit) :
@@ -38,7 +38,7 @@ FertilityModelTrainer::FertilityModelTrainer(const Storage1D<Storage1D<uint> >& 
   first_state_(MAKENAME(first_state_)), predecessor_coverage_states_(MAKENAME(predecessor_coverage_states_)),
   source_sentence_(source_sentence), slookup_(slookup), target_sentence_(target_sentence), 
   wcooc_(wcooc), dict_(dict), nSourceWords_(nSourceWords), nTargetWords_(nTargetWords), iter_offs_(0),
-  och_ney_empty_word_(och_ney_empty_word), smoothed_l0_(smoothed_l0), l0_beta_(l0_beta), l0_fertpen_(l0_fertpen),
+  och_ney_empty_word_(och_ney_empty_word), smoothed_l0_(smoothed_l0), l0_beta_(l0_beta), l0_fertpen_(l0_fertpen), no_factorial_(no_factorial),
   hillclimb_mode_(HillclimbingReuse), prior_weight_(prior_weight), fertility_prob_(nTargetWords,MAKENAME(fertility_prob_)), 
   best_known_alignment_(MAKENAME(best_known_alignment_)),
   sure_ref_alignments_(sure_ref_alignments), possible_ref_alignments_(possible_ref_alignments), log_table_(log_table)
@@ -1275,6 +1275,7 @@ bool FertilityModelTrainer::make_alignment_feasible(const Storage1D<uint>& sourc
   }
 
   bool changed = false;
+  bool have_warned = false;
 
   if (2*fertility[0] > J) {
 	
@@ -1309,8 +1310,11 @@ bool FertilityModelTrainer::make_alignment_feasible(const Storage1D<uint>& sourc
       }
 	  
       if (best_i == 0) {
-	std::cerr << "WARNING: the given external sentence pair cannot be explained by IBM-3/4/5 with the given fertility limits." 
-		       << std::endl;
+	if (!have_warned) {
+	  std::cerr << "WARNING: the given sentence pair cannot be explained by IBM-3/4/5 with the given fertility limits." 
+		    << std::endl;
+	  have_warned = true;
+	}
 
 	best_i = 1;
 	alignment[j] = 1;
@@ -1377,8 +1381,12 @@ bool FertilityModelTrainer::make_alignment_feasible(const Storage1D<uint>& sourc
 	  }
 	    
 	  if (best_i == i) {
-	    std::cerr << "WARNING: the given external sentence pair cannot be explained by IBM-3/4/5 with the given fertility limits." 
-		      << std::endl;
+
+	    if (!have_warned) {
+	      std::cerr << "WARNING: the given sentence pair cannot be explained by IBM-3/4/5 with the given fertility limits." 
+			<< std::endl;
+	      have_warned = true;
+	    }
 	    
 	    fertility_prob_[target[i-1]][fertility[i]] = 1e-8;
 	    break; //no use resolving the remaining words, it's not possible
@@ -1525,5 +1533,3 @@ void FertilityModelTrainer::compute_external_postdec_alignment(const Storage1D<u
 
   compute_postdec_alignment(start_alignment, best_prob, expansion_prob, swap_prob, threshold, postdec_alignment);
 }
-
-

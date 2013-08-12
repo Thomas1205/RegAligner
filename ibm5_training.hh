@@ -18,9 +18,11 @@ public:
               uint nSourceWords, uint nTargetWords,
               const floatSingleWordDictionary& prior_weight,
               const Storage1D<WordClassType>& source_class,
+              const Storage1D<WordClassType>& target_class,
 	      const Math1D::Vector<double>& log_table,
+              bool use_sentence_start_prob = false,
 	      bool nonpar_distortion = false,
-              IBM4CeptStartMode cept_start_mode = IBM4CENTER,
+              IBM4CeptStartMode cept_start_mode = IBM4CENTER, IBM4IntraDistMode intra_dist_mode = IBM4IntraDistModeSource,
               bool smoothed_l0 = false, double l0_beta = 1.0, double l0_fertpen = 0.0);
 
   virtual std::string model_name() const;
@@ -73,13 +75,20 @@ protected:
   Storage1D<Math2D::Matrix<double> > intra_distortion_prob_; 
   Math2D::Matrix<double> intra_distortion_param_; 
 
+  Math1D::NamedVector<double> sentence_start_parameters_;
+  Storage1D<Math1D::Vector<double> > sentence_start_prob_;
+
   bool nonpar_distortion_;
+  bool use_sentence_start_prob_;
 
   IBM4CeptStartMode cept_start_mode_;
+  IBM4IntraDistMode intra_dist_mode_;
 
   Storage1D<WordClassType> source_class_;
+  Storage1D<WordClassType> target_class_;
 
   uint nSourceClasses_;
+  uint nTargetClasses_;
 };
 
 #endif

@@ -97,4 +97,12 @@ double single_dict_m_step_energy(const Math1D::Vector<double>& fdict_count,
                                  const Math1D::Vector<float>& prior_weight,
                                  const Math1D::Vector<double>& dict, bool smoothed_l0, double l0_beta);
 
+
+//for IBM-4/5 (i.e. no alignments to NULL considered)
+void par2nonpar_start_prob(const Math1D::Vector<double>& sentence_start_parameters,
+			   Storage1D<Math1D::Vector<double> >& sentence_start_prob);
+
+void start_prob_m_step(const Storage1D<Math1D::Vector<double> >& start_count, Math1D::Vector<double>& param);
+
+
 #endif

@@ -52,6 +52,7 @@ public:
 	      IBM4IntraDistMode intra_dist_mode = IBM4IntraDistModeSource,
               bool smoothed_l0 = false, double l0_beta = 1.0, double l0_fertpen = 0.0);
 
+
   virtual std::string model_name() const;
 
   void init_from_ibm3(FertilityModelTrainer& fert_trainer, bool clear_ibm3 = true, 
@@ -69,6 +70,8 @@ public:
 						       Math2D::Matrix<long double>& expansion_prob,
 						       Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment);
 
+
+  const Math1D::Vector<double>& sentence_start_parameters() const;
 
 protected:
 
@@ -108,7 +111,7 @@ protected:
 
   void par2nonpar_intra_distortion();
 
-  void par2nonpar_start_prob();
+  //void par2nonpar_start_prob();
 
   double inter_distortion_m_step_energy(const Storage1D<Storage2D<Math2D::Matrix<double> > >& inter_distort_count,
                                         const std::map<DistortCount,double>& sparse_inter_distort_count,
@@ -129,9 +132,9 @@ protected:
   void intra_distortion_m_step(const Storage1D<Math3D::Tensor<double> >& intra_distort_count,
                                uint word_class);
 
-  double start_prob_m_step_energy(const Storage1D<Math1D::Vector<double> >& start_count, Math1D::Vector<double>& param);
+  // double start_prob_m_step_energy(const Storage1D<Math1D::Vector<double> >& start_count, Math1D::Vector<double>& param);
 
-  void start_prob_m_step(const Storage1D<Math1D::Vector<double> >& start_count);
+  // void start_prob_m_step(const Storage1D<Math1D::Vector<double> >& start_count);
 
 
   double nondeficient_inter_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
@@ -139,8 +142,10 @@ protected:
 
   //with interpolation
   double nondeficient_inter_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
+                                          //const IBM4CeptStartModel& param1, const IBM4CeptStartModel& param2, 
 					  const Math1D::Vector<double>& param1, const Math1D::Vector<double>& param2, 
 					  const Math1D::Vector<double>& sum1, const Math1D::Vector<double>& sum2, 
+					  //uint sclass, uint tclass, 
 					  double lambda);
 
 
@@ -165,7 +170,6 @@ protected:
 					  const SingleLookupTable& lookup,
 					  Math1D::Vector<AlignBaseType>& alignment);
 
-
   //indexed by (target word class idx, source word class idx, displacement)
   IBM4CeptStartModel cept_start_prob_; //note: displacements of 0 are possible here (the center of a cept need not be an aligned word)
   //indexed by (source word class, displacement)
@@ -189,7 +193,6 @@ protected:
   IBM4IntraDistMode intra_dist_mode_;
 
   bool use_sentence_start_prob_;
-  bool no_factorial_;
   bool reduce_deficiency_;
 
   uint nSourceClasses_;

@@ -675,8 +675,8 @@ int main(int argc, char** argv) {
   IBM5Trainer ibm5_trainer(source_sentence, slookup, target_sentence, 
 			   sure_ref_alignments, possible_ref_alignments,
 			   dict, wcooc, nSourceWords, nTargetWords, prior_weight, 
-			   source_class, log_table, app.is_set("-nonpar-distortion"), 
-			   ibm4_cept_mode, em_l0, l0_beta, l0_fertpen);
+			   source_class, target_class, log_table, true, app.is_set("-nonpar-distortion"), 
+			   ibm4_cept_mode, ibm4_intra_dist_mode, em_l0, l0_beta, l0_fertpen);
 
   ibm5_trainer.set_hillclimbing_mode(hillclimb_mode);
 

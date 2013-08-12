@@ -1,5 +1,12 @@
 RegAligner Change History
 
+**** upcoming release (1.21??) ****
+- IBM-5 now depends on the IBM-4 intra word class mode and has a nontrivial
+  start probability
+- fixed a bug for writing posterior alignments to file (forgot to delete the
+  stream)
+- some internal restructuring to streamline the code 
+
 *** release version 1.2 (released May 18 2013) ***
 - implemented count collection from HMM
 - added nondeficient mode for IBM-3/4 (as in [Schoenemann, ACL 2013])
