@@ -15,7 +15,7 @@ Chiang ACL 2012], which uses L0-norms together with EM.
 At the same time, it is an adequate replacement for
 GIZA++ as the models IBM 1-5 and HMM are implemented. 
 
-There are a few restrictions however:
+There are a few restrictions:
 - support for the IBM-2 is limited.
 - pegging is not implemented (and usually too slow, anyway)
 - smoothing (e.g. for HMMs) is not implemented
@@ -23,10 +23,10 @@ There are a few restrictions however:
 
 On the other hand, there are some additional features:
 - implementation of regularity terms (L_0 and weighted L_1)
-- the EM-algorithm for the HMM is closer to the model (see [Schoenemann, IJCNLP 2011])
-- IBM-3 allows a reduction of the alignment parameters by
-  pooling over all sentence lengths.
+- the EM-algorithm for parametric HMMs is closer to the model (see [Schoenemann, IJCNLP 2011])
+- IBM-3 allows a reduction of the alignment parameters by pooling over all sentence lengths.
 - variants of IBM-4 where instead of the center of a cept one can take the head or the tail
+- variants of word class modes for inter (IBM-4) and intra distortion (IBM-4/5)
 - we implement posterior decoding (not active by default)
 - refined Viterbi training mode with ICM stage (useful with L_0-norms)
 - training the IBM-3 with the ITG constraints and the IBM constraints is supported
@@ -35,8 +35,7 @@ On the other hand, there are some additional features:
 
 BUILDING REGALIGNER
 
-A sample Makefile has been provided, but you will most likely have to modify
-it. 
+A sample Makefile has been provided, but you will most likely have to modify it. 
 
 DEPENDENCIES
 
