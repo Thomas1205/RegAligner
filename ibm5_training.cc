@@ -1110,8 +1110,8 @@ void IBM5Trainer::inter_distortion_m_step(uint sclass, const Storage1D<Math3D::T
       double neg_lambda = 1.0 - lambda;
 
       for (uint j=0; j < inter_distortion_param_.xDim(); j++)   
-        hyp_param(j,sclass) = lambda * new_param[j]
-          + neg_lambda * inter_distortion_param_(j,sclass);
+        hyp_param(j,sclass) = std::max(lambda * new_param[j]
+				       + neg_lambda * inter_distortion_param_(j,sclass),1e-15);
 
       double hyp_energy = inter_distortion_m_step_energy(sclass, count, hyp_param);
 
