@@ -30,7 +30,7 @@ On the other hand, there are some additional features:
 - we implement posterior decoding (not active by default)
 - refined Viterbi training mode with ICM stage (useful with L_0-norms)
 - training the IBM-3 with the ITG constraints and the IBM constraints is supported
-- computation of IBM-3 Viterbi alignments via ILPs is integrated
+- computation of IBM-3 Viterbi alignments via ILPs is integrated [Schoenemann CoNLL 2010]
 - we use long double precision
 
 BUILDING REGALIGNER

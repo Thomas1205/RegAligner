@@ -648,10 +648,12 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
     base_prob *= p_nonzero_;
 
   //DEBUG
+#ifndef NDEBUG
   assert(!isnan(base_prob));
-  double check_prob = alignment_prob(source,target,lookup,alignment);
-  double check_ratio = base_prob / check_prob;
+  long double check_prob = alignment_prob(source,target,lookup,alignment);
+  long double check_ratio = base_prob / check_prob;
   assert(check_ratio >= 0.99 && check_ratio <= 1.01);
+#endif
   //END_DEBUG
 
 
@@ -1148,8 +1150,8 @@ void IBM5Trainer::inter_distortion_m_step(uint sclass, const Storage1D<Math3D::T
     double neg_best_lambda = 1.0 - best_lambda;
 
     for (uint j=0; j < inter_distortion_param_.xDim(); j++)   
-      inter_distortion_param_(j,sclass) = best_lambda * new_param[j]
-        + neg_best_lambda * inter_distortion_param_(j,sclass);
+      inter_distortion_param_(j,sclass) = std::max(1e-15, best_lambda * new_param[j]
+						   + neg_best_lambda * inter_distortion_param_(j,sclass));
 
     energy = best_energy;
   }
@@ -1189,6 +1191,9 @@ void IBM5Trainer::intra_distortion_m_step(uint sclass, const Storage1D<Math2D::M
   Math1D::Vector<double> gradient(intra_distortion_param_.xDim());
   Math1D::Vector<double> new_param(intra_distortion_param_.xDim());
   Math2D::Matrix<double> hyp_param(intra_distortion_param_.xDim(),intra_distortion_param_.yDim());
+
+  for (uint j=0; j < gradient.size(); j++)
+    intra_distortion_param_(j,sclass) = std::max(1e-15,intra_distortion_param_(j,sclass));
 
   double energy = intra_distortion_m_step_energy(sclass,count,intra_distortion_param_);
 
@@ -1259,8 +1264,8 @@ void IBM5Trainer::intra_distortion_m_step(uint sclass, const Storage1D<Math2D::M
       double neg_lambda = 1.0 - lambda;
 
       for (uint j=0; j < intra_distortion_param_.xDim(); j++)   
-        hyp_param(j,sclass) = lambda * new_param[j]
-          + neg_lambda * intra_distortion_param_(j,sclass);
+        hyp_param(j,sclass) = std::max(1e-15, lambda * new_param[j]
+				       + neg_lambda * intra_distortion_param_(j,sclass));
 
       double hyp_energy = intra_distortion_m_step_energy(sclass, count, hyp_param);
 
@@ -1297,8 +1302,8 @@ void IBM5Trainer::intra_distortion_m_step(uint sclass, const Storage1D<Math2D::M
     double neg_best_lambda = 1.0 - best_lambda;
 
     for (uint j=0; j < intra_distortion_param_.xDim(); j++)   
-      intra_distortion_param_(j,sclass) = best_lambda * new_param[j]
-        + neg_best_lambda * intra_distortion_param_(j,sclass);
+      intra_distortion_param_(j,sclass) = std::max(1e-15, best_lambda * new_param[j]
+						   + neg_best_lambda * intra_distortion_param_(j,sclass));
 
     energy = best_energy;
 
