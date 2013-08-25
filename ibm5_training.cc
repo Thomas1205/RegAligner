@@ -114,6 +114,8 @@ void IBM5Trainer::par2nonpar_inter_distortion() {
 	double denom = 0.0;
 	for (uint j=0; j < J; j++)
 	  denom += inter_distortion_param_(displacement_offset_+j-prev_pos,s);
+
+	assert(denom > 1e-305);
 	
 	for (uint j=0; j < J; j++)
 	  inter_distortion_prob_[J](j,prev_pos,s) = 
@@ -672,7 +674,6 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
     //std::cerr << "****************** starting new nondef hc iteration, current best prob: " << base_prob << std::endl;
 
-
     const uint zero_fert = fertility[0];
 
     long double empty_word_increase_const = 0.0;
@@ -688,7 +689,7 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       long double ratio = empty_word_increase_const / old_const;
 
       assert(ratio >= 0.975 && ratio <= 1.05);
-#endif
+#endif      
     }
 
     long double empty_word_decrease_const = 0.0;
@@ -944,9 +945,6 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       uint cur_aj1 = alignment[best_swap_j1];
       uint cur_aj2 = alignment[best_swap_j2];
 
-      //std::cerr << "old aj1: " << cur_aj1 << std::endl;
-      //std::cerr << "old aj2: " << cur_aj2 << std::endl;
-
       assert(cur_aj1 != cur_aj2);
       
       alignment[best_swap_j1] = cur_aj2;
@@ -1032,6 +1030,44 @@ void IBM5Trainer::inter_distortion_m_step(uint sclass, const Storage1D<Math3D::T
   Math2D::Matrix<double> hyp_param = inter_distortion_param_;
 
   double energy = inter_distortion_m_step_energy(sclass,count,inter_distortion_param_);
+
+  { //check if normalized expectations give a better starting point
+
+
+    for (uint k=0; k < hyp_param.xDim(); k++)
+      hyp_param(k,sclass) = 0.0;
+
+    for (uint J=0; J < count.size(); J++) {
+
+      for (uint prev_pos = 0; prev_pos < count[J].yDim(); prev_pos++) {
+
+	for (uint j=0; j < J; j++) {
+	  
+	  double cur_weight = count[J](j,prev_pos,sclass);
+	  hyp_param(displacement_offset_+j-prev_pos,sclass) += cur_weight;
+	}
+      }
+    }
+
+    double sum = 0.0;
+    for (uint j=0; j < inter_distortion_param_.xDim(); j++)
+      sum += hyp_param(j,sclass);
+    
+    assert(sum > 1e-305);
+    
+    for (uint j=0; j < inter_distortion_param_.xDim(); j++)
+      hyp_param(j,sclass) = std::max(1e-15, hyp_param(j,sclass) / sum);
+    
+    double hyp_energy = inter_distortion_m_step_energy(sclass, count, hyp_param);
+
+    if (hyp_energy < energy) {
+
+      for (uint j=0; j < inter_distortion_param_.xDim(); j++)
+	inter_distortion_param_(j,sclass) = hyp_param(j,sclass);
+
+      energy = hyp_energy;
+    }
+  }
   
   if (nSourceClasses_ <= 4)
     std::cerr << "start energy: " << energy << std::endl;
@@ -1095,6 +1131,7 @@ void IBM5Trainer::inter_distortion_m_step(uint sclass, const Storage1D<Math3D::T
       new_param[j] = std::max(1e-15,new_param[j]);
     
     /*** 4. find appropriate step size ***/
+
     double best_lambda = 1.0;
     double lambda = 1.0;
 
@@ -1113,7 +1150,7 @@ void IBM5Trainer::inter_distortion_m_step(uint sclass, const Storage1D<Math3D::T
 
       for (uint j=0; j < inter_distortion_param_.xDim(); j++)   
         hyp_param(j,sclass) = std::max(lambda * new_param[j]
-				       + neg_lambda * inter_distortion_param_(j,sclass),1e-15);
+				       + neg_lambda * inter_distortion_param_(j,sclass), 1e-15);
 
       double hyp_energy = inter_distortion_m_step_energy(sclass, count, hyp_param);
 
@@ -1132,7 +1169,6 @@ void IBM5Trainer::inter_distortion_m_step(uint sclass, const Storage1D<Math3D::T
       if (nIter > 15 && lambda < 1e-12)
 	break;
     }
-    //std::cerr << "best lambda: " << best_lambda << std::endl;
 
     if (best_energy >= energy) {
       std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
@@ -1141,11 +1177,6 @@ void IBM5Trainer::inter_distortion_m_step(uint sclass, const Storage1D<Math3D::T
 
     if (nIter > 6)
       line_reduction_factor *= 0.9;
-
-    //EXPERIMENTAL
-    // if (nIter > 4)
-    //   alpha *= 1.5;
-    //END_EXPERIMENTAL
 
     double neg_best_lambda = 1.0 - best_lambda;
 
@@ -1196,6 +1227,45 @@ void IBM5Trainer::intra_distortion_m_step(uint sclass, const Storage1D<Math2D::M
     intra_distortion_param_(j,sclass) = std::max(1e-15,intra_distortion_param_(j,sclass));
 
   double energy = intra_distortion_m_step_energy(sclass,count,intra_distortion_param_);
+
+
+  { //check if normalized expectations give a better starting point
+
+
+    for (uint k=0; k < hyp_param.xDim(); k++)
+      hyp_param(k,sclass) = 0.0;
+
+    for (uint J=0; J < count.size(); J++) {
+
+
+      for (uint j=0; j < J; j++) {
+	
+	hyp_param(j,sclass) += count[J](j,sclass);
+      }
+    }
+
+    double sum = 0.0;
+    for (uint k=0; k < hyp_param.xDim(); k++)
+      sum += hyp_param(k,sclass);
+
+    if (sum > 1e-305) {
+
+      for (uint k=0; k < hyp_param.xDim(); k++)
+	hyp_param(k,sclass) = std::max(1e-15,hyp_param(k,sclass) / sum);
+    
+      double hyp_energy = intra_distortion_m_step_energy(sclass,count,hyp_param);
+
+      if (hyp_energy < energy) {
+
+	for (uint j=0; j < hyp_param.xDim(); j++)
+	  intra_distortion_param_(j,sclass) = hyp_param(j,sclass);
+
+	energy = hyp_energy;
+      }
+    }
+  }
+
+
 
   if (nSourceClasses_ <= 4)
     std::cerr << "start energy: " << energy << std::endl;
@@ -1284,7 +1354,6 @@ void IBM5Trainer::intra_distortion_m_step(uint sclass, const Storage1D<Math2D::M
       if (nIter > 15 && lambda < 1e-12)
 	break;
     }
-    //std::cerr << "best lambda: " << best_lambda << std::endl;
 
     if (best_energy >= energy) {
       std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
@@ -1293,11 +1362,6 @@ void IBM5Trainer::intra_distortion_m_step(uint sclass, const Storage1D<Math2D::M
 
     if (nIter > 6)
       line_reduction_factor *= 0.9;
-
-    //EXPERIMENTAL
-    // if (nIter > 4)
-    //   alpha *= 1.5;
-    //END_EXPERIMENTAL
 
     double neg_best_lambda = 1.0 - best_lambda;
 
@@ -1347,10 +1411,8 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
   double fnonzero_count;
 
   Storage1D<Math3D::Tensor<double> > inter_distortion_count = inter_distortion_prob_;
-  Math2D::Matrix<double> inter_distparam_count = inter_distortion_param_;
 
   Storage1D<Math2D::Matrix<double> > intra_distortion_count = intra_distortion_prob_;
-  Math2D::Matrix<double> intra_distparam_count = intra_distortion_param_;
 
   Storage1D<Math1D::Vector<double> > sentence_start_count = sentence_start_prob_;
 
@@ -1364,14 +1426,11 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
     /*** clear counts ***/
     for (uint J=1; J < inter_distortion_count.size(); J++)
       inter_distortion_count[J].set_constant(0.0);
-    inter_distparam_count.set_constant(0.0);
 
     for (uint J=1; J < intra_distortion_count.size(); J++) {
       intra_distortion_count[J].set_constant(0.0);
       sentence_start_count[J].set_constant(0.0);
     }
-    intra_distparam_count.set_constant(0.0);
-
 
     fzero_count = 0.0;
     fnonzero_count = 0.0;
@@ -1432,7 +1491,7 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
       hillclimbtime += diff_seconds(tHillclimbEnd,tHillclimbStart);
 
       const long double expansion_prob = expansion_move_prob.sum();
-      const long double swap_prob =  swap_mass(swap_move_prob); //0.5 * swap_move_prob.sum();
+      const long double swap_prob =  swap_mass(swap_move_prob); 
 
       const long double sentence_prob = best_prob + expansion_prob +  swap_prob;
 
@@ -1524,7 +1583,6 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 
 	      
 	      cur_inter_distortion_count(pos_first_j,pos_prev_center,sclass) += increment;
-	      inter_distparam_count(displacement_offset_+pos_first_j-pos_prev_center,sclass) += increment;
 	    }
 	    else if (use_sentence_start_prob_) {
 	      sentence_start_count[curJ][first_j] += increment;
@@ -1555,7 +1613,6 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 	      nAvailable -= cur_aligned_source_words.size() - 1 - k;
 	      
 	      intra_distortion_count[nAvailable](pos,sclass) += increment;
-	      intra_distparam_count(pos,sclass) += increment;
 
 	      fixed[cur_j] = true;
 	      nOpen--;
@@ -1649,18 +1706,9 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 		      pos_prev_center = nCurOpen;
 		  }
 
-		  //DEBUG
-		  if (pos_prev_center >= cur_inter_distortion_count.yDim()) {
-		    
-		    std::cerr << "J= " << curJ << ", prev_center=" << prev_center << ", pos_prev_center = " << pos_prev_center << std::endl;
-		    std::cerr << "fixed: " << fixed << std::endl;
-		  }
-		  //END_DEBUG
-		  
 		  assert(pos_prev_center < cur_inter_distortion_count.yDim());
 	      
 		  cur_inter_distortion_count(pos_first_j,pos_prev_center,sclass) += increment;
-		  inter_distparam_count(displacement_offset_+pos_first_j-pos_prev_center,sclass) += increment;
 		}
 		else if (use_sentence_start_prob_) {
 		  sentence_start_count[curJ][first_j] += increment;
@@ -1691,7 +1739,6 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 		  nAvailable -= cur_aligned_source_words.size() - 1 - k;
 	      
 		  intra_distortion_count[nAvailable](pos,sclass) += increment;
-		  intra_distparam_count(pos,sclass) += increment;
 		  
 		  fixed[cur_j] = true;
 		  nOpen--;
@@ -1737,6 +1784,8 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 
       //3. swap moves
       for (uint j1 = 0; j1 < curJ-1; j1++) {
+
+	//std::cerr << "j1: " << j1 << std::endl;
 
 	const uint aj1 = best_known_alignment_[s][j1];
 
@@ -1815,7 +1864,6 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 
 		  
 		  cur_inter_distortion_count(pos_first_j,pos_prev_center,sclass) += increment;
-		  inter_distparam_count(displacement_offset_+pos_first_j-pos_prev_center,sclass) += increment;
 		}
 		else if (use_sentence_start_prob_) {
 		  sentence_start_count[curJ][first_j] += increment;
@@ -1846,7 +1894,6 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 		  nAvailable -= cur_aligned_source_words.size() - 1 - k;
 	      
 		  intra_distortion_count[nAvailable](pos,sclass) += increment;
-		  intra_distparam_count(pos,sclass) += increment;
 		  
 		  fixed[cur_j] = true;
 		  nOpen--;
@@ -1949,48 +1996,10 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 	  }
 	}
       }
-
-      //we still update <code> inter_distortion_param_ </code> so that we can use it when computing external alignments
-      for (uint s=0; s < inter_distortion_param_.yDim(); s++) {
-
-	double sum = 0.0;
-	for (uint j=0; j < inter_distortion_param_.xDim(); j++)
-	  sum += inter_distparam_count(j,s);
-
-	if (sum > 1e-305) {
-
-	  for (uint j=0; j < inter_distortion_param_.xDim(); j++)
-	    inter_distortion_param_(j,s) = std::max(1e-8,inter_distparam_count(j,s)/sum);
-	}
-      }      
-
     }
     else {
-
-      Math2D::Matrix<double> hyp_param = inter_distortion_param_;   
   
       for (uint s=0; s < inter_distortion_param_.yDim(); s++) {
-
-	double cur_energy = inter_distortion_m_step_energy(s, inter_distortion_count, inter_distortion_param_);
-
-	double sum = 0.0;
-	for (uint j=0; j < inter_distortion_param_.xDim(); j++)
-	  sum += inter_distparam_count(j,s);
-
-	assert(sum > 1e-305);
-
-	for (uint j=0; j < inter_distortion_param_.xDim(); j++)
-	  hyp_param(j,s) = std::max(1e-15, inter_distparam_count(j,s) / sum);
-
-	double hyp_energy = inter_distortion_m_step_energy(s, inter_distortion_count, hyp_param);
-
-	if (hyp_energy < cur_energy) {
-
-	  for (uint j=0; j < inter_distortion_param_.xDim(); j++)
-	    inter_distortion_param_(j,s) = hyp_param(j,s);
-
-	  cur_energy = hyp_energy;
-	}
 
 	inter_distortion_m_step(s, inter_distortion_count);
       }
@@ -2016,20 +2025,6 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 	  }
 	}
       }
-
-      //we still <code> update intra_distortion_param_ </code> so that we can use it when computing external alignments
-      for (uint s=0; s < intra_distortion_param_.yDim(); s++) {
-
-	double sum = 0.0;
-	for (uint j=0; j < intra_distparam_count.xDim(); j++)
-	  sum += intra_distparam_count(j,s);
-
-	if (sum > 1e-305) {
-
-	  for (uint j=0; j < intra_distparam_count.xDim(); j++)
-	    intra_distortion_param_(j,s) = std::max(1e-8,intra_distortion_param_(j,s) / sum);
-	}
-      }      
     }
     else {
 
@@ -2038,26 +2033,6 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
       // call m-steps
       for (uint s=0; s < intra_distortion_param_.yDim(); s++) {
 	
-	double cur_energy = intra_distortion_m_step_energy(s,intra_distortion_count,intra_distortion_param_);
-
-	double sum = 0.0;
-	for (uint j=0; j < intra_distparam_count.xDim(); j++)
-	  sum += intra_distparam_count(j,s);
-
-	if (sum > 1e-305) {
-	  for (uint j=0; j < intra_distparam_count.xDim(); j++)
-	    hyp_param(j,s) = std::max(1e-15,intra_distparam_count(j,s) / sum);
-
-	  double hyp_energy = intra_distortion_m_step_energy(s,intra_distortion_count,hyp_param);
-	
-	  if (hyp_energy < cur_energy) {
-	    for (uint j=0; j < intra_distparam_count.xDim(); j++)
-	      intra_distortion_param_(j,s) = hyp_param(j,s);
-	    
-	    cur_energy = hyp_energy;
-	  }
-	}
-
 	intra_distortion_m_step(s,intra_distortion_count);
       }
 
@@ -2109,6 +2084,73 @@ void IBM5Trainer::train_unconstrained(uint nIter, FertilityModelTrainer* fert_tr
 
   }
 
+  if (nonpar_distortion_) {
+
+    //we still update <code> inter_distortion_param_ </code>  and <code> intra_distortion_param_ </code>
+    //so that we can use them when computing external alignments
+
+
+    //a) inter
+    inter_distortion_param_.set_constant(0.0);    
+
+    for (uint s=0; s < inter_distortion_param_.yDim(); s++) {
+      
+      for (uint J=0; J < inter_distortion_count.size(); J++) {
+	
+	for (uint prev_pos = 0; prev_pos < inter_distortion_count[J].yDim(); prev_pos++) {
+	  
+	  for (uint j=0; j < J; j++) {
+	  
+	    double cur_weight = inter_distortion_count[J](j,prev_pos,s);
+	    inter_distortion_param_(displacement_offset_+j-prev_pos,s) += cur_weight;
+	  }
+	}
+      }
+      
+      double sum = 0.0;
+      for (uint j=0; j < inter_distortion_param_.xDim(); j++)
+	sum += inter_distortion_param_(j,s);
+      
+      if (sum > 1e-305) {
+	
+	for (uint j=0; j < inter_distortion_param_.xDim(); j++)
+	  inter_distortion_param_(j,s) = std::max(1e-8,inter_distortion_param_(j,s)/sum);
+      }
+      else {
+	for (uint j=0; j < inter_distortion_param_.xDim(); j++)
+	  inter_distortion_param_(j,s) = 1.0 / inter_distortion_param_.xDim();
+      }
+    }      
+
+    //b) intra
+    intra_distortion_param_.set_constant(0.0);    
+
+    for (uint s=0; s < intra_distortion_param_.yDim(); s++) {
+
+      for (uint J=0; J < intra_distortion_count.size(); J++) {
+      
+	for (uint j=0; j < J; j++)
+	  intra_distortion_param_(j,s) += intra_distortion_count[J](j,s);
+      }
+
+      double sum = 0.0;
+      for (uint j=0; j < intra_distortion_param_.xDim(); j++)
+	sum += intra_distortion_param_(j,s);
+
+      if (sum > 1e-305) {
+
+	for (uint j=0; j < intra_distortion_param_.xDim(); j++)
+	  intra_distortion_param_(j,s) = std::max(1e-8,intra_distortion_param_(j,s) / sum);
+      }
+      else {
+      
+	for (uint j=0; j < intra_distortion_param_.xDim(); j++)
+	  intra_distortion_param_(j,s) = 1.0 / intra_distortion_param_.xDim();
+      }
+    }
+  }
+
+
   iter_offs_ = iter-1;
 }
 
@@ -2150,10 +2192,8 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
   long double fnonzero_count;
 
   Storage1D<Math3D::Tensor<double> > inter_distortion_count = inter_distortion_prob_;
-  Math2D::Matrix<double> inter_distparam_count = inter_distortion_param_;
 
   Storage1D<Math2D::Matrix<double> > intra_distortion_count = intra_distortion_prob_;
-  Math2D::Matrix<double> intra_distparam_count = intra_distortion_param_;
 
   Storage1D<Math1D::Vector<double> > sentence_start_count = sentence_start_prob_;
 
@@ -2167,13 +2207,11 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
     /*** clear counts ***/
     for (uint J=1; J < inter_distortion_count.size(); J++)
       inter_distortion_count[J].set_constant(0.0);
-    inter_distparam_count.set_constant(0.0);
 
     for (uint J=1; J < intra_distortion_count.size(); J++) {
       intra_distortion_count[J].set_constant(0.0);
       sentence_start_count[J].set_constant(0.0);
     }
-    intra_distparam_count.set_constant(0.0);
 
     fzero_count = 0.0;
     fnonzero_count = 0.0;
@@ -2201,8 +2239,6 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
       const uint curI = cur_target.size();
       const uint curJ = cur_source.size();
 
-      //std::cerr << "J=" << curJ << ", I=" << curI << std::endl;
-
       Math1D::NamedVector<uint> fertility(curI+1,0,MAKENAME(fertility));
 
       Math2D::NamedMatrix<long double> swap_move_prob(curJ,curJ,MAKENAME(swap_move_prob));
@@ -2217,6 +2253,7 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 	best_known_alignment_[s] = initial_alignment[s];
 
       if (fert_trainer != 0 && iter == 1) {
+	//std::cerr << "calling IBM-4 hillclimbing" << std::endl;
 	best_prob = fert_trainer->update_alignment_by_hillclimbing(cur_source,cur_target,cur_lookup,sum_iter,fertility,
 								   expansion_move_prob,swap_move_prob,best_known_alignment_[s]);
       }
@@ -2328,7 +2365,6 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 	      }
 	      
 	      cur_inter_distortion_count(pos_first_j,pos_prev_center,sclass) += 1.0;
-	      inter_distparam_count(displacement_offset_+pos_first_j-pos_prev_center,sclass) += 1.0;
 	    }
 	    else if (use_sentence_start_prob_) {
 	      sentence_start_count[curJ][first_j] += 1.0;
@@ -2359,7 +2395,6 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 	      nAvailable -= cur_aligned_source_words.size() - 1 - k;
 	      
 	      intra_distortion_count[nAvailable](pos,sclass) += 1.0;
-	      intra_distparam_count(pos,sclass) += 1.0;
 
 	      fixed[cur_j] = true;
 	      nOpen--;
@@ -2473,51 +2508,12 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 	  }
 	}
       }
-
-      //we still update <code> inter_distortion_param_ </code> so that we can use it when computing external alignments
-      for (uint s=0; s < inter_distortion_param_.yDim(); s++) {
-
-	double sum = 0.0;
-	for (uint j=0; j < inter_distortion_param_.xDim(); j++)
-	  sum += inter_distparam_count(j,s);
-
-	if (sum > 1e-305) {
-
-	  for (uint j=0; j < inter_distortion_param_.xDim(); j++)
-	    inter_distortion_param_(j,s) = std::max(1e-8,inter_distparam_count(j,s)/sum);
-	}
-      }      
-
     }
     else {
 
       Math2D::Matrix<double> hyp_param = inter_distortion_param_;   
   
       for (uint s=0; s < inter_distortion_param_.yDim(); s++) {
-
-	double cur_energy = inter_distortion_m_step_energy(s, inter_distortion_count, inter_distortion_param_);
-
-	double sum = 0.0;
-	for (uint j=0; j < inter_distortion_param_.xDim(); j++)
-	  sum += inter_distparam_count(j,s);
-
-	assert(sum > 1e-305);
-
-	if (sum > 1e-305) {
-
-	  for (uint j=0; j < inter_distortion_param_.xDim(); j++)
-	    hyp_param(j,s) = std::max(1e-15,inter_distparam_count(j,s) / sum);
-	  
-	  double hyp_energy = inter_distortion_m_step_energy(s, inter_distortion_count, hyp_param);
-	  
-	  if (hyp_energy < cur_energy) {
-	    
-	    for (uint j=0; j < inter_distortion_param_.xDim(); j++)
-	      inter_distortion_param_(j,s) = hyp_param(j,s);
-	    
-	    cur_energy = hyp_energy;
-	  }
-	}
 
 	inter_distortion_m_step(s, inter_distortion_count);
       }
@@ -2551,27 +2547,6 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
       // call m-steps
       for (uint s=0; s < intra_distortion_param_.yDim(); s++) {
 	
-	double cur_energy = intra_distortion_m_step_energy(s,intra_distortion_count,intra_distortion_param_);
-
-	double sum = 0.0;
-	for (uint j=0; j < intra_distparam_count.xDim(); j++)
-	  sum += intra_distparam_count(j,s);
-
-	if (sum > 1e-305) {
-
-	  for (uint j=0; j < intra_distparam_count.xDim(); j++)
-	    hyp_param(j,s) = std::max(1e-15,intra_distparam_count(j,s) / sum);
-
-	  double hyp_energy = intra_distortion_m_step_energy(s,intra_distortion_count,hyp_param);
-	  
-	  if (hyp_energy < cur_energy) {
-	    for (uint j=0; j < intra_distparam_count.xDim(); j++)
-	      intra_distortion_param_(j,s) = hyp_param(j,s);
-
-	    cur_energy = hyp_energy;
-	  }
-	}
-
 	intra_distortion_m_step(s,intra_distortion_count);
       }
 
@@ -2584,6 +2559,7 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
     }
 
     if (fert_trainer == 0 && wrapper == 0) { // no point doing ICM in a transfer iteration 
+
 
       std::cerr << "starting ICM" << std::endl;
 
@@ -2765,6 +2741,73 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 
   }
 
+
+  if (nonpar_distortion_) {
+
+    //we still update <code> inter_distortion_param_ </code>  and <code> intra_distortion_param_ </code>
+    //so that we can use them when computing external alignments
+
+
+    //a) inter
+    inter_distortion_param_.set_constant(0.0);    
+
+    for (uint s=0; s < inter_distortion_param_.yDim(); s++) {
+      
+      for (uint J=0; J < inter_distortion_count.size(); J++) {
+	
+	for (uint prev_pos = 0; prev_pos < inter_distortion_count[J].yDim(); prev_pos++) {
+	  
+	  for (uint j=0; j < J; j++) {
+	  
+	    double cur_weight = inter_distortion_count[J](j,prev_pos,s);
+	    inter_distortion_param_(displacement_offset_+j-prev_pos,s) += cur_weight;
+	  }
+	}
+      }
+      
+      double sum = 0.0;
+      for (uint j=0; j < inter_distortion_param_.xDim(); j++)
+	sum += inter_distortion_param_(j,s);
+      
+      if (sum > 1e-305) {
+	
+	for (uint j=0; j < inter_distortion_param_.xDim(); j++)
+	  inter_distortion_param_(j,s) = std::max(1e-8,inter_distortion_param_(j,s)/sum);
+      }
+      else {
+	for (uint j=0; j < inter_distortion_param_.xDim(); j++)
+	  inter_distortion_param_(j,s) = 1.0 / inter_distortion_param_.xDim();
+      }
+    }      
+
+    //b) intra
+    intra_distortion_param_.set_constant(0.0);    
+
+    for (uint s=0; s < intra_distortion_param_.yDim(); s++) {
+
+      for (uint J=0; J < intra_distortion_count.size(); J++) {
+      
+	for (uint j=0; j < J; j++)
+	  intra_distortion_param_(j,s) += intra_distortion_count[J](j,s);
+      }
+
+      double sum = 0.0;
+      for (uint j=0; j < intra_distortion_param_.xDim(); j++)
+	sum += intra_distortion_param_(j,s);
+
+      if (sum > 1e-305) {
+
+	for (uint j=0; j < intra_distortion_param_.xDim(); j++)
+	  intra_distortion_param_(j,s) = std::max(1e-8,intra_distortion_param_(j,s) / sum);
+      }
+      else {
+      
+	for (uint j=0; j < intra_distortion_param_.xDim(); j++)
+	  intra_distortion_param_(j,s) = 1.0 / intra_distortion_param_.xDim();
+      }
+    }
+  }
+
   iter_offs_ = iter-1;
 }
 
@@ -2794,6 +2837,13 @@ void IBM5Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
     inter_distortion_param_ = new_inter_param;
     inter_distortion_prob_.resize(J+1);
 
+    for (uint JJ=1; JJ < inter_distortion_prob_.size(); JJ++) {
+    
+      if (inter_distortion_prob_[JJ].yDim() < J)
+	inter_distortion_prob_[JJ].resize(inter_distortion_prob_[JJ].xDim(),J,nSourceClasses_,1e-8);
+    }
+
+
     for (uint JJ=1; JJ <= J; JJ++) {
 
       uint prev_yDim = inter_distortion_prob_[JJ].yDim();
@@ -2809,6 +2859,8 @@ void IBM5Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
 	    for (int j=0; j < int(inter_distortion_prob_[JJ].xDim()); j++)
 	      sum += inter_distortion_param_(j-y+displacement_offset_,z);
 	    
+	    assert(sum > 1e-305);
+
 	    if (sum > 1e-305) {
 	      
 	      for (uint j=0; j < inter_distortion_prob_[JJ].xDim(); j++)
@@ -2855,12 +2907,6 @@ void IBM5Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
     maxJ_ = J;
   }
   
-  for (uint JJ=1; JJ < inter_distortion_prob_.size(); JJ++) {
-    
-    if (inter_distortion_prob_[JJ].yDim() < J)
-      inter_distortion_prob_[JJ].resize(inter_distortion_prob_[JJ].xDim(),J,nSourceClasses_,1e-8);
-  }
-  
   if (use_sentence_start_prob_) {
 
     if (sentence_start_prob_.size() <= J) {
@@ -2872,11 +2918,7 @@ void IBM5Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
     }
 
     par2nonpar_start_prob(sentence_start_parameters_,sentence_start_prob_);
-  }  
+  }
 
 
 }
-
-
-
-

@@ -4167,7 +4167,7 @@ long double IBM4Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
     base_prob *= p_nonzero_;
 
   //DEBUG
-  // double check_prob = nondeficient_alignment_prob(source,target,lookup,alignment);
+  // long double check_prob = nondeficient_alignment_prob(source,target,lookup,alignment);
   // double check_ratio = base_prob / check_prob;
   // assert(check_ratio >= 0.99 && check_ratio <= 1.01);
   //END_DEBUG
