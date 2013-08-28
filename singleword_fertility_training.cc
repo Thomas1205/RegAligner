@@ -1080,6 +1080,7 @@ void FertilityModelTrainer::compute_postdec_alignment(const Math1D::Vector<Align
 						      const Math2D::Matrix<long double>& swap_move_prob, double threshold,
 						      std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment) {
 
+  postdec_alignment.clear();
 
   const uint J = alignment.size();
   const uint I = expansion_move_prob.yDim()-1;
