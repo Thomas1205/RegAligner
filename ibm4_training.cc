@@ -2584,8 +2584,8 @@ void IBM4Trainer::nondeficient_intra_m_step(const std::vector<std::pair<Math1D::
       double neg_lambda = 1.0 - lambda;
 
       for (uint k=0; k < gradient.size(); k++)
-        hyp_within_cept_prob(sclass,k) = lambda * new_within_cept_prob[k] 
-          + neg_lambda * within_cept_prob_(sclass,k);
+        hyp_within_cept_prob(sclass,k) = std::max(1e-15,lambda * new_within_cept_prob[k] 
+						  + neg_lambda * within_cept_prob_(sclass,k));
 
       double hyp_energy = nondeficient_intra_m_step_energy(count, hyp_within_cept_prob,sclass);
 
@@ -2618,8 +2618,8 @@ void IBM4Trainer::nondeficient_intra_m_step(const std::vector<std::pair<Math1D::
     double neg_best_lambda = 1.0 - best_lambda;
 
     for (uint k=0; k < gradient.size(); k++)
-      within_cept_prob_(sclass,k) = best_lambda * new_within_cept_prob[k] 
-          + neg_best_lambda * within_cept_prob_(sclass,k);
+      within_cept_prob_(sclass,k) = std::max(1e-15,best_lambda * new_within_cept_prob[k] 
+					     + neg_best_lambda * within_cept_prob_(sclass,k));
 
     energy = best_energy;
   }
