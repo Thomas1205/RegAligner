@@ -2264,7 +2264,7 @@ void IBM4Trainer::nondeficient_inter_m_step_with_interpolation(const std::vector
       lambda *= line_reduction_factor;
 
       double hyp_energy = nondeficient_inter_m_step_energy(count, cur_cept_start_prob,new_cept_start_prob,
-							   sum,new_sum,/*sclass,tclass,*/lambda);
+							   sum,new_sum,lambda);
 
       if (hyp_energy < best_energy) {
 
@@ -2294,8 +2294,8 @@ void IBM4Trainer::nondeficient_inter_m_step_with_interpolation(const std::vector
     double neg_best_lambda = 1.0 - best_lambda;
 
     for (uint k=0; k < gradient.size(); k++)
-      cur_cept_start_prob[k] = best_lambda * new_cept_start_prob[k] 
-	+ neg_best_lambda * cur_cept_start_prob[k];
+      cur_cept_start_prob[k] = std::max(1e-15,best_lambda * new_cept_start_prob[k] 
+					+ neg_best_lambda * cur_cept_start_prob[k]);
 
     for (uint k=0; k < count.size(); k++) {
       
