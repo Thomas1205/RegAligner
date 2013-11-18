@@ -917,7 +917,7 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
     /**** update to best alignment ****/
 
-    if (!improvement || count_iter > 50)
+    if (!improvement || count_iter > 150)
       break;
 
     //update alignment

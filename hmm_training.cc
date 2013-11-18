@@ -429,7 +429,7 @@ void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& d
 
     new_grouping_param = grouping_param - real_alpha * m_grouping_grad;
 
-    for (uint k=end_idx; k <= end_idx; k++) {
+    for (uint k=start_idx; k <= end_idx; k++) {
       if (new_dist_params[k] >= 1e75)
 	new_dist_params[k] = 9e74;
       else if (new_dist_params[k] <= -1e75)

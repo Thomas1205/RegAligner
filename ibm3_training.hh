@@ -68,6 +68,8 @@ protected:
 
   void par2nonpar_distortion(ReducedIBM3DistortionModel& prob);
 
+  void par2nonpar_distortion(const Math2D::Matrix<double>& param, ReducedIBM3DistortionModel& prob);
+
   double par_distortion_m_step_energy(const ReducedIBM3DistortionModel& fdistort_count,
                                       const Math2D::Matrix<double>& param, uint i);
 
@@ -76,54 +78,57 @@ protected:
 
   void par_distortion_m_step(const ReducedIBM3DistortionModel& fdistort_count, uint i);
 
-
-  double nondeficient_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
-				    const Math2D::Matrix<double>& param, uint i);
-
-  double nondeficient_m_step_energy(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos, 
-                                    const std::vector<double>& count,
+  //compact form
+  double nondeficient_m_step_energy(const Math2D::Matrix<double>& single_pos_count,
+				    const std::vector<Math1D::Vector<uchar,uchar> >& open_pos, 
+                                    const std::vector<double>& sum_pos_count,
                                     const Math2D::Matrix<double>& param, uint i);
 
-  double nondeficient_m_step_energy(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos,
-				    const std::vector<Math1D::Vector<double,uchar> >& count,
-				    const Math2D::Matrix<double>& param, uint i);
-
-
-  //with interpolation
-  double nondeficient_m_step_energy(const std::vector<double>& count, const Storage1D<uchar>& filled_pos,
+  //compact form with interpolation
+  double nondeficient_m_step_energy(const double* single_pos_count, const uint J, const std::vector<double>& sum_pos_count, 
                                     const double* param1, const Math1D::Vector<double>& param2,
                                     const Math1D::Vector<double>& sum1, const Math1D::Vector<double>& sum2, 
                                     double lambda);
 
-  //with interpolation
-  double nondeficient_m_step_energy(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos,
-				    const std::vector<Math1D::Vector<double,uchar> >& count,
-				    const double* param1, const Math1D::Vector<double>& param2,
-				    const Math1D::Vector<double>& sum1, const Math1D::Vector<double>& sum2, 
-				    double lambda);
+  //compact form
+  double nondeficient_m_step(const Math2D::Matrix<double>& single_pos_count,
+			     const std::vector<Math1D::Vector<uchar,uchar> >& open_pos,
+			     const std::vector<double>& sum_pos_count,
+			     uint i, double start_energy);
 
-  //for the nonparametric setting
-  double nondeficient_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
-                                    const Storage1D<Math2D::Matrix<double> >& param, uint i, uint J);
+  //compact form
+  double nondeficient_m_step_core(const Math2D::Matrix<double>& single_pos_count,
+				  const std::vector<Math1D::Vector<uchar,uchar> >& open_pos,
+				  const std::vector<double>& sum_pos_count,
+				  Math2D::Matrix<double>& param,
+				  uint i, double start_energy, bool quiet = false);
 
-  //double nondeficient_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count, uint i, 
-  //                           double start_energy);
-
-  //double nondeficient_m_step(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos,
-  //			     const std::vector<Math1D::Vector<double,uchar> >& count, uint i, double start_energy);
-
-
-  double nondeficient_m_step_with_interpolation(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos, 
+  //compact form
+  double nondeficient_m_step_with_interpolation(const Math2D::Matrix<double>& single_pos_count,
+						const std::vector<Math1D::Vector<uchar,uchar> >& open_pos, 
                                                 const std::vector<double>& count,
                                                 uint i, double start_energy);
 
-  double nondeficient_m_step_with_interpolation(const std::vector<Math1D::Vector<uchar,uchar> >& open_pos, 
-                                                const std::vector<Math1D::Vector<double,uchar> >& count,
-                                                uint i, double start_energy);
+  //compact form
+  double nondeficient_m_step_with_interpolation_core(const Math2D::Matrix<double>& single_pos_count,
+						     const std::vector<Math1D::Vector<uchar,uchar> >& open_pos, 
+						     const std::vector<double>& count, Math2D::Matrix<double>& param,
+						     uint i, double start_energy, bool quiet = false);
 
+  //compact form for the nonparametric setting
+  // make sure that you pass the count corresponding to J
+  double nondeficient_m_step(const Math2D::Matrix<double>& single_pos_count,
+			     const std::vector<Math1D::Vector<uchar,uchar> >& open_pos,
+			     const std::vector<double>& sum_pos_count,
+			     uint i, uint J, double start_energy);
 
-  //for the nonparametric setting
-  double nondeficient_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count, uint i, uint J, double start_energy);
+  //compact form for the nonparametric setting
+  // make sure that you pass the count corresponding to J
+  double nondeficient_m_step_with_interpolation(const Math2D::Matrix<double>& single_pos_count,
+						const std::vector<Math1D::Vector<uchar,uchar> >& open_pos, 
+                                                const std::vector<double>& count,
+                                                uint i, uint J, double start_energy);
+
 
   long double alignment_prob(uint s, const Math1D::Vector<AlignBaseType>& alignment) const;
 
@@ -176,8 +181,7 @@ protected:
 void add_nondef_count(const Storage1D<std::vector<uchar> >& aligned_source_words, uint i, uint J,
 		      std::map<Math1D::Vector<uchar,uchar>,double>& count_map, double count);
 
-void add_nondef_count(const Storage1D<std::vector<uchar> >& aligned_source_words, uint i, uint J,
-		      std::map<Math1D::Vector<uchar,uchar>,Math1D::Vector<double,uchar> >& count_map, double count);
-
+void add_nondef_count_compact(const Storage1D<std::vector<uchar> >& aligned_source_words, uint i, uint J, uint maxJ, double count,
+			      std::map<Math1D::Vector<uchar,uchar>,double>& count_map, Math2D::Matrix<double>& par_count);
 
 #endif

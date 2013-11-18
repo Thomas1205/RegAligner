@@ -1002,40 +1002,52 @@ double single_dict_m_step_energy(const Math1D::Vector<double>& fdict_count,
 
   double energy = 0.0;
 
-  for (uint k=0; k < dict.size(); k++) {
-    if (!smoothed_l0)
-      energy += prior_weight[k] * dict[k];
-    else {
-      energy += prior_weight[k] * prob_penalty(dict[k],l0_beta);
-    }
+  const uint dict_size = dict.size();
 
-    if (dict[k] > 1e-300)
-      energy -= fdict_count[k] * std::log(dict[k]);
-    else
-      energy += fdict_count[k] * 15000.0;
+  if (!smoothed_l0) {
+    for (uint k=0; k < dict_size; k++) 
+      energy += prior_weight[k] * dict[k];
+  }
+  else {
+    for (uint k=0; k < dict_size; k++) 
+      energy += prior_weight[k] * prob_penalty(dict[k],l0_beta);
+  }
+
+  for (uint k=0; k < dict_size; k++) {
+
+    const double cur_dict_entry = std::max(dict[k],1e-300);
+
+    energy -= fdict_count[k] * std::log(cur_dict_entry);
   }
 
   return energy;
 }
+
 
 void single_dict_m_step(const Math1D::Vector<double>& fdict_count, 
                         const Math1D::Vector<float>& prior_weight,
                         Math1D::Vector<double>& dict, double alpha, uint nIter,
                         bool smoothed_l0, double l0_beta) {
 
+  //std::cerr << "hi, slack: " << with_slack << std::endl;
+
+  const uint dict_size = prior_weight.size();
+
+  //std::cerr << "dict size: " << dict_size << std::endl;
+  //std::cerr << "smoothed l0: " << smoothed_l0 << std::endl;
+
   if (prior_weight.max_abs() == 0.0) {
     
     const double sum = fdict_count.sum();
 
     if (sum > 1e-305) {
-      for (uint k=0; k < prior_weight.size(); k++) {
+      for (uint k=0; k < dict_size; k++) {
         dict[k] = fdict_count[k] / sum;
       }
     }
 
     return;
   }
-
 
   double energy = single_dict_m_step_energy(fdict_count,prior_weight,dict, smoothed_l0, l0_beta);
 
@@ -1048,22 +1060,23 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count,
 
   double line_reduction_factor = 0.5;
 
-
   for (uint iter=1; iter <= nIter; iter++) {
 
-    //set gradient to 0 and recalculate
-    for (uint k=0; k < prior_weight.size(); k++) {
-      double cur_dict_entry = std::max(1e-15, dict[k]);
+    //std::cerr << " ###iteration " << iter << ", energy: " << energy << std::endl;
 
+    //compute the gradient
+    for (uint k=0; k < dict_size; k++) {
+      double cur_dict_entry = std::max(1e-15, dict[k]);
+      
       if (!smoothed_l0)
-        dict_grad[k] = prior_weight[k] - fdict_count[k] / cur_dict_entry;
+	dict_grad[k] = prior_weight[k] - fdict_count[k] / cur_dict_entry;
       else
-        dict_grad[k] = prior_weight[k] * prob_pen_prime(cur_dict_entry,l0_beta) 
-          - fdict_count[k] / cur_dict_entry;
+	dict_grad[k] = prior_weight[k] * prob_pen_prime(cur_dict_entry,l0_beta) 
+	  - fdict_count[k] / cur_dict_entry;
     }
 
     //go in neg. gradient direction
-    for (uint k=0; k < prior_weight.size(); k++) {
+    for (uint k=0; k < dict_size; k++) {
 	
       new_dict[k] = dict[k] - alpha * dict_grad[k];
     }
@@ -1072,10 +1085,8 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count,
     
     //reproject
     projection_on_simplex_with_slack(new_dict.direct_access(), new_slack_entry, new_dict.size());
-    //fast_projection_on_simplex_with_slack(new_dict.direct_access(), new_slack_entry, new_dict.size());
 
-    
-    double hyp_energy = 1e300; 
+    double best_energy = 1e300; 
     
     double lambda  = 1.0;
     double best_lambda = lambda;
@@ -1084,21 +1095,22 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count,
 
     uint nTries = 0;
 
-    while (decreasing || hyp_energy > energy) {
+    while (decreasing || best_energy > energy) {
 
       nTries++;
 
       lambda *= line_reduction_factor;
       double neg_lambda = 1.0 - lambda;
       
-      for (uint k=0; k < prior_weight.size(); k++) {      
+      for (uint k=0; k < dict_size; k++) {      
         hyp_dict[k] = lambda * new_dict[k] + neg_lambda * dict[k];
       }
       
-      double new_energy = single_dict_m_step_energy(fdict_count,prior_weight,hyp_dict,smoothed_l0,l0_beta);
+      double hyp_energy = single_dict_m_step_energy(fdict_count,prior_weight,hyp_dict,smoothed_l0,l0_beta);
+      //std::cerr << "lambda = " << lambda << ", hyp_energy = " << hyp_energy << std::endl;
 
-      if (new_energy < hyp_energy) {
-        hyp_energy = new_energy;
+      if (hyp_energy < best_energy) {
+        best_energy = hyp_energy;
         decreasing = true;
 
         best_lambda = lambda;
@@ -1106,16 +1118,16 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count,
       else
         decreasing = false;      
 
-      if (hyp_energy <= 0.95*energy)
+      if (best_energy <= 0.95*energy)
         break;
-      if (nTries >= 4 && hyp_energy <= 0.99*energy)
+      if (nTries >= 4 && best_energy <= 0.99*energy)
         break;
 
       if (nTries >= 18)
         break;
     }
 
-    if (hyp_energy > energy) {
+    if (best_energy > energy) {
       break;
     }
 
@@ -1125,22 +1137,22 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count,
       line_reduction_factor *= 0.8;
     
  
-    double best_energy = hyp_energy;
     double neg_best_lambda = 1.0 - best_lambda;
     
-    energy = best_energy;
-
-    for (uint k=0; k < prior_weight.size(); k++) {      
+    for (uint k=0; k < dict_size; k++) {      
       dict[k] = best_lambda * new_dict[k] + neg_best_lambda * dict[k];
     }
 
     slack_entry = best_lambda * new_slack_entry + neg_best_lambda * slack_entry;
 
-    if (best_lambda < 1e-8)
+    if (best_energy > energy - 1e-5 || best_lambda < 1e-8) {
+      //std::cerr << "CUTOFF after " << iter  << " iterations" << std::endl;
       break;
-  }  
-}
+    }
 
+    energy = best_energy;
+  }
+}
 
 //NOTE: the function to be minimized can be decomposed over the target words
 void dict_m_step(const SingleWordDictionary& fdict_count, 

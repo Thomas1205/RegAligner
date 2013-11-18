@@ -111,8 +111,6 @@ protected:
 
   void par2nonpar_intra_distortion();
 
-  //void par2nonpar_start_prob();
-
   double inter_distortion_m_step_energy(const Storage1D<Storage2D<Math2D::Matrix<double> > >& inter_distort_count,
                                         const std::map<DistortCount,double>& sparse_inter_distort_count,
                                         const Math3D::Tensor<double>& inter_param, uint class1, uint class2);
@@ -132,43 +130,40 @@ protected:
   void intra_distortion_m_step(const Storage1D<Math3D::Tensor<double> >& intra_distort_count,
                                uint word_class);
 
-  // double start_prob_m_step_energy(const Storage1D<Math1D::Vector<double> >& start_count, Math1D::Vector<double>& param);
 
-  // void start_prob_m_step(const Storage1D<Math1D::Vector<double> >& start_count);
-
-
-  double nondeficient_inter_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
+  //compact form
+  double nondeficient_inter_m_step_energy(const IBM4CeptStartModel& singleton_count,
+					  const std::vector<Math1D::Vector<uchar,uchar> >& open_diff,
+					  const std::vector<double>& weight,
                                           const IBM4CeptStartModel& param, uint sclass, uint tclass);
 
-  //with interpolation
-  double nondeficient_inter_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
-                                          //const IBM4CeptStartModel& param1, const IBM4CeptStartModel& param2, 
+  //compact form with interpolation
+  double nondeficient_inter_m_step_energy(const Math1D::Vector<double>& singleton_count,
+					  const std::vector<double>& norm_weight,
 					  const Math1D::Vector<double>& param1, const Math1D::Vector<double>& param2, 
 					  const Math1D::Vector<double>& sum1, const Math1D::Vector<double>& sum2, 
-					  //uint sclass, uint tclass, 
 					  double lambda);
 
-
-  double nondeficient_inter_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,Math1D::Vector<double,uchar> > >& count,
-                                          const IBM4CeptStartModel& param, uint sclass, uint tclass);
-
-  void nondeficient_inter_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
-                                 uint sclass, uint tclass, double start_energy);
-
-  void nondeficient_inter_m_step_with_interpolation(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
+  //compact form
+  void nondeficient_inter_m_step_with_interpolation(const IBM4CeptStartModel& singleton_count,
+						    const std::vector<Math1D::Vector<uchar,uchar> >& open_diff,
+						    const std::vector<double>& weight,
 						    uint sclass, uint tclass, double start_energy);
 
-  void nondeficient_inter_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,Math1D::Vector<double,uchar> > >& count,
-                                 uint sclass, uint tclass, double start_energy);
-
-  double nondeficient_intra_m_step_energy(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
+  //compact form
+  double nondeficient_intra_m_step_energy(const IBM4WithinCeptModel& singleton_count,
+					  const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
                                           const IBM4WithinCeptModel& param, uint sclass);
 
-  void nondeficient_intra_m_step(const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count, uint sclass);
+  //compact form
+  void nondeficient_intra_m_step(const IBM4WithinCeptModel& singleton_count,
+				 const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count, uint sclass);
+
 
   virtual void prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
 					  const SingleLookupTable& lookup,
 					  Math1D::Vector<AlignBaseType>& alignment);
+
 
   //indexed by (target word class idx, source word class idx, displacement)
   IBM4CeptStartModel cept_start_prob_; //note: displacements of 0 are possible here (the center of a cept need not be an aligned word)
