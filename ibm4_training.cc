@@ -6199,8 +6199,6 @@ void IBM4Trainer::train_viterbi(uint nIter, FertilityModelTrainer* fert_trainer,
 
    
     //b) within-cept (intra distortion)
-    IBM4WithinCeptModel fwithincept_count(within_cept_prob_.xDim(),within_cept_prob_.yDim(),0.0,MAKENAME(fwithincept_count));
-
     if (!nondeficient_) {
 
       IBM4WithinCeptModel hyp_withincept_prob;
