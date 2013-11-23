@@ -598,7 +598,7 @@ double IBM4Trainer::intra_distortion_m_step_energy(const Storage1D<Math3D::Tenso
           sum += std::max(1e-15,intra_param(word_class,j2-j1));
         }
 
-        for (int j2=j1+2; j2 < J; j2++) {
+        for (int j2=j1+1; j2 < J; j2++) {
           double cur_param = std::max(1e-15, intra_param(word_class,j2-j1));
 
           energy -= cur_count(word_class,j2,j1) * std::log( cur_param / sum);
