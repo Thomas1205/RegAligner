@@ -659,15 +659,17 @@ int main(int argc, char** argv) {
 	ibm4_trainer.set_hmm_alignments(hmm_wrapper);
     }
 
-    if (collect_counts)
+    if (collect_counts && ibm4_iter > 0)
       ibm4_iter--;
     
-    if (method == "viterbi")
-      ibm4_trainer.train_viterbi(ibm4_iter);
-    else
-      ibm4_trainer.train_unconstrained(ibm4_iter);
+    if (ibm4_iter > 0) {
+      if (method == "viterbi")
+	ibm4_trainer.train_viterbi(ibm4_iter);
+      else
+	ibm4_trainer.train_unconstrained(ibm4_iter);
 
-    //ibm4_trainer.update_alignments_unconstrained();
+      //ibm4_trainer.update_alignments_unconstrained();
+    }
   }
 
   /**** IBM-5 *****/
