@@ -642,33 +642,36 @@ int main(int argc, char** argv) {
 
   if (ibm4_iter + ibm5_iter > 0) {
     
-    if (collect_counts && ibm3_iter == 0) {
-      if (method == "viterbi")
-	ibm4_trainer.train_viterbi(1,0,&hmm_wrapper);
-      else
-	ibm4_trainer.train_unconstrained(1,0,&hmm_wrapper);
-    }
-    else {
+    if (!collect_counts || ibm4_iter > 0) {
 
-      if (collect_counts && hillclimb_mode == HillclimbingRestart)
-	ibm4_trainer.set_hmm_alignments(hmm_wrapper);
+      if (collect_counts && ibm3_iter == 0) {
+	if (method == "viterbi")
+	  ibm4_trainer.train_viterbi(1,0,&hmm_wrapper);
+	else
+	  ibm4_trainer.train_unconstrained(1,0,&hmm_wrapper);
+      }
+      else {
+	
+	if (collect_counts && hillclimb_mode == HillclimbingRestart)
+	  ibm4_trainer.set_hmm_alignments(hmm_wrapper);
+	
+	ibm4_trainer.init_from_ibm3(ibm3_trainer,true,collect_counts,method == "viterbi");
+	
+	if (hillclimb_mode == HillclimbingRestart)
+	  ibm4_trainer.set_hmm_alignments(hmm_wrapper);
+      }
 
-      ibm4_trainer.init_from_ibm3(ibm3_trainer,true,collect_counts,method == "viterbi");
-    
-      if (hillclimb_mode == HillclimbingRestart)
-	ibm4_trainer.set_hmm_alignments(hmm_wrapper);
-    }
-
-    if (collect_counts && ibm4_iter > 0)
-      ibm4_iter--;
-    
-    if (ibm4_iter > 0) {
-      if (method == "viterbi")
-	ibm4_trainer.train_viterbi(ibm4_iter);
-      else
-	ibm4_trainer.train_unconstrained(ibm4_iter);
-
-      //ibm4_trainer.update_alignments_unconstrained();
+      if (collect_counts && ibm4_iter > 0)
+	ibm4_iter--;
+      
+      if (ibm4_iter > 0) {
+	if (method == "viterbi")
+	  ibm4_trainer.train_viterbi(ibm4_iter);
+	else
+	  ibm4_trainer.train_unconstrained(ibm4_iter);
+	
+	//ibm4_trainer.update_alignments_unconstrained();
+      }
     }
   }
 
