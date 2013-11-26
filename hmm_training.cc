@@ -525,10 +525,10 @@ double ehmm_init_m_step_energy(const InitialAlignmentProbability& init_acount, c
     if (init_acount[I].size() > 0) {
 
       double non_zero_sum = 0.0;
-      for (uint i=0; i < I; i++)
+      for (uint i=0; i <= I; i++)
         non_zero_sum += init_params[i];
       
-      for (uint i=0; i < I; i++) {
+      for (uint i=0; i <= I; i++) {
 	
         energy -= init_acount[I][i] * std::log(init_params[i] / non_zero_sum);
       }
