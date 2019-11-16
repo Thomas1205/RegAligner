@@ -5,6 +5,7 @@
 #define COMBINATORIC_HH
 
 #include "makros.hh"
+#include "vector.hh"
 
 uint fac(uint n);
 
@@ -13,6 +14,8 @@ long double ldfac(uint n);
 uint choose(uint n, uint k);
 
 long double ldchoose(uint n, uint k);
+
+long double ldchoose(uint n, uint k, const Math1D::Vector<long double>& ld_fac);
 
 // greatest common divisor via the Euclidean algorithm
 inline long gcd64(unsigned long n1, unsigned long n2);
@@ -23,7 +26,8 @@ uint gcd(uint n1, uint n2);
 
 /**** implementation ****/
 
-inline long gcd64(unsigned long n1, unsigned long n2) {
+inline long gcd64(unsigned long n1, unsigned long n2)
+{
 
   if (n1 < n2)
     std::swap(n1,n2);

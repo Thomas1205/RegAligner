@@ -4,24 +4,27 @@
 #include "stringprocessing.hh"
 #include "makros.hh"
 
-bool is_whitespace(char c) {
+bool is_whitespace(char c)
+{
 
   if (c == ' ' || c == '\n' || c == '\t' || c == 10 || c == '\r')
     return true;
   return false;
 }
 
-bool is_uppercase(char c) {
+bool is_uppercase(char c)
+{
 
   if (c >= 'A' && c <= 'Z')
     return true;
 //   if (c == 'Ä' || c == 'Ö' || c == 'Ü')
 //      return true;
-  
+
   return false;
 }
 
-char downcase(char c) {
+char downcase(char c)
+{
 
   if (c >= 'A' && c <= 'Z')
     return c + ('a' - 'A');
@@ -41,7 +44,8 @@ char downcase(char c) {
 
 static std::vector<std::pair<std::string,std::string> > replacements;
 
-std::string downcase(std::string s) {
+std::string downcase(std::string s)
+{
 
   if (replacements.size() == 0) {
     replacements.push_back(std::make_pair("Ä","ä"));
@@ -143,7 +147,8 @@ std::string downcase(std::string s) {
   return ls;
 }
 
-bool is_natural_number(const std::string s) {
+bool is_natural_number(const std::string s)
+{
 
   for (uint i=0; i < s.size(); i++) {
     if (s[i] < '0' || s[i] > '9')
@@ -154,11 +159,13 @@ bool is_natural_number(const std::string s) {
 
 
 //to avoid the awkward strcmp routine
-bool strings_equal(std::string s1, std::string s2) {
-    return (s1 == s2);
+bool strings_equal(std::string s1, std::string s2)
+{
+  return (s1 == s2);
 }
 
-void tokenize(const std::string& s, std::vector<std::string>& tokens, char separator, bool empty_tokens) {
+void tokenize(const std::string& s, std::vector<std::string>& tokens, char separator, bool empty_tokens)
+{
 
   bool last_sep = true;
   tokens.clear();
@@ -166,22 +173,23 @@ void tokenize(const std::string& s, std::vector<std::string>& tokens, char separ
   for (uint i=0; i < s.size(); i++) {
 
     if (s[i] == separator) {
-      
+
       if (empty_tokens)
-	tokens.push_back(std::string());
+        tokens.push_back(std::string());
 
       last_sep = true;
     }
     else {
       if (last_sep)
-	tokens.push_back(std::string());
+        tokens.push_back(std::string());
       tokens.back() += s[i];
       last_sep = false;
     }
   }
 }
 
-void tokenize_with_stringsep(const std::string& org_s, std::vector<std::string>& tokens, std::string sep_string, bool empty_tokens) {
+void tokenize_with_stringsep(const std::string& org_s, std::vector<std::string>& tokens, std::string sep_string, bool empty_tokens)
+{
 
   tokens.clear();
 
@@ -193,19 +201,20 @@ void tokenize_with_stringsep(const std::string& org_s, std::vector<std::string>&
 
     if (pos >= s.size()) {
       if (s != "")
-	tokens.push_back(s);
+        tokens.push_back(s);
       break;
     }
     else {
       if (empty_tokens || pos != 0)
-	tokens.push_back(s.substr(0,pos));
+        tokens.push_back(s.substr(0,pos));
 
       s = s.substr(pos+sep_string.size());
     }
   }
 }
 
-bool string_ends_with(std::string s, std::string suffix) {
+bool string_ends_with(std::string s, std::string suffix)
+{
 
   if (s.size() < suffix.size())
     return false;
@@ -214,7 +223,8 @@ bool string_ends_with(std::string s, std::string suffix) {
 }
 
 // kaeshammer
-bool string_starts_with(std::string s, std::string prefix) {
+bool string_starts_with(std::string s, std::string prefix)
+{
   return s.compare(0, prefix.length(), prefix) == 0;
 }
 

@@ -14,7 +14,8 @@
 #include "gzstream.h"
 #endif
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
 
   if (argc == 1 || (argc == 2 && strings_equal(argv[1],"-h"))) {
 
@@ -22,8 +23,8 @@ int main(int argc, char** argv) {
               << "-c <file with classes as output by MKCLS>" << std::endl
               << "-voc <vocabulary indices>" << std::endl
               << "-o <output file>" << std::endl
-	      << std::endl;
-      
+              << std::endl;
+
     exit(1);
   }
 
@@ -33,7 +34,7 @@ int main(int argc, char** argv) {
   Application app(argc,argv,params,nParams);
 
   std::ifstream vin(app.getParam("-voc").c_str());
-  
+
   std::map<std::string,uint> voc_index;
   uint next_idx = 0;
 
@@ -43,9 +44,9 @@ int main(int argc, char** argv) {
     next_idx++;
   }
   vin.close();
- 
+
   Storage1D<uint> word_class(voc_index.size(),0);
- 
+
   uint widx;
   std::ifstream classin(app.getParam("-c").c_str());
   while (classin >> s >> widx) {

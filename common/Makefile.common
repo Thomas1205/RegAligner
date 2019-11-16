@@ -1,9 +1,9 @@
 LIB = lib/
 COMPILER = g++ -c
-LINKER = g++ 
-DEBUGFLAGS =  -ansi -Wall -Wextra -pedantic -malign-double -g -fPIC
-DEVELFLAGS =  -ansi -Wall -Wextra -pedantic -malign-double -fPIC
-OPTFLAGS =  -ansi -Wall -Wextra -pedantic -malign-double -O5 -DNDEBUG -fPIC
+LINKER = g++ -flto
+DEBUGFLAGS =  -ansi -Wall -Wextra -pedantic -malign-double -g -Og -rdynamic -fPIC -march=native -std=c++11
+DEVELFLAGS =  -ansi -Wall -Wextra -pedantic -malign-double -fPIC -march=native -std=c++11
+OPTFLAGS =  -ansi -Wall -Wextra -pedantic -malign-double -O5 -DNDEBUG -fPIC -march=native -std=c++11 -ffast-math
 LINKSFLAGS = -lpthread
 DEBUGDIR = debug/
 OPTDIR = opt/

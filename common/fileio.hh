@@ -24,9 +24,10 @@ void readCharacter(FILE* fptr, char& c) throw (FileTruncatedException);
 //ignores leading whitespace
 //returns last read character (which was not part of the number)
 template<typename T>
-char read_natural_number(FILE* fptr, T& number) 
-  throw (FileTruncatedException,InvalidCharacterException) {
-  
+char read_natural_number(FILE* fptr, T& number)
+throw (FileTruncatedException,InvalidCharacterException)
+{
+
   number = 0;
   char c;
   //1. ignore whitespace until a number is found
@@ -37,11 +38,11 @@ char read_natural_number(FILE* fptr, T& number)
       throw FileTruncatedException();
     if (!is_whitespace(c)) {
       if (c >= '0' && c <= '9') {
-	number = T(c - '0');
-	break;
+        number = T(c - '0');
+        break;
       }
       else
-	throw InvalidCharacterException(c);
+        throw InvalidCharacterException(c);
     }
   }
   while (true) {
@@ -53,15 +54,15 @@ char read_natural_number(FILE* fptr, T& number)
       number = 10*number + ( c - '0');
     else
       break;
-  }  
+  }
   return c;
 }
 
-char read_ws_until(FILE* fptr, char* allowed_chars, size_t nCharsListed) 
-  throw (FileTruncatedException,InvalidCharacterException);
+char read_ws_until(FILE* fptr, char* allowed_chars, size_t nCharsListed)
+throw (FileTruncatedException,InvalidCharacterException);
 
-char read_until(FILE* fptr, char* allowed_chars, size_t nCharsListed) 
-  throw (FileTruncatedException);
+char read_until(FILE* fptr, char* allowed_chars, size_t nCharsListed)
+throw (FileTruncatedException);
 
 
 bool is_gzip_file(std::string filename);

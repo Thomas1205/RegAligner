@@ -2,10 +2,11 @@
 
 #include "application.hh"
 
-bool Application::is_set(std::string name) {
+bool Application::is_set(std::string name)
+{
 
   if (known_flags_.find(name) != known_flags_.end()) {
-  
+
     return (flags_.find(name) != flags_.end());
   }
   else if (known_params_.find(name) != known_params_.end()) {
@@ -14,34 +15,36 @@ bool Application::is_set(std::string name) {
   }
   else {
     INTERNAL_ERROR << "   \"" << name << "\" is not a known flag. Exiting..." << std::endl;
-    exit(1); 
+    exit(1);
   }
 
-//   if (known_flags_.find(name) == known_flags_.end()) {
-//     INTERNAL_ERROR << "   \"" << name << "\" is not a known flag. Exiting..." << std::endl;
-//     exit(1); 
-//   } 
-    
-//   return (flags_.find(name) != flags_.end());
+  //   if (known_flags_.find(name) == known_flags_.end()) {
+  //     INTERNAL_ERROR << "   \"" << name << "\" is not a known flag. Exiting..." << std::endl;
+  //     exit(1);
+  //   }
+
+  //   return (flags_.find(name) != flags_.end());
 }
 
-std::string Application::getParam(std::string name) {
+std::string Application::getParam(std::string name)
+{
 
   if (known_params_.find(name) == known_params_.end()) {
     USER_ERROR << "    \"" << name << "\" is not a known parameter. Exiting..." << std::endl;
-    exit(1); 
+    exit(1);
   }
 
   if (param_value_.find(name) == param_value_.end()) {
-    INTERNAL_ERROR << "    no value for the parameter \"" << name 
-		   << "\" specified on command line. Exiting..." << std::endl;
-    exit(1); 
+    INTERNAL_ERROR << "    no value for the parameter \"" << name
+                   << "\" specified on command line. Exiting..." << std::endl;
+    exit(1);
   }
-    
+
   return param_value_[name];
 }
 
-Application::Application(uint argc, char** argv, ParamDescr* param_list, uint nParams) {
+Application::Application(uint argc, char** argv, ParamDescr* param_list, uint nParams)
+{
 
   Makros::register_typename(typeid(float).name(),"float");
   Makros::register_typename(typeid(double).name(),"double");
@@ -67,18 +70,18 @@ Application::Application(uint argc, char** argv, ParamDescr* param_list, uint nP
 
   /*** phase 0: build database of known options ***/
   for (uint p=0; p  < nParams; p++) {
-        
+
     std::string cur_name = param_list[p].name_;
-        
+
     if ((known_flags_.find(cur_name) != known_flags_.end()) ||
-	(known_params_.find(cur_name) != known_params_.end())) {
+        (known_params_.find(cur_name) != known_params_.end())) {
       INTERNAL_ERROR << "    parameter \"" << cur_name << "\" is listed twice. Exiting."
-		     << std::endl;
-      exit(1);     
-    }       
-    
+                     << std::endl;
+      exit(1);
+    }
+
     if (param_list[p].type_ == flag) {
-      known_flags_.insert(cur_name);    
+      known_flags_.insert(cur_name);
     }
     else {
       known_params_.insert(cur_name);
@@ -87,78 +90,78 @@ Application::Application(uint argc, char** argv, ParamDescr* param_list, uint nP
 
   /*** phase 1: scan command line ***/
   for (uint i=1; i < argc; i++) {
-    
+
     std::string cur_arg = argv[i];
-        
+
     bool found = false;
     for (uint p=0; p  < nParams && !found; p++) {
-        
+
       if (cur_arg == param_list[p].name_) {
-            
-	found = true;
 
-	if (param_list[p].type_ != flag && i == argc-1) {
-	  USER_ERROR << "    no value specified for parameter \"" << cur_arg << "\". Exiting..."
-		     << std::endl;
-	  exit(1);
-	}
+        found = true;
 
-	switch (param_list[p].type_) {
-	case flag : {
+        if (param_list[p].type_ != flag && i == argc-1) {
+          USER_ERROR << "    no value specified for parameter \"" << cur_arg << "\". Exiting..."
+                     << std::endl;
+          exit(1);
+        }
+
+        switch (param_list[p].type_) {
+        case flag : {
           if (flags_.find(cur_arg) != flags_.end())
             std::cerr << "WARNING: flag \"" << cur_arg << "\" was specified twice" << std::endl;
-	  flags_.insert(cur_arg);
-	  break;
-	};
-	case mandWithValue: {
+          flags_.insert(cur_arg);
+          break;
+        };
+        case mandWithValue: {
           if (param_value_.find(cur_arg) != param_value_.end())
             std::cerr << "WARNING: parameter \"" << cur_arg << "\" was specified twice" << std::endl;
-	  param_value_[cur_arg] = argv[i+1];
-	  break;
-	}
-	case optWithValue: {
+          param_value_[cur_arg] = argv[i+1];
+          break;
+        }
+        case optWithValue: {
           if (param_value_.find(cur_arg) != param_value_.end())
             std::cerr << "WARNING: parameter \"" << cur_arg << "\" was specified twice" << std::endl;
-	  param_value_[cur_arg] = argv[i+1];
-	  break;
-	}
-	case mandInFilename: {
+          param_value_[cur_arg] = argv[i+1];
+          break;
+        }
+        case mandInFilename: {
           if (param_value_.find(cur_arg) != param_value_.end())
             std::cerr << "WARNING: parameter \"" << cur_arg << "\" was specified twice" << std::endl;
-	  param_value_[cur_arg] = argv[i+1];
-	  break;
-	}
-	case optInFilename: {
+          param_value_[cur_arg] = argv[i+1];
+          break;
+        }
+        case optInFilename: {
           if (param_value_.find(cur_arg) != param_value_.end())
             std::cerr << "WARNING: parameter \"" << cur_arg << "\" was specified twice" << std::endl;
-	  param_value_[cur_arg] = argv[i+1];
-	  break;
-	}
-	case mandOutFilename: {
+          param_value_[cur_arg] = argv[i+1];
+          break;
+        }
+        case mandOutFilename: {
           if (param_value_.find(cur_arg) != param_value_.end())
             std::cerr << "WARNING: parameter \"" << cur_arg << "\" was specified twice" << std::endl;
-	  param_value_[cur_arg] = argv[i+1];
-	  break;
-	}
-	case optOutFilename: {
+          param_value_[cur_arg] = argv[i+1];
+          break;
+        }
+        case optOutFilename: {
           if (param_value_.find(cur_arg) != param_value_.end())
             std::cerr << "WARNING: parameter \"" << cur_arg << "\" was specified twice" << std::endl;
-	  param_value_[cur_arg] = argv[i+1];
-	  break;
-	}
-	default: {
-	  INTERNAL_ERROR << "    invalid type specified for option \"" << cur_arg 
-		    << "\". Exiting..." << std::endl;
-	  exit(1);
-	}
-	}
-            
-	if (param_list[p].type_ != flag)
-	  i++;
+          param_value_[cur_arg] = argv[i+1];
+          break;
+        }
+        default: {
+          INTERNAL_ERROR << "    invalid type specified for option \"" << cur_arg
+                         << "\". Exiting..." << std::endl;
+          exit(1);
+        }
+        }
+
+        if (param_list[p].type_ != flag)
+          i++;
       }
-        
-    } 
-        
+
+    }
+
     if (!found) {
       USER_ERROR << " \"" << cur_arg << "\" is not a valid option. Exiting... " << std::endl;
       exit(1);
@@ -179,11 +182,11 @@ Application::Application(uint argc, char** argv, ParamDescr* param_list, uint nP
     if (!is_optional && type != flag && param_value_.find(name) == param_value_.end()) {
 
       USER_ERROR << "  no value specified for mandatory parameter \"" << name << "\". Exiting..."
-		 << std::endl;
+                 << std::endl;
       exit(1);
     }
   }
-    
+
   /*** phase 3: check filenames for infiles and outfiles (outfiles might e.g. non-existing directories in the path). ***/
   for (uint p=0; p  < nParams; p++) {
 
@@ -194,9 +197,9 @@ Application::Application(uint argc, char** argv, ParamDescr* param_list, uint nP
       std::ifstream in(param_value_[name].c_str());
 
       if (!in.is_open()) {
-	IO_ERROR << "   file \"" << param_value_[name] << "\" does not exist. Exiting..." 
-		 << std::endl;
-	exit(1);
+        IO_ERROR << "   file \"" << param_value_[name] << "\" does not exist. Exiting..."
+                 << std::endl;
+        exit(1);
       }
       in.close();
     }
@@ -207,19 +210,19 @@ Application::Application(uint argc, char** argv, ParamDescr* param_list, uint nP
       std::ifstream instream(param_value_[name].c_str());
       if (!instream.is_open()) {
 
-	/** b) check if infofile can be written **/
-	std::string infoname = param_value_[name] + ".info";
-	std::ofstream of(infoname.c_str());
-	if (!of.is_open()) {
+        /** b) check if infofile can be written **/
+        std::string infoname = param_value_[name] + ".info";
+        std::ofstream of(infoname.c_str());
+        if (!of.is_open()) {
 
-	  IO_ERROR << "   outfile \"" << param_value_[name] << "\" cannot be created." 
-		   << std::endl;
-	  std::cerr << "   Please check if all directories in the specified path exist. Exiting...." 
-		    << std::endl;
-	  exit(1);
-	}
-	else
-	  of.close();
+          IO_ERROR << "   outfile \"" << param_value_[name] << "\" cannot be created."
+                   << std::endl;
+          std::cerr << "   Please check if all directories in the specified path exist. Exiting...."
+                    << std::endl;
+          exit(1);
+        }
+        else
+          of.close();
       }
     }
   }
@@ -229,7 +232,7 @@ Application::Application(uint argc, char** argv, ParamDescr* param_list, uint nP
   std::string filename = "last_started_call";
 
   std::ofstream of(filename.c_str());
-  
+
   for (size_t j=0; j < argv_.size(); j++)
     of << argv_[j] << " ";
   of << std::endl;
@@ -237,7 +240,8 @@ Application::Application(uint argc, char** argv, ParamDescr* param_list, uint nP
 }
 
 
-Application::~Application() {
+Application::~Application()
+{
 
   /*** NOTE: this code is only executed if the application terminates normally. NOT if the exit() function is used ****/
 
@@ -246,7 +250,7 @@ Application::~Application() {
 
     ParamType type = param_list_[p].type_;
     std::string name = param_list_[p].name_;
-    
+
     if (type == mandOutFilename || (type == optOutFilename && param_value_.find(name) != param_value_.end())) {
 
       std::string infoname = param_value_[name] + ".info";
@@ -255,13 +259,13 @@ Application::~Application() {
       of << "**** created by " << app_name_ << std::endl;
       of << "flags: " << std::endl;
       for (std::set<std::string>::iterator it = flags_.begin(); it != flags_.end(); it++)
-	of << "  " << (*it) << std::endl;
-      
+        of << "  " << (*it) << std::endl;
+
       of << "arguments: " << std::endl;
       for (std::map<std::string,std::string>::iterator it = param_value_.begin(); it != param_value_.end(); it++)
-	of << "  " << it->first << " " << it->second << std::endl;
+        of << "  " << it->first << " " << it->second << std::endl;
     }
-  }  
+  }
 
   /*** 2. "last_call" and <applicationname>.last_call ***/
 
@@ -283,7 +287,7 @@ Application::~Application() {
     of << std::endl;
     of.close();
   }
-  
+
 
   delete[] param_list_;
 }

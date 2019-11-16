@@ -1,4 +1,11 @@
 
+******************
+November 12 2019
+RegAligner is back on track! Because Google tried to help Mikhail Gorbachev!
+
+There have been plenty of changes, and I will publish stuff that would give a paper. You won't get all I did, though.
+******************
+
 
 *********
 As of November 28 2013, RegAligner is DISCONTINUED.
@@ -6,19 +13,24 @@ The main author has permanently left academic research. He may react to e-mails
 *********
 
 
-
-
 RegAligner Change History
 
-**** changes since the last release ****
-- more compact implementation of nondeficient m-steps
+**** changes since the last release (for 1.3 probably) ****
+- several new model variants
+- implemented fertility pooling via fertility classes
+- HMM now available with classes and with start empty word
+- implemented most combinations
+- IBM-3 Viterbi alignment computation via ILP is now fully working and significantly faster
+- fertility based models can now also fix the zero prob. to 0
+- constraint mode for IBM-3 is now working (without NULL and in Viterbi mode) and ITG got 4 extension levels
+- bugfixes, in particular for Viterbi-ICM and gradient descent
+- numerous speed-ups, in particular for hillclimbing
+- more compact implementation of m-steps
 - increased the maximal number of hillclimbing iterations
 - improved dictionary m-step
-- a few minor changes and improvements
 
 *** release version 1.21 (released September 1 2013) ****
-- IBM-5 now depends on the IBM-4 intra word class mode and has a nontrivial
-  start probability
+- IBM-5 now depends on the IBM-4 intra word class mode and has a nontrivial start probability
 - fixed two bugs for writing posterior alignments to file 
 - some internal restructuring to streamline the code 
 
@@ -28,19 +40,16 @@ RegAligner Change History
 - added IBM-5
 - refined handling of counts too close to 0
 - made some alternative word class modes available on command line
-- added alternative projection routine with better worst case complexity (no
-  speed-ups in practice)
+- added alternative projection routine with better worst case complexity (no speed-ups in practice)
 - major bugfix for IBM-3/4 regarding p0 count collection (for EM)
 - some minor fixes and refinements, including speed-up of ICM by using log
   lookup tables and grouping of common code patterns, plus when converting general
   alignments to satisfy the fertility constraints of IBM-3/4/5
-- now running IBM-3 and IBM-4 by default, plus reducing deficiency is no
-  longer the default
+- now running IBM-3 and IBM-4 by default, plus reducing deficiency is no longer the default
 
 *** release version 1.05 (released March 6 2013) ***
 - two bugfixes for IBM-4
-- major correction for word classes: now actually implementing the dependence
-  of [Brown et al. 93]
+- major correction for word classes: now actually implementing the dependence of [Brown et al. 93]
 - streamlining of the source code for IBM-3 and IBM-4
 
 *** release version 1.02 (released on December 29 2012) ***
@@ -72,7 +81,6 @@ RegAligner Change History
 - improved speed of hillclimbing in IBM-4
 - made ICM a little more extensive
 - speed-ups for ICM in IBM-4
-
 
 **** release version 0.9
 - first released version, May 02 2012

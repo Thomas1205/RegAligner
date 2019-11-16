@@ -1,6 +1,7 @@
-/*** written by Thomas Schoenemann as a private person without employment, October 2009 
+/*** written by Thomas Schoenemann as a private person without employment, October 2009
  *** later as an employee of Lund University, 2010 - Mar. 2011
- *** later as a private person, and finally at the University of Düsseldorf, Germany, January - September 2012  ***/
+ *** later as a private person, and finally at the University of Düsseldorf, Germany, January - September 2012,
+ *** and since as a private person ***/
 
 #include "hmm_training.hh"
 #include <vector>
@@ -17,117 +18,131 @@
 
 #include "projection.hh"
 #include "stl_out.hh"
+#include "storage_util.hh"
 
+HmmOptions::HmmOptions(uint nSourceWords, uint nTargetWords, std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
+                       std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments):
+  nIterations_(5), init_type_(HmmInitPar), align_type_(HmmAlignProbReducedpar),
+  redpar_limit_(5), start_empty_word_(false), smoothed_l0_(false),
+  deficient_(false), fix_p0_(false), l0_beta_(1.0), print_energy_(true),
+  nSourceWords_(nSourceWords), nTargetWords_(nTargetWords),
+  init_m_step_iter_(1000), align_m_step_iter_(1000), dict_m_step_iter_(45),
+  transfer_mode_(IBM1TransferNo), msolve_mode_(MSSolvePGD), sure_ref_alignments_(sure_ref_alignments),
+  possible_ref_alignments_(possible_ref_alignments)
+{
+}
 
-HmmOptions::HmmOptions(uint nSourceWords,uint nTargetWords,
-                       std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
-                       std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments) :
-  nIterations_(5), init_type_(HmmInitPar), align_type_(HmmAlignProbReducedpar), start_empty_word_(false), smoothed_l0_(false),
-  l0_beta_(1.0), print_energy_(true), nSourceWords_(nSourceWords), nTargetWords_(nTargetWords), 
-  init_m_step_iter_(1000), align_m_step_iter_(1000), dict_m_step_iter_(45), transfer_mode_(IBM1TransferNo),
-  sure_ref_alignments_(sure_ref_alignments), possible_ref_alignments_(possible_ref_alignments){}
+HmmWrapper::HmmWrapper(const FullHMMAlignmentModel& align_model, const InitialAlignmentProbability& initial_prob,
+                       const HmmOptions& hmm_options)
+  :align_model_(align_model), initial_prob_(initial_prob), hmm_options_(hmm_options)
+{
+}
 
+HmmWrapperWithClasses::HmmWrapperWithClasses(const FullHMMAlignmentModelSingleClass& align_model, const InitialAlignmentProbability& initial_prob,
+    const Storage1D<WordClassType>& target_class, const HmmOptions& hmm_options)
+  :align_model_(align_model), initial_prob_(initial_prob),
+   hmm_options_(hmm_options), target_class_(target_class)
+{
+}
 
-HmmWrapper::HmmWrapper(const FullHMMAlignmentModel& align_model,
-		       const InitialAlignmentProbability& initial_prob,
-		       const HmmOptions& hmm_options) 
-  : align_model_(align_model), initial_prob_(initial_prob), hmm_options_(hmm_options)  {}
-
-
-long double hmm_alignment_prob(const Storage1D<uint>& source, 
-                               const SingleLookupTable& slookup,
-                               const Storage1D<uint>& target,
-                               const SingleWordDictionary& dict,
-                               const FullHMMAlignmentModel& align_model,
-                               const InitialAlignmentProbability& initial_prob,
-                               const Storage1D<AlignBaseType>& alignment, bool with_dict) {
-
+long double hmm_alignment_prob(const Storage1D<uint>& source, const SingleLookupTable& slookup, const Storage1D<uint>& target,
+                               const SingleWordDictionary& dict, const FullHMMAlignmentModel& align_model,
+                               const InitialAlignmentProbability& initial_prob, const Storage1D<AlignBaseType>& alignment,
+                               bool with_dict)
+{
   const uint I = target.size();
   const uint J = source.size();
 
+  const Math2D::Matrix<double>& cur_align_model = align_model[I - 1];
+  const Math1D::Vector<double>& cur_initial_prob = initial_prob[I - 1];
+
+  //std::cerr << "J: " << J << ", I: " << I << std::endl;
+  //std::cerr << "alignment: " << alignment << std::endl;
+
   assert(J == alignment.size());
 
-  long double prob = (alignment[0] == 2*I) ? initial_prob[I-1][I] : initial_prob[I-1][alignment[0]];
+  long double prob = (alignment[0] == 2 * I) ? cur_initial_prob[I] : cur_initial_prob[alignment[0]];
 
   if (with_dict) {
-    for (uint j=0; j < J; j++) {
-      uint aj = alignment[j];
+    for (uint j = 0; j < J; j++) {
+      const uint aj = alignment[j];
       if (aj < I)
-        prob *= dict[target[aj]][slookup(j,aj)];
+        prob *= dict[target[aj]][slookup(j, aj)];
       else
-        prob *= dict[0][source[j]-1];
+        prob *= dict[0][source[j] - 1];
     }
   }
 
-  for (uint j=1; j < alignment.size(); j++) {
-    uint prev_aj = alignment[j-1];
+  for (uint j = 1; j < alignment.size(); j++) {
+    uint prev_aj = alignment[j - 1];
     if (prev_aj >= I)
       prev_aj -= I;
 
-    uint aj = alignment[j];
+    const uint aj = alignment[j];
     if (aj >= I)
-      assert(aj == prev_aj+I);
-    
-    prob *= align_model[I-1](std::min(I,aj),prev_aj);
+      assert(aj == prev_aj + I);
+
+    if (prev_aj == I)
+      prob *= cur_initial_prob[std::min(I, aj)];
+    else
+      prob *= cur_align_model(std::min(I, aj), prev_aj);
   }
 
   return prob;
 }
 
-void external2internal_hmm_alignment(const Storage1D<AlignBaseType>& ext_alignment, uint curI,
-				     const HmmOptions& options, Storage1D<AlignBaseType>& int_alignment) {
-
-
+void external2internal_hmm_alignment(const Storage1D<AlignBaseType>& ext_alignment, uint curI, const HmmOptions& options,
+                                     Storage1D<AlignBaseType>& int_alignment)
+{
   int_alignment.resize(ext_alignment.size());
 
-  int jj=-1;
+  int jj = -1;
 
-  for (uint j=0; j < ext_alignment.size(); j++) {
+  for (uint j = 0; j < ext_alignment.size(); j++) {
 
     uint ext_aj = ext_alignment[j];
-    
+
     if (ext_aj > 0) {
-      int_alignment[j] = ext_aj-1;
+      int_alignment[j] = ext_aj - 1;
       jj = j;
     }
     else {
 
       if (jj >= 0) {
-	int_alignment[j] = ext_alignment[jj]-1 + curI;
+        int_alignment[j] = ext_alignment[jj] - 1 + curI;
       }
       else
-	int_alignment[j] = (options.start_empty_word_) ? 2*curI : curI;
+        int_alignment[j] = (options.start_empty_word_) ? 2 * curI : curI;
     }
   }
 }
 
-
-double extended_hmm_perplexity(const Storage1D<Storage1D<uint> >& source, 
-                               const LookupTable& slookup,
-                               const Storage1D<Storage1D<uint> >& target,
-                               const FullHMMAlignmentModel& align_model,
+double extended_hmm_perplexity(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup,
+                               const Storage1D<Math1D::Vector<uint> >& target, const FullHMMAlignmentModel& align_model,
                                const InitialAlignmentProbability& initial_prob,
-                               const SingleWordDictionary& dict,
-                               const CooccuringWordsType& wcooc, uint nSourceWords,
-			       HmmAlignProbType align_type, bool start_empty_word) {
+                               const SingleWordDictionary& dict, const CooccuringWordsType& wcooc,
+                               uint nSourceWords, const HmmOptions& options)
+{
+  HmmAlignProbType align_type = options.align_type_;
+  bool start_empty_word = options.start_empty_word_;
 
+  //std::cerr << "start empty word: " << start_empty_word << std::endl;
 
   double sum = 0.0;
 
   const size_t nSentences = target.size();
 
   SingleLookupTable aux_lookup;
-  
-  for (size_t s=0; s < nSentences; s++) {
-    
+
+  for (size_t s = 0; s < nSentences; s++) {
+
     const Storage1D<uint>& cur_source = source[s];
     const Storage1D<uint>& cur_target = target[s];
-    const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
+    const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, nSourceWords, slookup[s], aux_lookup);
 
     const uint curI = cur_target.size();
-    
-    const Math2D::Matrix<double>& cur_align_model = align_model[curI-1];
 
+    const Math2D::Matrix<double>& cur_align_model = align_model[curI - 1];
 
     if (start_empty_word) {
 
@@ -135,114 +150,202 @@ double extended_hmm_perplexity(const Storage1D<Storage1D<uint> >& source,
 
       const uint curJ = cur_source.size();
 
-      Math2D::NamedMatrix<double> forward(2*curI,curJ,MAKENAME(forward));
+      Math2D::NamedMatrix<double> forward(2 * curI + 1, curJ, MAKENAME(forward));
 
-
-      calculate_sehmm_forward(cur_source, cur_target, cur_lookup, dict, cur_align_model,
-                              initial_prob[curI-1], forward);
+      calculate_hmm_forward(cur_source, cur_target, cur_lookup, dict, cur_align_model, initial_prob[curI - 1],
+                            align_type, start_empty_word, forward, options.redpar_limit_);
 
       double sentence_prob = 0.0;
-      for (uint i=0; i < forward.xDim(); i++) {
-	
-	assert(forward(i,curJ-1) >= 0.0);
-	sentence_prob += forward(i,curJ-1);
+      for (uint i = 0; i < forward.xDim(); i++) {
+
+        //      if (!(forward(i,curJ-1) >= 0.0)) {
+
+        //        std::cerr << "s=" << s << ", I=" << curI << ", i= " << i << ", value " << forward(i,curJ-1) << std::endl;
+        //      }
+
+        assert(forward(i, curJ - 1) >= 0.0);
+        sentence_prob += forward(i, curJ - 1);
       }
-      
+
       if (sentence_prob > 1e-300)
-	sum -= std::log(sentence_prob);
+        sum -= std::log(sentence_prob);
       else
-	sum -= std::log(1e-300);
+        sum -= std::log(1e-300);
     }
     else {
-    
+
       sum -= calculate_hmm_forward_log_sum(cur_source, cur_target, cur_lookup, dict, cur_align_model,
-					   initial_prob[curI-1], align_type);
+                                           initial_prob[curI - 1], align_type, options.redpar_limit_);
     }
   }
-
 
   return sum / nSentences;
 }
 
-
-double extended_hmm_energy(const Storage1D<Storage1D<uint> >& source, 
-                           const LookupTable& slookup,
-                           const Storage1D<Storage1D<uint> >& target,
-                           const FullHMMAlignmentModel& align_model,
-                           const InitialAlignmentProbability& initial_prob,
-                           const SingleWordDictionary& dict,
-                           const CooccuringWordsType& wcooc, uint nSourceWords,
-                           const floatSingleWordDictionary& prior_weight,
-			   HmmAlignProbType align_type, bool start_empty_word,
-			   bool smoothed_l0, double l0_beta) {
-  
+double extended_hmm_energy(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const Storage1D<Math1D::Vector<uint> >& target,
+                           const FullHMMAlignmentModel& align_model, const InitialAlignmentProbability& initial_prob, const SingleWordDictionary& dict,
+                           const CooccuringWordsType& wcooc, uint nSourceWords, const floatSingleWordDictionary& prior_weight,
+                           const HmmOptions& options)
+{
   double energy = 0.0;
 
-  for (uint i=0; i < dict.size(); i++)
-    for (uint k=0; k < dict[i].size(); k++) {
-      if (smoothed_l0)
-	energy += prior_weight[i][k] * prob_penalty(dict[i][k],l0_beta);
+  for (uint i = 0; i < dict.size(); i++)
+    for (uint k = 0; k < dict[i].size(); k++) {
+      if (options.smoothed_l0_)
+        energy +=
+          prior_weight[i][k] * prob_penalty(dict[i][k], options.l0_beta_);
       else
-	energy += prior_weight[i][k] * dict[i][k];
+        energy += prior_weight[i][k] * dict[i][k];
     }
+
+  //std::cerr << "before dividing: " << energy << std::endl;
 
   energy /= source.size();
 
-  energy += extended_hmm_perplexity(source,slookup,target,align_model,initial_prob,dict,wcooc,nSourceWords,align_type,start_empty_word);
+  //std::cerr << "before adding perplexity: " << energy << std::endl;
+
+  energy += extended_hmm_perplexity(source, slookup, target, align_model, initial_prob, dict, wcooc, nSourceWords, options);
 
   return energy;
 }
 
-double ehmm_m_step_energy(const FullHMMAlignmentModel& facount, const Math1D::Vector<double>& dist_params, 
-                          uint zero_offset, double grouping_param) {
-
+double ehmm_m_step_energy(const FullHMMAlignmentModel& facount, const Math1D::Vector<double>& dist_params,
+                          uint zero_offset, double grouping_param, int redpar_limit)
+{
   double energy = 0.0;
-  
-  for (uint I=1; I <= facount.size(); I++) {
 
-    if (facount[I-1].size() > 0) {
-      
-      for (int i=0; i < (int) I; i++) {
+  //std::cerr << "grouping_param: " << grouping_param << std::endl;
+
+  for (uint I = 1; I <= facount.size(); I++) {
+
+    if (facount[I - 1].size() > 0) {
+
+      for (int i = 0; i < (int)I; i++) {
 
         double non_zero_sum = 0.0;
 
         if (grouping_param < 0.0) {
-	
-          for (uint ii=0; ii < I; ii++)
+
+          for (uint ii = 0; ii < I; ii++)
             non_zero_sum += dist_params[zero_offset + ii - i];
-	  
-          for (int ii=0; ii < (int) I; ii++) {
-	    
-            const double cur_count = facount[I-1](ii,i);
-	    
-            energy -= cur_count * std::log( dist_params[zero_offset + ii - i] / non_zero_sum);
+
+          for (int ii = 0; ii < (int)I; ii++) {
+
+            const double cur_count = facount[I - 1] (ii, i);
+
+            //NOTE: division by non_zero_sum gives a constant due to log laws
+            energy -= cur_count * std::log(dist_params[zero_offset + ii - i] / non_zero_sum);
           }
         }
         else {
 
-          double grouping_norm = std::max(0,i-5);
-          grouping_norm += std::max(0,int(I)-1-(i+5));
+          double grouping_norm = std::max(0, i - redpar_limit);
+          grouping_norm += std::max(0, int (I) - 1 - (i + redpar_limit));
 
-          for (int ii=0; ii < (int) I; ii++) {
-            if (abs(ii-i) <= 5) 
+          //double check = 0.0;
+
+          for (int ii = 0; ii < (int)I; ii++) {
+            if (abs(ii - i) <= redpar_limit)
               non_zero_sum += dist_params[zero_offset + ii - i];
             else {
               non_zero_sum += grouping_param / grouping_norm;
+              //check ++;
             }
           }
 
-          for (int ii=0; ii < (int) I; ii++) {
-	    
-            double cur_count = facount[I-1](ii,i);
+          //assert(check == grouping_norm);
+
+          for (int ii = 0; ii < (int)I; ii++) {
+
+            double cur_count = facount[I - 1] (ii, i);
             double cur_param;
 
-            if (abs(ii-i) > 5) 
+            if (abs(ii - i) > redpar_limit)
               cur_param = grouping_param / grouping_norm;
             else
-	      cur_param = dist_params[zero_offset + ii - i];
+              cur_param = dist_params[zero_offset + ii - i];
 
-            energy -= cur_count * std::log( cur_param / non_zero_sum);
+            //NOTE: division by non_zero_sum gives a constant due to log laws
+            //   same for division by grouping_norm
+            energy -= cur_count * std::log(cur_param / non_zero_sum);
           }
+        }
+      }
+    }
+    //std::cerr << "intermediate energy: " << energy << std::endl;
+  }
+
+  return energy;
+}
+
+//new compact variant
+double ehmm_m_step_energy(const Math1D::Vector<double>& singleton_count, double grouping_count,
+                          const Math2D::Matrix<double>& span_count, const Math1D::Vector<double>& dist_params,
+                          uint zero_offset, double grouping_param, int redpar_limit)
+{
+  //NOTE: we could exploit here that span_count will only be nonzero if zero_offset lies in the span
+
+  double energy = 0.0;
+
+  if (grouping_param < 0.0) {
+
+    //singleton terms
+    for (uint d = 0; d < singleton_count.size(); d++)
+      energy -= singleton_count[d] * std::log(std::max(hmm_min_param_entry, dist_params[d]));
+
+    //normalization terms
+    Math1D::Vector<double> init_sum(zero_offset + 1);
+    init_sum[zero_offset] = 0.0;
+    init_sum[zero_offset - 1] = dist_params[zero_offset - 1];
+    for (int s = zero_offset - 2; s >= 0; s--)
+      init_sum[s] = init_sum[s + 1] + dist_params[s];
+
+    for (uint span_start = 0; span_start < span_count.xDim(); span_start++) {
+
+      double param_sum = init_sum[span_start];  //dist_params.range_sum(span_start,zero_offset);
+      for (uint span_end = zero_offset;
+           span_end < zero_offset + span_count.yDim(); span_end++) {
+
+        param_sum += std::max(hmm_min_param_entry, dist_params[span_end]);
+
+        const double cur_count = span_count(span_start, span_end - zero_offset);
+        if (cur_count != 0.0)
+          energy += cur_count * std::log(param_sum);
+      }
+    }
+
+  }
+  else {
+    uint first_diff = zero_offset - redpar_limit;
+    uint last_diff = zero_offset + redpar_limit;
+
+    for (uint d = first_diff; d <= last_diff; d++)
+      energy -= singleton_count[d] * std::log(std::max(hmm_min_param_entry, dist_params[d]));
+
+    //NOTE: because we do not divide grouping_param by the various numbers of affected positions
+    //   this energy will differ from the inefficient version by a constant
+    energy -= grouping_count * std::log(std::max(hmm_min_param_entry, grouping_param));
+
+    //normalization terms
+    for (uint span_start = 0; span_start < span_count.xDim(); span_start++) {
+
+      for (uint span_end = zero_offset;
+           span_end < zero_offset + span_count.yDim(); span_end++) {
+
+        //there should be plenty of room for speed-ups here
+
+        const double cur_count = span_count(span_start, span_end - zero_offset);
+        if (cur_count != 0.0) {
+
+          double param_sum = 0.0;
+          if (span_start < first_diff || span_end > last_diff)
+            param_sum = grouping_param;
+
+          for (uint d = std::max(first_diff, span_start);
+               d <= std::min(span_end, last_diff); d++)
+            param_sum += std::max(hmm_min_param_entry, dist_params[d]);
+
+          energy += cur_count * std::log(param_sum);
         }
       }
     }
@@ -251,59 +354,64 @@ double ehmm_m_step_energy(const FullHMMAlignmentModel& facount, const Math1D::Ve
   return energy;
 }
 
-void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& dist_params, uint zero_offset,
-                 uint nIter, double& grouping_param) {
+void noncompact_ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& dist_params, uint zero_offset, uint nIter,
+                            double& grouping_param, bool deficient, int redpar_limit)
+{
+  std::cerr.precision(8);
 
-  const uint start_idx = (grouping_param < 0.0) ? 0 : zero_offset-5;
-  const uint end_idx = (grouping_param < 0.0) ? dist_params.size()-1 : zero_offset+5;
+  //std::cerr << "init params before projection: " << dist_params << std::endl;
+  //std::cerr << "grouping_param before projection: " << grouping_param << std::endl;
 
+  const uint start_idx = (grouping_param < 0.0) ? 0 : zero_offset - redpar_limit;
+  const uint end_idx = (grouping_param < 0.0) ? dist_params.size() - 1 : zero_offset + redpar_limit;
 
   if (grouping_param < 0.0) {
-    projection_on_simplex(dist_params.direct_access(),dist_params.size());
+    projection_on_simplex(dist_params.direct_access(), dist_params.size(), hmm_min_param_entry);
   }
   else {
-    projection_on_simplex_with_slack(dist_params.direct_access() + zero_offset - 5, grouping_param, 11); 
-    grouping_param = std::max(1e-15,grouping_param);
+    projection_on_simplex_with_slack(dist_params.direct_access() + zero_offset - redpar_limit, grouping_param, 2 * redpar_limit + 1, hmm_min_param_entry);
+    grouping_param = std::max(hmm_min_param_entry, grouping_param);
   }
 
-  for (uint k=start_idx; k <= end_idx; k++)
-    dist_params[k] = std::max(1e-15,dist_params[k]);
+  //std::cerr << "init params after projection: " << dist_params << std::endl;
+  //std::cerr << "grouping_param after projection: " << grouping_param << std::endl;
 
-  Math1D::Vector<double> m_dist_grad = dist_params;
+  Math1D::Vector<double> dist_grad = dist_params;
   Math1D::Vector<double> new_dist_params = dist_params;
   Math1D::Vector<double> hyp_dist_params = dist_params;
 
-  double m_grouping_grad = 0.0;
+  double grouping_grad = 0.0;
   double new_grouping_param = grouping_param;
   double hyp_grouping_param = grouping_param;
 
-  double energy = ehmm_m_step_energy(facount, dist_params, zero_offset, grouping_param);
+  double energy = (deficient) ? 0.0 : ehmm_m_step_energy(facount, dist_params, zero_offset, grouping_param, redpar_limit);
+
+  double line_reduction_factor = 0.5;
+
+  //NOTE: the deficient closed-form solution does not necessarily have a lower energy INCLUDING the normalization term
 
   //test if normalized counts give a better starting point
   {
 
-    Math1D::Vector<double> dist_count(dist_params.size(),0.0);
+    Math1D::Vector<double> dist_count(dist_params.size(), 0.0);
     double dist_grouping_count = (grouping_param < 0.0) ? -1.0 : 0.0;
 
-    for (uint I=1; I <= facount.size(); I++) {
+    for (uint I = 1; I <= facount.size(); I++) {
 
-      if (facount[I-1].xDim() != 0) {
-	
-	for (int i=0; i < (int) I; i++) {
-	  
-	  for (int ii=0; ii < (int) I; ii++) {
-	    if (grouping_param < 0.0 || abs(ii-i) <= 5)
-	      dist_count[zero_offset + ii - i] += facount[I-1](ii,i);
-	    else {
-	      double grouping_norm = std::max(0,i-5);
-	      grouping_norm += std::max(0,int(I)-1-(i+5));
-	      
-	      assert(grouping_norm > 1e-305);
-	      
-	      dist_grouping_count += facount[I-1](ii,i) / grouping_norm;
-	    }
-	  }
-	}
+      if (facount[I - 1].xDim() != 0) {
+
+        for (int i = 0; i < (int)I; i++) {
+
+          for (int ii = 0; ii < (int)I; ii++) {
+            if (grouping_param < 0.0 || abs(ii - i) <= redpar_limit)
+              dist_count[zero_offset + ii - i] += facount[I - 1] (ii, i);
+            else {
+              //don't divide by grouping norm, the deficient problem doesn't need it:
+              //  due to log laws we get additive constants
+              dist_grouping_count += facount[I - 1] (ii, i);
+            }
+          }
+        }
       }
     }
 
@@ -311,25 +419,27 @@ void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& d
       //reduced parametric
 
       double norm = 0.0;
-      for (int k = -5; k <= 5; k++)
-	norm += dist_count[zero_offset + k];
+      for (int k = -redpar_limit; k <= redpar_limit; k++)
+        norm += dist_count[zero_offset + k];
       norm += dist_grouping_count;
-      
+
       if (norm > 1e-305) {
 
-	for (uint k=0; k < dist_count.size(); k++)
-	  dist_count[k] = std::max(1e-15,dist_count[k]/norm);
-	
-	dist_grouping_count = std::max(1e-15,dist_grouping_count / norm);
-	
-	double hyp_energy = ehmm_m_step_energy(facount,dist_count,zero_offset,dist_grouping_count);
-	
-	if (hyp_energy < energy) {
-	  
-	  dist_params = dist_count;
-	  grouping_param = dist_grouping_count;
-	  energy = hyp_energy;
-	}
+        for (uint k = 0; k < dist_count.size(); k++)
+          dist_count[k] = std::max(hmm_min_param_entry, dist_count[k] / norm);
+
+        dist_grouping_count = std::max(hmm_min_param_entry, dist_grouping_count / norm);
+
+        double hyp_energy = (deficient) ? -1.0 : ehmm_m_step_energy(facount, dist_count, zero_offset, dist_grouping_count, redpar_limit);
+
+        //std::cerr << "hyp energy: " << hyp_energy << std::endl;
+
+        if (hyp_energy < energy) {
+
+          dist_params = dist_count;
+          grouping_param = dist_grouping_count;
+          energy = hyp_energy;
+        }
       }
     }
     else {
@@ -338,84 +448,97 @@ void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& d
       double sum = dist_count.sum();
 
       if (sum > 1e-305) {
-	for (uint k=0; k < dist_count.size(); k++)
-	  dist_count[k] = std::max(1e-15,dist_count[k] / sum);
-	
-	double hyp_energy = ehmm_m_step_energy(facount,dist_count,zero_offset,grouping_param);        
-	
-	if (hyp_energy < energy) {
-	  dist_params = dist_count;
-	  energy = hyp_energy;
-	}
+        for (uint k = 0; k < dist_count.size(); k++)
+          dist_count[k] = std::max(hmm_min_param_entry, dist_count[k] / sum);
+
+        double hyp_energy = (deficient) ? -1.0 : ehmm_m_step_energy(facount, dist_count, zero_offset, grouping_param, redpar_limit);
+
+        if (!deficient)
+          std::cerr << "hyp energy: " << hyp_energy << std::endl;
+
+        if (hyp_energy < energy) {
+          dist_params = dist_count;
+          energy = hyp_energy;
+        }
       }
 
     }
   }
 
-  assert(grouping_param < 0.0 || grouping_param >= 1e-15);
+  if (deficient)
+    return;
 
+  std::cerr << "start m-energy: " << energy << std::endl;
+
+  assert(grouping_param < 0.0 || grouping_param >= hmm_min_param_entry);
+
+  //double alpha  = 0.0001;
+  //double alpha  = 0.001;
   double alpha = 100.0;
-
 
   for (uint iter = 1; iter <= nIter; iter++) {
 
     if ((iter % 5) == 0)
       std::cerr << "m-step gd-iter #" << iter << ", cur energy: " << energy << std::endl;
 
-    m_dist_grad.set_constant(0.0);
-    m_grouping_grad = 0.0;
+    dist_grad.set_constant(0.0);
+    grouping_grad = 0.0;
 
     //calculate gradient
-    for (uint I=1; I <= facount.size(); I++) {
+    for (uint I = 1; I <= facount.size(); I++) {
 
-      if (facount[I-1].size() > 0) {
+      if (facount[I - 1].size() > 0) {
 
-        for (int i=0; i < (int) I; i++) {
+        for (int i = 0; i < (int)I; i++) {
 
-          double grouping_norm = std::max(0,i-5);
-          grouping_norm += std::max(0,int(I)-1-(i+5));
-	    
+          double grouping_norm = std::max(0, i - redpar_limit);
+          grouping_norm += std::max(0, int (I) - 1 - (i + redpar_limit));
+
           double non_zero_sum = 0.0;
-          for (int ii=0; ii < (int) I; ii++) {
-            if (grouping_param < 0.0 || abs(i-ii) <= 5)
+          for (int ii = 0; ii < (int)I; ii++) {
+            if (grouping_param < 0.0 || abs(i - ii) <= redpar_limit)
               non_zero_sum += dist_params[zero_offset + ii - i];
             else
               non_zero_sum += grouping_param / grouping_norm;
           }
-	  
+          //if (grouping_param >= 0.0 && grouping_norm > 0.0)
+          //  non_zero_sum += grouping_param;
+
           double count_sum = 0.0;
-          for (int ii=0; ii < (int) I; ii++) {
-            count_sum += facount[I-1](ii,i);
+          for (int ii = 0; ii < (int)I; ii++) {
+            count_sum += facount[I - 1] (ii, i);
           }
-	   
-          for (int ii=0; ii < (int) I; ii++) {
+
+          for (int ii = 0; ii < (int)I; ii++) {
             double cur_param = dist_params[zero_offset + ii - i];
 
-            double cur_count = facount[I-1](ii,i);
-	    
+            double cur_count = facount[I - 1] (ii, i);
+
             if (grouping_param < 0.0) {
-              m_dist_grad[zero_offset + ii-i] -= cur_count / cur_param;
+              dist_grad[zero_offset + ii - i] -= cur_count / cur_param;
             }
             else {
-	
-              if (abs(ii-i) > 5) {
-		//NOTE: -std::log( param / norm) = -std::log(param) + std::log(norm)
-		// => grouping_norm does NOT enter here
-                m_grouping_grad -= cur_count / grouping_param;  
+
+              if (abs(ii - i) > redpar_limit) {
+                //NOTE: -std::log( param / norm) = -std::log(param) + std::log(norm)
+                // => grouping_norm does NOT enter here
+                grouping_grad -= cur_count / grouping_param;
               }
               else {
-                m_dist_grad[zero_offset + ii-i] -= cur_count / cur_param;
+                dist_grad[zero_offset + ii - i] -= cur_count / cur_param;
               }
             }
           }
 
-          for (int ii=0; ii < (int) I; ii++) {
-            if (grouping_param < 0.0 || abs(ii-i) <= 5)
-              m_dist_grad[zero_offset + ii-i] += count_sum / non_zero_sum;
+          for (int ii = 0; ii < (int)I; ii++) {
+            if (grouping_param < 0.0 || abs(ii - i) <= redpar_limit)
+              dist_grad[zero_offset + ii - i] += count_sum / non_zero_sum;
+            // else
+            //   m_grouping_grad += count_sum / (non_zero_sum * grouping_norm);
           }
 
-	  if (grouping_param >= 0.0 && grouping_norm > 0.0)
-	    m_grouping_grad += count_sum / non_zero_sum;
+          if (grouping_param >= 0.0 && grouping_norm > 0.0)
+            grouping_grad += count_sum / non_zero_sum;
         }
       }
     }
@@ -424,16 +547,28 @@ void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& d
 
     double real_alpha = alpha;
 
-    for (uint k=start_idx; k <= end_idx; k++)
-      new_dist_params.direct_access(k) = dist_params.direct_access(k) - real_alpha * m_dist_grad.direct_access(k);
+    //TRIAL
+    // double sqr_grad_norm  = 0.0;
+    // for (uint k=0; k < dist_params.size(); k++)
+    //   sqr_grad_norm += dist_grad.direct_access(k) * dist_grad.direct_access(k);
+    // sqr_grad_norm += grouping_grad * grouping_grad;
 
-    new_grouping_param = grouping_param - real_alpha * m_grouping_grad;
+    // real_alpha /= sqrt(sqr_grad_norm);
+    //END_TRIAL
 
-    for (uint k=start_idx; k <= end_idx; k++) {
+    for (uint k = start_idx; k <= end_idx; k++)
+      new_dist_params.direct_access(k) = dist_params.direct_access(k) - real_alpha * dist_grad.direct_access(k);
+
+    new_grouping_param = grouping_param - real_alpha * grouping_grad;
+
+    //std::cerr << "new params before projection: " << new_dist_params << std::endl;
+    //std::cerr << "new grouping_param before projection: " << new_grouping_param << std::endl;
+
+    for (uint k = start_idx; k <= end_idx; k++) {
       if (new_dist_params[k] >= 1e75)
-	new_dist_params[k] = 9e74;
+        new_dist_params[k] = 9e74;
       else if (new_dist_params[k] <= -1e75)
-	new_dist_params[k] = -9e74;
+        new_dist_params[k] = -9e74;
     }
     if (new_grouping_param >= 1e75)
       new_grouping_param = 9e74;
@@ -441,25 +576,24 @@ void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& d
       new_grouping_param = -9e74;
 
     // reproject
-    if (grouping_param < 0.0)  {   
-      fast_projection_on_simplex(new_dist_params.direct_access(),dist_params.size());
+    if (grouping_param < 0.0) {
+      projection_on_simplex(new_dist_params.direct_access(), dist_params.size(), hmm_min_param_entry);
     }
     else {
-      fast_projection_on_simplex_with_slack(new_dist_params.direct_access()+start_idx,new_grouping_param,11);
-      new_grouping_param = std::max(1e-15,new_grouping_param);
+      projection_on_simplex_with_slack(new_dist_params.direct_access() + start_idx, new_grouping_param, 2 * redpar_limit + 1, hmm_min_param_entry);
+      new_grouping_param = std::max(hmm_min_param_entry, new_grouping_param);
     }
 
-    for (uint k=start_idx; k <= end_idx; k++)
-      new_dist_params[k] = std::max(1e-15,new_dist_params[k]);
+    //std::cerr << "new params after projection: " << new_dist_params << std::endl;
+    //std::cerr << "new grouping_param after projection: " << new_grouping_param << std::endl;
 
     //find step-size
 
-    new_grouping_param = std::max(new_grouping_param,1e-15);
+    double best_energy = 1e300;
 
-    double best_energy = 1e300; 
+    //std::cerr << "fullstep energy: " << hyp_energy << std::endl;
 
     double lambda = 1.0;
-    double line_reduction_factor = 0.5;
     double best_lambda = lambda;
 
     uint nIter = 0;
@@ -477,13 +611,13 @@ void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& d
 
       double neg_lambda = 1.0 - lambda;
 
-      for (uint k=start_idx; k <= end_idx; k++)
-        hyp_dist_params.direct_access(k) = lambda * new_dist_params.direct_access(k) + neg_lambda * dist_params.direct_access(k);
+      for (uint k = start_idx; k <= end_idx; k++)
+        hyp_dist_params.direct_access(k) = std::max(hmm_min_param_entry, lambda * new_dist_params.direct_access(k) + neg_lambda * dist_params.direct_access(k));
 
       if (grouping_param >= 0.0)
-	hyp_grouping_param = std::max(1e-15,lambda * new_grouping_param + neg_lambda * grouping_param);
+        hyp_grouping_param = std::max(hmm_min_param_entry, lambda * new_grouping_param + neg_lambda * grouping_param);
 
-      double new_energy = ehmm_m_step_energy(facount, hyp_dist_params, zero_offset, hyp_grouping_param);
+      double new_energy = ehmm_m_step_energy(facount, hyp_dist_params, zero_offset, hyp_grouping_param, redpar_limit);
 
       if (new_energy < best_energy) {
         best_energy = new_energy;
@@ -494,42 +628,1413 @@ void ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& d
       else {
         decreasing = false;
       }
+
+      //std::cerr << "hyp energy: " << new_energy << std::endl;
     }
+
+    if (nIter > 5)
+      line_reduction_factor *= 0.9;
+
+    // if (nIter > 4)
+    //   alpha *= 1.5;
+
+    //DEBUG
+    // if (best_lambda == 1.0)
+    //   std::cerr << "!!!TAKING FULL STEP!!!" << std::endl;
+    //END_DEBUG
 
     if (nIter > 15 || fabs(energy - best_energy) < 1e-4) {
       std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
       break;
     }
-      
+
     energy = best_energy;
 
     //set new values
     double neg_best_lambda = 1.0 - best_lambda;
 
-    for (uint k=start_idx; k <= end_idx; k++)
-      dist_params.direct_access(k) = neg_best_lambda * dist_params.direct_access(k) + best_lambda * new_dist_params.direct_access(k);
+    for (uint k = start_idx; k <= end_idx; k++)
+      dist_params.direct_access(k) = std::max(hmm_min_param_entry, neg_best_lambda * dist_params.direct_access(k) +
+                                              best_lambda * new_dist_params.direct_access(k));
 
-    if (grouping_param >= 0.0) 
-      grouping_param = std::max(1e-15,best_lambda * new_grouping_param + neg_best_lambda * grouping_param);
+    if (grouping_param >= 0.0)
+      grouping_param = std::max(hmm_min_param_entry, best_lambda * new_grouping_param + neg_best_lambda * grouping_param);
+
+    //std::cerr << "updated params: " << dist_params << std::endl;
+    //std::cerr << "updated grouping param: " << grouping_param << std::endl;
+  }
+}
+
+void ehmm_m_step(const FullHMMAlignmentModelNoClasses& facount, Math1D::Vector<double>& dist_params, uint zero_offset,
+                 uint nIter, double& grouping_param, bool deficient, int redpar_limit)
+{
+  bool norm_constraint = true;
+
+  // 1. collect compact counts from facount
+
+  Math1D::Vector<double> singleton_count(dist_params.size(), 0.0);
+  double grouping_count = 0.0;
+  Math2D::Matrix<double> span_count(zero_offset + 1, dist_params.size() - zero_offset, 0.0);
+
+  //const uint maxI = dist_params.size() / 2 + 1;
+
+  for (int I = 1; I <= int (facount.size()); I++) {
+
+    //assert(I <= maxI);
+
+    if (facount[I - 1].xDim() != 0) {
+
+      for (int i = 0; i < I; i++) {
+
+        double count_sum = 0.0;
+        for (int i_next = 0; i_next < I; i_next++) {
+
+          const double cur_count = facount[I - 1](i_next, i);
+          if (grouping_param < 0.0 || abs(i_next - i) <= redpar_limit) {
+            singleton_count[zero_offset + i_next - i] += cur_count;
+            count_sum += cur_count;
+          }
+          else {
+            double grouping_norm = std::max(0, i - redpar_limit);
+            grouping_norm += std::max(0, int (I) - 1 - (i + redpar_limit));
+            grouping_count += cur_count / grouping_norm;
+            count_sum += cur_count / grouping_norm;
+          }
+        }
+        span_count(zero_offset - i, I - 1 - i) += count_sum;
+      }
+    }
+  }
+
+  // 2. preparations and testing of starting points
+
+  std::cerr.precision(8);
+
+  //std::cerr << "init params before projection: " << dist_params << std::endl;
+  //std::cerr << "grouping_param before projection: " << grouping_param << std::endl;
+
+  const uint start_idx = (grouping_param < 0.0) ? 0 : zero_offset - redpar_limit;
+  const uint end_idx = (grouping_param < 0.0) ? dist_params.size() - 1 : zero_offset + redpar_limit;
+
+  if (grouping_param < 0.0) {
+    projection_on_simplex(dist_params.direct_access(), dist_params.size(), hmm_min_param_entry);
+  }
+  else {
+    projection_on_simplex_with_slack(dist_params.direct_access() + zero_offset - redpar_limit, grouping_param, 2 * redpar_limit + 1, hmm_min_param_entry);
+    grouping_param = std::max(hmm_min_param_entry, grouping_param);
+  }
+
+  //std::cerr << "init params after projection: " << dist_params << std::endl;
+  //std::cerr << "grouping_param after projection: " << grouping_param << std::endl;
+
+  Math1D::Vector<double> dist_grad = dist_params;
+  Math1D::Vector<double> new_dist_params = dist_params;
+  Math1D::Vector<double> hyp_dist_params = dist_params;
+
+  double grouping_grad = 0.0;
+  double new_grouping_param = grouping_param;
+  double hyp_grouping_param = grouping_param;
+
+  //NOTE: the deficient closed-form solution does not necessarily have a lower energy INCLUDING the normalization term
+
+  double energy = (deficient) ? 0.0 : ehmm_m_step_energy(singleton_count, grouping_count, span_count, dist_params,
+                  zero_offset, grouping_param, redpar_limit);
+
+  //test if normalized counts give a better starting point
+  {
+    if (grouping_param >= 0.0) {
+      //reduced parametric
+
+      double norm = 0.0;
+      for (int k = -redpar_limit; k <= redpar_limit; k++)
+        norm += singleton_count[zero_offset + k];
+      norm += grouping_count;
+
+      if (norm > 1e-305) {
+
+        for (int k = zero_offset-redpar_limit; k <= zero_offset+redpar_limit; k++)
+          hyp_dist_params[k] = std::max(hmm_min_param_entry, singleton_count[k] / norm);
+
+        double hyp_grouping_param = std::max(hmm_min_param_entry, grouping_count / norm);
+
+        double hyp_energy = (deficient) ? -1.0 : ehmm_m_step_energy(singleton_count, grouping_count, span_count,
+                            hyp_dist_params, zero_offset, hyp_grouping_param, redpar_limit);
+
+        if (!deficient) {
+          std::cerr << "start energy: " << energy << std::endl;
+          std::cerr << "hyp energy: " << hyp_energy << std::endl;
+        }
+
+        if (hyp_energy < energy) {
+
+          dist_params = hyp_dist_params;
+          grouping_param = hyp_grouping_param;
+          energy = hyp_energy;
+        }
+      }
+    }
+    else {
+      //fully parametric
+
+      double sum = singleton_count.sum();
+
+      if (sum > 1e-305) {
+        for (uint k = 0; k < hyp_dist_params.size(); k++)
+          hyp_dist_params[k] = std::max(hmm_min_param_entry, singleton_count[k] / sum);
+
+        double hyp_energy = (deficient) ? -1.0 : ehmm_m_step_energy(singleton_count, grouping_count, span_count,
+                            hyp_dist_params, zero_offset, grouping_param, redpar_limit);
+
+        if (!deficient) {
+          std::cerr << "start energy: " << energy << std::endl;
+          std::cerr << "hyp energy: " << hyp_energy << std::endl;
+        }
+
+        if (hyp_energy < energy) {
+          dist_params = hyp_dist_params;
+          energy = hyp_energy;
+        }
+      }
+    }
+  }
+
+  if (deficient)
+    return;
+
+  // 3. main loop
+  std::cerr << "start m-energy: " << energy << std::endl;
+
+  assert(grouping_param < 0.0 || grouping_param >= hmm_min_param_entry);
+
+  //double alpha  = 0.0001;
+  //double alpha  = 0.001;
+  double alpha = 100.0;
+
+  double line_reduction_factor = 0.5;
+
+  for (uint iter = 1; iter <= nIter; iter++) {
+
+    if ((iter % 5) == 0)
+      std::cerr << "m-step gd-iter #" << iter << ", cur energy: " << energy << std::endl;
+
+    dist_grad.set_constant(0.0);
+    grouping_grad = 0.0;
+
+    // a) calculate gradient
+    if (grouping_param < 0.0) {
+      //fully parametric
+
+      //singleton terms
+      for (uint d = 0; d < singleton_count.size(); d++)
+        dist_grad[d] -= singleton_count[d] / std::max(hmm_min_param_entry, dist_params[d]);
+
+      //normalization terms
+      for (uint span_start = 0; span_start < span_count.xDim(); span_start++) {
+
+        Math1D::Vector<double> addon(dist_params.size(), 0.0);
+
+        double param_sum = dist_params.range_sum(span_start, zero_offset);
+        for (uint span_end = zero_offset; span_end < zero_offset + span_count.yDim(); span_end++) {
+
+          param_sum += std::max(hmm_min_param_entry, dist_params[span_end]);
+
+          const double cur_count = span_count(span_start, span_end - zero_offset);
+          if (cur_count != 0.0) {
+
+            addon[span_end] = cur_count / param_sum;
+            // double addon = cur_count / param_sum;
+
+            // for (uint d=span_start; d <= span_end; d++)
+            //   dist_grad[d] += addon;
+          }
+        }
+
+        double sum_addon = 0.0;
+        for (int d = zero_offset + span_count.yDim() - 1; d >= int (zero_offset); d--) {
+          sum_addon += addon[d];
+          dist_grad[d] += sum_addon;
+        }
+        for (int d = zero_offset - 1; d >= int (span_start); d--)
+          dist_grad[d] += sum_addon;
+      }
+    }
+    else {
+      //reduced parametric
+
+      uint first_diff = zero_offset - redpar_limit;
+      uint last_diff = zero_offset + redpar_limit;
+
+      for (uint d = first_diff; d <= last_diff; d++)
+        dist_grad[d] -= singleton_count[d] / std::max(hmm_min_param_entry, dist_params[d]);
+
+      //NOTE: because we do not divide grouping_param by the various numbers of affected positions
+      //   this energy will differ from the inefficient version by a constant
+      grouping_grad -= grouping_count / std::max(hmm_min_param_entry, grouping_param);
+
+      //normalization terms
+      for (uint span_start = 0; span_start < span_count.xDim(); span_start++) {
+
+        for (uint span_end = zero_offset; span_end < zero_offset + span_count.yDim(); span_end++) {
+
+          //there should be plenty of room for speed-ups here
+
+          const double cur_count = span_count(span_start, span_end - zero_offset);
+          if (cur_count != 0.0) {
+
+            double param_sum = 0.0;
+            if (span_start < first_diff || span_end > last_diff)
+              param_sum = grouping_param;
+
+            for (uint d = std::max(first_diff, span_start); d <= std::min(span_end, last_diff); d++)
+              param_sum += std::max(hmm_min_param_entry, dist_params[d]);
+
+            double addon = cur_count / param_sum;
+            if (span_start < first_diff || span_end > last_diff)
+              grouping_grad += addon;
+
+            for (uint d = std::max(first_diff, span_start); d <= std::min(span_end, last_diff); d++)
+              dist_grad[d] += addon;
+          }
+        }
+      }
+    }
+
+    // b) go in gradient direction
+
+    double real_alpha = alpha;
+
+    //TRIAL
+    // double sqr_grad_norm  = 0.0;
+    // for (uint k=0; k < dist_params.size(); k++)
+    //   sqr_grad_norm += dist_grad.direct_access(k) * dist_grad.direct_access(k);
+    // sqr_grad_norm += grouping_grad * grouping_grad;
+
+    // real_alpha /= sqrt(sqr_grad_norm);
+    //END_TRIAL
+
+    for (uint k = start_idx; k <= end_idx; k++)
+      new_dist_params.direct_access(k) = dist_params.direct_access(k) - real_alpha * dist_grad.direct_access(k);
+
+    new_grouping_param = grouping_param - real_alpha * grouping_grad;
+
+    //std::cerr << "new params before projection: " << new_dist_params << std::endl;
+    //std::cerr << "new grouping_param before projection: " << new_grouping_param << std::endl;
+
+    // c) projection
+
+    for (uint k = start_idx; k <= end_idx; k++) {
+      if (new_dist_params[k] >= 1e75)
+        new_dist_params[k] = 9e74;
+      else if (new_dist_params[k] <= -1e75)
+        new_dist_params[k] = -9e74;
+    }
+    if (new_grouping_param >= 1e75)
+      new_grouping_param = 9e74;
+    else if (new_grouping_param <= -1e75)
+      new_grouping_param = -9e74;
+
+    if (norm_constraint) {
+
+      if (grouping_param < 0.0) {
+        projection_on_simplex(new_dist_params.direct_access(), dist_params.size(), hmm_min_param_entry);
+      }
+      else {
+        projection_on_simplex_with_slack(new_dist_params.direct_access() + start_idx, new_grouping_param,
+                                         2 * redpar_limit + 1, hmm_min_param_entry);
+        new_grouping_param = std::max(hmm_min_param_entry, new_grouping_param);
+      }
+    }
+    else {
+
+      //projection on the positive orthant, followed by re-normalization (allowed because the energy is scale invariant)
+
+      double sum = 0.0;
+      for (uint k = start_idx; k <= end_idx; k++) {
+        new_dist_params[k] = std::max(hmm_min_param_entry, new_dist_params[k]);
+        sum += new_dist_params[k];
+      }
+
+      assert(sum > hmm_min_param_entry);
+      for (uint k = start_idx; k <= end_idx; k++)
+        new_dist_params[k] /= sum;
+    }
+
+    //std::cerr << "new params after projection: " << new_dist_params << std::endl;
+    //std::cerr << "new grouping_param after projection: " << new_grouping_param << std::endl;
+
+    // d) find step-size
+
+    new_grouping_param = std::max(new_grouping_param, hmm_min_param_entry);
+
+    double best_energy = 1e300;
+
+    //std::cerr << "fullstep energy: " << hyp_energy << std::endl;
+
+    double lambda = 1.0;
+    double best_lambda = lambda;
+
+    uint nIter = 0;
+
+    bool decreasing = true;
+
+    while (decreasing || best_energy > energy) {
+
+      nIter++;
+      if (nIter > 15 && best_energy > energy) {
+        break;
+      }
+
+      lambda *= line_reduction_factor;
+
+      double neg_lambda = 1.0 - lambda;
+
+      for (uint k = start_idx; k <= end_idx; k++)
+        hyp_dist_params.direct_access(k) = std::max(hmm_min_param_entry,lambda * new_dist_params.direct_access(k) +
+                                           neg_lambda * dist_params.direct_access(k));
+
+      if (grouping_param >= 0.0)
+        hyp_grouping_param = std::max(hmm_min_param_entry, lambda * new_grouping_param + neg_lambda * grouping_param);
+
+      double new_energy = ehmm_m_step_energy(singleton_count, grouping_count, span_count,
+                                             hyp_dist_params, zero_offset, hyp_grouping_param, redpar_limit);
+
+      if (new_energy < best_energy) {
+        best_energy = new_energy;
+        best_lambda = lambda;
+
+        decreasing = true;
+      }
+      else {
+        decreasing = false;
+      }
+
+      //std::cerr << "hyp energy: " << new_energy << std::endl;
+    }
+
+    if (nIter > 5)
+      line_reduction_factor *= 0.9;
+
+    // if (nIter > 4)
+    //   alpha *= 1.5;
+
+    //DEBUG
+    // if (best_lambda == 1.0)
+    //   std::cerr << "!!!TAKING FULL STEP!!!" << std::endl;
+    //END_DEBUG
+
+    if (nIter > 15 || fabs(energy - best_energy) < 1e-4) {
+      std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
+      break;
+    }
+
+    energy = best_energy;
+
+    //set new values
+    double neg_best_lambda = 1.0 - best_lambda;
+
+    for (uint k = start_idx; k <= end_idx; k++)
+      dist_params.direct_access(k) = std::max(hmm_min_param_entry, neg_best_lambda * dist_params.direct_access(k) +
+                                              best_lambda * new_dist_params.direct_access(k));
+
+    if (grouping_param >= 0.0)
+      grouping_param = std::max(hmm_min_param_entry, best_lambda * new_grouping_param + neg_best_lambda * grouping_param);
+
+    double sum = dist_params.sum();
+    if (grouping_param >= 0.0)
+      sum += grouping_param;
+
+    assert(sum >= 0.99 && sum <= 1.01);
+
+    //std::cerr << "updated params: " << dist_params << std::endl;
+    //std::cerr << "updated grouping param: " << grouping_param << std::endl;
   }
 
 }
 
+//DON'T PUBLISH -- START
+//@returns the denominator of the renormalization expression
+inline double unconstrained2constrained_m_step_point(const Math1D::Vector<double>& param, uint start_idx, uint end_idx, bool redpar,
+    Math1D::Vector<double>& dist_prob, double& grouping_prob, int redpar_limit)
+{
 
-double ehmm_init_m_step_energy(const InitialAlignmentProbability& init_acount, const Math1D::Vector<double>& init_params) {
+  const uint nParams = param.size();
 
+  double sum = 0.0;
+
+  if (!redpar) {
+
+    for (uint k = 0; k < nParams; k++) {
+      double x = param[k];
+      dist_prob[k] = x * x;
+      sum += x * x;
+    }
+
+    assert(sum > 1e-305);
+    double inv_sum = 1.0 / sum;
+    for (uint k = 0; k < nParams; k++) {
+      dist_prob[k] = std::max(hmm_min_param_entry, dist_prob[k] * inv_sum);
+    }
+  }
+  else {
+
+    for (uint k = start_idx; k <= end_idx; k++) {
+      double x = param[k - start_idx];
+      dist_prob[k] = x * x;
+      sum += x * x;
+    }
+    double x = param[2 * redpar_limit + 1];
+    grouping_prob = x * x;
+    sum += x * x;
+
+    //std::cerr << "sum: " << sum << std::endl;
+
+    assert(sum > 1e-305);
+    double inv_sum = 1.0 / sum;
+    for (uint k = start_idx; k <= end_idx; k++) {
+      dist_prob[k] = std::max(hmm_min_param_entry, dist_prob[k] * inv_sum);
+    }
+    grouping_prob = std::max(hmm_min_param_entry, grouping_prob * inv_sum);
+  }
+
+  return sum;
+}
+
+void ehmm_m_step_unconstrained(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& dist_params,
+                               uint zero_offset, uint nIter, double& grouping_param, bool deficient, int redpar_limit)
+{
+
+  //in this formulation we use parameters p=x^2 to get an unconstrained formulation
+  // here we use nonlinear conjugate gradients  and as a special case gradient descent
+
+  std::cerr.precision(8);
+
+  //std::cerr << "init params before projection: " << dist_params << std::endl;
+  //std::cerr << "grouping_param before projection: " << grouping_param << std::endl;
+
+  const uint start_idx = (grouping_param < 0.0) ? 0 : zero_offset - redpar_limit;
+  const uint end_idx = (grouping_param < 0.0) ? dist_params.size() - 1 : zero_offset + redpar_limit;
+
+  const uint nParams = (grouping_param < 0.0) ? dist_params.size() : 2 * redpar_limit + 2;
+
+  Math1D::Vector<double> work_param(nParams);
+  Math1D::Vector<double> work_grad(nParams);
+  Math1D::Vector<double> search_direction(nParams);
+  Math1D::Vector<double> prev_work_grad(nParams, 0.0);
+  Math1D::Vector<double> hyp_work_param(nParams);
+
+  Math1D::Vector<double> dist_grad = dist_params;
+  Math1D::Vector<double> hyp_dist_params = dist_params;
+
+  double grouping_grad = 0.0;
+  double hyp_grouping_param = grouping_param;
+
+  // collect compact counts from facount
+
+  Math1D::Vector<double> singleton_count(dist_params.size(), 0.0);
+  double grouping_count = 0.0;
+  Math2D::Matrix<double> span_count(zero_offset + 1, dist_params.size() - zero_offset, 0.0);
+
+  for (int I = 1; I <= int (facount.size()); I++) {
+
+    if (facount[I - 1].xDim() != 0) {
+
+      for (int i = 0; i < I; i++) {
+
+        double count_sum = 0.0;
+        for (int i_next = 0; i_next < I; i_next++) {
+
+          const double cur_count = facount[I - 1](i_next, i);
+          if (grouping_param < 0.0 || abs(i_next - i) <= redpar_limit) {
+            singleton_count[zero_offset + i_next - i] += cur_count;
+            count_sum += cur_count;
+          }
+          else {
+            double grouping_norm = std::max(0, i - redpar_limit);
+            grouping_norm += std::max(0, int (I) - 1 - (i + redpar_limit));
+            grouping_count += cur_count / grouping_norm;
+            count_sum += cur_count / grouping_norm;
+          }
+        }
+        span_count(zero_offset - i, I - 1 - i) += count_sum;
+      }
+    }
+  }
+
+  //NOTE: the deficient closed-form solution does not necessarily have a lower energy INCLUDING the normalization term
+
+  double energy = (deficient) ? 0.0 : ehmm_m_step_energy(singleton_count, grouping_count, span_count, dist_params,
+                  zero_offset, grouping_param, redpar_limit);
+
+  //test if normalized counts give a better starting point
+  {
+    if (grouping_param >= 0.0) {
+      //reduced parametric
+
+      double norm = 0.0;
+      for (int k = -redpar_limit; k <= redpar_limit; k++)
+        norm += singleton_count[zero_offset + k];
+      norm += grouping_count;
+
+      if (norm > 1e-305) {
+
+        for (int k = zero_offset-redpar_limit; k <= zero_offset+redpar_limit; k++)
+          hyp_dist_params[k] = std::max(hmm_min_param_entry, singleton_count[k] / norm);
+
+        double hyp_grouping_param = std::max(hmm_min_param_entry, grouping_count / norm);
+
+        double hyp_energy = (deficient) ? -1.0 : ehmm_m_step_energy(singleton_count, grouping_count, span_count,
+                            hyp_dist_params, zero_offset, hyp_grouping_param, redpar_limit);
+
+        if (!deficient) {
+          std::cerr << "start energy: " << energy << std::endl;
+          std::cerr << "hyp energy: " << hyp_energy << std::endl;
+        }
+
+        if (hyp_energy < energy) {
+
+          dist_params = hyp_dist_params;
+          grouping_param = hyp_grouping_param;
+          energy = hyp_energy;
+        }
+      }
+    }
+    else {
+      //fully parametric
+
+      double sum = singleton_count.sum();
+
+      if (sum > 1e-305) {
+        for (uint k = 0; k < hyp_dist_params.size(); k++)
+          hyp_dist_params[k] = std::max(hmm_min_param_entry, singleton_count[k] / sum);
+
+        double hyp_energy = (deficient) ? -1.0 : ehmm_m_step_energy(singleton_count, grouping_count, span_count,
+                            hyp_dist_params, zero_offset, grouping_param, redpar_limit);
+
+        if (!deficient) {
+          std::cerr << "start energy: " << energy << std::endl;
+          std::cerr << "hyp energy: " << hyp_energy << std::endl;
+        }
+
+        if (hyp_energy < energy) {
+          dist_params = hyp_dist_params;
+          energy = hyp_energy;
+        }
+      }
+    }
+  }
+
+  if (deficient)
+    return;
+
+  //std::cerr << "start m-energy: " << energy << std::endl;
+
+  assert(grouping_param < 0.0 || grouping_param >= hmm_min_param_entry);
+
+  double alpha = 1.0;           //modified below, dependent on the gradient norm
+
+  //extract working params from the current probabilities (the probabilities are the squared working params)
+  if (grouping_param < 0.0) {
+    for (uint k = 0; k < nParams; k++)
+      work_param[k] = sqrt(dist_params[k]);
+  }
+  else {
+    for (uint k = start_idx; k <= end_idx; k++) {
+
+      work_param[k - start_idx] = sqrt(dist_params[k]);
+      work_param[2 * redpar_limit + 1] = sqrt(grouping_param);
+    }
+  }
+
+  double prev_grad_norm = 0.0;
+
+  double line_reduction_factor = 0.5;
+
+  bool restart = false;
+
+  for (uint iter = 1; iter <= nIter; iter++) {
+
+    //if ((iter % 5) == 0)
+    std::cerr << "unconstrained m-step gd/nlcg-iter #" << iter << ", cur energy: " << energy << std::endl;
+
+    dist_grad.set_constant(0.0);
+    grouping_grad = 0.0;
+    work_grad.set_constant(0.0);
+
+    // a) calculate gradient w.r.t. the probabilities, not the parameters
+
+    if (grouping_param < 0.0) {
+      //fully parametric
+
+      //singleton terms
+      for (uint d = 0; d < singleton_count.size(); d++)
+        dist_grad[d] -= singleton_count[d] / std::max(hmm_min_param_entry, dist_params[d]);
+
+      //normalization terms
+      for (uint span_start = 0; span_start < span_count.xDim(); span_start++) {
+
+        Math1D::Vector<double> addon(dist_params.size(), 0.0);
+
+        Math1D::Vector<double> init_sum(zero_offset + 1);
+        init_sum[zero_offset] = 0.0;
+        init_sum[zero_offset - 1] = dist_params[zero_offset - 1];
+        for (int s = zero_offset - 2; s >= 0; s--)
+          init_sum[s] = init_sum[s + 1] + dist_params[s];
+
+        double param_sum = init_sum[span_start];        //dist_params.range_sum(span_start,zero_offset);
+        for (uint span_end = zero_offset; span_end < zero_offset + span_count.yDim(); span_end++) {
+
+          param_sum += std::max(hmm_min_param_entry, dist_params[span_end]);
+
+          const double cur_count = span_count(span_start, span_end - zero_offset);
+          if (cur_count != 0.0) {
+
+            addon[span_end] = cur_count / param_sum;
+            // double addon = cur_count / param_sum;
+
+            // for (uint d=span_start; d <= span_end; d++)
+            //   dist_grad[d] += addon;
+          }
+        }
+
+        double sum_addon = 0.0;
+        for (int d = zero_offset + span_count.yDim() - 1; d >= int (zero_offset); d--) {
+          sum_addon += addon[d];
+          dist_grad[d] += sum_addon;
+        }
+        for (int d = zero_offset - 1; d >= int (span_start); d--)
+          dist_grad[d] += sum_addon;
+      }
+    }
+    else {
+      //reduced parametric
+
+      uint first_diff = zero_offset - redpar_limit;
+      uint last_diff = zero_offset + redpar_limit;
+
+      for (uint d = first_diff; d <= last_diff; d++)
+        dist_grad[d] -= singleton_count[d] / std::max(hmm_min_param_entry, dist_params[d]);
+
+      //NOTE: because we do not divide grouping_param by the various numbers of affected positions
+      //   this energy will differ from the inefficient version by a constant
+      grouping_grad -= grouping_count / std::max(hmm_min_param_entry, grouping_param);
+
+      //normalization terms
+      for (uint span_start = 0; span_start < span_count.xDim(); span_start++) {
+
+        for (uint span_end = zero_offset; span_end < zero_offset + span_count.yDim(); span_end++) {
+
+          //there should be plenty of room for speed-ups here
+
+          const double cur_count = span_count(span_start, span_end - zero_offset);
+          if (cur_count != 0.0) {
+
+            double param_sum = 0.0;
+            if (span_start < first_diff || span_end > last_diff)
+              param_sum = grouping_param;
+
+            for (uint d = std::max(first_diff, span_start); d <= std::min(span_end, last_diff); d++)
+              param_sum += std::max(hmm_min_param_entry, dist_params[d]);
+
+            double addon = cur_count / param_sum;
+            if (span_start < first_diff || span_end > last_diff)
+              grouping_grad += addon;
+
+            for (uint d = std::max(first_diff, span_start); d <= std::min(span_end, last_diff); d++)
+              dist_grad[d] += addon;
+          }
+        }
+      }
+    }
+
+    // b) now calculate the gradient for the actual parameters, store in work_grad
+
+    // each dist_grad[k] has to be diffentiated for each work_param[k']
+    // we have to differentiate work_param[k]² / (\sum_k' work_param[k']²)
+    // u(x) = work_param[k]², v(x) = (\sum_k' work_param[k']²)
+    // quotient rule gives the total derivative  dist_grad[k] * (u'(x)*v(x) - v'(x)u(x)) / v(x)²
+    // for k'!=k : dist_grad[k] * ( -2*work_param[k'] * work_param[k]²) / denom²
+    // for k: dist_grad[k] * (2*work_param[k]*denom - 2*work_param[k]³) / denom²
+
+    const double denom = work_param.sqr_norm();
+    const double denom_sqr = denom * denom;
+
+    //std::cerr << "scale: " << denom << std::endl;
+
+    if (grouping_param < 0.0) {
+
+      double coeff_sum = 0.0;
+
+      for (uint k = 0; k < nParams; k++) {
+        const double wp = work_param[k];
+        const double grad = dist_grad[k];
+        const double param_sqr = wp * wp;
+        const double coeff = 2.0 * grad * param_sqr / denom_sqr;
+
+        work_grad[k] += 2.0 * grad * wp / denom;
+
+        coeff_sum += coeff;
+        // for (uint kk=0; kk < nParams; kk++)
+        //   work_grad[kk] -= coeff * work_param[kk];
+      }
+      for (uint kk = 0; kk < nParams; kk++)
+        work_grad[kk] -= coeff_sum * work_param[kk];
+    }
+    else {
+
+      double coeff_sum = 0.0;
+
+      for (uint k = start_idx; k <= end_idx; k++) {
+        const double wp = work_param[k - start_idx];
+        const double grad = dist_grad[k];
+        const double param_sqr = wp * wp;
+        const double coeff = 2.0 * grad * param_sqr / denom_sqr;
+        work_grad[k - start_idx] += 2.0 * grad * wp / denom;
+
+        coeff_sum += coeff;
+        // for (uint kk=0; kk < nParams; kk++)
+        //   work_grad[kk] -= coeff * work_param[kk];
+      }
+      const double wp = work_param[2 * redpar_limit + 1];
+      const double grad = grouping_grad;
+      const double param_sqr = wp * wp;
+      const double coeff = 2.0 * grad * param_sqr / denom_sqr;
+
+      work_grad[2 * redpar_limit + 1] += 2.0 * grad * wp / denom;
+
+      coeff_sum += coeff;
+      // for (uint kk=0; kk < nParams; kk++)
+      //        work_grad[kk] -= coeff * work_param[kk];
+
+      for (uint kk = 0; kk < nParams; kk++)
+        work_grad[kk] -= coeff_sum * work_param[kk];
+    }
+
+    double new_grad_norm = work_grad.sqr_norm();
+
+    //in NLCG mode: modify the search direction
+    if (iter == 1 || restart) {
+      //if (true) {
+      std::cerr << "RESTART" << std::endl;
+      search_direction = work_grad;
+      negate(search_direction);
+    }
+    else {
+      double beta_fr = new_grad_norm / prev_grad_norm;  //Fletcher-Reeves variant
+
+      double numerator = 0.0;
+      double beta_hs_denom = 0.0;
+      for (uint k = 0; k < nParams; k++) {
+
+        const double diff = work_grad[k] - prev_work_grad[k];
+        numerator += diff * work_grad[k];
+        beta_hs_denom += diff * search_direction[k];
+      }
+
+      double beta_hs = numerator / beta_hs_denom;
+      //beta_hs = std::max(0.0,beta_hs);
+      if (beta_hs < -beta_fr)
+        beta_hs = -beta_fr;
+      if (beta_hs > beta_fr)
+        beta_hs = beta_fr;
+
+      double beta = beta_hs;
+
+      for (uint k = 0; k < nParams; k++) {
+        search_direction[k] = -work_grad[k] + beta * search_direction[k];
+      }
+    }
+
+    alpha = 10.0 / sqrt(search_direction.sqr_norm());
+
+    // c) line search
+
+    double best_energy = 1e300;
+
+    //std::cerr << "fullstep energy: " << hyp_energy << std::endl;
+
+    double best_alpha = alpha;
+
+    uint nIter = 0;
+
+    bool decreasing = true;
+
+    while (decreasing || best_energy > energy) {
+
+      nIter++;
+      if (nIter > 15 && best_energy > energy) {
+        break;
+      }
+
+      if (nIter > 1)
+        alpha *= line_reduction_factor;
+
+      for (uint k = 0; k < nParams; k++)
+        hyp_work_param[k] = work_param[k] + alpha * search_direction[k];
+
+      //calculate corresponding probability distribution (square the params and renormalize)
+      unconstrained2constrained_m_step_point(hyp_work_param, start_idx, end_idx, grouping_param >= 0,
+                                             hyp_dist_params, hyp_grouping_param, redpar_limit);
+
+      double new_energy = ehmm_m_step_energy(singleton_count, grouping_count, span_count,
+                                             hyp_dist_params, zero_offset, hyp_grouping_param, redpar_limit);
+
+      if (new_energy < best_energy) {
+        best_energy = new_energy;
+        best_alpha = alpha;
+
+        decreasing = true;
+      }
+      else {
+        decreasing = false;
+      }
+
+      //std::cerr << "alpha: " << alpha << ", hyp energy: " << new_energy << std::endl;
+    }
+
+    if (nIter > 5)
+      line_reduction_factor *= 0.9;
+
+    //d) go to the determined point
+
+    if (best_energy >= energy - 1e-4) {
+      if (!restart)
+        restart = true;
+      else {
+        std::cerr << "CUTOFF after " << iter << " iterations, last gain: " << (energy - best_energy) << std::endl;
+        std::cerr << "last squared gradient norm: " << new_grad_norm << std::endl;
+        break;
+      }
+    }
+    else
+      restart = false;
+
+    if (best_energy < energy) {
+      energy = best_energy;
+
+      for (uint k = 0; k < nParams; k++)
+        work_param[k] += best_alpha * search_direction[k];
+
+      //calculate corresponding probability distribution (square the params and renormalize)
+
+      unconstrained2constrained_m_step_point(work_param, start_idx, end_idx, grouping_param >= 0, dist_params,
+                                             grouping_param, redpar_limit);
+
+      double sum = dist_params.sum();
+      if (grouping_param >= 0.0)
+        sum += grouping_param;
+
+      assert(sum >= 0.99 && sum <= 1.01);
+    }
+
+    prev_work_grad = work_grad; //could be more efficient
+    prev_grad_norm = new_grad_norm;
+  }
+
+}
+
+void ehmm_m_step_unconstrained_LBFGS(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& dist_params, uint zero_offset, uint nIter,
+                                     double& grouping_param, uint L, bool deficient, int redpar_limit)
+{
+
+  //in this formulation we use parameters p=x^2 to get an unconstrained formulation
+
+  std::cerr.precision(8);
+
+  //std::cerr << "init params before projection: " << dist_params << std::endl;
+  //std::cerr << "grouping_param before projection: " << grouping_param << std::endl;
+
+  const uint start_idx = (grouping_param < 0.0) ? 0 : zero_offset - redpar_limit;
+  const uint end_idx = (grouping_param < 0.0) ? dist_params.size() - 1 : zero_offset + redpar_limit;
+
+  const uint nParams = (grouping_param < 0.0) ? dist_params.size() : 2 * redpar_limit + 2;
+
+  Math1D::Vector<double> work_param(nParams);
+  Math1D::Vector<double> work_grad(nParams);
+  Math1D::Vector<double> search_direction(nParams);
+  Math1D::Vector<double> hyp_work_param(nParams);
+
+  Math1D::Vector<double> dist_grad = dist_params;
+  Math1D::Vector<double> hyp_dist_params = dist_params;
+
+  Storage1D<Math1D::Vector<double> > grad_diff(L);
+  Storage1D<Math1D::Vector<double> > step(L);
+  Math1D::Vector<double> rho(L);
+
+  for (uint k = 0; k < L; k++) {
+    grad_diff[k].resize(nParams);
+    step[k].resize(nParams);
+  }
+
+  double grouping_grad = 0.0;
+  double hyp_grouping_param = grouping_param;
+
+  // collect compact counts from facount
+
+  Math1D::Vector<double> singleton_count(dist_params.size(), 0.0);
+  double grouping_count = 0.0;
+  Math2D::Matrix<double> span_count(zero_offset + 1, dist_params.size() - zero_offset, 0.0);
+
+  for (int I = 1; I <= int (facount.size()); I++) {
+
+    if (facount[I - 1].xDim() != 0) {
+
+      for (int i = 0; i < I; i++) {
+
+        double count_sum = 0.0;
+        for (int i_next = 0; i_next < I; i_next++) {
+
+          double cur_count = facount[I - 1] (i_next, i);
+          if (grouping_param < 0.0 || abs(i_next - i) <= redpar_limit) {
+            singleton_count[zero_offset + i_next - i] += cur_count;
+            count_sum += cur_count;
+          }
+          else {
+            double grouping_norm = std::max(0, i - redpar_limit);
+            grouping_norm += std::max(0, int (I) - 1 - (i + redpar_limit));
+            grouping_count += cur_count / grouping_norm;
+            count_sum += cur_count / grouping_norm;
+          }
+        }
+        span_count(zero_offset - i, I - 1 - i) += count_sum;
+      }
+    }
+  }
+
+  //NOTE: the deficient closed-form solution does not necessarily have a lower energy INCLUDING the normalization term
+
+  double energy = (deficient) ? 0.0 : ehmm_m_step_energy(singleton_count, grouping_count, span_count, dist_params,
+                  zero_offset, grouping_param, redpar_limit);
+
+  //test if normalized counts give a better starting point
+  {
+    if (grouping_param >= 0.0) {
+      //reduced parametric
+
+      double norm = 0.0;
+      for (int k = -redpar_limit; k <= redpar_limit; k++)
+        norm += singleton_count[zero_offset + k];
+      norm += grouping_count;
+
+      if (norm > 1e-305) {
+
+        for (int k = zero_offset-redpar_limit; k <= zero_offset+redpar_limit; k++)
+          hyp_dist_params[k] = std::max(hmm_min_param_entry, singleton_count[k] / norm);
+
+        double hyp_grouping_param = std::max(hmm_min_param_entry, grouping_count / norm);
+
+        double hyp_energy = (deficient) ? -1.0 : ehmm_m_step_energy(singleton_count, grouping_count, span_count, hyp_dist_params, zero_offset,
+                            hyp_grouping_param, redpar_limit);
+
+        if (!deficient) {
+          std::cerr << "start energy: " << energy << std::endl;
+          std::cerr << "hyp energy: " << hyp_energy << std::endl;
+        }
+
+        if (hyp_energy < energy) {
+
+          dist_params = hyp_dist_params;
+          grouping_param = hyp_grouping_param;
+          energy = hyp_energy;
+        }
+      }
+    }
+    else {
+      //fully parametric
+
+      double sum = singleton_count.sum();
+
+      if (sum > 1e-305) {
+        for (uint k = 0; k < hyp_dist_params.size(); k++)
+          hyp_dist_params[k] = std::max(hmm_min_param_entry, singleton_count[k] / sum);
+
+        double hyp_energy = (deficient) ? -1.0 : ehmm_m_step_energy(singleton_count, grouping_count, span_count, hyp_dist_params, zero_offset,
+                            grouping_param, redpar_limit);
+
+        if (!deficient) {
+          std::cerr << "start energy: " << energy << std::endl;
+          std::cerr << "hyp energy: " << hyp_energy << std::endl;
+        }
+
+        if (hyp_energy < energy) {
+          dist_params = hyp_dist_params;
+          energy = hyp_energy;
+        }
+      }
+    }
+  }
+
+  if (deficient)
+    return;
+
+  //std::cerr << "start m-energy: " << energy << std::endl;
+
+  assert(grouping_param < 0.0 || grouping_param >= hmm_min_param_entry);
+
+  //extract working params from the current probabilities (the probabilities are the squared working params)
+  if (grouping_param < 0.0) {
+    for (uint k = 0; k < nParams; k++)
+      work_param[k] = sqrt(dist_params[k]);
+  }
+  else {
+    for (uint k = start_idx; k <= end_idx; k++) {
+
+      work_param[k - start_idx] = sqrt(dist_params[k]);
+      work_param[2 * redpar_limit + 1] = sqrt(grouping_param);
+    }
+  }
+
+  double scale = 1.0;
+
+  double line_reduction_factor = 0.75;
+
+  uint start_iter = 1;          //changed whenever the curvature condition is violated
+
+  for (uint iter = 1; iter <= nIter; iter++) {
+
+    if ((iter % 5) == 0)
+      std::cerr << "unconstrained m-step L-BFGS(" << L << ")-iter #" << iter << ", cur energy: " << energy << std::endl;
+
+    dist_grad.set_constant(0.0);
+    grouping_grad = 0.0;
+
+    // a) calculate gradient w.r.t. the probabilities, not the parameters
+
+    if (grouping_param < 0.0) {
+      //fully parametric
+
+      //singleton terms
+      for (uint d = 0; d < singleton_count.size(); d++)
+        dist_grad[d] -= singleton_count[d] / std::max(hmm_min_param_entry, dist_params[d]);
+
+      //normalization terms
+      for (uint span_start = 0; span_start < span_count.xDim(); span_start++) {
+
+        Math1D::Vector<double> addon(dist_params.size(), 0.0);
+
+        Math1D::Vector<double> init_sum(zero_offset + 1);
+        init_sum[zero_offset] = 0.0;
+        init_sum[zero_offset - 1] = dist_params[zero_offset - 1];
+        for (int s = zero_offset - 2; s >= 0; s--)
+          init_sum[s] = init_sum[s + 1] + dist_params[s];
+
+        double param_sum = init_sum[span_start];        //dist_params.range_sum(span_start,zero_offset);
+        for (uint span_end = zero_offset; span_end < zero_offset + span_count.yDim(); span_end++) {
+
+          param_sum += std::max(hmm_min_param_entry, dist_params[span_end]);
+
+          const double cur_count = span_count(span_start, span_end - zero_offset);
+          if (cur_count != 0.0) {
+
+            addon[span_end] = cur_count / param_sum;
+            // double addon = cur_count / param_sum;
+
+            // for (uint d=span_start; d <= span_end; d++)
+            //   dist_grad[d] += addon;
+          }
+        }
+
+        double sum_addon = 0.0;
+        for (int d = zero_offset + span_count.yDim() - 1; d >= int (zero_offset); d--) {
+          sum_addon += addon[d];
+          dist_grad[d] += sum_addon;
+        }
+        for (int d = zero_offset - 1; d >= int (span_start); d--)
+          dist_grad[d] += sum_addon;
+      }
+    }
+    else {
+      //reduced parametric
+
+      uint first_diff = zero_offset - redpar_limit;
+      uint last_diff = zero_offset + redpar_limit;
+
+      for (uint d = first_diff; d <= last_diff; d++)
+        dist_grad[d] -= singleton_count[d] / std::max(hmm_min_param_entry, dist_params[d]);
+
+      //NOTE: because we do not divide grouping_param by the various numbers of affected positions
+      //   this energy will differ from the inefficient version by a constant
+      grouping_grad -= grouping_count / std::max(hmm_min_param_entry, grouping_param);
+
+      //normalization terms
+      for (uint span_start = 0; span_start < span_count.xDim(); span_start++) {
+
+        for (uint span_end = zero_offset; span_end < zero_offset + span_count.yDim(); span_end++) {
+
+          //there should be plenty of room for speed-ups here
+
+          const double cur_count = span_count(span_start, span_end - zero_offset);
+          if (cur_count != 0.0) {
+
+            double param_sum = 0.0;
+            if (span_start < first_diff || span_end > last_diff)
+              param_sum = grouping_param;
+
+            for (uint d = std::max(first_diff, span_start); d <= std::min(span_end, last_diff); d++)
+              param_sum += std::max(hmm_min_param_entry, dist_params[d]);
+
+            double addon = cur_count / param_sum;
+            if (span_start < first_diff || span_end > last_diff)
+              grouping_grad += addon;
+
+            for (uint d = std::max(first_diff, span_start); d <= std::min(span_end, last_diff); d++)
+              dist_grad[d] += addon;
+          }
+        }
+      }
+    }
+
+    // b) now calculate the gradient for the actual parameters, store in work_grad
+
+    // each dist_grad[k] has to be diffentiated for each work_param[k']
+    // we have to differentiate work_param[k]² / (\sum_k' work_param[k']²)
+    // u(x) = work_param[k]², v(x) = (\sum_k' work_param[k']²)
+    // quotient rule gives the total derivative  dist_grad[k] * (u'(x)*v(x) - v'(x)u(x)) / v(x)²
+    // for k'!=k : dist_grad[k] * ( -2*work_param[k'] * work_param[k]²) / denom²
+    // for k: dist_grad[k] * (2*work_param[k]*denom - 2*work_param[k]³) / denom²
+
+    const double denom = scale; //work_param.sqr_norm();
+    const double denom_sqr = denom * denom;
+
+    std::cerr << "scale: " << denom << std::endl;
+
+    if (grouping_param < 0.0) {
+
+      double coeff_sum = 0.0;
+
+      for (uint k = 0; k < nParams; k++) {
+        const double wp = work_param[k];
+        const double grad = dist_grad[k];
+        const double param_sqr = wp * wp;
+        const double coeff = 2.0 * grad * param_sqr / denom_sqr;
+
+        work_grad[k] += 2.0 * grad * wp / denom;
+
+        coeff_sum += coeff;
+        // for (uint kk=0; kk < nParams; kk++)
+        //   work_grad[kk] -= coeff * work_param[kk];
+      }
+      for (uint kk = 0; kk < nParams; kk++)
+        work_grad[kk] -= coeff_sum * work_param[kk];
+    }
+    else {
+
+      double coeff_sum = 0.0;
+
+      for (uint k = start_idx; k <= end_idx; k++) {
+        const double wp = work_param[k - start_idx];
+        const double grad = dist_grad[k];
+        const double param_sqr = wp * wp;
+        const double coeff = 2.0 * grad * param_sqr / denom_sqr;
+        work_grad[k - start_idx] += 2.0 * grad * wp / denom;
+
+        coeff_sum += coeff;
+        // for (uint kk=0; kk < nParams; kk++)
+        //   work_grad[kk] -= coeff * work_param[kk];
+      }
+      const double wp = work_param[2 * redpar_limit + 1];
+      const double grad = grouping_grad;
+      const double param_sqr = wp * wp;
+      const double coeff = 2.0 * grad * param_sqr / denom_sqr;
+
+      work_grad[2 * redpar_limit + 1] += 2.0 * grad * wp / denom;
+
+      coeff_sum += coeff;
+      // for (uint kk=0; kk < nParams; kk++)
+      //        work_grad[kk] -= coeff * work_param[kk];
+
+      for (uint kk = 0; kk < nParams; kk++)
+        work_grad[kk] -= coeff_sum * work_param[kk];
+    }
+
+    double new_grad_norm = work_grad.sqr_norm();
+
+    // c) determine the search direction
+
+    double cur_curv = 0.0;
+
+    if (iter > 1) {
+      //update grad_diff and rho
+      uint cur_l = (iter - 1) % L;
+      Math1D::Vector<double>& cur_grad_diff = grad_diff[cur_l];
+      const Math1D::Vector<double>& cur_step = step[cur_l];
+
+      double cur_rho = 0.0;
+
+      for (uint k = 0; k < nParams; k++) {
+
+        //cur_grad_diff was set to minus the previous gradient at the end of the previous iteration
+        cur_grad_diff[k] += work_grad[k];
+        cur_rho += cur_grad_diff[k] * cur_step[k];
+      }
+
+      cur_curv = cur_rho / cur_grad_diff.sqr_norm();
+
+      if (cur_curv <= 0) {
+        //this can happen as our function is not convex and we do not enforce part 2 of the Wolfe conditions
+        // (this cannot be done by backtracking line search, see Algorithm 3.5 in [Nocedal & Wright])
+        // Our solution is to simply restart L-BFGS now
+        start_iter = iter;
+      }
+
+      rho[cur_l] = 1.0 / cur_rho;
+    }
+
+    search_direction = work_grad;
+
+    if (iter > start_iter) {
+
+      Math1D::Vector<double> alpha(L);
+
+      const int cur_first_iter = std::max<int>(start_iter, iter - L);
+
+      //first loop in Algorithm 7.4 from [Nocedal & Wright]
+      for (int prev_iter = iter - 1; prev_iter >= cur_first_iter; prev_iter--) {
+
+        uint prev_l = prev_iter % L;
+
+        const Math1D::Vector<double>& cur_step = step[prev_l];
+        const Math1D::Vector<double>& cur_grad_diff = grad_diff[prev_l];
+
+        double cur_alpha = search_direction % cur_step;
+        cur_alpha *= rho[prev_l];
+        alpha[prev_l] = cur_alpha;
+
+        search_direction.add_vector_multiple(cur_grad_diff, -cur_alpha);
+        // for (uint k=0; k < nParams; k++)
+        //   search_direction[k] -= cur_alpha * cur_grad_diff[k];
+      }
+
+      //we use a scaled identity as base matrix (q=r=search_direction)
+      search_direction *= cur_curv;
+
+      //second loop in Algorithm 7.4 from [Nocedal & Wright]
+      for (int prev_iter = cur_first_iter; prev_iter < int (iter); prev_iter++) {
+
+        uint prev_l = prev_iter % L;
+
+        const Math1D::Vector<double>& cur_step = step[prev_l];
+        const Math1D::Vector<double>& cur_grad_diff = grad_diff[prev_l];
+
+        double beta = search_direction % cur_grad_diff;
+        beta *= rho[prev_l];
+
+        const double gamma = alpha[prev_l] - beta;
+
+        for (uint k = 0; k < nParams; k++) {
+          search_direction[k] += cur_step[k] * gamma;
+        }
+      }
+
+    }
+    else {
+      search_direction *= 1.0 / sqrt(search_direction.sqr_norm());
+    }
+
+    negate(search_direction);
+
+    // d) line search
+
+    double best_energy = 1e300;
+
+    //std::cerr << "fullstep energy: " << hyp_energy << std::endl;
+
+    double alpha = 1.0;
+    double best_alpha = alpha;
+
+    uint nIter = 0;
+
+    bool decreasing = true;
+
+    while (decreasing || best_energy > energy) {
+
+      nIter++;
+      if (nIter > 15 && best_energy > energy) {
+        break;
+      }
+
+      if (nIter > 1)
+        alpha *= line_reduction_factor;
+
+      for (uint k = 0; k < nParams; k++)
+        hyp_work_param[k] = work_param[k] + alpha * search_direction[k];
+
+      //calculate corresponding probability distribution (square the params and renormalize)
+
+      unconstrained2constrained_m_step_point(hyp_work_param, start_idx, end_idx, (grouping_param >= 0),
+                                             hyp_dist_params, hyp_grouping_param, redpar_limit);
+
+      double new_energy = ehmm_m_step_energy(singleton_count, grouping_count, span_count, hyp_dist_params, zero_offset,
+                                             hyp_grouping_param, redpar_limit);
+
+      if (new_energy < best_energy) {
+        best_energy = new_energy;
+        best_alpha = alpha;
+
+        decreasing = true;
+      }
+      else {
+        decreasing = false;
+      }
+
+      //std::cerr << "lambda: " << lambda << ", hyp energy: " << new_energy << std::endl;
+    }
+
+    if (nIter > 5)
+      line_reduction_factor *= 0.9;
+
+    //e) go to the determined point
+
+    if (best_energy >= energy - 1e-4) {
+      std::
+      cerr << "CUTOFF after " << iter << " iterations, last gain: " <<
+           (energy - best_energy) << std::endl;
+      std::cerr << "last squared gradient norm: " << new_grad_norm << std::endl;
+      break;
+    }
+
+    energy = best_energy;
+
+    uint cur_l = (iter % L);
+
+    Math1D::Vector<double>& cur_step = step[cur_l];
+    Math1D::Vector<double>& cur_grad_diff = grad_diff[cur_l];
+
+    for (uint k = 0; k < nParams; k++) {
+      double step = best_alpha * search_direction[k];
+      cur_step[k] = step;
+      work_param[k] += step;
+
+      //prepare for the next iteration
+      cur_grad_diff[k] = -work_grad[k];
+    }
+
+    //calculate corresponding probability distribution (square the params and renormalize)
+    scale = unconstrained2constrained_m_step_point(work_param, start_idx, end_idx, grouping_param >= 0, dist_params, grouping_param, redpar_limit);
+
+    double sum = dist_params.sum();
+    if (grouping_param >= 0.0)
+      sum += grouping_param;
+
+    assert(sum >= 0.99 && sum <= 1.01);
+  }
+}
+
+//DON'T PUBLISH -- END
+
+double ehmm_init_m_step_energy(const InitialAlignmentProbability& init_acount, const Math1D::Vector<double>& init_params)
+{
   double energy = 0.0;
 
-  for (uint I=0; I < init_acount.size(); I++) {
+  for (uint I = 0; I < init_acount.size(); I++) {
 
     if (init_acount[I].size() > 0) {
 
       double non_zero_sum = 0.0;
-      for (uint i=0; i <= I; i++)
+      for (uint i = 0; i <= I; i++)
         non_zero_sum += init_params[i];
-      
-      for (uint i=0; i <= I; i++) {
-	
+
+      for (uint i = 0; i <= I; i++) {
+
         energy -= init_acount[I][i] * std::log(init_params[i] / non_zero_sum);
       }
     }
@@ -538,13 +2043,9 @@ double ehmm_init_m_step_energy(const InitialAlignmentProbability& init_acount, c
   return energy;
 }
 
-
-void ehmm_init_m_step(const InitialAlignmentProbability& init_acount, Math1D::Vector<double>& init_params, uint nIter) {
-
-  projection_on_simplex(init_params.direct_access(), init_params.size());
-
-  for (uint k=0; k < init_params.size(); k++)
-    init_params[k] = std::max(1e-15,init_params[k]);
+void ehmm_init_m_step(const InitialAlignmentProbability& init_acount, Math1D::Vector<double>& init_params, uint nIter)
+{
+  projection_on_simplex(init_params.direct_access(), init_params.size(), hmm_min_param_entry);
 
   Math1D::Vector<double> m_init_grad = init_params;
   Math1D::Vector<double> new_init_params = init_params;
@@ -552,18 +2053,23 @@ void ehmm_init_m_step(const InitialAlignmentProbability& init_acount, Math1D::Ve
 
   double energy = ehmm_init_m_step_energy(init_acount, init_params);
 
-  { //try to find a better starting point
-    Math1D::Vector<double> init_count(init_params.size(),0.0);
+  {
+    //try to find a better starting point
+    Math1D::Vector<double> init_count(init_params.size(), 0.0);
 
-    for (uint I=1; I <= init_acount.size(); I++) {
-      
-      if (init_acount[I-1].size() != 0) {
-	for (uint i=0; i < I; i++) {
-	  init_count[i] += init_acount[I-1][i];
-	}
+    for (uint I = 1; I <= init_acount.size(); I++) {
+
+      if (init_acount[I - 1].size() != 0) {
+        for (uint i = 0; i < I; i++) {
+          init_count[i] += init_acount[I - 1][i];
+        }
       }
     }
-    init_count *= 1.0 / init_count.sum();
+
+    const double sum = init_count.sum();
+
+    for (uint k=0; k < init_count.size(); k++)
+      init_count[k] = std::max(hmm_min_param_entry, init_count[k] / sum);
 
     double hyp_energy = ehmm_init_m_step_energy(init_acount, init_count);
 
@@ -580,51 +2086,53 @@ void ehmm_init_m_step(const InitialAlignmentProbability& init_acount, Math1D::Ve
     m_init_grad.set_constant(0.0);
 
     //calculate gradient
-    for (uint I=0; I < init_acount.size(); I++) {
+    for (uint I = 0; I < init_acount.size(); I++) {
 
       if (init_acount[I].size() > 0) {
 
         double non_zero_sum = 0.0;
-        for (uint i=0; i <= I; i++)
+        for (uint i = 0; i <= I; i++)
           non_zero_sum += init_params[i];
-	
+
         double count_sum = 0.0;
-        for (uint i=0; i <= I; i++) {
+        for (uint i = 0; i <= I; i++) {
           count_sum += init_acount[I][i];
 
           double cur_param = init_params[i];
-	  
+
           m_init_grad[i] -= init_acount[I][i] / cur_param;
         }
-	
-        for (uint i=0; i <= I; i++) {
+
+        for (uint i = 0; i <= I; i++) {
           m_init_grad[i] += count_sum / non_zero_sum;
         }
       }
-    }    
+    }
 
-    double alpha  = 0.0001;
+    //std::cerr << "gradient calculated" << std::endl;
 
-    for (uint k=0; k < init_params.size(); k++) {
+    double alpha = 0.0001;
+
+    for (uint k = 0; k < init_params.size(); k++) {
       new_init_params.direct_access(k) = init_params.direct_access(k) - alpha * m_init_grad.direct_access(k);
       assert(!isnan(new_init_params[k]));
     }
 
+    //std::cerr << "projecting " << new_init_params << std::endl;
+
     // reproject
-    for (uint k=0; k < init_params.size(); k++) {
+    for (uint k = 0; k < init_params.size(); k++) {
       if (new_init_params[k] >= 1e75)
-	new_init_params[k] = 9e74;
+        new_init_params[k] = 9e74;
       if (new_init_params[k] <= -1e75)
-	new_init_params[k] = -9e74;
+        new_init_params[k] = -9e74;
     }
-    projection_on_simplex(new_init_params.direct_access(),init_params.size());
+    projection_on_simplex(new_init_params.direct_access(), init_params.size(), hmm_min_param_entry);
 
-
-    for (uint k=0; k < init_params.size(); k++)
-      new_init_params[k] = std::max(1e-15,new_init_params[k]);
+    //std::cerr << "projection done" << std::endl;
 
     //find step-size
-    double best_energy = 1e300; 
+    double best_energy = 1e300;
 
     double lambda = 1.0;
     double line_reduction_factor = 0.5;
@@ -645,9 +2153,9 @@ void ehmm_init_m_step(const InitialAlignmentProbability& init_acount, Math1D::Ve
 
       double neg_lambda = 1.0 - lambda;
 
-      for (uint k=0; k < init_params.size(); k++)
+      for (uint k = 0; k < init_params.size(); k++)
         hyp_init_params.direct_access(k) = lambda * new_init_params.direct_access(k) + neg_lambda * init_params.direct_access(k);
-      
+
       double hyp_energy = ehmm_init_m_step_energy(init_acount, hyp_init_params);
 
       if (hyp_energy < best_energy) {
@@ -664,13 +2172,13 @@ void ehmm_init_m_step(const InitialAlignmentProbability& init_acount, Math1D::Ve
     //set new values
     double neg_best_lambda = 1.0 - best_lambda;
 
-    for (uint k=0; k < init_params.size(); k++)
+    for (uint k = 0; k < init_params.size(); k++)
       init_params.direct_access(k) = neg_best_lambda * init_params.direct_access(k) + best_lambda * new_init_params.direct_access(k);
 
-    if (nIter > 15 ||  best_lambda < 1e-12 || fabs(energy - best_energy) < 1e-4 ) {
+    if (nIter > 15 || best_lambda < 1e-12 || fabs(energy - best_energy) < 1e-4) {
       std::cerr << "CUTOFF" << std::endl;
       break;
-    } 
+    }
 
     energy = best_energy;
 
@@ -679,73 +2187,68 @@ void ehmm_init_m_step(const InitialAlignmentProbability& init_acount, Math1D::Ve
   }
 }
 
-void par2nonpar_hmm_init_model(const Math1D::Vector<double>& init_params, const Math1D::Vector<double>& source_fert,
-                               HmmInitProbType init_type, InitialAlignmentProbability& initial_prob, bool start_empty_word) {
+void par2nonpar_hmm_init_model(const Math1D::Vector<double>& init_params, const Math1D::Vector<double>& source_fert, HmmInitProbType init_type,
+                               InitialAlignmentProbability& initial_prob, bool start_empty_word, bool fix_p0)
+{
+  for (uint I = 1; I <= initial_prob.size(); I++) {
 
-  for (uint I=1; I <= initial_prob.size(); I++) {
+    Math1D::Vector<double>& cur_initial_prob = initial_prob[I-1];
 
-    if (initial_prob[I-1].size() > 0) {
+    if (cur_initial_prob.size() > 0) {
 
       if (init_type == HmmInitPar) {
- 
-        double norm = 0.0;
-        for (uint i=0; i < I; i++)
-          norm += init_params[i];
-	
-        double inv_norm = 1.0 / norm;
-        for (uint i=0; i < I; i++) {
-          initial_prob[I-1][i] = std::max(1e-8,source_fert[1] * inv_norm * init_params[i]);
-	  assert(!isnan(initial_prob[I-1][i]));
-	}
+
+        const double norm = init_params.range_sum(0, I);
+        const double factor = source_fert[1] / norm;
+
+        for (uint i = 0; i < I; i++) {
+          cur_initial_prob[i] = std::max(hmm_min_param_entry, factor * init_params[i]);
+          assert(!isnan(initial_prob[I - 1][i]));
+        }
         if (!start_empty_word) {
-          for (uint i=I; i < 2*I; i++) {
-            initial_prob[I-1][i] = source_fert[0] / I;
-            assert(!isnan(initial_prob[I-1][i]));
+          for (uint i = I; i < 2 * I; i++) {
+            cur_initial_prob[i] = source_fert[0] / I;
+            assert(!isnan(initial_prob[I - 1][i]));
           }
         }
         else
-          initial_prob[I-1][I] = source_fert[0] / I;
+          cur_initial_prob[I] = source_fert[0];
       }
       else if (init_type == HmmInitFix) {
-        if (!start_empty_word) 
-          initial_prob[I-1].set_constant(0.5/I);
-        else {
-          initial_prob[I-1].set_constant(1.0/(I+1));
-        }
+        cur_initial_prob.set_constant(1.0 / cur_initial_prob.size());
       }
       else if (init_type == HmmInitFix2) {
-        for (uint i=0; i < I; i++) 
-          initial_prob[I-1][i] = 0.98 / I;
-        if (!start_empty_word) {
-          for (uint i=I; i < 2*I; i++) 
-            initial_prob[I-1][i] = 0.02 / I;
-        }
-        else {
-          initial_prob[I-1][I] = 0.02;
-        }
+        const double p1 = (fix_p0) ? source_fert[1] : 0.98;
+        const double p0 = (fix_p0) ? source_fert[0] : 0.02;
+
+        cur_initial_prob.range_set_constant(p1 / I, 0, I);
+        cur_initial_prob.range_set_constant(p0 / (initial_prob[I - 1].size() - I), I, initial_prob[I - 1].size() - I);
       }
+
+      double sum = cur_initial_prob.sum();
+      assert(sum >= 0.99 && sum <= 1.01);
     }
   }
-
 }
 
+void par2nonpar_hmm_alignment_model(const Math1D::Vector<double>& dist_params, const uint zero_offset, const double dist_grouping_param,
+                                    const Math1D::Vector<double>& source_fert, HmmAlignProbType align_type, bool deficient,
+                                    FullHMMAlignmentModelNoClasses& align_model, int redpar_limit)
+{
+  for (uint I = 1; I <= align_model.size(); I++) {
 
-void par2nonpar_hmm_alignment_model(const Math1D::Vector<double>& dist_params, const uint zero_offset,
-                                    const double dist_grouping_param, const Math1D::Vector<double>& source_fert,
-                                    HmmAlignProbType align_type, FullHMMAlignmentModel& align_model) {
+    Math2D::Matrix<double>& cur_align_model = align_model[I-1];
 
-  for (uint I=1; I <= align_model.size(); I++) {
-    
-    if (align_model[I-1].size() > 0) {
+    if (cur_align_model.size() > 0) {
 
-      for (int i=0; i < (int) I; i++) {
+      for (int i = 0; i < (int)I; i++) {
 
-        double grouping_norm = std::max(0,i-5);
-        grouping_norm += std::max(0,int(I)-1-(i+5));
+        double grouping_norm = std::max(0, i - redpar_limit);
+        grouping_norm += std::max(0, int (I) - 1 - (i + redpar_limit));
 
         double non_zero_sum = 0.0;
-        for (int ii=0; ii < (int) I; ii++) {
-          if (align_type != HmmAlignProbReducedpar || abs(ii-i) <= 5)
+        for (int ii = 0; ii < (int)I; ii++) {
+          if (align_type != HmmAlignProbReducedpar || abs(ii - i) <= redpar_limit)
             non_zero_sum += dist_params[zero_offset + ii - i];
         }
 
@@ -753,52 +2256,49 @@ void par2nonpar_hmm_alignment_model(const Math1D::Vector<double>& dist_params, c
           non_zero_sum += dist_grouping_param;
         }
 
-	assert(non_zero_sum > 1e-305);
-        double inv_sum = 1.0 / non_zero_sum;
+        assert(non_zero_sum > 1e-305);
+        const double inv_sum = (deficient) ? 1.0 : 1.0 / non_zero_sum;
 
-        for (int ii=0; ii < (int) I; ii++) {
-          if (align_type == HmmAlignProbReducedpar && abs(ii-i) > 5) {
-	    assert(!isnan(grouping_norm));
-	    assert(grouping_norm > 0.0);
-            align_model[I-1](ii,i) = std::max(1e-8,source_fert[1] * inv_sum * dist_grouping_param / grouping_norm);
+        for (int ii = 0; ii < (int)I; ii++) {
+          if (align_type == HmmAlignProbReducedpar && abs(ii - i) > redpar_limit) {
+            assert(!isnan(grouping_norm));
+            assert(grouping_norm > 0.0);
+            cur_align_model(ii, i) = std::max(hmm_min_param_entry, source_fert[1] * inv_sum * dist_grouping_param / grouping_norm);
           }
           else {
-	    assert(dist_params[zero_offset + ii - i] >= 0);
-            align_model[I-1](ii,i) = std::max(1e-8,source_fert[1] * inv_sum * dist_params[zero_offset + ii - i]);
-	  }
-	  assert(!isnan(align_model[I-1](ii,i)));
-	  assert(align_model[I-1](ii,i) >= 0.0);
+            assert(dist_params[zero_offset + ii - i] > 0.0);
+            cur_align_model(ii, i) = std::max(hmm_min_param_entry, source_fert[1] * inv_sum * dist_params[zero_offset + ii - i]);
+          }
+          assert(!isnan(cur_align_model(ii, i)));
+          assert(cur_align_model(ii, i) >= 0.0);
         }
-        align_model[I-1](I,i) = source_fert[0];
-	assert(!isnan(align_model[I-1](I,i)));
-	assert(align_model[I-1](I,i) >= 0.0);
+        cur_align_model(I, i) = source_fert[0];
+        assert(!isnan(cur_align_model(I, i)));
+        assert(cur_align_model(I, i) >= 0.0);
+
+        double sum = cur_align_model.row_sum(i);
+        assert(sum >= 0.99 && sum <= 1.01);
       }
     }
   }
 }
 
-
-void init_hmm_from_ibm1(const Storage1D<Storage1D<uint> >& source, 
-                        const LookupTable& slookup,
-                        const Storage1D<Storage1D<uint> >& target,
-                        const SingleWordDictionary& dict,
-                        const CooccuringWordsType& wcooc,
-                        FullHMMAlignmentModel& align_model,
-                        Math1D::Vector<double>& dist_params, double& dist_grouping_param,
-                        Math1D::Vector<double>& source_fert,
-                        InitialAlignmentProbability& initial_prob,
-                        Math1D::Vector<double>& init_params,
-                        const HmmOptions& options,
-                        IBM1TransferMode transfer_mode = IBM1TransferViterbi) {
+void init_hmm_from_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const Storage1D<Math1D::Vector<uint> >& target,
+                        const SingleWordDictionary& dict, const CooccuringWordsType& wcooc, FullHMMAlignmentModel& align_model,
+                        Math1D::Vector<double>& dist_params, double& dist_grouping_param, Math1D::Vector<double>& source_fert,
+                        InitialAlignmentProbability& initial_prob, Math1D::Vector < double >& init_params, const HmmOptions& options,
+                        IBM1TransferMode transfer_mode = IBM1TransferViterbi)
+{
 
   dist_grouping_param = -1.0;
 
   HmmInitProbType init_type = options.init_type_;
   HmmAlignProbType align_type = options.align_type_;
-  bool start_empty_word = options.start_empty_word_;
+  const bool start_empty_word = options.start_empty_word_;
+  const int redpar_limit = options.redpar_limit_;
 
   if (init_type >= HmmInitInvalid) {
-    
+
     INTERNAL_ERROR << "invalid type for HMM initial alignment model" << std::endl;
     exit(1);
   }
@@ -814,110 +2314,113 @@ void init_hmm_from_ibm1(const Storage1D<Storage1D<uint> >& source,
 
   std::set<uint> seenIs;
 
-  uint maxI = 6;
-  uint maxJ = 0;
-  for (size_t s=0; s < nSentences; s++) {
+  uint maxI = (align_type == HmmAlignProbReducedpar) ? redpar_limit + 1 : 1;
+  for (size_t s = 0; s < nSentences; s++) {
     const uint curI = target[s].size();
-    const uint curJ = source[s].size();
 
     seenIs.insert(curI);
-
-    if (curI > maxI)
-      maxI = curI;
-    if (curJ > maxJ)
-      maxJ = curJ;
+    maxI = std::max(maxI, curI);
   }
 
-  
-  uint zero_offset = maxI-1;
-  
-  dist_params.resize(2*maxI-1, 1.0 / (2*maxI-1)); //even for nonpar, we will use this as initialization
+  uint zero_offset = maxI - 1;
+
+  dist_params.resize(2 * maxI - 1, 1.0 / (2 * maxI - 1));       //even for nonpar, we will use this as initialization
 
   if (align_type == HmmAlignProbReducedpar) {
+
     dist_grouping_param = 0.2;
     dist_params.set_constant(0.0);
-    for (int k=-5; k <= 5; k++) 
-      dist_params[zero_offset+k] = 0.8 / 11.0;
+    const double val = 0.8 / (2 * redpar_limit + 1);
+    for (int k = -redpar_limit; k <= redpar_limit; k++)
+      dist_params[zero_offset + k] = 0.8 / val;
   }
 
-  source_fert.resize(2); //even for nonpar, we will use this as initialization
-  source_fert[0] = 0.02;
-  source_fert[1] = 0.98;
+  if (source_fert.size() != 2 || !options.fix_p0_) {
+    source_fert.resize(2);  //even for nonpar, we will use this as initialization
+    source_fert[0] = 0.02;
+    source_fert[1] = 0.98;
+  }
 
   if (init_type == HmmInitPar) {
     init_params.resize(maxI);
     init_params.set_constant(1.0 / maxI);
   }
 
-  align_model.resize_dirty(maxI); //note: access using I-1
+  align_model.resize_dirty(maxI);       //note: access using I-1
   initial_prob.resize(maxI);
 
-  for (uint I = 1; I <= maxI; I++) {
-    if (seenIs.find(I) != seenIs.end()) {
-      //x = new index, y = given index
-      align_model[I-1].resize_dirty(I+1,I); //because of empty words
-      align_model[I-1].set_constant(1.0 / (I+1));
+  for (std::set<uint>::const_iterator it = seenIs.begin(); it != seenIs.end(); it++) {
+    const uint I = *it;
 
-      if (align_type != HmmAlignProbNonpar) {
-        for (uint i=0; i < I; i++) {
-          for (uint ii=0; ii < I; ii++) {
-            align_model[I-1](ii,i) = source_fert[1] / I;
-          }
-          align_model[I-1](I,i) = source_fert[0];
-        }
-      }
+    //std::cerr << "I: " << I << std::endl;
 
-      if (!start_empty_word)
-        initial_prob[I-1].resize_dirty(2*I);
-      else
-        initial_prob[I-1].resize_dirty(I+1);
-      if (init_type != HmmInitPar) {
-        if (init_type == HmmInitFix2) {
-          for (uint i=0; i < I; i++) 
-            initial_prob[I-1][i] = 0.98 / I;
-          for (uint i=I; i < initial_prob[I-1].size(); i++)
-            initial_prob[I-1][i] = 0.02 / (initial_prob[I-1].size()-I);
+    //x = new index, y = given index
+    align_model[I - 1].resize_dirty(I + 1, I);  //because of empty words
+    align_model[I - 1].set_constant(1.0 / (I + 1));
+
+    if (align_type != HmmAlignProbNonpar) {
+      for (uint i = 0; i < I; i++) {
+        for (uint ii = 0; ii < I; ii++) {
+          align_model[I - 1](ii, i) = source_fert[1] / I;
         }
-        else
-          initial_prob[I-1].set_constant(1.0 / initial_prob[I-1].size());
-      }
-      else {
-        for (uint i=0; i < I; i++)
-          initial_prob[I-1][i] = source_fert[1] / I;
-        if (!start_empty_word) {
-          for (uint i=I; i < 2*I; i++)
-            initial_prob[I-1][i] = source_fert[0] / I;
-        }
-        else
-          initial_prob[I-1][I] = source_fert[0];
+        align_model[I - 1](I, i) = source_fert[0];
       }
     }
+
+    if (!start_empty_word)
+      initial_prob[I - 1].resize_dirty(2 * I);
+    else
+      initial_prob[I - 1].resize_dirty(I + 1);
+
+    //std::cerr << "size: " << initial_prob[I-1].size() << std::endl;
+
+    if (init_type != HmmInitPar) {
+      if (init_type == HmmInitFix2) {
+
+        const double p1 = (options.fix_p0_) ? source_fert[1] : 0.98;
+        const double p0 = (options.fix_p0_) ? source_fert[0] : 0.02;
+
+        initial_prob[I - 1].range_set_constant(p1 / I, 0, I);
+        initial_prob[I - 1].range_set_constant(p0 / (initial_prob[I - 1].size() - I), I, initial_prob[I - 1].size() - I);
+      }
+      else
+        initial_prob[I - 1].set_constant(1.0 / initial_prob[I - 1].size());
+    }
+    else {
+      //we be set later
+      initial_prob[I - 1].range_set_constant(source_fert[1] / I, 0, I);
+      initial_prob[I - 1].range_set_constant(source_fert[0] / (initial_prob[I - 1].size() - I), I, initial_prob[I - 1].size() - I);
+    }
+
+    //std::cerr << "set initial prob: " << initial_prob[I-1] << std::endl;
+
+    assert(fabs(initial_prob[I - 1].sum() - 1.0) < 1e-5);
   }
 
   if (transfer_mode != IBM1TransferNo) {
     if (align_type == HmmAlignProbReducedpar)
       dist_grouping_param = 0.0;
     dist_params.set_constant(0.0);
-    for (uint s=0; s < source.size(); s++) {
+    for (uint s = 0; s < source.size(); s++) {
 
-      const SingleLookupTable& cur_lookup = get_wordlookup(source[s],target[s],wcooc,options.nSourceWords_,slookup[s],aux_lookup);
+      const SingleLookupTable& cur_lookup = get_wordlookup(source[s], target[s], wcooc, options.nSourceWords_, slookup[s], aux_lookup);
 
       if (transfer_mode == IBM1TransferViterbi) {
 
-        Storage1D<AlignBaseType> viterbi_alignment(source[s].size(),0);
-        
-        compute_ibm1_viterbi_alignment(source[s],cur_lookup,target[s], dict, viterbi_alignment);
-        
-        for (uint j=1; j < source[s].size(); j++) {
-          
-          int prev_aj = viterbi_alignment[j-1];
+        Storage1D<AlignBaseType> viterbi_alignment(source[s].size(), 0);
+
+        compute_ibm1_viterbi_alignment(source[s], cur_lookup, target[s], dict, viterbi_alignment);
+
+        for (uint j = 1; j < source[s].size(); j++) {
+
+          int prev_aj = viterbi_alignment[j - 1];
           int cur_aj = viterbi_alignment[j];
-          
+
           if (prev_aj != 0 && cur_aj != 0) {
             int diff = cur_aj - prev_aj;
-            
-            if (abs(diff) <= 5 || align_type != HmmAlignProbReducedpar)
-              dist_params[zero_offset+diff] += 1.0;
+
+            if (abs(diff) <= redpar_limit || align_type != HmmAlignProbReducedpar)
+              dist_params[zero_offset + diff] += 1.0;
             else
               dist_grouping_param += 1.0;
           }
@@ -925,33 +2428,33 @@ void init_hmm_from_ibm1(const Storage1D<Storage1D<uint> >& source,
       }
       else {
         assert(transfer_mode == IBM1TransferPosterior);
-        
-        for (uint j=1; j < source[s].size(); j++) {
 
-          double sum = dict[0][source[s][j]-1];
-          for (uint i=0; i < target[s].size(); i++)
-            sum += dict[target[s][i]][cur_lookup(j,i)];
+        for (uint j = 1; j < source[s].size(); j++) {
 
-          double prev_sum = dict[0][source[s][j-1]-1];
-          for (uint i=0; i < target[s].size(); i++)
-            prev_sum += dict[target[s][i]][cur_lookup(j-1,i)];
+          double sum = dict[0][source[s][j] - 1];
+          for (uint i = 0; i < target[s].size(); i++)
+            sum += dict[target[s][i]][cur_lookup(j, i)];
 
-          for (int i1 = 0; i1 < int(target[s].size()); i1++) {
+          double prev_sum = dict[0][source[s][j - 1] - 1];
+          for (uint i = 0; i < target[s].size(); i++)
+            prev_sum += dict[target[s][i]][cur_lookup(j - 1, i)];
 
-            const double i1_weight = (dict[target[s][i1]][cur_lookup(j-1,i1)] / prev_sum);
+          for (int i1 = 0; i1 < int (target[s].size()); i1++) {
 
-            for (int i2 = 0; i2 < int(target[s].size()); i2++) {
+            const double i1_weight = (dict[target[s][i1]][cur_lookup(j - 1, i1)] / prev_sum);
 
-              const double marg = (dict[target[s][i2]][cur_lookup(j,i2)] / sum) * i1_weight;
+            for (int i2 = 0; i2 < int (target[s].size()); i2++) {
+
+              const double marg = (dict[target[s][i2]][cur_lookup(j, i2)] / sum) * i1_weight;
 
               int diff = i2 - i1;
-              if (abs(diff) <= 5 || align_type != HmmAlignProbReducedpar)
-                dist_params[zero_offset+diff] += marg;
+              if (abs(diff) <= redpar_limit || align_type != HmmAlignProbReducedpar)
+                dist_params[zero_offset + diff] += marg;
               else
                 dist_grouping_param += marg;
             }
           }
-        }        
+        }
       }
     }
     double sum = dist_params.sum();
@@ -960,14 +2463,14 @@ void init_hmm_from_ibm1(const Storage1D<Storage1D<uint> >& source,
     dist_params *= 1.0 / sum;
     if (align_type == HmmAlignProbReducedpar) {
       dist_grouping_param *= 1.0 / sum;
-  
-      for (int k=-5; k <= 5; k++) 
-        dist_params[zero_offset+k] = 0.75 * dist_params[maxI+k] + 0.25 * 0.8 / 11.0;
-    
+
+      for (int k = -redpar_limit; k <= redpar_limit; k++)
+        dist_params[zero_offset + k] = 0.75 * dist_params[maxI + k] + 0.25 * 0.8 / (2 * redpar_limit + 1);
+
       dist_grouping_param = 0.75 * dist_grouping_param + 0.25 * 0.2;
     }
     else {
-      for (uint k=0; k < dist_params.size(); k++) {
+      for (uint k = 0; k < dist_params.size(); k++) {
         dist_params[k] = 0.75 * dist_params[k] + 0.25 / dist_params.size();
       }
     }
@@ -976,35 +2479,34 @@ void init_hmm_from_ibm1(const Storage1D<Storage1D<uint> >& source,
   HmmAlignProbType align_mode = align_type;
   if (align_mode == HmmAlignProbNonpar || align_mode == HmmAlignProbNonpar2)
     align_mode = HmmAlignProbFullpar;
-  par2nonpar_hmm_alignment_model(dist_params, zero_offset, dist_grouping_param, source_fert,
-                                 align_mode, align_model);
 
-  if (init_type != HmmInitNonpar)
-    par2nonpar_hmm_init_model(init_params,  source_fert, init_type,  initial_prob, start_empty_word);
+  par2nonpar_hmm_alignment_model(dist_params, zero_offset, dist_grouping_param,
+                                 source_fert, align_mode, options.deficient_, align_model, redpar_limit);
+
+  //std::cerr << "calling par2nonpar_hmm_init_model" << std::endl;
+
+  if (init_type == HmmInitPar)
+    par2nonpar_hmm_init_model(init_params, source_fert, init_type, initial_prob, start_empty_word, options.fix_p0_);
+
+  //std::cerr << "leaving init" << std::endl;
 }
 
-void train_extended_hmm(const Storage1D<Storage1D<uint> >& source, 
-                        const LookupTable& slookup,
-                        const Storage1D<Storage1D<uint> >& target,
-                        const CooccuringWordsType& wcooc,
-                        FullHMMAlignmentModel& align_model,
-                        Math1D::Vector<double>& dist_params, double& dist_grouping_param,
-                        Math1D::Vector<double>& source_fert,
-                        InitialAlignmentProbability& initial_prob,
-                        Math1D::Vector<double>& init_params,
-                        SingleWordDictionary& dict,
-                        const floatSingleWordDictionary& prior_weight,
-                        HmmOptions& options) {
-
+void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const Storage1D<Math1D::Vector<uint> >& target,
+                        const CooccuringWordsType& wcooc, FullHMMAlignmentModel& align_model, Math1D::Vector<double>& dist_params,
+                        double& dist_grouping_param, Math1D::Vector<double>& source_fert, InitialAlignmentProbability& initial_prob,
+                        Math1D::Vector<double>& init_params, SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight,
+                        HmmOptions& options)
+{
   std::cerr << "starting Extended HMM EM-training" << std::endl;
 
   uint nIterations = options.nIterations_;
   HmmInitProbType init_type = options.init_type_;
   HmmAlignProbType align_type = options.align_type_;
-  bool start_empty_word = options.start_empty_word_;
+  const bool start_empty_word = options.start_empty_word_;
+  const int redpar_limit = options.redpar_limit_;
 
   double dict_weight_sum = 0.0;
-  for (uint i=0; i < options.nTargetWords_; i++) {
+  for (uint i = 0; i < options.nTargetWords_; i++) {
     dict_weight_sum += fabs(prior_weight[i].sum());
   }
 
@@ -1017,172 +2519,167 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
   assert(nSentences == target.size());
 
   const uint nSourceWords = options.nSourceWords_;
-
-  std::set<uint> seenIs;
-
-  uint maxI = 5;
-  uint maxJ = 0;
-  for (size_t s=0; s < nSentences; s++) {
-    const uint curI = target[s].size();
-    const uint curJ = source[s].size();
-
-    seenIs.insert(curI);
-
-    if (curI > maxI)
-      maxI = curI;
-    if (curJ > maxJ)
-      maxJ = curJ;
-  }
-
-  std::cerr << "maxJ: " << maxJ << ", maxI: " << maxI << std::endl;
+  const uint start_addon = (start_empty_word) ? 1 : 0;
 
   SingleWordDictionary fwcount(MAKENAME(fwcount));
   fwcount = dict;
 
+  init_hmm_from_ibm1(source, slookup, target, dict, wcooc, align_model, dist_params, dist_grouping_param, source_fert,
+                     initial_prob, init_params, options, options.transfer_mode_);
 
-  init_hmm_from_ibm1(source, slookup, target, dict, wcooc, align_model, dist_params, dist_grouping_param,
-                     source_fert, initial_prob, init_params, options, options.transfer_mode_);
-  
-  Math1D::Vector<double> source_fert_count = source_fert;
-  
-  uint zero_offset = maxI-1;
-  
-  InitialAlignmentProbability ficount(maxI,MAKENAME(ficount));
+  const uint maxI = align_model.size();
+  const uint zero_offset = maxI - 1;
+
+  Math1D::Vector<double> source_fert_count(2);
+
+  InitialAlignmentProbability ficount(maxI, MAKENAME(ficount));
   ficount = initial_prob;
-  
-  
-  FullHMMAlignmentModel facount(maxI,MAKENAME(facount));
-  for (uint I = 1; I <= maxI; I++) {
-    if (seenIs.find(I) != seenIs.end()) {
-      facount[I-1].resize_dirty(I+1,I);
-    }
+
+  Math1D::Vector<double> fsentence_start_count(maxI);
+  Math1D::Vector<double> fstart_span_count(maxI);
+
+  FullHMMAlignmentModel facount(align_model.size(), MAKENAME(facount));
+  for (uint I = 1; I <= facount.size(); I++) {
+    if (align_model[I - 1].size() > 0)
+      facount[I - 1].resize_dirty(I + 1, I);
   }
 
   for (uint iter = 1; iter <= nIterations; iter++) {
-    
+
     std::cerr << "starting EHMM iteration #" << iter << std::endl;
 
     double prev_perplexity = 0.0;
 
     //set counts to 0
-    for (uint i=0; i < options.nTargetWords_; i++) {
+    for (uint i = 0; i < options.nTargetWords_; i++) {
       fwcount[i].set_constant(0.0);
     }
 
     for (uint I = 1; I <= maxI; I++) {
-      facount[I-1].set_constant(0.0);
-      ficount[I-1].set_constant(0.0);
+      facount[I - 1].set_constant(0.0);
+      ficount[I - 1].set_constant(0.0);
     }
 
-    if (align_type != HmmAlignProbNonpar || init_type == HmmInitPar) 
-      source_fert_count.set_constant(0.0);
+    source_fert_count.set_constant(0.0);
 
-    for (size_t s=0; s < nSentences; s++) {
+    //if (align_type != HmmAlignProbNonpar) {
+    //dist_count.set_constant(0.0);
+    //dist_grouping_count = 0.0;
+    //}
+
+    //these two are calculated from ficount after the loop over the sentences:
+    fsentence_start_count.set_constant(0.0);
+    fstart_span_count.set_constant(0.0);
+
+    for (size_t s = 0; s < nSentences; s++) {
+
+      //std::cerr << "s: " << s << std::endl;
 
       const Storage1D<uint>& cur_source = source[s];
       const Storage1D<uint>& cur_target = target[s];
-      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
-      
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, nSourceWords, slookup[s], aux_lookup);
+
       const uint curJ = cur_source.size();
       const uint curI = cur_target.size();
 
-      const Math2D::Matrix<double>& cur_align_model = align_model[curI-1];
-      Math2D::Matrix<double>& cur_facount = facount[curI-1];
-      
+      //std::cerr << "J = " << curJ << ", curI = " << curI << std::endl;
+
+      const Math2D::Matrix<double>& cur_align_model = align_model[curI - 1];
+      const Math1D::Vector<double>& cur_init_prob = initial_prob[curI - 1];
+
+      Math2D::Matrix<double>& cur_facount = facount[curI - 1];
+      Math1D::Vector<double>& cur_ficount = ficount[curI - 1];
+
+      Math2D::Matrix<double> cur_dict(curJ,curI+1);
+      compute_dictmat(cur_source, cur_lookup, cur_target, dict, cur_dict);
+
       /**** Baum-Welch traininig: start with calculating forward and backward ********/
 
-      Math2D::NamedMatrix<long double> forward(2*curI,curJ,MAKENAME(forward));
+      Math2D::NamedMatrix<long double> forward(2 * curI + start_addon, curJ, MAKENAME(forward));
 
-      if (start_empty_word) {
+      calculate_hmm_forward(cur_dict, cur_align_model, cur_init_prob, align_type, start_empty_word, forward, redpar_limit);
 
-        calculate_sehmm_forward(cur_source, cur_target, cur_lookup, dict, cur_align_model,
-                                initial_prob[curI-1], forward);
-      }
-      else {
-        calculate_hmm_forward(cur_source, cur_target, cur_lookup, dict, cur_align_model,
-                              initial_prob[curI-1], align_type, forward);
-      }
+      //std::cerr << "forward calculated" << std::endl;
 
       const uint start_s_idx = cur_source[0];
 
       long double sentence_prob = 0.0;
-      for (uint i=0; i < forward.xDim(); i++) {
+      for (uint i = 0; i < forward.xDim(); i++) {
 
-	//DEBUG
-	if (!(forward(i,curJ-1) >= 0.0)) {
-	  
-	  std::cerr << "s=" << s << ", I=" << curI << ", i= " << i << ", value " << forward(i,curJ-1) << std::endl;
+        //std::cerr << "i: " << i << std::endl;
+        //std::cerr << "fwd: " << forward(i,curJ-1) << std::endl;
 
-	  for (uint k=0; k < initial_prob[curI-1].size(); k++) {
-	    double p = initial_prob[curI-1][k];
-	    if (!(p >= 0))
-	      std::cerr << "initial prob[" << k << "]: " << p << std::endl;
-	  }
+#ifndef NDEBUG
+        //DEBUG
+        if (!(forward(i, curJ - 1) >= 0.0)) {
 
-	  for (uint x=0; x < cur_align_model.xDim(); x++) {
-	    for (uint y=0; y < cur_align_model.yDim(); y++) {
-	      double p = cur_align_model(x,y);
-	      if (!(p >= 0))
-		std::cerr << "align model(" << x << "," << y << "): " << p << std::endl;
-	    }
-	  }
+          std::
+          cerr << "s=" << s << ", I=" << curI << ", i= " << i << ", value "
+               << forward(i, curJ - 1) << std::endl;
 
-	  for (uint j=0; j < curJ; j++) {
+          for (uint k = 0; k < cur_init_prob.size(); k++) {
+            double p = cur_init_prob[k];
+            if (!(p >= 0))
+              std::cerr << "initial prob[" << k << "]: " << p << std::endl;
+          }
 
-	    double p = dict[0][cur_source[j]-1];
-	    if (!(p >= 0))
-	      std::cerr << "null-prob for source word " << j << ": " << p << std::endl;
+          for (uint x = 0; x < cur_align_model.xDim(); x++) {
+            for (uint y = 0; y < cur_align_model.yDim(); y++) {
+              double p = cur_align_model(x, y);
+              if (!(p >= 0))
+                std::cerr << "align model(" << x << "," << y << "): " << p << std::endl;
+            }
+          }
 
-	    for (uint i=0; i < curI; i++) {
-	      
-	      p = dict[cur_target[i]][cur_lookup(j,i)];
-	      if (!(p >= 0)) {
-		std::cerr << "dict-prob for source word " << j << " and target word " << i 
-			  << ": " << p << std::endl;
-	      }
-	    } 
-	  }
+          for (uint j = 0; j < curJ; j++) {
 
+            double p = dict[0][cur_source[j] - 1];
+            if (!(p >= 0))
+              std::cerr << "null-prob for source word " << j << ": " << p << std::endl;
 
-	  exit(1);
-	}
-	//END_DEBUG
+            for (uint i = 0; i < curI; i++) {
 
-        assert(forward(i,curJ-1) >= 0.0);
-        sentence_prob += forward(i,curJ-1);
+              p = dict[cur_target[i]][cur_lookup(j, i)];
+              if (!(p >= 0)) {
+                std::cerr << "dict-prob for source word " << j << " and target word " << i << ": " << p << std::endl;
+              }
+            }
+          }
+
+          exit(1);
+        }
+        //END_DEBUG
+#endif
+
+        assert(forward(i, curJ - 1) >= 0.0);
+        sentence_prob += forward(i, curJ - 1);
       }
 
       prev_perplexity -= std::log(sentence_prob);
-      
-      if (! (sentence_prob > 0.0)) {
-        std::cerr << "sentence_prob " << sentence_prob << " for sentence pair " << s << " with I=" << curI
-                  << ", J= " << curJ << std::endl;
+
+      if (!(sentence_prob > 0.0)) {
+        //if (true) {
+        std::cerr << "sentence_prob " << sentence_prob << " for sentence pair " << s << " with I=" << curI << ", J= " << curJ << std::endl;
+
+        //DEBUG
+        //exit(1);
+        //END_DEBUG
       }
       assert(sentence_prob > 0.0);
-      
-      Math2D::NamedMatrix<long double> backward(2*curI,curJ,MAKENAME(backward));
 
-      if (start_empty_word) {
+      Math2D::NamedMatrix<long double> backward(2 * curI + start_addon, curJ, MAKENAME(backward));
 
-        calculate_sehmm_backward(cur_source, cur_target, cur_lookup, dict, cur_align_model,
-                                 initial_prob[curI-1], backward, true);
-      }
-      else {
-
-        calculate_hmm_backward(cur_source, cur_target, cur_lookup, dict, cur_align_model,
-                               initial_prob[curI-1], align_type, backward, true);
-      }
+      calculate_hmm_backward(cur_dict, cur_align_model, cur_init_prob, align_type, start_empty_word, backward, true, redpar_limit);
 
       long double bwd_sentence_prob = 0.0;
-      for (uint i=0; i < backward.xDim(); i++)
-        bwd_sentence_prob += backward(i,0);
+      for (uint i = 0; i < backward.xDim(); i++)
+        bwd_sentence_prob += backward(i, 0);
 
       long double fwd_bwd_ratio = sentence_prob / bwd_sentence_prob;
 
       if (fwd_bwd_ratio < 0.999 || fwd_bwd_ratio > 1.001) {
-	
-        std::cerr << "fwd_bwd_ratio of " << fwd_bwd_ratio << " for sentence pair " << s << " with I=" << curI
-                  << ", J= " << curJ << std::endl;
+
+        std::cerr << "fwd_bwd_ratio of " << fwd_bwd_ratio << " for sentence pair " << s << " with I=" << curI << ", J= " << curJ << std::endl;
       }
 
       assert(fwd_bwd_ratio < 1.001);
@@ -1195,233 +2692,253 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       //NOTE: it might be faster to compute forward and backward with double precision and rescaling.
       //  There are then two options:
       //   1. keep track of scaling factors (as long double) and convert everything when needed in the count collection
-      //   2. work with the rescaled values and normlize appropriately
-
+      //   2. work with the rescaled values and normalize appropriately
 
       //start of sentence
-      for (uint i=0; i < curI; i++) {
+      for (uint i = 0; i < curI; i++) {
         uint t_idx = cur_target[i];
 
-        const double coeff = inv_sentence_prob * backward(i,0);
-        fwcount[t_idx][cur_lookup(0,i)] += coeff;
+        const double coeff = inv_sentence_prob * backward(i, 0);
+        fwcount[t_idx][cur_lookup(0, i)] += coeff;
 
-	assert(!isnan(coeff));
+        assert(!isnan(coeff));
 
-        ficount[curI-1][i] += coeff;
+        cur_ficount[i] += coeff;
       }
       if (!start_empty_word) {
-        for (uint i=0; i < curI; i++) {
-          const double coeff = inv_sentence_prob * backward(i+curI,0);
-          fwcount[0][start_s_idx-1] += coeff;
-          
+        double dict_count_sum = 0.0;
+        for (uint i = 0; i < curI; i++) {
+          const double coeff = inv_sentence_prob * backward(i + curI, 0);
+          dict_count_sum += coeff;
+
           assert(!isnan(coeff));
-          
-          ficount[curI-1][i+curI] += coeff;
+
+          cur_ficount[i + curI] += coeff;
         }
+        fwcount[0][start_s_idx - 1] += dict_count_sum;
       }
-      else
-        ficount[curI-1][curI] += inv_sentence_prob * backward(2*curI,0);
+      else {
+        //when using a separate start empty word: cover the case where the entire sentence aligns to NULL.
+        // for long sentences the probability should be negligible
+
+        cur_ficount[curI] += inv_sentence_prob * backward(2 * curI, 0);
+      }
 
       //mid-sentence
-      for (uint j=1; j < curJ; j++) {
+      for (uint j = 1; j < curJ; j++) {
+
+        //std::cerr << "j: " << j << std::endl;
 
         const uint s_idx = cur_source[j];
-        const uint j_prev = j -1;
+        const uint j_prev = j - 1;
 
         //real positions
-        for (uint i=0; i < curI; i++) {
+        for (uint i = 0; i < curI; i++) {
           const uint t_idx = cur_target[i];
 
+          const double dict_entry = cur_dict(j,i); //dict[t_idx][cur_lookup(j, i)];
 
-          if (dict[t_idx][cur_lookup(j,i)] > 1e-305) {
-            fwcount[t_idx][cur_lookup(j,i)] += forward(i,j)*backward(i,j)*inv_sentence_prob / dict[t_idx][cur_lookup(j,i)];
+          if (dict_entry > 1e-305) {
+            fwcount[t_idx][cur_lookup(j, i)] += forward(i, j) * backward(i, j) * inv_sentence_prob / dict_entry;
 
-            const long double bw = backward(i,j) * inv_sentence_prob;	  
+            const long double bw = backward(i, j) * inv_sentence_prob;
 
-            uint i_prev;
-            long double addon;
-	    
-            for (i_prev = 0; i_prev < curI; i_prev++) {
-              addon = bw * cur_align_model(i,i_prev) * (forward(i_prev,j_prev) + forward(i_prev+curI,j_prev));
-	      assert(!isnan(addon));
-              cur_facount(i,i_prev) += addon;
+            for (uint i_prev = 0; i_prev < curI; i_prev++) {
+              long double addon = bw * cur_align_model(i, i_prev) * (forward(i_prev, j_prev) + forward(i_prev + curI, j_prev));
+              assert(!isnan(addon));
+              cur_facount(i, i_prev) += addon;
             }
 
             //start empty word
             if (start_empty_word) {
-              addon = bw * initial_prob[curI-1][i] * forward(2*curI,j_prev);
-              ficount[curI-1][i] += addon;
+              long double addon = bw * cur_init_prob[i] * forward(2 * curI, j_prev);
+              cur_ficount[i] += addon;
             }
           }
         }
 
         //empty words
-        for (uint i=curI; i < 2*curI; i++) {
+        double dict_count_sum = 0.0;
+        for (uint i = curI; i < 2 * curI; i++) {
 
-          const long double bw = backward(i,j) * inv_sentence_prob;
-          long double addon = bw * cur_align_model(curI,i-curI) * 
-            (forward(i,j_prev) + forward(i-curI,j_prev));
+          //combining j and j_prev does not contain a dict probability twice
+          const long double bw = backward(i, j) * inv_sentence_prob;
+          const long double addon = bw * cur_align_model(curI, i - curI) * (forward(i, j_prev) + forward(i - curI, j_prev));
 
-	  assert(!isnan(addon));
+          assert(!isnan(addon));
 
-          fwcount[0][s_idx-1] += addon;  
-          cur_facount(curI,i-curI) += addon;
+          dict_count_sum += addon;
+          cur_facount(curI, i - curI) += addon;
         }
+        fwcount[0][s_idx - 1] += dict_count_sum;
 
         //start empty word
         if (start_empty_word) {
 
-          const long double bw = backward(2*curI,j) * inv_sentence_prob;
-          
-          long double addon = bw * forward(2*curI,j_prev) * initial_prob[curI-1][curI];
-          fwcount[0][s_idx-1] += addon;            
-          ficount[curI-1][curI] += addon;
+          //combining j and j_prev does not contain a dict probability twice
+          const long double bw = backward(2 * curI, j) * inv_sentence_prob;
+
+          long double addon = bw * forward(2 * curI, j_prev) * cur_init_prob[curI];
+          fwcount[0][s_idx - 1] += addon;
+          cur_ficount[curI] += addon;
         }
       }
-    } // loop over sentences finished
+    }                           // loop over sentences finished
 
-    prev_perplexity /= nSentences;
-    std::cerr << "perplexity after iteration #" << (iter-1) << ": " << prev_perplexity << std::endl;
-    std::cerr << "computing alignment and dictionary probabilities from normalized counts" << std::endl;
+    //finish counts (align already done)
+
+    if (init_type == HmmInitPar) {
+
+      for (uint I = 1; I <= maxI; I++) {
+
+        if (initial_prob[I - 1].size() != 0) {
+          for (uint i = 0; i < I; i++) {
+
+            const double cur_count = ficount[I - 1][i];
+            source_fert_count[1] += cur_count;
+            fsentence_start_count[i] += cur_count;
+            fstart_span_count[I - 1] += cur_count;
+          }
+          for (uint i = I; i < ficount[I - 1].size(); i++) {
+            source_fert_count[0] += ficount[I - 1][i];
+          }
+        }
+      }
+    }
 
     if (align_type != HmmAlignProbNonpar) {
 
       //compute the expectations of the parameters from the expectations of the models
 
-      for (uint I=1; I <= maxI; I++) {
+      for (uint I = 1; I <= maxI; I++) {
 
-        if (align_model[I-1].xDim() != 0) {
+        if (align_model[I - 1].xDim() != 0) {
 
-          for (int i=0; i < (int) I; i++) {
+          for (int i = 0; i < (int)I; i++) {
 
-            for (int ii=0; ii < (int) I; ii++) {
-              source_fert_count[1] += facount[I-1](ii,i);
+            for (int ii = 0; ii < (int)I; ii++) {
+              source_fert_count[1] += facount[I - 1] (ii, i);
             }
-            source_fert_count[0] += facount[I-1](I,i);
+            source_fert_count[0] += facount[I - 1] (I, i);
           }
         }
       }
     }
 
+    prev_perplexity /= nSentences;
+    std::cerr << "perplexity after iteration #" << (iter - 1) << ": " <<  prev_perplexity << std::endl;
+    std::cerr << "computing alignment and dictionary probabilities from normalized counts" << std::endl;
+
+    if (source_fert.size() > 0 && source_fert_count.sum() > 0.0 && !options.fix_p0_) {
+
+      for (uint i = 0; i < 2; i++) {
+        source_fert[i] = source_fert_count[i] / source_fert_count.sum();
+        assert(!isnan(source_fert[i]));
+      }
+
+      if (align_type != HmmAlignProbNonpar || init_type == HmmInitPar) {
+        std::cerr << "new probability for zero alignments: " << source_fert[0] << std::endl;
+      }
+    }
 
     if (align_type != HmmAlignProbNonpar && align_type != HmmAlignProbNonpar2) {
+      //std::cerr << "dist_params: " << dist_params << std::endl;
 
       //call m-step
-      ehmm_m_step(facount, dist_params, zero_offset, options.align_m_step_iter_, dist_grouping_param);
+      if (options.msolve_mode_ == MSSolvePGD)
+        ehmm_m_step(facount, dist_params, zero_offset, options.align_m_step_iter_, dist_grouping_param, options.deficient_, redpar_limit);
+      else if (options.msolve_mode_ == MSSolveGD)
+        ehmm_m_step_unconstrained(facount, dist_params, zero_offset, options.align_m_step_iter_, dist_grouping_param,
+                                  options.deficient_, redpar_limit);
+      else
+        ehmm_m_step_unconstrained_LBFGS(facount, dist_params, zero_offset, options.align_m_step_iter_, dist_grouping_param, 5,
+                                        options.deficient_, redpar_limit);
+
+      par2nonpar_hmm_alignment_model(dist_params, zero_offset, dist_grouping_param, source_fert,
+                                     align_type, options.deficient_, align_model, redpar_limit);
     }
 
     if (init_type == HmmInitPar) {
 
-      for (uint I=1; I <= maxI; I++) {
-	
-        if (initial_prob[I-1].size() != 0) {
-          for (uint i=0; i < I; i++) {
-            source_fert_count[1] += ficount[I-1][i];
-          }
-          for (uint i=I; i < ficount[I-1].size(); i++) {
-            source_fert_count[0] += ficount[I-1][i];
-          }
-        }
-      }
+      if (options.msolve_mode_ == MSSolvePGD)
+        start_prob_m_step(fsentence_start_count, fstart_span_count, init_params, options.init_m_step_iter_);
+      else
+        start_prob_m_step_unconstrained(fsentence_start_count,fstart_span_count, init_params, options.init_m_step_iter_);
 
-      ehmm_init_m_step(ficount, init_params, options.init_m_step_iter_);
+      par2nonpar_hmm_init_model(init_params, source_fert, init_type, initial_prob, start_empty_word, options.fix_p0_);
     }
 
     /***** compute alignment and dictionary probabilities from normalized counts ******/
 
     //compute new dict from normalized fractional counts
 
+    //std::cerr << "null-dict-count: " << fwcount[0].sum() << std::endl;
     double nonnullcount = 0.0;
-    for (uint k=1; k < fwcount.size(); k++)
+    for (uint k = 1; k < fwcount.size(); k++)
       nonnullcount += fwcount[k].sum();
+    //std::cerr << "non-null-dict-count: " << nonnullcount << std::endl;
 
-    update_dict_from_counts(fwcount, prior_weight, dict_weight_sum, iter, 
-			    options.smoothed_l0_, options.l0_beta_, options.dict_m_step_iter_, dict, 1e-6);
+    update_dict_from_counts(fwcount, prior_weight, dict_weight_sum, iter, options.smoothed_l0_, options.l0_beta_,
+                            options.dict_m_step_iter_, dict, hmm_min_dict_entry, options.msolve_mode_ != MSSolvePGD);
 
-    if (source_fert.size() > 0 && source_fert_count.size() > 0) {
+    //compute new nonparametric probabilities from normalized fractional counts
+    for (uint I = 1; I <= maxI; I++) {
 
-      for (uint i=0; i < 2; i++) {
-        source_fert[i] = source_fert_count[i] / source_fert_count.sum();
-	assert(!isnan(source_fert[i]));
-      }
-
-      if (align_type != HmmAlignProbNonpar || init_type == HmmInitPar) {
-        std::cerr << "new probability for zero alignments: " << source_fert[0] << std::endl; 
-      }
-    }
-
-    //compute new alignment probabilities from normalized fractional counts
-
-    if (align_type != HmmAlignProbNonpar && align_type != HmmAlignProbNonpar2) {
-      par2nonpar_hmm_alignment_model(dist_params, zero_offset, dist_grouping_param, source_fert,
-                                     align_type, align_model);
-    }
-
-    if (init_type == HmmInitPar) {
-      par2nonpar_hmm_init_model(init_params,  source_fert, init_type,  initial_prob, start_empty_word);
-    }
-
-    for (uint I=1; I <= maxI; I++) {
-
-      if (align_model[I-1].xDim() != 0) {
+      if (align_model[I - 1].xDim() != 0) {
 
         if (init_type == HmmInitNonpar) {
-          double inv_norm = 1.0 / ficount[I-1].sum();
-          for (uint i=0; i < initial_prob[I-1].size(); i++)
-            initial_prob[I-1][i] = std::max(1e-8,inv_norm * ficount[I-1][i]); 
+          double inv_norm = 1.0 / ficount[I - 1].sum();
+          for (uint i = 0; i < initial_prob[I - 1].size(); i++)
+            initial_prob[I - 1][i] = std::max(hmm_min_param_entry, inv_norm * ficount[I - 1][i]);
         }
-	
+
         if (align_type == HmmAlignProbNonpar) {
 
-          for (uint i=0; i < I; i++) {
-	    
-            double sum = 0.0;
-            for (uint i_next = 0; i_next <= I; i_next++)
-              sum += facount[I-1](i_next,i);
-	    
+          for (uint i = 0; i < I; i++) {
+
+            double sum = facount[I - 1].row_sum(i);
+
             if (sum >= 1e-300) {
-	      
+
               assert(!isnan(sum));
               const double inv_sum = 1.0 / sum;
               assert(!isnan(inv_sum));
-	      
+
               for (uint i_next = 0; i_next <= I; i_next++) {
-                align_model[I-1](i_next,i) = std::max(1e-8,inv_sum *facount[I-1](i_next,i));
-		assert(!isnan(align_model[I-1](i_next,i)));
+                align_model[I - 1](i_next, i) = std::max(hmm_min_param_entry, inv_sum * facount[I - 1] (i_next, i));
+                assert(!isnan(align_model[I - 1](i_next, i)));
               }
             }
           }
         }
         else if (align_type == HmmAlignProbNonpar2) {
 
-          for (uint i=0; i < I; i++) {
-            
-            align_model[I-1](I,i) = source_fert[0];
-          
-            double sum = 0.0;
-            for (uint i_next = 0; i_next < I; i_next++)
-              sum += facount[I-1](i_next,i);
-          
+          for (uint i = 0; i < I; i++) {
+
+            align_model[I - 1] (I, i) = source_fert[0];
+
+            double sum = facount[I - 1].row_sum(i) - facount[I - 1] (I, i);
+
             if (sum >= 1e-300) {
-            
+
               assert(!isnan(sum));
               const double inv_sum = source_fert[1] / sum;
               assert(!isnan(inv_sum));
-              
+
               for (uint i_next = 0; i_next < I; i_next++) {
-                align_model[I-1](i_next,i) = std::max(1e-8,inv_sum * facount[I-1](i_next,i));
-                assert(!isnan(align_model[I-1](i_next,i)));
+                align_model[I - 1] (i_next, i) = std::max(hmm_min_param_entry, inv_sum * facount[I - 1](i_next, i));
+                assert(!isnan(align_model[I - 1] (i_next, i)));
               }
             }
           }
-
         }
       }
     }
 
-
     /************* compute alignment error rate ****************/
     if (!options.possible_ref_alignments_.empty()) {
+
+      //std::cerr << "computing error rates" << std::endl;
 
       double sum_aer = 0.0;
       double sum_marg_aer = 0.0;
@@ -1429,84 +2946,89 @@ void train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       double nErrors = 0.0;
       uint nContributors = 0;
 
-      for(std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::iterator it = options.possible_ref_alignments_.begin();
-          it != options.possible_ref_alignments_.end(); it ++) {
+      double sum_postdec_aer = 0.0;
+      double sum_postdec_fmeasure = 0.0;
+      double sum_postdec_daes = 0.0;
 
-        uint s = it->first-1;
+      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::iterator it = options.possible_ref_alignments_.begin();
+           it != options.possible_ref_alignments_.end(); it++) {
 
-	if (s >= nSentences)
-	  break;
+        uint s = it->first - 1;
+
+        //std::cerr << "s: " << s << std::endl;
+
+        if (s >= nSentences)
+          break;
 
         nContributors++;
         //compute viterbi alignment
-        
+
         Math1D::Vector<AlignBaseType> viterbi_alignment;
         const uint curI = target[s].size();
 
-        const SingleLookupTable& cur_lookup = get_wordlookup(source[s],target[s],wcooc,nSourceWords,slookup[s],aux_lookup);
+        const SingleLookupTable& cur_lookup = get_wordlookup(source[s], target[s], wcooc, nSourceWords, slookup[s], aux_lookup);
 
-        if (start_empty_word) 
-          compute_sehmm_viterbi_alignment(source[s],cur_lookup, target[s], 
-                                          dict, align_model[curI-1], initial_prob[curI-1],
-                                          viterbi_alignment);
-        else
-          compute_ehmm_viterbi_alignment(source[s],cur_lookup, target[s], 
-                                         dict, align_model[curI-1], initial_prob[curI-1],
-                                         viterbi_alignment,align_type);
+        //std::cerr << "computing alignment" << std::endl;
+
+        compute_ehmm_viterbi_alignment(source[s], cur_lookup, target[s], dict, align_model[curI - 1],
+                                       initial_prob[curI - 1],viterbi_alignment, options);
+
+        //std::cerr << "alignment: " << viterbi_alignment << std::endl;
 
         //add alignment error rate
-        sum_aer += AER(viterbi_alignment,options.sure_ref_alignments_[s+1],options.possible_ref_alignments_[s+1]);
-        sum_fmeasure += f_measure(viterbi_alignment,options.sure_ref_alignments_[s+1],options.possible_ref_alignments_[s+1]);
-        nErrors += nDefiniteAlignmentErrors(viterbi_alignment,options.sure_ref_alignments_[s+1],options.possible_ref_alignments_[s+1]);
-        
-        
-        Storage1D<AlignBaseType> marg_alignment;
-        
-        if (!start_empty_word) {
-          compute_ehmm_optmarginal_alignment(source[s],cur_lookup, target[s], 
-                                             dict, align_model[curI-1], initial_prob[curI-1],
-                                             marg_alignment);
-          
-          sum_marg_aer += AER(marg_alignment,options.sure_ref_alignments_[s+1],options.possible_ref_alignments_[s+1]);
-        }
+        sum_aer += AER(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_fmeasure += f_measure(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        nErrors += nDefiniteAlignmentErrors(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+
+        Storage1D < AlignBaseType > marg_alignment;
+        compute_ehmm_optmarginal_alignment(source[s], cur_lookup, target[s], dict, align_model[curI - 1],
+                                           initial_prob[curI - 1], start_empty_word, marg_alignment);
+
+        //std::cerr << "marg_alignment: " << marg_alignment << std::endl;
+
+        sum_marg_aer += AER(marg_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+
+        std::set<std::pair<AlignBaseType,AlignBaseType> > postdec_alignment;
+        compute_ehmm_postdec_alignment(source[s], cur_lookup, target[s], dict, align_model[curI - 1],
+                                       initial_prob[curI - 1], options, postdec_alignment);
+
+        sum_postdec_aer += AER(postdec_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_postdec_fmeasure += f_measure(postdec_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_postdec_daes += nDefiniteAlignmentErrors(postdec_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
       }
 
       sum_aer *= 100.0 / nContributors;
       sum_marg_aer *= 100.0 / nContributors;
       nErrors /= nContributors;
       sum_fmeasure /= nContributors;
+      sum_postdec_aer *= 100.0 / nContributors;
+      sum_postdec_fmeasure /= nContributors;
+      sum_postdec_daes /= nContributors;
 
       if (options.print_energy_) {
-        std::cerr << "#### EHMM energy after iteration # " << iter << ": " 
-                  <<  extended_hmm_energy(source, slookup, target, align_model, initial_prob, 
-                                          dict, wcooc, nSourceWords, prior_weight, align_type, 
-                                          start_empty_word, options.smoothed_l0_, options.l0_beta_) 
+        std::cerr << "#### EHMM energy after iteration # " << iter << ": "
+                  << extended_hmm_energy(source, slookup, target, align_model, initial_prob, dict, wcooc, nSourceWords,
+                                         prior_weight, options)
                   << std::endl;
       }
       std::cerr << "#### EHMM Viterbi-AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
-      if (!start_empty_word)
-        std::cerr << "---- EHMM Marginal-AER : " << sum_marg_aer << " %" << std::endl;
+      std::cerr << "---- EHMM Marginal-AER : " << sum_marg_aer << " %" << std::endl;
       std::cerr << "#### EHMM Viterbi-fmeasure after iteration #" << iter << ": " << sum_fmeasure << std::endl;
       std::cerr << "#### EHMM Viterbi-DAE/S after iteration #" << iter << ": " << nErrors << std::endl;
-
+      std::cerr << "#### EHMM Postdec-AER after iteration #" << iter << ": " << sum_postdec_aer << " %" << std::endl;
+      std::cerr << "#### EHMM Postdec-fmeasure after iteration #" << iter << ": " << sum_postdec_fmeasure << std::endl;
+      std::cerr << "#### EHMM Postdec-DAE/S after iteration #" << iter << ": " << sum_postdec_daes << std::endl;
     }
-  } //end for (iter)
+  }                             //end for (iter)
 }
 
-
-
-void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source,
-                                       const LookupTable& slookup,
-                                       const Storage1D<Storage1D<uint> >& target,
-                                       const CooccuringWordsType& wcooc,
-                                       FullHMMAlignmentModel& align_model,
-                                       Math1D::Vector<double>& dist_params, double& dist_grouping_param,
-                                       Math1D::Vector<double>& source_fert,
-                                       InitialAlignmentProbability& initial_prob,
-                                       Math1D::Vector<double>& init_params,
-                                       SingleWordDictionary& dict,
-                                       const floatSingleWordDictionary& prior_weight,
-                                       HmmOptions& options) {
+void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup,
+                                       const Storage1D<Math1D::Vector<uint> >& target, const CooccuringWordsType& wcooc,
+                                       FullHMMAlignmentModel& align_model, Math1D::Vector<double>& dist_params,
+                                       double& dist_grouping_param, Math1D::Vector<double>& source_fert,
+                                       InitialAlignmentProbability& initial_prob, Math1D::Vector<double>& init_params,
+                                       SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight, HmmOptions& options)
+{
 
   std::cerr << "starting Extended HMM GD-training" << std::endl;
 
@@ -1515,17 +3037,8 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
   HmmAlignProbType align_type = options.align_type_;
   bool smoothed_l0 = options.smoothed_l0_;
   double l0_beta = options.l0_beta_;
-  bool start_empty_word = false;
-
-  if (align_type == HmmAlignProbNonpar2)  {
-    INTERNAL_ERROR << " gradient descent does not (yet?) support Nonpar2. Exiting" << std::endl;
-    exit(1);
-  }
-
-  if (options.start_empty_word_) {
-    std::cerr << "WARNING: gradient descent does not support a start empty word. Ignoring this setting." << std::endl;
-    options.start_empty_word_ = false;
-  }
+  const bool start_empty_word = options.start_empty_word_;
+  const int redpar_limit = options.redpar_limit_;
 
   assert(wcooc.size() == options.nTargetWords_);
   //NOTE: the dicitionary is assumed to be initialized
@@ -1537,27 +3050,12 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
   SingleLookupTable aux_lookup;
 
-  std::set<uint> seenIs;
+  init_hmm_from_ibm1(source, slookup, target, dict, wcooc, align_model, dist_params, dist_grouping_param, source_fert,
+                     initial_prob, init_params, options, options.transfer_mode_);
 
-  uint maxI = 5;
-  uint maxJ = 0;
-  for (size_t s=0; s < nSentences; s++) {
-    const uint curI = target[s].size();
-    const uint curJ = source[s].size();
-
-    seenIs.insert(curI);
-
-    if (curI > maxI)
-      maxI = curI;
-    if (curJ > maxJ)
-      maxJ = curJ;
-  }
-
-  uint zero_offset = maxI-1;
-
-  init_hmm_from_ibm1(source, slookup, target, dict, wcooc, align_model, dist_params, dist_grouping_param,
-                     source_fert, initial_prob, init_params, options, options.transfer_mode_);
-
+  const uint maxI = align_model.size();
+  const uint zero_offset = maxI - 1;
+  const uint start_addon = (start_empty_word) ? 1 : 0;
 
   double dist_grouping_grad = dist_grouping_param;
   double new_dist_grouping_param = dist_grouping_param;
@@ -1579,61 +3077,57 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
   hyp_init_params = init_params;
 
   Math1D::Vector<double> source_fert_grad = source_fert;
-  Math1D::Vector<double> new_source_fert = source_fert;  
+  Math1D::Vector<double> new_source_fert = source_fert;
   Math1D::Vector<double> hyp_source_fert = source_fert;
 
+  InitialAlignmentProbability init_grad(maxI, MAKENAME(init_grad));
 
-  InitialAlignmentProbability init_grad(maxI,MAKENAME(init_grad));
-  
   Storage1D<Math1D::Vector<double> > dict_grad(options.nTargetWords_);
-  for (uint i=0; i < options.nTargetWords_; i++) {
+  for (uint i = 0; i < options.nTargetWords_; i++) {
     dict_grad[i].resize(dict[i].size());
   }
-  
-  FullHMMAlignmentModel align_grad(maxI,MAKENAME(align_grad));
+
+  FullHMMAlignmentModel align_grad(maxI, MAKENAME(align_grad));
   for (uint I = 1; I <= maxI; I++) {
-    if (seenIs.find(I) != seenIs.end()) {
-      align_grad[I-1].resize_dirty(I+1,I);
+    if (align_model[I - 1].size() > 0) {
+      align_grad[I - 1].resize_dirty(I + 1, I);
+      init_grad[I - 1].resize_dirty(initial_prob[I - 1].size());
     }
-    init_grad[I-1].resize_dirty(2*I);
   }
 
-  InitialAlignmentProbability new_init_prob(maxI,MAKENAME(new_init_prob));
-  InitialAlignmentProbability hyp_init_prob(maxI,MAKENAME(hyp_init_prob));
-  
-  SingleWordDictionary new_dict_prob(options.nTargetWords_,MAKENAME(new_dict_prob));
-  SingleWordDictionary hyp_dict_prob(options.nTargetWords_,MAKENAME(hyp_dict_prob));
+  InitialAlignmentProbability new_init_prob(maxI, MAKENAME(new_init_prob));
+  InitialAlignmentProbability hyp_init_prob(maxI, MAKENAME(hyp_init_prob));
+  new_init_prob = initial_prob;
+  hyp_init_prob = initial_prob;
 
-  for (uint i=0; i < options.nTargetWords_; i++) {
+  SingleWordDictionary new_dict_prob(options.nTargetWords_, MAKENAME(new_dict_prob));
+  SingleWordDictionary hyp_dict_prob(options.nTargetWords_, MAKENAME(hyp_dict_prob));
+
+  for (uint i = 0; i < options.nTargetWords_; i++) {
     new_dict_prob[i].resize(dict[i].size());
     hyp_dict_prob[i].resize(dict[i].size());
   }
-  
-  FullHMMAlignmentModel new_align_prob(maxI,MAKENAME(new_align_prob));
-  FullHMMAlignmentModel hyp_align_prob(maxI,MAKENAME(hyp_align_prob));
+
+  FullHMMAlignmentModel new_align_prob(maxI, MAKENAME(new_align_prob));
+  FullHMMAlignmentModel hyp_align_prob(maxI, MAKENAME(hyp_align_prob));
 
   for (uint I = 1; I <= maxI; I++) {
-    if (seenIs.find(I) != seenIs.end()) {
-      new_align_prob[I-1].resize_dirty(I+1,I);
-      hyp_align_prob[I-1].resize_dirty(I+1,I);
+    if (align_grad[I - 1].size() > 0) {
+      new_align_prob[I - 1].resize_dirty(I + 1, I);
+      hyp_align_prob[I - 1].resize_dirty(I + 1, I);
     }
-    new_init_prob[I-1].resize_dirty(2*I);
-    hyp_init_prob[I-1].resize_dirty(2*I);
   }
 
-  Math1D::Vector<double> slack_vector(options.nTargetWords_,0.0);
-  Math1D::Vector<double> new_slack_vector(options.nTargetWords_,0.0);
+  Math1D::Vector<double> slack_vector(options.nTargetWords_, 0.0);
+  Math1D::Vector<double> new_slack_vector(options.nTargetWords_, 0.0);
 
-  for (uint i=0; i < options.nTargetWords_; i++) {
+  for (uint i = 0; i < options.nTargetWords_; i++) {
     double slack_val = 1.0 - dict[i].sum();
     slack_vector[i] = slack_val;
     new_slack_vector[i] = slack_val;
   }
 
-  double energy = extended_hmm_energy(source, slookup, target, align_model, initial_prob, 
-				      dict, wcooc, nSourceWords, prior_weight, align_type, 
-                                      start_empty_word, smoothed_l0, l0_beta);
-
+  double energy = extended_hmm_energy(source, slookup, target, align_model, initial_prob, dict, wcooc, nSourceWords, prior_weight, options);
 
   double line_reduction_factor = 0.5;
 
@@ -1641,6 +3135,8 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
   std::cerr << "start energy: " << energy << std::endl;
 
+  //double alpha = 0.005; //0.002;
+  //double alpha = 0.001; //(align_type == HmmAlignProbReducedpar) ? 0.0025 : 0.001;
   double alpha = 50.0;
 
   for (uint iter = 1; iter <= nIterations; iter++) {
@@ -1649,17 +3145,17 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
     std::cerr << "alpha: " << alpha << std::endl;
 
     //set counts to 0
-    for (uint i=0; i < options.nTargetWords_; i++) {
+    for (uint i = 0; i < options.nTargetWords_; i++) {
       dict_grad[i].set_constant(0.0);
     }
 
     for (uint I = 1; I <= maxI; I++) {
-      align_grad[I-1].set_constant(0.0);
-      init_grad[I-1].set_constant(0.0);
+      align_grad[I - 1].set_constant(0.0);
+      init_grad[I - 1].set_constant(0.0);
     }
-    
+
     if (align_type != HmmAlignProbNonpar) {
-      
+
       dist_grad.set_constant(0.0);
       source_fert_grad.set_constant(0.0);
     }
@@ -1668,263 +3164,324 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
     /******** 1. calculate gradients **********/
 
-    for (size_t s=0; s < nSentences; s++) {
+    for (size_t s = 0; s < nSentences; s++) {
+
+      //std::cerr << "s: " << s << std::endl;
 
       const Storage1D<uint>& cur_source = source[s];
       const Storage1D<uint>& cur_target = target[s];
-      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
-      
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, nSourceWords, slookup[s], aux_lookup);
+
       const uint curJ = cur_source.size();
       const uint curI = cur_target.size();
-      
-      const Math2D::Matrix<double>& cur_align_model = align_model[curI-1];
-      Math2D::Matrix<double>& cur_align_grad = align_grad[curI-1];
-      
+
+      const Math2D::Matrix<double>& cur_align_model = align_model[curI - 1];
+      const Math1D::Vector<double>& cur_init_prob = initial_prob[curI - 1];
+
+      Math2D::Matrix<double> cur_dict(curJ,curI+1);
+      compute_dictmat(cur_source, cur_lookup, cur_target, dict, cur_dict);
+
       /**** Baum-Welch traininig: start with calculating forward and backward ********/
 
-      Math2D::NamedMatrix<long double> forward(2*curI,curJ,MAKENAME(forward));
+      Math2D::NamedMatrix<long double> forward(2 * curI + start_addon, curJ, MAKENAME(forward));
+      Math2D::NamedMatrix<long double> backward(2 * curI + start_addon, curJ,MAKENAME(backward));
 
-      calculate_hmm_forward(cur_source, cur_target, cur_lookup, dict, cur_align_model,
-                            initial_prob[curI-1], align_type, forward);
+      calculate_hmm_forward(cur_dict, cur_align_model, cur_init_prob, align_type, start_empty_word, forward, redpar_limit);
 
       const uint start_s_idx = cur_source[0];
 
       long double sentence_prob = 0.0;
-      for (uint i=0; i < 2*curI; i++) {
+      for (uint i = 0; i < 2 * curI + start_addon; i++) {
 
-        assert(forward(i,curJ-1) >= 0.0);
-        sentence_prob += forward(i,curJ-1);
+        //      if (!(forward(i,curJ-1) >= 0.0)) {
+        //        std::cerr << "s=" << s << ", I=" << curI << ", i= " << i << ", value " << forward(i,curJ-1) << std::endl;
+        //      }
+
+        assert(forward(i, curJ - 1) >= 0.0);
+        sentence_prob += forward(i, curJ - 1);
       }
-      
-      if (! (sentence_prob > 0.0)) {
 
-        std::cerr << "sentence_prob " << sentence_prob << " for sentence pair " << s << " with I=" << curI
-                  << ", J= " << curJ << std::endl;
+      if (!(sentence_prob > 0.0)) {
+
+        std::cerr << "sentence_prob " << sentence_prob << " for sentence pair " << s << " with I=" << curI << ", J= " << curJ << std::endl;
 
       }
       assert(sentence_prob > 0.0);
-      
-      Math2D::NamedMatrix<long double> backward(2*curI,curJ,MAKENAME(backward));
 
-      calculate_hmm_backward(cur_source, cur_target, cur_lookup, dict, cur_align_model,
-                             initial_prob[curI-1], align_type, backward, true);
+      calculate_hmm_backward(cur_dict, cur_align_model, cur_init_prob, align_type, start_empty_word, backward, true, redpar_limit);
 
       const long double inv_sentence_prob = 1.0 / sentence_prob;
+
+      Math2D::Matrix<double>& cur_align_grad = align_grad[curI - 1];
+      Math1D::Vector<double>& cur_init_grad = init_grad[curI - 1];
 
       /**** update gradients ****/
 
       //start of sentence
-      for (uint i=0; i < curI; i++) {
+      for (uint i = 0; i < curI; i++) {
         const uint t_idx = cur_target[i];
 
-        const long double coeff = inv_sentence_prob * backward(i,0);
-
-        const double cur_dict_entry = dict[t_idx][cur_lookup(0,i)];
+        const double coeff = inv_sentence_prob * backward(i, 0);
+        const double cur_dict_entry = cur_dict(0,i); //dict[t_idx][cur_lookup(0, i)];
 
         if (cur_dict_entry > 1e-300) {
 
           double addon = coeff / cur_dict_entry;
-          if (smoothed_l0)
-            addon *= prob_pen_prime(cur_dict_entry, l0_beta);
-          dict_grad[t_idx][cur_lookup(0,i)] -= addon;
+          dict_grad[t_idx][cur_lookup(0, i)] -= addon;
         }
 
-        if (initial_prob[curI-1][i] > 1e-300) {
-          init_grad[curI-1][i] -= coeff / std::max(1e-15,initial_prob[curI-1][i]);
-	  assert(!isnan(init_grad[curI-1][i]));
-	}
+        if (cur_init_prob[i] > 1e-300) {
+          cur_init_grad[i] -= coeff; // division by param deferred until after the loop
+          assert(!isnan(cur_init_grad[i]));
+        }
       }
-      for (uint i=0; i < curI; i++) {
 
-        const long double coeff = inv_sentence_prob * backward(i+curI,0);
+      const double cur_dict_entry = cur_dict(0,curI); //dict[0][start_s_idx - 1];
+      if (cur_dict_entry > 1e-300) {
+        if (start_empty_word) {
+          const double coeff = inv_sentence_prob * backward(2 * curI, 0);
 
-        const double cur_dict_entry = dict[0][start_s_idx-1];
-
-        if (cur_dict_entry > 1e-300) {
-
-          double addon = coeff / std::max(1e-15,cur_dict_entry);
-          if (smoothed_l0)
-            addon *= prob_pen_prime(cur_dict_entry, l0_beta);
-
-          dict_grad[0][start_s_idx-1] -= addon;
+          dict_grad[0][start_s_idx - 1] -= coeff / std::max(hmm_min_dict_entry, cur_dict_entry);
+          cur_init_grad[curI] -= coeff; // division by param deferred until after the loop
         }
+        else {
+          for (uint i = 0; i < curI; i++) {
 
-        if (initial_prob[curI-1][i+curI] > 1e-300) {
-          init_grad[curI-1][i+curI] -= coeff / std::max(1e-15,initial_prob[curI-1][i+curI]);
-	  assert(!isnan(init_grad[curI-1][i+curI]));
-	}
+            const long double coeff = inv_sentence_prob * backward(i + curI, 0);
+
+            dict_grad[0][start_s_idx - 1] -= coeff / std::max(hmm_min_dict_entry, cur_dict_entry);
+
+            if (initial_prob[curI - 1][i + curI] > 1e-300) {
+              cur_init_grad[i + curI] -= coeff / std::max(hmm_min_param_entry, cur_init_prob[i + curI]);
+              assert(!isnan(cur_init_grad[i + curI]));
+            }
+          }
+        }
       }
 
       //mid-sentence
-      for (uint j=1; j < curJ; j++) {
+      for (uint j = 1; j < curJ; j++) {
         const uint s_idx = cur_source[j];
-        const uint j_prev = j -1;
+        const uint j_prev = j - 1;
 
         //real positions
-        for (uint i=0; i < curI; i++) {
+        for (uint i = 0; i < curI; i++) {
           const uint t_idx = cur_target[i];
 
-          const double cur_dict_entry = dict[t_idx][cur_lookup(j,i)];
+          const double cur_dict_entry = cur_dict(j,i); //dict[t_idx][cur_lookup(j, i)];
 
           if (cur_dict_entry > 1e-70) {
 
-            double dict_addon = forward(i,j)*backward(i,j) 
-              / (sentence_prob * std::max(1e-30,cur_dict_entry * cur_dict_entry));
+            double dict_addon = forward(i, j) * backward(i, j) / (sentence_prob * std::max(1e-30, cur_dict_entry * cur_dict_entry));
 
-            if (smoothed_l0)
-              dict_addon *= prob_pen_prime(cur_dict_entry, l0_beta);
+            dict_grad[t_idx][cur_lookup(j, i)] -= dict_addon;
 
-            dict_grad[t_idx][cur_lookup(j,i)] -= dict_addon;
+            const long double bw = backward(i, j) / sentence_prob;
 
-            const long double bw = backward(i,j) / sentence_prob;
+            for (uint i_prev = 0; i_prev < curI; i_prev++) {
 
-            uint i_prev;
-            double addon;
-	    
-            double fert_addon = 0.0;
-
-            for (i_prev = 0; i_prev < curI; i_prev++) {
-
-              addon = bw * (forward(i_prev,j_prev) + forward(i_prev+curI,j_prev));
-              fert_addon += addon * cur_align_model(i,i_prev);
-              cur_align_grad(i,i_prev) -= addon;
-            }
-
-            if (align_type != HmmAlignProbNonpar) {
-              source_fert_grad[1] -= fert_addon / source_fert[1];
+              const double addon = bw * (forward(i_prev, j_prev) + forward(i_prev + curI, j_prev));
+              cur_align_grad(i, i_prev) -= addon; //division by prob deferred
             }
           }
         }
 
         //empty words
-        for (uint i=curI; i < 2*curI; i++) {
+        const double cur_dict_entry = cur_dict(j,curI); //dict[0][s_idx - 1];
 
-          const long double bw = backward(i,j) * inv_sentence_prob;
+        if (cur_dict_entry > 1e-70) {
 
-          const double cur_dict_entry = dict[0][s_idx-1];
+          for (uint i = curI; i < 2 * curI; i++) {
 
-          if (cur_dict_entry > 1e-70) {
+            const long double bw = backward(i, j) * inv_sentence_prob;
+            const long double shared = bw * forward(i, j) / cur_dict_entry;
 
-            double addon = bw*forward(i,j) / std::max(1e-15,cur_dict_entry * cur_dict_entry);
+            const double addon = shared / cur_dict_entry;
+            dict_grad[0][s_idx - 1] -= addon;
 
-            if (smoothed_l0)
-              addon *= prob_pen_prime(cur_dict_entry, l0_beta);
-
-            dict_grad[0][s_idx-1] -= addon;
+            //combining j and j_prev doesn't
+            const double align_addon = shared;
+            cur_align_grad(curI, i - curI) -= align_addon; //division by prob deferred
           }
 
-          const long double align_addon = bw * (forward(i,j_prev) + forward(i-curI,j_prev));
-          if (align_type != HmmAlignProbNonpar) {
-            source_fert_grad[0] -= align_addon;
-          }
-          else {
-            cur_align_grad(curI,i-curI) -= align_addon;
+          if (start_empty_word) {
+
+            const long double bw = backward(2 * curI, j) * inv_sentence_prob;
+            const long double shared = bw * forward(2 * curI, j) / cur_dict_entry;
+
+            dict_grad[0][s_idx - 1] -= shared / cur_dict_entry;
+            cur_init_grad[curI] -= shared; // division by param deferred until after the loop
+
+            for (uint i = 0; i < curI; i++)
+              cur_init_grad[curI] -= shared; // division by param deferred until after the loop
           }
         }
       }
-     
-    } //end for (s)
+    }  //end for (s)
 
-    if (init_type == HmmInitPar) {      
-      
-      for (uint I = 1; I <= maxI; I++) {
+    //std::cerr << "loop over s finished" << std::endl;
 
-        if (seenIs.find(I) != seenIs.end()) {
+    for (uint i = 0; i < options.nTargetWords_; i++) {
+      dict_grad[i] *= 1.0 / nSentences;
+    }
+    for (uint I = 1; I <= maxI; I++) {
 
-          double sum = 0.0;
-          for (uint i=0; i < I; i++)
-            sum += init_params[i];
+      init_grad[I - 1] *= 1.0 / nSentences;
 
-          for (uint i=0; i < I; i++) {
+      for (uint k=0; k < init_grad[I - 1].size(); k++)
+        init_grad[I - 1].direct_access(k) /= initial_prob[I - 1].direct_access(k);
+    }
+    for (uint I = 1; I <= maxI; I++) {
+      align_grad[I - 1] *= 1.0 / nSentences;
 
-            double cur_grad = init_grad[I-1][i];
-            source_fert_grad[1] += cur_grad;
+      //finally include division
+      for (uint k=0; k < align_grad[I - 1].size(); k++) {
+        align_grad[I - 1].direct_access(k) /= std::max(hmm_min_param_entry, align_model[I - 1].direct_access(k));
+      }
+    }
 
-            const double factor = source_fert[1] / (sum * sum);
+    for (uint i = 0; i < options.nTargetWords_; i++) {
 
-            for (uint ii=0; ii < I; ii++) {
-	      
+      const uint size = dict[i].size();
+
+      for (uint k = 0; k < size; k++) {
+        if (smoothed_l0)
+          dict_grad[i][k] += prior_weight[i][k] * prob_pen_prime(dict[i][k], l0_beta);
+        else
+          dict_grad[i][k] += prior_weight[i][k];
+      }
+    }
+
+    for (uint I = 1; I <= maxI; I++) {
+
+      if (init_grad[I - 1].size() > 0) {
+
+        if (init_type == HmmInitPar) {
+
+          for (uint i = 0; i < I; i++)
+            source_fert_grad[1] += init_grad[I - 1][i] * (initial_prob[I - 1][i] / source_fert[1]);
+
+          if (!start_empty_word)
+            source_fert_grad[0] += init_grad[I - 1].range_sum(I, 2 * I) / I;
+          else
+            source_fert_grad[0] += init_grad[I - 1][I];
+
+          const double sum = init_params.range_sum(0, I);
+
+          for (uint i = 0; i < I; i++) {
+
+            const double cur_grad = init_grad[I - 1][i] * source_fert[1] / (sum * sum);
+
+            for (uint ii = 0; ii < I; ii++) {
+
               if (ii == i)
-                init_param_grad[ii] += cur_grad * factor * (sum - init_params[i]);
+                init_param_grad[ii] += cur_grad * (sum - init_params[i]);
               else
-                init_param_grad[ii] -= cur_grad * factor * init_params[i];
+                init_param_grad[ii] -= cur_grad * init_params[i];
             }
           }
-
-          for (uint i=I; i < 2*I; i++) 
-            source_fert_grad[0] += init_grad[I-1][i] / I;
         }
       }
     }
 
     if (align_type != HmmAlignProbNonpar) {
+
       for (uint I = 1; I <= maxI; I++) {
 
-        if (seenIs.find(I) != seenIs.end()) {
-          for (int i=0; i < (int) I; i++) {	   
+        if (align_grad[I - 1].size() > 0) {
+
+          for (int i = 0; i < (int)I; i++) {
+
+            for (uint ii = 0; ii < I; ii++)
+              source_fert_grad[1] += align_grad[I - 1] (ii, i) * (align_model[I - 1] (ii, i) / source_fert[1]);
+            source_fert_grad[0] += align_grad[I - 1] (I, i) * (align_model[I - 1] (I, i) / source_fert[0]);
 
             double non_zero_sum = 0.0;
-	    
+
             if (align_type == HmmAlignProbFullpar) {
-              double non_zero_sum = 0.0;
-	    
-              for (uint ii=0; ii < I; ii++) {
-                non_zero_sum += dist_params[zero_offset + ii - i];
+
+              if (options.deficient_) {
+                for (uint ii = 0; ii < I; ii++)
+                  dist_grad[zero_offset + ii - i] += source_fert[1] * align_grad[I - 1] (ii, i);
               }
-	      
-              double factor = source_fert[1] / (non_zero_sum * non_zero_sum);
-	      
-              assert(!isnan(factor));
-	      
-              for (uint ii=0; ii < I; ii++) {
-                //NOTE: align_grad has already a negative sign
-                dist_grad[zero_offset + ii - i] += align_grad[I-1](ii,i) * factor * (non_zero_sum - dist_params[zero_offset + ii - i]);
-                for (uint iii=0; iii < I; iii++) {
-                  if (iii != ii)
-                    dist_grad[zero_offset + iii - i] -= align_grad[I-1](ii,i) * factor * dist_params[zero_offset + ii - i];
+              else {
+
+                for (uint ii = 0; ii < I; ii++) {
+                  non_zero_sum += dist_params[zero_offset + ii - i];
+                }
+
+                //std::cerr << "I: " << I << ", i: " << i << ", non_zero_sum: " << non_zero_sum << std::endl;
+
+                const double factor = source_fert[1] / (non_zero_sum * non_zero_sum);
+
+                assert(!isnan(factor));
+
+                for (uint ii = 0; ii < I; ii++) {
+                  //NOTE: align_grad has already a negative sign
+
+                  const double cur_grad = align_grad[I - 1] (ii, i);
+
+                  dist_grad[zero_offset + ii - i] += cur_grad * factor * non_zero_sum;
+                  for (uint iii = 0; iii < I; iii++)
+                    dist_grad[zero_offset + iii - i] -= cur_grad * factor * dist_params[zero_offset + ii - i];
                 }
               }
             }
             else {
 
-              double grouping_norm = std::max(0,i-5);
-              grouping_norm += std::max(0,int(I)-1-(i+5));
-	      
-              if (grouping_norm > 0.0)
-                non_zero_sum += dist_grouping_param;
-	      	      
-              for (int ii=0; ii < (int) I; ii++) {
-		
-                if (abs(ii-i) <= 5)
-                  non_zero_sum += dist_params[zero_offset + ii - i];
-              }
+              double grouping_norm = std::max(0, i - redpar_limit);
+              grouping_norm += std::max(0, int (I) - 1 - (i + redpar_limit));
 
-              double factor = source_fert[1] / (non_zero_sum * non_zero_sum);
-	      
-              assert(!isnan(factor));
-
-              for (int ii=0; ii < (int) I; ii++) {
-                //NOTE: align_grad has already a negative sign
-                if (abs(ii-i) <= 5) {
-                  dist_grad[zero_offset + ii - i] += align_grad[I-1](ii,i) * factor * (non_zero_sum - dist_params[zero_offset + ii - i]);
-
-                  for (int iii=0; iii < (int) I; iii++) {
-                    if (iii != ii) {
-                      if (abs(iii-i) <= 5)
-                        dist_grad[zero_offset + iii - i] -= align_grad[I-1](ii,i) * factor * dist_params[zero_offset + ii - i];
-                      else
-                        dist_grouping_grad -= align_grad[I-1](ii,i) * factor * dist_params[zero_offset + ii - i] / grouping_norm;
-                    }
+              if (options.deficient_) {
+                for (int ii = 0; ii < (int)I; ii++) {
+                  //NOTE: align_grad has already a negative sign
+                  if (abs(ii - i) <= redpar_limit) {
+                    dist_grad[zero_offset + ii - i] += source_fert[1] * align_grad[I - 1] (ii, i);
+                  }
+                  else {
+                    dist_grouping_grad += source_fert[1] * align_grad[I - 1] (ii, i) / grouping_norm;
                   }
                 }
-                else {
+              }
+              else {
 
-                  dist_grouping_grad += align_grad[I-1](ii,i) * factor * (non_zero_sum - dist_grouping_param) / grouping_norm;
-		  
-                  for (int iii=0; iii < (int) I; iii++) {
-                    if (iii != ii) {
-                      if (abs(iii-i) <= 5)
-                        dist_grad[zero_offset + iii - i] -= align_grad[I-1](ii,i) * factor * dist_grouping_param / grouping_norm;
+                if (grouping_norm > 0.0)
+                  non_zero_sum += dist_grouping_param;
+
+                for (int ii = 0; ii < (int)I; ii++) {
+
+                  if (abs(ii - i) <= redpar_limit)
+                    non_zero_sum += dist_params[zero_offset + ii - i];
+                }
+
+                const double factor = source_fert[1] / (non_zero_sum * non_zero_sum);
+
+                assert(!isnan(factor));
+
+                for (int ii = 0; ii < (int)I; ii++) {
+
+                  const double cur_grad = align_grad[I - 1] (ii, i);
+
+                  //NOTE: align_grad has already a negative sign
+                  if (abs(ii - i) <= redpar_limit) {
+
+                    dist_grad[zero_offset + ii - i] += cur_grad * factor * non_zero_sum;
+                    for (int iii = 0; iii < (int)I; iii++) {
+                      if (abs(iii - i) <= redpar_limit)
+                        dist_grad[zero_offset + iii - i] -= cur_grad * factor * dist_params[zero_offset + ii - i];
+                      else
+                        dist_grouping_grad -= cur_grad * factor * dist_params[zero_offset + ii - i] / grouping_norm;
+                    }
+                  }
+                  else {
+
+                    dist_grouping_grad += cur_grad * factor * (non_zero_sum - dist_grouping_param) / grouping_norm;
+
+                    for (int iii = 0; iii < (int)I; iii++) {
+                      if (abs(iii - i) <= redpar_limit) {
+                        assert(iii != ii);
+                        dist_grad[zero_offset + iii - i] -= cur_grad * factor * dist_grouping_param / grouping_norm;
+                      }
                     }
                   }
                 }
@@ -1934,107 +3491,118 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
         }
       }
     }
-    
+
     /******** 2. move in gradient direction *********/
+
+    //std::cerr << "move" << std::endl;
 
     double real_alpha = alpha;
 
     double sqr_grad_norm = 0.0;
-    
-    if (align_type != HmmAlignProbNonpar || init_type == HmmInitPar) 
+
+    if (align_type != HmmAlignProbNonpar || init_type == HmmInitPar)
       sqr_grad_norm += source_fert_grad.sqr_norm();
-    if (init_type == HmmInitPar) 
+    if (init_type == HmmInitPar)
       sqr_grad_norm += init_param_grad.sqr_norm();
     if (align_type == HmmAlignProbFullpar) {
       sqr_grad_norm += dist_grad.sqr_norm();
     }
     else if (align_type == HmmAlignProbReducedpar) {
-      sqr_grad_norm += dist_grad.sqr_norm() + dist_grouping_grad*dist_grouping_grad;
+      sqr_grad_norm += dist_grad.sqr_norm() + dist_grouping_grad * dist_grouping_grad;
     }
-    for (uint i=0; i < options.nTargetWords_; i++) 
+    for (uint i = 0; i < options.nTargetWords_; i++)
       sqr_grad_norm += dict_grad[i].sqr_norm();
 
     real_alpha /= sqrt(sqr_grad_norm);
 
-    if (align_type != HmmAlignProbNonpar || init_type == HmmInitPar) {
-      
-      for (uint i=0; i < 2; i++)
-        new_source_fert[i] = source_fert[i] - real_alpha * source_fert_grad[i];
+    //std::cerr << "A" << std::endl;
 
-      projection_on_simplex(new_source_fert.direct_access(), 2);
+    if (align_type != HmmAlignProbNonpar || init_type == HmmInitPar) {
+
+      if (!options.fix_p0_) {
+        for (uint i = 0; i < 2; i++)
+          new_source_fert[i] = source_fert[i] - real_alpha * source_fert_grad[i];
+
+        projection_on_simplex(new_source_fert.direct_access(), 2);
+      }
     }
+    //std::cerr << "B" << std::endl;
 
     if (init_type == HmmInitPar) {
 
-      for (uint k=0; k < init_params.size(); k++)
+      for (uint k = 0; k < init_params.size(); k++)
         new_init_params[k] = init_params[k] - real_alpha * init_param_grad[k];
 
-      projection_on_simplex(new_init_params.direct_access(), new_init_params.size());
+      projection_on_simplex(new_init_params.direct_access(), new_init_params.size(), hmm_min_param_entry);
     }
+    //std::cerr << "C" << std::endl;
 
     if (align_type == HmmAlignProbFullpar) {
 
-      for (uint k=0; k < dist_params.size(); k++)
+      for (uint k = 0; k < dist_params.size(); k++)
         new_dist_params[k] = dist_params[k] - real_alpha * dist_grad[k];
 
-      projection_on_simplex(new_dist_params.direct_access(), new_dist_params.size());
+      projection_on_simplex(new_dist_params.direct_access(), new_dist_params.size(), hmm_min_param_entry);
     }
     else if (align_type == HmmAlignProbReducedpar) {
 
-      for (uint k=0; k < dist_params.size(); k++)
+      for (uint k = 0; k < dist_params.size(); k++)
         new_dist_params[k] = dist_params[k] - real_alpha * dist_grad[k];
 
       new_dist_grouping_param = dist_grouping_param - real_alpha * dist_grouping_grad;
 
-      assert(new_dist_params.size() >= 11);
+      assert(new_dist_params.size() >= 2 * redpar_limit + 1);
 
-      projection_on_simplex_with_slack(new_dist_params.direct_access()+zero_offset-5,new_dist_grouping_param,11);
+      projection_on_simplex_with_slack(new_dist_params.direct_access() + zero_offset - redpar_limit, new_dist_grouping_param,
+                                       2 * redpar_limit + 1, hmm_min_param_entry);
     }
+    //std::cerr << "D" << std::endl;
 
-    for (uint i=0; i < options.nTargetWords_; i++) {
+    //std::cerr << "E" << std::endl;
 
-      for (uint k=0; k < dict[i].size(); k++) 
+    for (uint i = 0; i < options.nTargetWords_; i++) {
+
+      for (uint k = 0; k < dict[i].size(); k++)
         new_dict_prob[i][k] = dict[i][k] - real_alpha * dict_grad[i][k];
     }
 
+    //std::cerr << "params: " << new_init_params << std::endl;
+
     for (uint I = 1; I <= maxI; I++) {
 
-      if (seenIs.find(I) != seenIs.end()) {
+      if (init_grad[I - 1].size() > 0) {
 
         if (init_type == HmmInitPar) {
 
-          double sum = 0;
-          for (uint k=0; k < I; k++)
-            sum += new_init_params[k];
+          double sum = new_init_params.range_sum(0, I);
 
-	  if (sum > 1e-305) {
-	    for (uint k=0; k < I; k++) {
-	      new_init_prob[I-1][k] = new_source_fert[1] * new_init_params[k] / sum;
-	      assert(!isnan(new_init_prob[I-1][k]));
-	    }
-	  }
-	  else
-	    new_init_prob[I-1].set_constant(new_source_fert[1]/I);
+          if (sum > 1e-305) {
+            for (uint k = 0; k < I; k++) {
+              new_init_prob[I - 1][k] = new_source_fert[1] * new_init_params[k] / sum;
+              assert(!isnan(new_init_prob[I - 1][k]));
+            }
+          }
+          else
+            new_init_prob[I - 1].set_constant(new_source_fert[1] / I);
 
-          for (uint k=I; k < 2*I; k++) {
-            new_init_prob[I-1][k] = new_source_fert[0] / I;
-	    assert(!isnan(new_init_prob[I-1][k]));
-	  }
-        }
-        else {
-          for (uint k=0; k < initial_prob[I-1].size(); k++) {
-	  
-            if (init_type == HmmInitFix)
-              new_init_prob[I-1][k] = initial_prob[I-1][k];
-            else if (init_type == HmmInitNonpar)
-              new_init_prob[I-1][k] = initial_prob[I-1][k] - alpha * init_grad[I-1][k];
+          if (start_empty_word)
+            new_init_prob[I - 1][I] = new_source_fert[0];
+          else {
+            for (uint k = I; k < 2 * I; k++) {
+              new_init_prob[I - 1][k] = new_source_fert[0] / I;
+              assert(!isnan(new_init_prob[I - 1][k]));
+            }
           }
         }
+        else if (init_type != HmmInitFix && init_type == HmmInitFix2) {
+          for (uint k = 0; k < initial_prob[I - 1].size(); k++)
+            new_init_prob[I - 1][k] = initial_prob[I - 1][k] - alpha * init_grad[I - 1][k];
+        }
 
-        if (align_type == HmmAlignProbNonpar) {
-          for (uint x=0; x < align_model[I-1].xDim(); x++) 
-            for (uint y=0; y < align_model[I-1].yDim(); y++) 
-              new_align_prob[I-1](x,y) = align_model[I-1](x,y) - alpha * align_grad[I-1](x,y);
+        if (align_type == HmmAlignProbNonpar
+            || align_type == HmmAlignProbNonpar2) {
+          for (uint k = 0; k < align_model[I - 1].size(); k++)
+            new_align_prob[I - 1].direct_access(k) = align_model[I - 1].direct_access(k) - alpha * align_grad[I - 1].direct_access(k);
         }
       }
     }
@@ -2043,56 +3611,75 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
     /******** 3. reproject on the simplices [Michelot 1986] *********/
 
-    for (uint i=0; i < options.nTargetWords_; i++) {
+    //std::cerr << "reproject" << std::endl;
 
-      for (uint k=0; k < new_dict_prob[i].size(); k++) {
-	assert(!isnan(new_dict_prob[i][k]));
-	if (new_dict_prob[i][k] < -1e75)
-	  new_dict_prob[i][k] = -9e74;
-	if (new_dict_prob[i][k] > 1e75)
-	  new_dict_prob[i][k] = 9e74;
+    for (uint i = 0; i < options.nTargetWords_; i++) {
+
+      for (uint k = 0; k < new_dict_prob[i].size(); k++) {
+        assert(!isnan(new_dict_prob[i][k]));
+        if (new_dict_prob[i][k] < -1e75)
+          new_dict_prob[i][k] = -9e74;
+        if (new_dict_prob[i][k] > 1e75)
+          new_dict_prob[i][k] = 9e74;
       }
 
-      projection_on_simplex_with_slack(new_dict_prob[i].direct_access(),new_slack_vector[i],new_dict_prob[i].size());
+      projection_on_simplex_with_slack(new_dict_prob[i].direct_access(), new_slack_vector[i], new_dict_prob[i].size(), hmm_min_dict_entry);
     }
+
+    //std::cerr << "new params: " << new_dist_params << std::endl;
+
+    //std::cerr << "F" << std::endl;
 
     for (uint I = 1; I <= maxI; I++) {
 
+      if (initial_prob[I - 1].size() > 0) {
 
-      if (init_type == HmmInitNonpar) {
-	for (uint k=0; k < new_init_prob[I-1].size(); k++) {
-	  if (new_init_prob[I-1][k] <= -1e75)
-	    new_init_prob[I-1][k] = -9e74;
-	  if (new_init_prob[I-1][k] >= 1e75)
-	    new_init_prob[I-1][k] = 9e74;
-	
-	  if (! (fabs(new_init_prob[I-1][k]) < 1e75) )
-	    std::cerr << "prob: " << new_init_prob[I-1][k] << std::endl;
-	  
-	  assert(fabs(new_init_prob[I-1][k]) < 1e75);
-	}
-      }
+        if (init_type == HmmInitNonpar) {
+          for (uint k = 0; k < new_init_prob[I - 1].size(); k++) {
+            if (new_init_prob[I - 1][k] <= -1e75)
+              new_init_prob[I - 1][k] = -9e74;
+            if (new_init_prob[I - 1][k] >= 1e75)
+              new_init_prob[I - 1][k] = 9e74;
 
-      projection_on_simplex(new_init_prob[I-1].direct_access(),new_init_prob[I-1].size());
+            if (!(fabs(new_init_prob[I - 1][k]) < 1e75))
+              std::cerr << "prob: " << new_init_prob[I - 1][k] << std::endl;
 
-      if (align_type == HmmAlignProbNonpar) {
+            assert(fabs(new_init_prob[I - 1][k]) < 1e75);
+          }
 
-	for (uint k=0; k < new_align_prob[I-1].size(); k++) {
-	  if (new_align_prob[I-1].direct_access(k) <= -1e75)
-	    new_align_prob[I-1].direct_access(k) = -9e74;
-	  if (new_align_prob[I-1].direct_access(k) >= 1e75)
-	    new_align_prob[I-1].direct_access(k) = 9e74;
+          projection_on_simplex(new_init_prob[I - 1].direct_access(), new_init_prob[I - 1].size(), hmm_min_param_entry);
+        }
 
-	  assert(fabs(new_align_prob[I-1].direct_access(k)) < 1e75);
-	}
+        if (align_type == HmmAlignProbNonpar
+            || align_type == HmmAlignProbNonpar2) {
 
-        for (uint y=0; y < align_model[I-1].yDim(); y++) {
-	 	  
-          projection_on_simplex(new_align_prob[I-1].direct_access() + y*align_model[I-1].xDim(),
-                                align_model[I-1].xDim());
+          for (uint k = 0; k < new_align_prob[I - 1].size(); k++) {
+            if (new_align_prob[I - 1].direct_access(k) <= -1e75)
+              new_align_prob[I - 1].direct_access(k) = -9e74;
+            if (new_align_prob[I - 1].direct_access(k) >= 1e75)
+              new_align_prob[I - 1].direct_access(k) = 9e74;
+
+            assert(fabs(new_align_prob[I - 1].direct_access(k)) < 1e75);
+          }
+
+          for (uint y = 0; y < align_model[I - 1].yDim(); y++) {
+
+            const uint dim =
+              (align_type ==
+               HmmAlignProbNonpar) ? align_model[I - 1].xDim() : align_model[I - 1].xDim() - 1;
+
+            projection_on_simplex(new_align_prob[I - 1].direct_access() + y * align_model[I - 1].xDim(), dim, hmm_min_param_entry);
+          }
         }
       }
     }
+
+    /******** 4. find a suitable stepsize *********/
+
+    //std::cerr << "G" << std::endl;
+
+    //std::cerr << "previous source fert prob: " << source_fert << std::endl;
+    //std::cerr << "new source fert prob: " << new_source_fert << std::endl;
 
     //evaluating the full step-size is usually a waste of running time
     double hyp_energy = 1e300;
@@ -2111,16 +3698,16 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
       lambda *= line_reduction_factor;
 
       const double neg_lambda = 1.0 - lambda;
-      
-      for (uint i=0; i < options.nTargetWords_; i++) {
-	
-        for (uint k=0; k < dict[i].size(); k++) 
+
+      for (uint i = 0; i < options.nTargetWords_; i++) {
+
+        for (uint k = 0; k < dict[i].size(); k++)
           hyp_dict_prob[i][k] = lambda * new_dict_prob[i][k] + neg_lambda * dict[i][k];
       }
 
       if (align_type != HmmAlignProbNonpar || init_type == HmmInitPar) {
 
-        for (uint i=0; i < 2; i++)
+        for (uint i = 0; i < 2; i++)
           hyp_source_fert[i] = lambda * new_source_fert[i] + neg_lambda * source_fert[i];
       }
 
@@ -2128,47 +3715,59 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
         hyp_dist_grouping_param = lambda * new_dist_grouping_param + neg_lambda * dist_grouping_param;
 
       if (init_type == HmmInitPar) {
-        for (uint k=0; k < hyp_init_params.size(); k++)
+        for (uint k = 0; k < hyp_init_params.size(); k++)
           hyp_init_params[k] = lambda * new_init_params[k] + neg_lambda * init_params[k];
 
-        par2nonpar_hmm_init_model(hyp_init_params,  hyp_source_fert, init_type,  hyp_init_prob);
+        par2nonpar_hmm_init_model(hyp_init_params, hyp_source_fert, init_type, hyp_init_prob, start_empty_word, options.fix_p0_);
       }
+      else if (init_type == HmmInitNonpar) {
 
-      for (uint I = 1; I <= maxI; I++) {
+        for (uint I = 1; I <= maxI; I++) {
 
-        if (init_type != HmmInitPar) {
+          for (uint k = 0; k < initial_prob[I - 1].size(); k++) {
 
-          for (uint k=0; k < initial_prob[I-1].size(); k++) {
-	  
-            hyp_init_prob[I-1][k] = lambda * new_init_prob[I-1][k] + neg_lambda * initial_prob[I-1][k];
+            hyp_init_prob[I - 1][k] = lambda * new_init_prob[I - 1][k] + neg_lambda * initial_prob[I - 1][k];
           }
         }
       }
 
-      if (align_type != HmmAlignProbNonpar) {
+      if (align_type != HmmAlignProbNonpar && align_type != HmmAlignProbNonpar2) {
 
-        for (uint k=0; k < dist_params.size(); k++)
+        for (uint k = 0; k < dist_params.size(); k++)
           hyp_dist_params[k] = lambda * new_dist_params[k] + neg_lambda * dist_params[k];
-	
+
         par2nonpar_hmm_alignment_model(hyp_dist_params, zero_offset, hyp_dist_grouping_param, hyp_source_fert,
-                                       align_type, hyp_align_prob);
-	
+                                       align_type, options.deficient_, hyp_align_prob, redpar_limit);
+
+        //std::cerr << "hyp_dist_params: " << hyp_dist_params << std::endl;
+        //std::cerr << "hyp source fert: " << hyp_source_fert << std::endl;
       }
-      else {
+      else if (align_type == HmmAlignProbNonpar) {
 
         for (uint I = 1; I <= maxI; I++) {
-	  
-          for (uint x=0; x < align_model[I-1].xDim(); x++) 
-            for (uint y=0; y < align_model[I-1].yDim(); y++) 
-              hyp_align_prob[I-1](x,y) = lambda * new_align_prob[I-1](x,y) + neg_lambda * align_model[I-1](x,y);
+          for (uint k = 0; k < hyp_align_prob[I - 1].size(); k++)
+            hyp_align_prob[I - 1].direct_access(k) = lambda * new_align_prob[I - 1].direct_access(k)
+                + neg_lambda * align_model[I - 1].direct_access(k);
+        }
+      }
+      else {                    //Nonpar2
+
+        for (uint I = 1; I <= maxI; I++) {
+          for (uint i = 0; i < hyp_align_prob[I - 1].yDim(); i++) {
+            hyp_align_prob[I - 1] (I, i) = hyp_source_fert[0];
+            for (uint ii = 0; ii < I; ii++)
+              hyp_align_prob[I - 1] (ii, i) = hyp_source_fert[1] * (lambda * new_align_prob[I - 1] (ii, i)
+                                              + neg_lambda * align_model[I - 1] (ii, i) / source_fert[1]);
+          }
         }
       }
 
-      double new_energy = extended_hmm_energy(source, slookup, target, hyp_align_prob, 
-                                              hyp_init_prob, hyp_dict_prob, wcooc, nSourceWords, prior_weight, 
-					      align_type, start_empty_word, smoothed_l0, l0_beta);   
+      double new_energy = extended_hmm_energy(source, slookup, target, hyp_align_prob,
+                                              hyp_init_prob, hyp_dict_prob, wcooc, nSourceWords, prior_weight, options);
 
       std::cerr << "new: " << new_energy << ", prev: " << hyp_energy << std::endl;
+
+      //double prev_energy = hyp_energy;
 
       if (new_energy < hyp_energy) {
 
@@ -2178,6 +3777,9 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
       }
       else
         decreasing = false;
+
+      //       if (new_energy > 0.99*prev_energy && hyp_energy < energy)
+      //        break;
     }
 
     //EXPERIMENTAL
@@ -2190,7 +3792,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
     }
     else {
       nSuccessiveReductions = 0;
-    }    
+    }
 
     if (nSuccessiveReductions > 3) {
       line_reduction_factor *= 0.9;
@@ -2204,58 +3806,56 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
     energy = hyp_energy;
 
-
     double neg_best_lambda = 1.0 - best_lambda;
 
-    for (uint i=0; i < options.nTargetWords_; i++) {
-      
+    for (uint i = 0; i < options.nTargetWords_; i++) {
+
       slack_vector[i] = best_lambda * new_slack_vector[i] + neg_best_lambda * slack_vector[i];
 
-      for (uint k=0; k < dict[i].size(); k++) 
+      for (uint k = 0; k < dict[i].size(); k++)
         dict[i][k] = best_lambda * new_dict_prob[i][k] + neg_best_lambda * dict[i][k];
     }
 
     if (align_type != HmmAlignProbNonpar || init_type == HmmInitPar) {
-      
-      for (uint i=0; i < 2; i++)
+
+      for (uint i = 0; i < 2; i++)
         source_fert[i] = best_lambda * new_source_fert[i] + neg_best_lambda * source_fert[i];
     }
 
     if (init_type == HmmInitPar) {
-      
-      for (uint k=0; k < init_params.size(); k++)
+
+      for (uint k = 0; k < init_params.size(); k++)
         init_params[k] = best_lambda * new_init_params[k] + neg_best_lambda * init_params[k];
 
-      par2nonpar_hmm_init_model(init_params, source_fert, init_type,  initial_prob);
-
+      par2nonpar_hmm_init_model(init_params, source_fert, init_type, initial_prob, start_empty_word, options.fix_p0_);
     }
-    else {
+    else if (init_type == HmmInitNonpar) {
       for (uint I = 1; I <= maxI; I++) {
-	
-        for (uint k=0; k < initial_prob[I-1].size(); k++) {
-	
-          initial_prob[I-1][k] = best_lambda * new_init_prob[I-1][k] + neg_best_lambda * initial_prob[I-1][k];
+
+        for (uint k = 0; k < initial_prob[I - 1].size(); k++) {
+
+          initial_prob[I - 1][k] = best_lambda * new_init_prob[I - 1][k] + neg_best_lambda * initial_prob[I - 1][k];
         }
       }
     }
 
     if (align_type != HmmAlignProbNonpar) {
-      
-      for (uint k=0; k < dist_params.size(); k++)
+
+      for (uint k = 0; k < dist_params.size(); k++)
         dist_params[k] = best_lambda * new_dist_params[k] + neg_best_lambda * dist_params[k];
 
       if (align_type == HmmAlignProbReducedpar)
         dist_grouping_param = best_lambda * new_dist_grouping_param + neg_best_lambda * dist_grouping_param;
 
       par2nonpar_hmm_alignment_model(dist_params, zero_offset, dist_grouping_param, source_fert,
-                                     align_type, align_model);
+                                     align_type, options.deficient_, align_model, redpar_limit);
     }
     else {
       for (uint I = 1; I <= maxI; I++) {
-      
-        for (uint x=0; x < align_model[I-1].xDim(); x++) 
-          for (uint y=0; y < align_model[I-1].yDim(); y++) 
-            align_model[I-1](x,y) = best_lambda * new_align_prob[I-1](x,y) + neg_best_lambda * align_model[I-1](x,y);
+
+        for (uint k = 0; k < align_model[I - 1].size(); k++)
+          align_model[I - 1].direct_access(k) = best_lambda * new_align_prob[I - 1].direct_access(k)
+                                                + neg_best_lambda * align_model[I - 1].direct_access(k);
       }
     }
 
@@ -2266,21 +3866,24 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
 
     /************* compute alignment error rate ****************/
     if (!options.possible_ref_alignments_.empty()) {
-      
+
       double sum_aer = 0.0;
       double sum_fmeasure = 0.0;
       double sum_marg_aer = 0.0;
       double nErrors = 0.0;
       uint nContributors = 0;
 
+      double sum_postdec_aer = 0.0;
+      double sum_postdec_fmeasure = 0.0;
+      double sum_postdec_daes = 0.0;
 
-      for(std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::iterator it = options.possible_ref_alignments_.begin();
-          it != options.possible_ref_alignments_.end(); it ++) {
+      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::iterator it = options.possible_ref_alignments_.begin();
+           it != options.possible_ref_alignments_.end(); it++) {
 
-        uint s = it->first-1;
+        uint s = it->first - 1;
 
-	if (s >= nSentences)
-	  break;
+        if (s >= nSentences)
+          break;
 
         nContributors++;
         //compute viterbi alignment
@@ -2288,60 +3891,75 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Storage1D<uint> >& source
         Storage1D<AlignBaseType> viterbi_alignment;
         const uint curI = target[s].size();
 
-        const SingleLookupTable& cur_lookup = get_wordlookup(source[s],target[s],wcooc,nSourceWords,slookup[s],aux_lookup);
-	
-        compute_ehmm_viterbi_alignment(source[s],cur_lookup, target[s], 
-                                       dict, align_model[curI-1], initial_prob[curI-1],
-                                       viterbi_alignment,align_type);
-        
+        const SingleLookupTable& cur_lookup = get_wordlookup(source[s], target[s], wcooc, nSourceWords, slookup[s], aux_lookup);
+
+        compute_ehmm_viterbi_alignment(source[s], cur_lookup, target[s], dict, align_model[curI - 1],
+                                       initial_prob[curI - 1], viterbi_alignment, options);
+
         //add alignment error rate
-        sum_aer += AER(viterbi_alignment,options.sure_ref_alignments_[s+1],options.possible_ref_alignments_[s+1]);
-        sum_fmeasure += f_measure(viterbi_alignment,options.sure_ref_alignments_[s+1],options.possible_ref_alignments_[s+1]);
-        nErrors += nDefiniteAlignmentErrors(viterbi_alignment,options.sure_ref_alignments_[s+1],options.possible_ref_alignments_[s+1]);
-        
-        Storage1D<AlignBaseType> marg_alignment;
-	  
-        compute_ehmm_optmarginal_alignment(source[s],cur_lookup, target[s], 
-                                           dict, align_model[curI-1], initial_prob[curI-1],
-                                           marg_alignment);
-        
-        sum_marg_aer += AER(marg_alignment,options.sure_ref_alignments_[s+1],options.possible_ref_alignments_[s+1]);
+        sum_aer += AER(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_fmeasure += f_measure(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        nErrors += nDefiniteAlignmentErrors(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+
+        Storage1D < AlignBaseType > marg_alignment;
+        compute_ehmm_optmarginal_alignment(source[s], cur_lookup, target[s],
+                                           dict, align_model[curI - 1],
+                                           initial_prob[curI - 1],
+                                           start_empty_word, marg_alignment);
+
+        sum_marg_aer += AER(marg_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+
+        std::set<std::pair<AlignBaseType,AlignBaseType> > postdec_alignment;
+        compute_ehmm_postdec_alignment(source[s], cur_lookup, target[s], dict, align_model[curI - 1],
+                                       initial_prob[curI - 1], options, postdec_alignment);
+
+        sum_postdec_aer += AER(postdec_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_postdec_fmeasure += f_measure(postdec_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_postdec_daes += nDefiniteAlignmentErrors(postdec_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
       }
 
       sum_aer *= 100.0 / nContributors;
       sum_marg_aer *= 100.0 / nContributors;
       nErrors /= nContributors;
       sum_fmeasure /= nContributors;
-      
+
+      sum_postdec_aer *= 100.0 / nContributors;
+      sum_postdec_fmeasure /= nContributors;
+      sum_postdec_daes /= nContributors;
+
       std::cerr << "#### EHMM Viterbi-AER after gd-iteration #" << iter << ": " << sum_aer << " %" << std::endl;
-      std::cerr << "---- EHMM Marginal-AER : " << sum_marg_aer << " %" << std::endl;
-      std::cerr << "#### EHMM Viterbi-fmeasure after gd-iteration #" << iter << ": " << sum_fmeasure << std::endl;      
-      std::cerr << "#### EHMM Viterbi-DAE/S after gd-iteration #" << iter << ": " << nErrors << std::endl;      
+      if (!start_empty_word)
+        std::cerr << "---- EHMM Marginal-AER : " << sum_marg_aer << " %" << std::endl;
+      std::cerr << "#### EHMM Viterbi-fmeasure after gd-iteration #" << iter << ": " << sum_fmeasure << std::endl;
+      std::cerr << "#### EHMM Viterbi-DAE/S after gd-iteration #" << iter << ": " << nErrors << std::endl;
+
+      std::cerr << "#### EHMM Postdec-AER after gd-iteration #" << iter << ": " << sum_postdec_aer << " %" << std::endl;
+      std::
+      cerr << "#### EHMM Postdec-fmeasure after gd-iteration #" << iter << ": " << sum_postdec_fmeasure << std::endl;
+      std::
+      cerr << "#### EHMM Postdec-DAE/S after gd-iteration #" << iter << ": " << sum_postdec_daes << std::endl;
     }
-  } // end  for (iter)
+  }                             // end  for (iter)
 }
 
-
-void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
-                                const LookupTable& slookup,
-                                const Storage1D<Storage1D<uint> >& target,
-                                const CooccuringWordsType& wcooc,
-                                FullHMMAlignmentModel& align_model,
-                                Math1D::Vector<double>& dist_params, double& dist_grouping_param,
-                                Math1D::Vector<double>& source_fert,
-                                InitialAlignmentProbability& initial_prob,
-                                Math1D::Vector<double>& init_params,
-                                SingleWordDictionary& dict, 
-                                const floatSingleWordDictionary& prior_weight,
-                                bool deficient_parametric, HmmOptions& options,
-				const Math1D::Vector<double>& log_table) {
+void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup,
+                                const Storage1D<Math1D::Vector<uint> >& target, const CooccuringWordsType& wcooc,
+                                FullHMMAlignmentModel& align_model, Math1D::Vector<double>& dist_params,
+                                double& dist_grouping_param, Math1D::Vector<double>& source_fert,
+                                InitialAlignmentProbability& initial_prob, Math1D::Vector<double>& init_params,
+                                SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight,
+                                HmmOptions& options, const Math1D::Vector<double>& xlogx_table)
+{
 
   std::cerr << "starting Viterbi Training for Extended HMM" << std::endl;
 
   uint nIterations = options.nIterations_;
-  HmmInitProbType init_type = options.init_type_; 
+  HmmInitProbType init_type = options.init_type_;
   HmmAlignProbType align_type = options.align_type_;
-  bool start_empty_word = options.start_empty_word_;
+  const bool start_empty_word = options.start_empty_word_;
+  bool deficient_parametric = (options.deficient_ && align_type == HmmAlignProbFullpar);
+  const int redpar_limit = options.redpar_limit_;
+  const uint start_addon = (start_empty_word) ? 1 : 0;
 
   const size_t nSentences = source.size();
   assert(nSentences == target.size());
@@ -2352,160 +3970,145 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
 
   SingleLookupTable aux_lookup;
 
-  for (size_t s=0; s < nSentences; s++) {
-    
-    const Storage1D<uint>& cur_source = source[s];
-    viterbi_alignment[s].resize(cur_source.size());
+  for (size_t s = 0; s < nSentences; s++) {
+
+    viterbi_alignment[s].resize(source[s].size());
   }
   assert(wcooc.size() == options.nTargetWords_);
   //NOTE: the dictionary is assumed to be initialized
 
-  std::set<uint> seenIs;
+  //std::cerr << "init_type: " << init_type << std::endl;
 
-  uint maxI = 0;
-  uint maxJ = 0;
-  for (size_t s=0; s < nSentences; s++) {
-    const uint curI = target[s].size();
-    const uint curJ = source[s].size();
+  init_hmm_from_ibm1(source, slookup, target, dict, wcooc, align_model, dist_params, dist_grouping_param, source_fert,
+                     initial_prob, init_params, options, options.transfer_mode_);
 
-    seenIs.insert(curI);
+  const uint maxI = align_model.size();
+  const uint zero_offset = maxI - 1;
 
-    if (curI > maxI)
-      maxI = curI;
-    if (curJ > maxJ)
-      maxJ = curJ;
-  }
-  
-  init_hmm_from_ibm1(source, slookup, target, dict, wcooc, align_model, dist_params, dist_grouping_param,
-                     source_fert, initial_prob, init_params, options, options.transfer_mode_);
+  Math1D::Vector<double> source_fert_count(2, 0.0);
 
-  uint zero_offset = maxI-1;
-
-  Math1D::Vector<double> source_fert_count(2,0.0);
-
-  NamedStorage1D<Math1D::Vector<double> > dcount(options.nTargetWords_,MAKENAME(dcount));
-  for (uint i=0; i < options.nTargetWords_; i++) {
+  NamedStorage1D<Math1D::Vector<double> > dcount(options.nTargetWords_, MAKENAME(dcount));
+  for (uint i = 0; i < options.nTargetWords_; i++) {
     dcount[i].resize(dict[i].size());
   }
 
-  InitialAlignmentProbability icount(maxI,MAKENAME(icount));
+  InitialAlignmentProbability icount(maxI, MAKENAME(icount));
   icount = initial_prob;
 
-  FullHMMAlignmentModel acount(maxI,MAKENAME(acount));
+  Math1D::Vector<double> fsentence_start_count(maxI);
+  Math1D::Vector<double> fstart_span_count(maxI);
+
+  FullHMMAlignmentModel acount(maxI, MAKENAME(acount));
   for (uint I = 1; I <= maxI; I++) {
-    if (seenIs.find(I) != seenIs.end()) {
-      acount[I-1].resize_dirty(I+1,I);
-    }
+    if (align_model[I - 1].size() > 0)
+      acount[I - 1].resize_dirty(I + 1, I);
   }
 
-
-  Math1D::NamedVector<double> dist_count(MAKENAME(dist_count)); //used in deficient mode
+  Math1D::NamedVector<double> dist_count(MAKENAME(dist_count));       //used in deficient mode
   dist_count = dist_params;
 
   for (uint iter = 1; iter <= nIterations; iter++) {
 
     std::cerr << "starting Viterbi-EHMM iteration #" << iter << std::endl;
 
+    //DEBUG
+    //for (uint I=0; I < 10; I++)
+    //  std::cerr << "init prob: " << initial_prob[I] << std::endl;
+    //END_DEBUG
+
     double prev_perplexity = 0.0;
 
     //set counts to 0
-    for (uint i=0; i < options.nTargetWords_; i++) {
+    for (uint i = 0; i < options.nTargetWords_; i++) {
       dcount[i].set_constant(0);
     }
 
     for (uint I = 1; I <= maxI; I++) {
-      acount[I-1].set_constant(0.0);
-      icount[I-1].set_constant(0.0);
+      acount[I - 1].set_constant(0.0);
+      icount[I - 1].set_constant(0.0);
     }
 
     source_fert_count.set_constant(0.0);
+    dist_count.set_constant(0.0);
 
-    for (size_t s=0; s < nSentences; s++) {
+    fsentence_start_count.set_constant(0.0);
+    fstart_span_count.set_constant(0.0);
+
+    for (size_t s = 0; s < nSentences; s++) {
+
+      //std::cerr << "sentence #" << s << std::endl;
 
       const Storage1D<uint>& cur_source = source[s];
       const Storage1D<uint>& cur_target = target[s];
-      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
-            
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, nSourceWords, slookup[s], aux_lookup);
+
+      Storage1D<AlignBaseType>& cur_alignment = viterbi_alignment[s];
 
       const uint curJ = cur_source.size();
       const uint curI = cur_target.size();
-      
-      const Math2D::Matrix<double>& cur_align_model = align_model[curI-1];
-      Math2D::Matrix<double>& cur_facount = acount[curI-1];
 
+      const Math2D::Matrix<double>& cur_align_model = align_model[curI - 1];
+      Math2D::Matrix<double>& cur_facount = acount[curI - 1];
 
-      long double prob;
+      //std::cerr << " passing initial prob " << initial_prob[curI-1] << std::endl;
 
-      if (start_empty_word) {
-        prob = compute_sehmm_viterbi_alignment(cur_source,cur_lookup, cur_target, 
-                                               dict, cur_align_model, initial_prob[curI-1],
-                                               viterbi_alignment[s], true, false, 0.0);
-      }
-      else {
-        prob = compute_ehmm_viterbi_alignment(cur_source,cur_lookup, cur_target, 
-                                              dict, cur_align_model, initial_prob[curI-1],
-                                              viterbi_alignment[s], align_type, true, false, 0.0);
-      }
+      long double prob = compute_ehmm_viterbi_alignment(cur_source, cur_lookup, cur_target, dict, cur_align_model,
+                         initial_prob[curI - 1], cur_alignment, options, true, false, 0.0);
 
-      prev_perplexity -= std::log(prob);
-      
-      if (! (prob > 0.0)) {
+      prev_perplexity -= logl(prob);
 
-        std::cerr << "sentence_prob " << prob << " for sentence pair " << s << " with I=" << curI
-                  << ", J= " << curJ << std::endl;
+      if (!(prob > 0.0)) {
+
+        std::cerr << "sentence_prob " << prob << " for sentence pair " << s << " with I=" << curI << ", J= " << curJ << std::endl;
       }
       assert(prob > 0.0);
 
-      /**** update counts ****/      
-      for (uint j=0; j < curJ; j++) {
+      /**** update counts ****/
+      for (uint j = 0; j < curJ; j++) {
 
-        ushort aj = viterbi_alignment[s][j];
+        const ushort aj = cur_alignment[j];
         if (aj >= curI) {
-          dcount[0][cur_source[j]-1] += 1;
-          if (align_type != HmmAlignProbNonpar && j > 0) 
-            source_fert_count[0] += 1.0;
+          dcount[0][cur_source[j] - 1] += 1;
         }
         else {
-          dcount[cur_target[aj]][cur_lookup(j,aj)] += 1;
-          if (align_type != HmmAlignProbNonpar && j > 0) 
-            source_fert_count[1] += 1.0;
+          dcount[cur_target[aj]][cur_lookup(j, aj)] += 1;
         }
 
         if (j == 0) {
           if (!start_empty_word)
-            icount[curI-1][aj] += 1.0;
+            icount[curI - 1][aj] += 1.0;
           else {
             if (aj < curI)
-              icount[curI-1][aj] += 1.0;
+              icount[curI - 1][aj] += 1.0;
             else {
-              assert( aj == 2*curI);
-              icount[curI-1][curI] += 1.0;
+              assert(aj == 2 * curI);
+              icount[curI - 1][curI] += 1.0;
             }
           }
         }
         else {
 
-          ushort prev_aj = viterbi_alignment[s][j-1];
-	  
-          if (prev_aj == 2*curI) {
+          const ushort prev_aj = cur_alignment[j - 1];
+
+          if (prev_aj == 2 * curI) {
             assert(start_empty_word);
             if (aj == prev_aj)
-              icount[curI-1][curI] += 1.0;
+              icount[curI - 1][curI] += 1.0;
             else
-              icount[curI-1][aj] += 1.0;
+              icount[curI - 1][aj] += 1.0;
           }
           else if (prev_aj >= curI) {
 
             if (aj >= curI) {
-              cur_facount(curI,prev_aj-curI) += 1.0;
+              cur_facount(curI, prev_aj - curI) += 1.0;
             }
             else {
-              cur_facount(aj,prev_aj-curI) += 1.0;
-	    
+              cur_facount(aj, prev_aj - curI) += 1.0;
+
               if (deficient_parametric) {
 
                 uint diff = zero_offset - (prev_aj - curI);
-                diff += (aj >= curI) ?  aj - curI : aj;
+                diff += (aj >= curI) ? aj - curI : aj;
 
                 dist_count[diff] += 1.0;
               }
@@ -2513,88 +4116,175 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
           }
           else {
             if (aj >= curI) {
-              cur_facount(curI,prev_aj) += 1.0;
+              cur_facount(curI, prev_aj) += 1.0;
             }
             else {
-              cur_facount(aj,prev_aj) += 1.0;
-	    
+              cur_facount(aj, prev_aj) += 1.0;
 
               if (deficient_parametric) {
-		
+
                 uint diff = zero_offset - prev_aj;
-                diff += (aj >= curI) ?  aj - curI : aj;
-		
+                diff += (aj >= curI) ? aj - curI : aj;
+
                 dist_count[diff] += 1.0;
               }
             }
           }
         }
       }
-    } // loop over sentences finished
+    }  // loop over sentences finished
 
-    prev_perplexity /= nSentences;
+    //finish counts
+
+    if (init_type == HmmInitPar) {
+
+      for (uint I = 1; I <= maxI; I++) {
+
+        if (initial_prob[I - 1].size() != 0) {
+          for (uint i = 0; i < I; i++) {
+
+            const double cur_count = icount[I - 1][i];
+            source_fert_count[1] += cur_count;
+            fsentence_start_count[i] += cur_count;
+            fstart_span_count[I - 1] += cur_count;
+          }
+          for (uint i = I; i < icount[I - 1].size(); i++) {
+            source_fert_count[0] += icount[I - 1][i];
+          }
+        }
+      }
+    }
+
+    if (align_type != HmmAlignProbNonpar) {
+
+      //compute the expectations of the parameters from the expectations of the models
+
+      for (uint I = 1; I <= maxI; I++) {
+
+        if (align_model[I - 1].xDim() != 0) {
+
+          for (int i = 0; i < (int)I; i++) {
+
+            for (int ii = 0; ii < (int)I; ii++) {
+              source_fert_count[1] += acount[I - 1] (ii, i);
+            }
+            source_fert_count[0] += acount[I - 1] (I, i);
+          }
+        }
+      }
+    }
 
     //include the dict_regularity term in the output energy
     if (options.print_energy_) {
       double energy = prev_perplexity;
-      for (uint i=0; i < dcount.size(); i++)
-        for (uint k=0; k < dcount[i].size(); k++)
+      for (uint i = 0; i < dcount.size(); i++)
+        for (uint k = 0; k < dcount[i].size(); k++)
           if (dcount[i][k] > 0)
             //we need to divide as we are truly minimizing the perplexity WITHOUT division plus the l0-term
-            energy += prior_weight[i][k] / nSentences; 
-      
-      std::cerr << "energy after iteration #" << (iter-1) <<": " << energy << std::endl;
-    }
+            energy += prior_weight[i][k];
 
+      std::cerr << "energy after iteration #" << (iter - 1) << ": " << (energy / nSentences) << std::endl;
+    }
     //std::cerr << "computing alignment and dictionary probabilities from normalized counts" << std::endl;
+
+    //no need to update dict here
+
+    double sfsum = source_fert_count.sum();
+    if (sfsum > 1e-305 && !options.fix_p0_) {
+      for (uint k = 0; k < 2; k++)
+        source_fert[k] = source_fert_count[k] / sfsum;
+    }
 
     if (init_type == HmmInitPar) {
 
-      for (uint I=1; I <= maxI; I++) {
-	
-        if (initial_prob[I-1].size() != 0) {
-          for (uint i=0; i < I; i++) {
-            source_fert_count[1] += icount[I-1][i];
-          }
-          for (uint i=I; i < icount[I-1].size(); i++) {
-            source_fert_count[0] += icount[I-1][i];
-          }
-        }
-      }
-
-      ehmm_init_m_step(icount, init_params, options.init_m_step_iter_);
-      //par2nonpar can only be called after source_fert has been updated
+      start_prob_m_step(fsentence_start_count, fstart_span_count, init_params, options.init_m_step_iter_);
+      par2nonpar_hmm_init_model(init_params, source_fert, init_type, initial_prob, start_empty_word, options.fix_p0_);
     }
     else if (init_type == HmmInitNonpar) {
 
-      for (uint I=1; I <= maxI; I++) {
-        if (icount[I-1].size() > 0) {
-          double sum = icount[I-1].sum();
+      for (uint I = 1; I <= maxI; I++) {
+        if (icount[I - 1].size() > 0) {
+          double sum = icount[I - 1].sum();
           if (sum > 1e-305) {
-            initial_prob[I-1] = icount[I-1];
-            initial_prob[I-1] *= 1.0 / sum;
+            for (uint k = 0; k < initial_prob[I - 1].size(); k++)
+              initial_prob[I - 1][k] = std::max(hmm_min_param_entry, icount[I - 1][k] / sum);
           }
         }
       }
     }
 
-    if (source_fert_count.sum() > 1e-305) {
-      for (uint k=0; k < 2; k++)
-        source_fert[k] = source_fert_count[k] / source_fert_count.sum();
-    }
+    if (align_type != HmmAlignProbNonpar && align_type != HmmAlignProbNonpar2) {
 
-    if (!deficient_parametric && align_type != HmmAlignProbNonpar) {
+      //also applies to deficient_parametric
 
       //call m-step
-      ehmm_m_step(acount, dist_params, zero_offset, options.align_m_step_iter_, dist_grouping_param);
+      //noncompact_ehmm_m_step(acount, dist_params, zero_offset, options.align_m_step_iter_, dist_grouping_param, options.deficient, redpar_limit);
+      ehmm_m_step(acount, dist_params, zero_offset, options.align_m_step_iter_,
+                  dist_grouping_param, options.deficient_, redpar_limit);
 
       par2nonpar_hmm_alignment_model(dist_params, zero_offset, dist_grouping_param, source_fert,
-                                     align_type, align_model);
+                                     align_type, options.deficient_, align_model, redpar_limit);
     }
+    else {
 
+      if (align_type == HmmAlignProbNonpar) {
 
-    if (init_type == HmmInitPar)
-      par2nonpar_hmm_init_model(init_params, source_fert, init_type, initial_prob, start_empty_word);
+        for (uint I = 1; I <= maxI; I++) {
+
+          if (align_model[I - 1].xDim() != 0) {
+
+            for (uint i = 0; i < I; i++) {
+
+              double sum = acount[I - 1].row_sum(i);
+
+              if (sum >= 1e-300) {
+
+                const double inv_sum = 1.0 / sum;
+                assert(!isnan(inv_sum));
+
+                for (uint i_next = 0; i_next <= I; i_next++) {
+                  align_model[I - 1](i_next, i) = std::max(hmm_min_param_entry, inv_sum * acount[I - 1](i_next, i));
+                }
+              }
+            }
+          }
+        }
+      }
+      else if (align_type == HmmAlignProbNonpar2) {
+
+        for (uint I = 1; I <= maxI; I++) {
+
+          if (align_model[I - 1].xDim() != 0) {
+
+            for (uint i = 0; i < I; i++) {
+
+              double sum = acount[I - 1].row_sum(i) - acount[I - 1] (I, i);
+
+              align_model[I - 1] (I, i) = source_fert[0];
+
+              if (sum >= 1e-300) {
+
+                const double inv_sum = 1.0 / sum;
+                assert(!isnan(inv_sum));
+
+                for (uint i_next = 0; i_next < I; i_next++) {
+                  align_model[I - 1](i_next, i) = std::max(hmm_min_param_entry, inv_sum * source_fert[1] * acount[I - 1](i_next, i));
+                  //          if (isnan(align_model[I-1](i_next,i)))
+                  //            std::cerr << "nan: " << inv_sum << " * " << acount[I-1](i_next,i) << std::endl;
+
+                  //          assert(!isnan(align_model[I-1](i_next,i)));
+                }
+              }
+              else {
+                for (uint i_next = 0; i_next < I; i_next++) {
+                  align_model[I - 1](i_next, i) = source_fert[1] / double (I);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
 
     std::cerr << "source_fert_count before ICM: " << source_fert_count << std::endl;
 
@@ -2608,505 +4298,502 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
     int dist_count_sum = dist_count.sum();
 
     Math1D::Vector<uint> dict_sum(dcount.size());
-    for (uint k=0; k < dcount.size(); k++)
+    for (uint k = 0; k < dcount.size(); k++)
       dict_sum[k] = dcount[k].sum();
 
-    for (size_t s=0; s < nSentences; s++) {
-
-      const uint curJ = source[s].size();
-      const uint curI = target[s].size();
+    for (size_t s = 0; s < nSentences; s++) {
 
       const Storage1D<uint>& cur_source = source[s];
       const Storage1D<uint>& cur_target = target[s];
 
+      const ushort curJ = cur_source.size();
+      const ushort curI = cur_target.size();
+      const ushort nLabels = (start_empty_word) ? 2 * curI + 1 : 2 * curI;
+
       Math1D::Vector<AlignBaseType>& cur_alignment = viterbi_alignment[s];
 
-      const Math2D::Matrix<double>& cur_align_model = align_model[curI-1];
+      const Math2D::Matrix<double>& cur_align_model = align_model[curI - 1];
+      Math2D::Matrix<double>& cur_acount = acount[curI - 1];
 
-      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
-    
-      Math2D::Matrix<double>& cur_acount = acount[curI-1];
+      //std::cerr << "s: " << s << ", I = " << curI << ", J = " << curJ << std::endl;
 
-      for (uint j=0; j < curJ; j++) {
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, nSourceWords, slookup[s], aux_lookup);
 
-        ushort cur_aj = cur_alignment[j];
-        ushort new_aj = cur_aj;
+      for (uint j = 0; j < curJ; j++) {
 
-        double best_change = 1e300;
+        //std::cerr << "j: " << j << std::endl;
 
-        uint cur_target_word = (cur_aj >= curI) ? 0 : cur_target[cur_aj];
-        uint cur_dict_num = cur_target_word;
-        uint cur_idx = (cur_aj >= curI) ? cur_source[j]-1 : cur_lookup(j,cur_aj);
-	
-        Math1D::Vector<double>& cur_dictcount = dcount[cur_dict_num]; 
-        uint cur_dictsum = dict_sum[cur_dict_num]; 
+        const ushort cur_aj = cur_alignment[j];
+        ushort new_aj = cur_aj; // is argbest_change
 
-        if (cur_aj == 2*curI)
-          continue;
-        if (j > 0 && cur_alignment[j-1] == 2*curI)
-          continue;
-        
-        for (uint i=0; i < 2*curI; i++) {
+        uint effective_cur_aj = cur_aj;
+        if (effective_cur_aj >= curI)
+          effective_cur_aj -= curI;
 
-          if (i == cur_aj)
-            continue;
-	  
-          bool allowed = true;
-          bool careful = false;
+        uint effective_prev_aj = MAX_UINT;
+        if (j > 0) {
+          effective_prev_aj = cur_alignment[j - 1];
+          if (effective_prev_aj >= curI)
+            effective_prev_aj -= curI;
+        }
 
-          if (start_empty_word && i >= curI)
-            allowed = false;
-
-          if (j > 0 && i >= curI) {
-
-            ushort prev_aj = cur_alignment[j-1];
-	    
-            if (i != prev_aj && i != prev_aj+curI)
-              continue;
-          }
-
-          if (j > 0 && j+1 < curJ) {
-            int effective_prev_aj = cur_alignment[j-1];
-            if (effective_prev_aj >= (int) curI)
-              effective_prev_aj -= curI;
-
-            int effective_cur_aj = cur_aj;
-            if (effective_cur_aj >= (int) curI)
-              effective_cur_aj -= curI;
-	    
-            int effective_i = 0;
-            if (effective_i >= (int) curI)
-              effective_i -= curI;
-
-            int next_aj = cur_alignment[j+1];
-            if (next_aj >= (int) curI)
-              allowed = false;
-
-	    
-            //TODO: handle these special cases (some distributions are doubly affected)
-            if (align_type == HmmAlignProbNonpar) {
-              if (effective_prev_aj == effective_cur_aj)
-                allowed = false;
-              if (effective_prev_aj == effective_i)
-                allowed = false;
-            }
-            else {
-              if ( effective_cur_aj - effective_prev_aj == next_aj - effective_cur_aj)
-                careful = true;
-              if ( effective_cur_aj - effective_prev_aj == next_aj - effective_i)
-                careful = true;
-              if ( effective_cur_aj - effective_i == next_aj - effective_cur_aj)
-                careful = true;
-              if ( effective_cur_aj - effective_i == next_aj - effective_i)
-                careful = true;
-            }
-          }
-          if (j+1 < curJ && cur_alignment[j+1] >= curI)
-            allowed = false; //in this case many more distributions /successive positions could be affected
-
-          if (allowed) {	    
-
-            uint new_target_word = (i >= curI) ? 0 : cur_target[i];
-
-            uint effective_i = i;
-            if (effective_i >= curI)
-              effective_i -= curI;
-
-            uint effective_cur_aj = cur_aj;
-            if (effective_cur_aj >= curI)
-              effective_cur_aj -= curI;
-
-            uint hyp_dict_num = (i >= curI) ? 0 : cur_target[i];
-	    
-            uint hyp_idx = (i >= curI) ? cur_source[j]-1 : cur_lookup(j,i);
-	    
-            double change = 0.0;
-
-            //a) regarding preceeding pos
-            if (j == 0) {
-
-              if (init_type == HmmInitNonpar) {
-                assert(icount[curI-1][cur_aj] > 0);
-		
-                change -= -icount[curI-1][cur_aj] * log_table[icount[curI-1][cur_aj]];
-                if (icount[curI-1][i] > 0)
-                  change -= -icount[curI-1][i] * log_table[icount[curI-1][i]];
-		
-                if (icount[curI-1][cur_aj] > 1)
-                  change += -(icount[curI-1][cur_aj]-1) * log_table[icount[curI-1][cur_aj]-1];
-                change += -(icount[curI-1][i]+1) * log_table[icount[curI-1][i]+1];
-
-              }
-              else if (init_type != HmmInitFix) {
-                
-                change += std::log(initial_prob[curI-1][std::min<uint>(cur_aj,curI)]);
-                change -= std::log(initial_prob[curI-1][std::min<uint>(i,curI)]);
-              }
-            }
-            else {
-              // j > 0
-
-              //note: the total sum of counts for prev_aj stays constant in this operation
-              uint prev_aj = cur_alignment[j-1];
-              if (prev_aj >= curI)
-                prev_aj -= curI;
-
-              if (align_type == HmmAlignProbNonpar) {
-                int cur_c = cur_acount(std::min<ushort>(curI,cur_aj),prev_aj);
-                int new_c = cur_acount(std::min<ushort>(curI,i),prev_aj);
-                assert(cur_c > 0);
-	      
-                change -= -cur_c * std::log(cur_c);
-                if (new_c > 0)
-                  change -= -new_c*std::log(new_c);
-	      
-                if (cur_c > 1)
-                  change += -(cur_c-1) * std::log(cur_c-1);
-                change += -(new_c+1) * std::log(new_c+1);
-              }
-              else if (align_type == HmmAlignProbNonpar2) {
-                
-                //incremental calculation is quite complicated in this case:
-                // if you switch between zero and non-zero alignments you also need to renormalize
-                // => we do not update the alignment parameters in ICM
-
-                change -= -std::log(cur_align_model(std::min<ushort>(curI,cur_aj),prev_aj));
-                change += -std::log(cur_align_model(std::min<ushort>(curI,i),prev_aj));
-              }
-              else { //parametric model
-		
-                if (deficient_parametric) {
-                  if (cur_aj < curI) {
-		  
-                    int cur_c = dist_count[zero_offset + cur_aj - prev_aj];
-
-                    if (careful) {
-                      change -= -std::log( double(cur_c) / double(dist_count_sum) );
-                    }
-                    else {
-                      change -= -cur_c * std::log(cur_c);
-                      if (cur_c > 1)
-                        change += -(cur_c-1) * std::log(cur_c-1);
-                    }
-                  }
-                }
-                else {
-                  change -= -std::log(cur_align_model(std::min<ushort>(curI,cur_aj),prev_aj));
-                }
-
-
-                if (deficient_parametric) {
-
-                  if (i < curI) {
-		  
-                    int cur_c = dist_count[zero_offset + i - prev_aj];
-		    
-                    if (careful) {
-                      if (cur_c == 0)
-                        change += 1e20;
-                      else
-                        change += -std::log( double(cur_c) / double(dist_count_sum) );
-                    }
-                    else {
-                      if (cur_c > 0)
-                        change -= -cur_c * std::log(cur_c);
-                      change += -(cur_c +1)* std::log(cur_c+1);
-                    }
-                  }
-                }
-                else {
-                  change += -std::log(cur_align_model(std::min(curI,i),prev_aj));
-                }
-
-                //source fertility counts
-                if (deficient_parametric && !careful) {
-                  if (cur_aj < curI && i >= curI) {
-
-                    int cur_c0 = source_fert_count[0];
-                    int cur_c1 = source_fert_count[1];
-		    
-                    if (cur_c0 > 0)
-                      change -= -(cur_c0) * std::log(cur_c0);
-                    change -= -(cur_c1) * std::log(cur_c1);
-		    
-                    change -= dist_count_sum * std::log(dist_count_sum);
-
-                    if (cur_c1 > 1)
-                      change += -(cur_c1-1) * std::log(cur_c1-1);
-                    change += -(cur_c0+1) * std::log(cur_c0+1);
-		    
-                    change += (dist_count_sum-1) * std::log(dist_count_sum-1);
-                  }
-                  else if (cur_aj >= curI && i < curI) {
-		    
-                    int cur_c0 = source_fert_count[0];
-                    int cur_c1 = source_fert_count[1];
-		    
-                    change -= -(cur_c0) * std::log(cur_c0);
-                    if (cur_c1 > 0)
-                      change -= -(cur_c1) * std::log(cur_c1);
-                    change -= dist_count_sum * std::log(dist_count_sum);
-		    
-                    if (cur_c0 > 1)
-                      change += -(cur_c0-1) * std::log(cur_c0-1);
-                    change += -(cur_c1+1) * std::log(cur_c1+1);
-                    change += (dist_count_sum+1) * std::log(dist_count_sum+1);
-                  }
-                }
-              }
-            }
-
-            assert(!isnan(change));
-
-            uint effective_new_aj = i;
-            if (effective_new_aj >= curI)
-              effective_new_aj -= curI;
-
-            //b) regarding succeeding pos
-            if (j+1 < curJ && effective_cur_aj != effective_new_aj) {
-
-              uint next_aj = std::min<ushort>(curI,cur_alignment[j+1]);
-              assert(next_aj < curI);
-              
-              if (align_type == HmmAlignProbNonpar) {
-                int total_cur_count = 0;
-                for (uint k=0; k <= curI; k++)
-                  total_cur_count += cur_acount(k,effective_cur_aj);
-
-                assert(total_cur_count > 0);
-                assert(cur_acount(next_aj,effective_cur_aj) > 0);
-		
-                int total_new_count = 0;
-                for (uint k=0; k <= curI; k++)
-                  total_new_count += cur_acount(k,effective_new_aj);
-		
-                change -= total_cur_count * std::log(total_cur_count);
-                change -= -(cur_acount(next_aj,effective_cur_aj)) * std::log(cur_acount(next_aj,effective_cur_aj));
-		
-                if (total_new_count > 0) 
-                  change -= total_new_count * std::log(total_new_count);
-                if (cur_acount(next_aj,effective_new_aj) > 0)
-                  change -= -(cur_acount(next_aj,effective_new_aj)) * std::log(cur_acount(next_aj,effective_new_aj));
-
-                assert(!isnan(change));
-		
-                if (total_cur_count > 1) 
-                  change += (total_cur_count-1) * std::log(total_cur_count-1);
-                if (cur_acount(next_aj,effective_cur_aj) > 1)
-                  change += -(cur_acount(next_aj,effective_cur_aj)-1) * std::log(cur_acount(next_aj,effective_cur_aj)-1);
-	      
-                change += (total_new_count+1) * std::log(total_new_count+1);
-                change += -(cur_acount(next_aj,effective_new_aj)+1) * std::log(cur_acount(next_aj,effective_new_aj)+1);
-              }
-              else {
-                //parametric model
-
-                if (deficient_parametric) {
-                  if (next_aj < curI) {
-		    
-                    int cur_c = dist_count[zero_offset + next_aj - effective_cur_aj];
-                    int new_c = dist_count[zero_offset + next_aj - effective_new_aj];
-		    
-                    if (careful) {
-                      change -= -std::log( double(cur_c) / double(dist_count_sum) );
-                      change += -std::log( double(new_c) / double(dist_count_sum) );
-                    }
-                    else {
-                      change -= -(cur_c)* std::log(cur_c);
-                      if (new_c > 0)
-                        change -= -(new_c)* std::log(new_c);
-		      
-                      if (cur_c > 1)
-                        change += -(cur_c - 1)* std::log(cur_c-1);
-                      change += -(new_c+1)* std::log(new_c+1);
-                    }
-                  }
-                  else {
-                    std::cerr << "WARNING: this case should not occur" << std::endl;
-                  }
-                }
-                else {
-
-                  change -= -std::log(cur_align_model(std::min(next_aj,curI),effective_cur_aj));
-                  change += -std::log(cur_align_model(std::min(next_aj,curI),effective_new_aj));
-                }
-              }
-            }
-
-            assert(!isnan(change));
-
-            uint prev_word = cur_target_word; 
-            uint new_word =  (new_aj >= curI) ? 0 : cur_target[new_aj];
-
-            if (prev_word != new_word) {
-
-              if (dict_sum[new_target_word] > 0)
-                change -= double(dict_sum[new_target_word]) * log_table[dict_sum[new_target_word]];
-              change += double(dict_sum[new_target_word]+1.0) * log_table[dict_sum[new_target_word]+1];
-
-              if (dcount[new_target_word][hyp_idx] > 0)
-                change -= double(dcount[new_target_word][hyp_idx]) * 
-                  (-log_table[dcount[new_target_word][hyp_idx]]);
-              else
-                change += prior_weight[hyp_dict_num][hyp_idx]; 
-
-              change += double(dcount[new_target_word][hyp_idx]+1) * 
-                (-log_table[dcount[new_target_word][hyp_idx]+1]);
-
-              change -= double(cur_dictsum) * log_table[cur_dictsum];
-              if (cur_dictsum > 1)
-                change += double(cur_dictsum-1) * log_table[cur_dictsum-1];
-	      
-              change -= - double(cur_dictcount[cur_idx]) * log_table[cur_dictcount[cur_idx]];
-
-              if (cur_dictcount[cur_idx] > 1) {
-                change += double(cur_dictcount[cur_idx]-1) * (-log_table[cur_dictcount[cur_idx]-1]);
-              }
-              else
-                change -= prior_weight[cur_dict_num][cur_idx];
-            }
-
-            assert(!isnan(change));
-
-            if (change < best_change) {
-
-              best_change = change;
-              new_aj = i;
-            }
-          }
-          else if (align_type != HmmAlignProbNonpar && !start_empty_word
-                   && init_type != HmmInitNonpar) {
-
-            //TODO: make this ready for start-empty-word-mode
-
-            uint new_target_word = (i >= curI) ? 0 : cur_target[i];
-
-            uint effective_i = i;
-            if (effective_i >= curI)
-              effective_i -= curI;
-
-            uint effective_cur_aj = cur_aj;
-            if (effective_cur_aj >= curI)
-              effective_cur_aj -= curI;
-
-            uint hyp_dict_num = (i >= curI) ? 0 : cur_target[i];
-	    
-            uint hyp_idx = (i >= curI) ? source[s][j]-1 : cur_lookup(j,i);
-	    
-            double change = 0.0;
-
-            uint prev_word = cur_target_word; 
-            uint new_word =  (new_aj >= curI) ? 0 : cur_target[new_aj];
-
-            if (prev_word != new_word) {
-
-              if (dict_sum[new_target_word] > 0)
-                change -= double(dict_sum[new_target_word]) * log_table[ dict_sum[new_target_word] ];
-              change += double(dict_sum[new_target_word]+1.0) * log_table[ dict_sum[new_target_word]+1 ];
-
-              if (dcount[new_target_word][hyp_idx] > 0)
-                change -= double(dcount[new_target_word][hyp_idx]) * 
-                  (-log_table[dcount[new_target_word][hyp_idx]]);
-              else
-                change += prior_weight[hyp_dict_num][hyp_idx]; 
-
-              change += double(dcount[new_target_word][hyp_idx]+1) * 
-                (-log_table[dcount[new_target_word][hyp_idx]+1]);
-
-              change -= double(cur_dictsum) * log_table[cur_dictsum];
-              if (cur_dictsum > 1)
-                change += double(cur_dictsum-1) * log_table[cur_dictsum-1];
-
-              change -= - double(cur_dictcount[cur_idx]) * log_table[cur_dictcount[cur_idx]];
-
-              if (cur_dictcount[cur_idx] > 1) {
-                change += double(cur_dictcount[cur_idx]-1) * (-log_table[cur_dictcount[cur_idx]-1]);
-              }
-              else
-                change -= prior_weight[cur_dict_num][cur_idx];
-            }
-
-            change -= -std::log(hmm_alignment_prob(cur_source,cur_lookup,cur_target, 
-                                                   dict, //will not be used
-                                                   align_model, initial_prob, cur_alignment, false));
-            
-            Math1D::Vector<AlignBaseType> hyp_alignment = cur_alignment;
-            hyp_alignment[j] = i;
-            if (j > 0 && i >= curI)
-              assert(i == hyp_alignment[j-1] || i-curI == hyp_alignment[j-1]);
-
-            if (j+1 < curJ) {
-
-              uint next_aj = hyp_alignment[j+1];
-              if (next_aj >= curI) {
-
-                uint new_next_aj = (i < curI) ? i+curI : i;
-                
-                if (new_next_aj != next_aj) {
-                  for (uint jj=j+1; jj < curJ; jj++) {
-                    if (hyp_alignment[jj] == next_aj)
-                      hyp_alignment[jj] = new_next_aj;
-                    else
-                      break;
-                  }
-                }
-              }
-            }
-
-            change += -std::log(hmm_alignment_prob(cur_source,cur_lookup,cur_target, 
-                                                   dict, //will not be used
-                                                   align_model, initial_prob, hyp_alignment, false));
-            
-            if (change < best_change) {
-
-              best_change = change;
-              new_aj = i;
+        uint effective_next_aj = MAX_UINT;
+        if (j + 1 < curJ) {
+          for (uint jj = j + 1; jj < curJ; jj++) {
+            if (cur_alignment[jj] < curI) {
+              effective_next_aj = cur_alignment[jj];
+              break;
             }
           }
         }
-	      
+        //std::cerr << "cur_aj: " << cur_aj << std::endl;
+
+        double best_change = 1e300;
+
+        const uint cur_target_word = (cur_aj >= curI) ? 0 : cur_target[cur_aj];
+        const uint cur_idx = (cur_aj >= curI) ? cur_source[j] - 1 : cur_lookup(j, cur_aj);
+
+        Math1D::Vector<double>& cur_dictcount = dcount[cur_target_word];
+        const uint cur_dictsum = dict_sum[cur_target_word];
+
+        double common_change = 0.0;     //NOTE: only included if the target word is different
+        if (cur_dictsum > 1) {
+          //exploit log(1) = 0
+          common_change -= xlogx_table[cur_dictsum];
+          common_change += xlogx_table[cur_dictsum - 1];
+        }
+
+        if (cur_dictcount[cur_idx] > 1) {
+          //exploit log(1) = 0
+          common_change -= -xlogx_table[cur_dictcount[cur_idx]];
+          common_change += -xlogx_table[cur_dictcount[cur_idx] - 1];
+        }
+        else
+          common_change -= prior_weight[cur_target_word][cur_idx];
+
+        for (ushort i = 0; i < nLabels; i++) {
+
+          //std::cerr << "i: " << i << std::endl;
+
+          if (i == cur_aj)
+            continue;
+          if (start_empty_word && j == 0 && i >= curI && i < 2 * curI)
+            continue;
+
+          if (j > 0 && i >= curI) {
+
+            ushort prev_aj = cur_alignment[j - 1];
+            if (i != prev_aj && i != prev_aj + curI)
+              continue;
+            if (i == 2 * curI && prev_aj != i)  //need this!
+              continue;
+          }
+
+          bool fix = true;
+
+          uint effective_i = i;
+          if (effective_i >= curI)
+            effective_i -= curI;
+
+          if (j + 1 < curJ) {
+
+            uint next_aj = cur_alignment[j + 1];
+
+            //TODO: handle these special cases (some distributions are doubly affected)
+            if (align_type == HmmAlignProbNonpar
+                || align_type == HmmAlignProbNonpar2) {
+
+              fix = false;
+
+              if (align_type == HmmAlignProbNonpar2
+                  && std::max(cur_aj, i) >= curI)
+                fix = true;
+
+              if (next_aj >= curI)
+                fix = true;
+              if (effective_prev_aj == effective_cur_aj)
+                fix = true;
+              if (effective_prev_aj == effective_i)
+                fix = true;
+            }
+            else if (deficient_parametric) {
+
+              fix = (effective_i == curI || effective_cur_aj == curI);
+
+              if (j > 0 && effective_prev_aj == curI)
+                fix = true;
+
+              if (next_aj >= curI)
+                fix = true;
+              if (effective_cur_aj - effective_prev_aj ==
+                  next_aj - effective_cur_aj)
+                fix = true;
+              if (effective_cur_aj - effective_prev_aj == next_aj - effective_i)
+                fix = true;
+              if (effective_cur_aj - effective_i == next_aj - effective_cur_aj)
+                fix = true;
+              if (effective_cur_aj - effective_i == next_aj - effective_i)
+                fix = true;
+            }
+          }
+
+          const uint new_target_word = (i >= curI) ? 0 : cur_target[i];
+          const uint hyp_idx = (i >= curI) ? source[s][j] - 1 : cur_lookup(j, i);
+
+          double change = 0.0;
+
+          if (cur_target_word != new_target_word) {
+
+            if (dict_sum[new_target_word] > 0) {
+              //exploit log(1) = 0
+              change -= xlogx_table[dict_sum[new_target_word]];
+              change += xlogx_table[dict_sum[new_target_word] + 1];
+            }
+
+            if (dcount[new_target_word][hyp_idx] > 0) {
+              //exploit log(1) = 0
+              change -= -xlogx_table[dcount[new_target_word][hyp_idx]];
+              change += -xlogx_table[dcount[new_target_word][hyp_idx] + 1];
+            }
+            else
+              change += prior_weight[new_target_word][hyp_idx];
+
+            change += common_change;
+          }
+
+          //a) regarding preceeding pos
+          if (j == 0) {
+
+            if (!start_empty_word && init_type == HmmInitNonpar) {
+              assert(icount[curI - 1][cur_aj] > 0);
+
+              if (icount[curI - 1][i] > 0) {
+                //exploit log(1) = 0
+                change -= -xlogx_table[icount[curI - 1][i]];
+                change += -xlogx_table[icount[curI - 1][i] + 1];
+              }
+
+              if (icount[curI - 1][cur_aj] > 1) {
+                //exploit log(1) = 0
+                change -= -xlogx_table[icount[curI - 1][cur_aj]];
+                change += -xlogx_table[icount[curI - 1][cur_aj] - 1];
+              }
+            }
+            else if (init_type != HmmInitFix) {
+
+              if (cur_aj != 2 * curI)
+                change += std::log(initial_prob[curI - 1][cur_aj]);
+              else
+                change += std::log(initial_prob[curI - 1][curI]);
+              if (i != 2 * curI)
+                change -= std::log(initial_prob[curI - 1][i]);
+              else
+                change -= std::log(initial_prob[curI - 1][curI]);
+            }
+          }
+          else {
+            // j > 0
+
+            //note: the total sum of counts for effective_prev_aj stays constant in this operation
+            if (!fix
+                && (align_type == HmmAlignProbNonpar
+                    || align_type == HmmAlignProbNonpar2)) {
+
+              if (effective_prev_aj < curI) {
+                const int cur_c = cur_acount(std::min<ushort>(curI, cur_aj), effective_prev_aj);
+                const int new_c = cur_acount(std::min<ushort>(curI, i), effective_prev_aj);
+                assert(cur_c > 0);
+
+                if (cur_c > 1) {
+                  //exploit log(1) = 0
+                  change -= -xlogx_table[cur_c];
+                  change += -xlogx_table[cur_c - 1];
+                }
+
+                if (new_c > 0) {
+                  //exploit log(1) = 0
+                  change -= -xlogx_table[new_c];
+                  change += -xlogx_table[new_c + 1];
+                }
+              }
+              else {
+                change -= -std::log(initial_prob[curI - 1][std::min < ushort > (curI, cur_aj)]);
+                change += -std::log(initial_prob[curI - 1][std::min < ushort > (curI, i)]);
+              }
+            }
+            else {              //parametric model
+
+              if (!fix && deficient_parametric) {
+                if (cur_aj < curI) {
+
+                  const int cur_c = dist_count[zero_offset + cur_aj - effective_prev_aj];
+
+                  if (cur_c > 1) {
+                    //exploit that log(1) = 0
+                    change -= -xlogx_table[cur_c];
+                    change += -xlogx_table[cur_c - 1];
+                  }
+                }
+              }
+              else {
+                if (effective_prev_aj < curI)
+                  change -= -std::log(cur_align_model(std::min < ushort > (curI, cur_aj), effective_prev_aj));
+                else
+                  change -= -std::log(initial_prob[curI - 1][effective_cur_aj]);
+              }
+
+              if (!fix && deficient_parametric) {
+
+                if (i < curI) {
+
+                  const int cur_c = dist_count[zero_offset + i - effective_prev_aj];
+                  if (cur_c > 0) {
+                    //exploit that log(1) = 0
+                    change -= -xlogx_table[cur_c];
+                    change += -xlogx_table[cur_c + 1];
+                  }
+                }
+              }
+              else {
+                if (effective_prev_aj < curI)
+                  change += -std::log(cur_align_model(std::min(curI, i), effective_prev_aj));
+                else
+                  change += -std::log(initial_prob[curI - 1][effective_i]);
+              }
+
+              //source fertility counts
+              if (!fix && deficient_parametric) {
+                if (cur_aj < curI && i >= curI) {
+
+                  if (!options.fix_p0_) {
+                    const int cur_c0 = source_fert_count[0];
+                    const int cur_c1 = source_fert_count[1];
+
+                    if (cur_c0 > 0) {
+                      //exploit that log(1) = 0
+                      change -= -xlogx_table[cur_c0];
+                      change += -xlogx_table[cur_c0 + 1];
+                    }
+                    if (cur_c1 > 1) {
+                      //exploit log(1) = 0
+                      change -= -xlogx_table[cur_c1];
+                      change += -xlogx_table[cur_c1 - 1];
+                    }
+                  }
+
+                  change -= xlogx_table[dist_count_sum];
+                  change += xlogx_table[dist_count_sum - 1];
+                }
+                else if (cur_aj >= curI && i < curI) {
+
+                  if (!options.fix_p0_) {
+                    const int cur_c0 = source_fert_count[0];
+                    const int cur_c1 = source_fert_count[1];
+
+                    if (cur_c1 > 0) {
+                      //exploit log(1) = 0
+                      change += -xlogx_table[cur_c1 + 1];
+                      change -= -xlogx_table[cur_c1];
+                    }
+                    if (cur_c0 > 1) {
+                      //exploit log(1) = 0
+                      change -= -xlogx_table[cur_c0];
+                      change += -xlogx_table[cur_c0 - 1];
+                    }
+                  }
+
+                  change -= xlogx_table[dist_count_sum];
+                  change += xlogx_table[dist_count_sum + 1];
+                }
+              }
+            }
+          }
+
+          assert(!isnan(change));
+
+          //std::cerr << "b)" << std::endl;
+
+          //b) regarding succeeding pos
+          if (j + 1 < curJ && effective_cur_aj != effective_i) {
+
+            if (!fix && (align_type == HmmAlignProbNonpar || align_type == HmmAlignProbNonpar2)) {
+
+              const uint limit = (align_type == HmmAlignProbNonpar) ? curI : curI - 1;
+
+              if (effective_cur_aj < curI) {
+                int total_cur_count = 0;
+                for (uint k = 0; k <= limit; k++)
+                  total_cur_count += cur_acount(k, effective_cur_aj);
+
+                assert(total_cur_count > 0);
+                assert(cur_acount(effective_next_aj, effective_cur_aj) > 0);
+
+                if (total_cur_count > 1) {
+                  //exploit log(1) = 0
+                  change -= xlogx_table[total_cur_count];
+                  change += xlogx_table[total_cur_count - 1];
+                }
+
+                if (cur_acount(effective_next_aj, effective_cur_aj) > 1) {
+                  //exploit log(1) = 0
+                  change -= -xlogx_table[cur_acount(effective_next_aj, effective_cur_aj)];
+                  change += -xlogx_table[cur_acount(effective_next_aj, effective_cur_aj) - 1];
+                }
+              }
+              else {
+
+                change -= -std::log(initial_prob[curI - 1][curI]);
+              }
+
+              if (effective_i < curI) {
+                int total_new_count = 0;
+                for (uint k = 0; k <= limit; k++)
+                  total_new_count += cur_acount(k, effective_i);
+
+                if (total_new_count > 0) {
+                  //exploit log(1) = 0
+                  change -= xlogx_table[total_new_count];
+                  change += xlogx_table[total_new_count + 1];
+                }
+                if (cur_acount(effective_next_aj, effective_i) > 0) {
+                  //exploit log(1) = 0
+                  change -= -xlogx_table[cur_acount(effective_next_aj, effective_i)];
+                  change += -xlogx_table[cur_acount(effective_next_aj, effective_i) + 1];
+                }
+              }
+              else {
+
+                change += -std::log(initial_prob[curI - 1][curI]);
+              }
+
+              assert(!isnan(change));
+            }
+            else {
+              //parametric model
+
+              if (!fix && deficient_parametric) {
+                assert(j + 1 < curJ);
+                assert(effective_i < curI && effective_cur_aj < curI);
+
+                if (cur_alignment[j + 1] < curI) {
+
+                  const int cur_c = dist_count[zero_offset + effective_next_aj - effective_cur_aj];
+                  const int new_c = dist_count[zero_offset + effective_next_aj - effective_i];
+
+                  if (new_c > 0) {
+                    //exploit log(1) = 0
+                    change -= -xlogx_table[new_c];
+                    change += -xlogx_table[new_c + 1];
+                  }
+
+                  if (cur_c > 1) {
+                    //exploit log(1) = 0
+                    change -= -xlogx_table[cur_c];
+                    change += -xlogx_table[cur_c - 1];
+                  }
+                }
+                else {
+                  std::cerr << "WARNING: this case should not occur" << std::endl;
+                }
+              }
+              else {
+                if (effective_next_aj != MAX_UINT) {
+                  if (effective_cur_aj != curI) {
+                    change -= -std::log(cur_align_model(effective_next_aj, effective_cur_aj));
+                    if (effective_i != curI)
+                      change += -std::log(cur_align_model(effective_next_aj, effective_i));
+                    else
+                      change += -std::log(initial_prob[curI - 1][effective_next_aj]);
+                  }
+                  else {
+                    change -= -std::log(initial_prob[curI - 1][curI]);
+                    change += -std::log(cur_align_model(effective_next_aj, effective_i));
+                  }
+                }
+                else if (start_empty_word && j + 1 < curJ
+                         && effective_prev_aj == curI
+                         && effective_cur_aj == curI) {
+                  assert(effective_i != curI);
+                  change -= -std::log(initial_prob[curI - 1][curI]);
+                  change += -std::log(initial_prob[curI - 1][effective_i]);
+                }
+              }
+            }
+          }
+
+          assert(!isnan(change));
+
+          if (change < best_change) {
+
+            best_change = change;
+            new_aj = i;
+          }
+        }
+
+        //std::cerr << "base alignment: " << cur_alignment << std::endl;
+        //std::cerr << "best_change: " << best_change << std::endl;
+
         if (best_change < -0.01 && new_aj != cur_aj) {
 
           nSwitches++;
-	  
-          uint hyp_idx = (new_aj >= curI) ? cur_source[j]-1 : cur_lookup(j,new_aj);
+
+          const uint new_target_word = (new_aj >= curI) ? 0 : cur_target[new_aj];
+          const uint hyp_idx = (new_aj >= curI) ? cur_source[j] - 1 : cur_lookup(j, new_aj);
 
           cur_alignment[j] = new_aj;
-          
+
           if (j > 0 && new_aj >= curI)
-            assert(new_aj == cur_alignment[j-1] || new_aj - curI == cur_alignment[j-1]);
+            assert(new_aj == cur_alignment[j - 1] || new_aj - curI == cur_alignment[j - 1]);
 
-          uint effective_cur_aj = cur_aj;
-          if (effective_cur_aj >= curI)
-            effective_cur_aj -= curI;
-
-          uint effective_new_aj = new_aj;
+          ushort effective_new_aj = new_aj;
           if (effective_new_aj >= curI)
             effective_new_aj -= curI;
-          
+
           bool future_handled = false;
 
-          if (j+1 < curJ) {
+          if (j + 1 < curJ) {
 
-            uint next_aj = cur_alignment[j+1];
+            ushort next_aj = cur_alignment[j + 1];
+
+            //std::cerr << "next_aj: " << next_aj << std::endl;
+
             if (next_aj >= curI) {
-              
-              uint new_next_aj = (new_aj < curI) ? new_aj+curI : new_aj;
-              
+
+              ushort new_next_aj = (new_aj < curI) ? new_aj + curI : new_aj;
+
+              //std::cerr << "new_next_aj: " << new_next_aj << std::endl;
+
               if (new_next_aj != next_aj) {
 
+                //std::cerr << "setting future handled" << std::endl;
                 future_handled = true;
 
-                cur_acount(curI,effective_cur_aj)--;
-                cur_acount(curI,effective_new_aj)++;
+                if (cur_aj != 2 * curI) {
+                  cur_acount(curI, effective_cur_aj)--;
+                  assert(cur_acount(curI, effective_cur_aj) >= 0);
+                }
+                else
+                  icount[curI - 1][curI]--;
+                if (new_aj != 2 * curI)
+                  cur_acount(curI, effective_new_aj)++;
+                else
+                  icount[curI - 1][curI]++;
 
-                uint jj=j+1;
+                uint jj = j + 1;
                 for (; jj < curJ; jj++) {
                   if (cur_alignment[jj] == next_aj) {
                     cur_alignment[jj] = new_next_aj;
-                    if (jj  > j+1) {
-                      cur_acount(curI,next_aj-curI)--;
-                      cur_acount(curI,new_next_aj-curI)++;
+                    if (jj > j + 1) {
+                      if (next_aj != 2 * curI) {
+                        cur_acount(curI, next_aj - curI)--;
+                        assert(cur_acount(curI, next_aj - curI) >= 0);
+                      }
+                      else
+                        icount[curI - 1][curI]--;
+                      if (new_next_aj != 2 * curI)
+                        cur_acount(curI, new_next_aj - curI)++;
+                      else
+                        icount[curI - 1][curI]++;
                     }
                   }
                   else
@@ -3114,39 +4801,67 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
                 }
                 if (jj < curJ) {
                   assert(cur_alignment[jj] < curI);
-                  cur_acount(std::min<uint>(curI,cur_alignment[jj]),next_aj-curI)--;
-                  cur_acount(std::min<uint>(curI,cur_alignment[jj]),new_next_aj-curI)++;                  
+                  if (next_aj != 2 * curI) {
+                    cur_acount(cur_alignment[jj], next_aj - curI)--;
+                    assert(cur_acount(cur_alignment[jj], next_aj - curI) >= 0);
+                  }
+                  else
+                    icount[curI - 1][curI]--;
+                  if (new_next_aj != 2 * curI)
+                    cur_acount(cur_alignment[jj], new_next_aj - curI)++;
+                  else
+                    icount[curI - 1][curI]++;
+                  if (deficient_parametric) {
+                    if (effective_cur_aj < curI) {
+                      dist_count[zero_offset + cur_alignment[jj] -
+                                             effective_cur_aj]--;
+                      dist_count_sum--;
+                    }
+                    if (effective_new_aj < curI) {
+                      dist_count[zero_offset + cur_alignment[jj] -
+                                             effective_new_aj]++;
+                      dist_count_sum++;
+                    }
+                  }
                 }
               }
             }
           }
-
-
-          uint prev_word = cur_target_word; 
-          uint new_word = (new_aj >= curI) ? 0 : cur_target[new_aj];
-	      
           //recompute the stored values for the two affected words
-          if (prev_word != new_word) {
+          if (cur_target_word != new_target_word) {
 
-            uint hyp_dict_num = (new_aj >= curI) ? 0 : cur_target[new_aj];
-            Math1D::Vector<double>& hyp_dictcount = dcount[hyp_dict_num];
-	    
+            Math1D::Vector<double>& hyp_dictcount = dcount[new_target_word];
+
             cur_dictcount[cur_idx] -= 1;
             hyp_dictcount[hyp_idx] += 1;
-            dict_sum[cur_dict_num] -= 1;
-            dict_sum[hyp_dict_num] += 1;
+            dict_sum[cur_target_word] -= 1;
+            dict_sum[new_target_word] += 1;
           }
 
           /****** change alignment counts *****/
-	      
+
+          //std::cerr << "change alignment counts, j=" << j << ", cur_aj: " << cur_aj << ", new_aj: " << new_aj << std::endl;
+
           //a) dependency to preceeding pos
           if (j == 0) {
-	    
-	    assert(icount[curI-1][cur_aj] > 0);
-	      
-	    icount[curI-1][cur_aj]--;
-	    icount[curI-1][new_aj]++;
-            
+
+            //if (init_type != HmmInitFix) {
+            if (true) {
+              if (cur_aj != 2 * curI) {
+                assert(icount[curI - 1][cur_aj] > 0);
+                icount[curI - 1][cur_aj]--;
+              }
+              else {
+                assert(icount[curI - 1][curI] > 0);
+                icount[curI - 1][curI]--;
+              }
+
+              if (new_aj != 2 * curI)
+                icount[curI - 1][new_aj]++;
+              else
+                icount[curI - 1][curI]++;
+            }
+
             if (init_type == HmmInitPar) {
 
               if (cur_aj < curI && new_aj >= curI) {
@@ -3161,132 +4876,150 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
           }
           else {
 
-            uint prev_aj = cur_alignment[j-1];
-            if (prev_aj >= curI)
-              prev_aj -= curI;
-	    
-            assert( cur_acount(std::min<ushort>(curI,cur_aj),prev_aj) > 0);
-	      
-            cur_acount(std::min<ushort>(curI,cur_aj),prev_aj)--;
-            cur_acount(std::min<ushort>(curI,new_aj),prev_aj)++;
-	    
-            if (deficient_parametric) {
+            if (effective_prev_aj != curI) {
+              cur_acount(std::min<ushort>(curI, cur_aj), effective_prev_aj)--;
+              assert(cur_acount(std::min<ushort >(curI, cur_aj), effective_prev_aj) >= 0);
+              cur_acount(std::min<ushort>(curI, new_aj), effective_prev_aj)++;
+              assert(cur_acount(std::min<ushort>(curI, new_aj), effective_prev_aj) >= 0);
+            }
+            else {
+              icount[curI - 1][std::min<ushort>(curI, cur_aj)]--;
+              icount[curI - 1][std::min<ushort>(curI, new_aj)]++;
+            }
+
+            if (deficient_parametric && effective_prev_aj < curI) {
 
               if (cur_aj < curI) {
-                dist_count[zero_offset + cur_aj - prev_aj]--;
+                dist_count[zero_offset + cur_aj - effective_prev_aj]--;
                 dist_count_sum--;
               }
               if (new_aj < curI) {
-                dist_count[zero_offset + new_aj - prev_aj]++;
+                dist_count[zero_offset + new_aj - effective_prev_aj]++;
                 dist_count_sum++;
               }
             }
-	      
-            if (cur_aj < curI && new_aj >= curI) {
-              source_fert_count[1]--;
-              source_fert_count[0]++;
-            }
-            else if (cur_aj >= curI && new_aj < curI) {
-              source_fert_count[0]--;
-              source_fert_count[1]++;
+
+            if (align_type != HmmAlignProbNonpar) {
+              if (cur_aj < curI && new_aj >= curI) {
+                source_fert_count[1]--;
+                source_fert_count[0]++;
+              }
+              else if (cur_aj >= curI && new_aj < curI) {
+                source_fert_count[0]--;
+                source_fert_count[1]++;
+              }
             }
           }
-	      
-          //b) dependency to succceeding pos
-          if (j+1 < curJ && !future_handled) {
 
-            uint next_aj = cur_alignment[j+1];
-            uint effective_cur_aj = cur_aj;
+          //std::cerr << "b), future handled: " << future_handled << std::endl;
+
+          //b) dependency to succceeding pos
+          if (j + 1 < curJ && !future_handled) {
+
+            ushort next_aj = cur_alignment[j + 1];
+            ushort effective_cur_aj = cur_aj;
             if (effective_cur_aj >= curI)
               effective_cur_aj -= curI;
-            uint effective_new_aj = new_aj;
+            ushort effective_new_aj = new_aj;
             if (effective_new_aj >= curI)
               effective_new_aj -= curI;
-	    
-            assert( cur_acount(std::min(curI,next_aj),effective_cur_aj) > 0);
-		  
-            cur_acount(std::min(curI,next_aj),effective_cur_aj)--;
-            cur_acount(std::min(curI,next_aj),effective_new_aj)++;
-	    
+
+            if (effective_cur_aj < curI) {
+              cur_acount(std::min(curI, next_aj), effective_cur_aj)--;
+              assert(cur_acount(std::min(curI, next_aj), effective_cur_aj) >= 0);
+            }
+            else
+              icount[curI - 1][std::min(curI, next_aj)]--;
+            if (effective_new_aj < curI)
+              cur_acount(std::min(curI, next_aj), effective_new_aj)++;
+            else
+              icount[curI - 1][std::min(curI, next_aj)]++;
+
             if (deficient_parametric) {
               if (next_aj < curI) {
-                dist_count[zero_offset + next_aj - effective_cur_aj]--;
-                dist_count[zero_offset + next_aj - effective_new_aj]++;
+                if (effective_cur_aj < curI) {
+                  dist_count[zero_offset + next_aj - effective_cur_aj]--;
+                  dist_count_sum--;
+                }
+                if (effective_new_aj < curI) {
+                  dist_count[zero_offset + next_aj - effective_new_aj]++;
+                  dist_count_sum++;
+                }
               }
             }
           }
         }
       }
+
+      // std::cerr << "new prob: " << hmm_alignment_prob(cur_source,cur_lookup,cur_target,dict,
+      //                                                      align_model, initial_prob, cur_alignment, true) << std::endl;
     }
-    
+
     std::cerr << nSwitches << " switches in ICM" << std::endl;
 
 #ifndef NDEBUG
     //DEBUG
-    if (init_type == HmmInitFix || init_type == HmmInitFix2) {
-      Math1D::Vector<double> check_source_fert_count(2,0.0);
-    
+    if ((init_type == HmmInitFix || init_type == HmmInitFix2)
+        && !start_empty_word) {
+      Math1D::Vector<double> check_source_fert_count(2, 0.0);
+
       Storage1D<Math1D::Vector<double> > check_dcount(options.nTargetWords_);
-      for (uint i=0; i < options.nTargetWords_; i++) {
-        check_dcount[i].resize(dict[i].size(),0);
+      for (uint i = 0; i < options.nTargetWords_; i++) {
+        check_dcount[i].resize(dict[i].size(), 0);
       }
-      
-      FullHMMAlignmentModel check_acount(maxI,MAKENAME(acount));
+
+      FullHMMAlignmentModel check_acount(maxI, MAKENAME(acount));
       for (uint I = 1; I <= maxI; I++) {
-        if (seenIs.find(I) != seenIs.end()) {
-          check_acount[I-1].resize(I+1,I,0.0);
-        }
+        check_acount[I - 1].resize(align_model[I - 1].xDim(), align_model[I - 1].yDim(), 0.0);
       }
-      
-      for (size_t s=0; s < nSentences; s++) {
-        
+
+      for (size_t s = 0; s < nSentences; s++) {
+
         const Storage1D<uint>& cur_source = source[s];
         const Storage1D<uint>& cur_target = target[s];
-        const SingleLookupTable& cur_lookup = get_wordlookup(cur_source,cur_target,wcooc,nSourceWords,slookup[s],aux_lookup);
-
+        const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, nSourceWords, slookup[s], aux_lookup);
 
         const uint curJ = cur_source.size();
         const uint curI = cur_target.size();
-        
-        Math2D::Matrix<double>& cur_facount = check_acount[curI-1];
-        
-        
-        /**** update counts ****/      
-        for (uint j=0; j < curJ; j++) {
+
+        Math2D::Matrix<double>& cur_facount = check_acount[curI - 1];
+
+        /**** update counts ****/
+        for (uint j = 0; j < curJ; j++) {
 
           ushort aj = viterbi_alignment[s][j];
           if (aj >= curI) {
-            check_dcount[0][cur_source[j]-1] += 1;
-            if (align_type != HmmAlignProbNonpar && j > 0) 
+            check_dcount[0][cur_source[j] - 1] += 1;
+            if (align_type != HmmAlignProbNonpar && j > 0)
               check_source_fert_count[0] += 1.0;
           }
           else {
-            check_dcount[cur_target[aj]][cur_lookup(j,aj)] += 1;
-            if (align_type != HmmAlignProbNonpar && j > 0) 
+            check_dcount[cur_target[aj]][cur_lookup(j, aj)] += 1;
+            if (align_type != HmmAlignProbNonpar && j > 0)
               check_source_fert_count[1] += 1.0;
           }
-          
+
           if (j == 0) {
           }
           else {
-            
-            ushort prev_aj = viterbi_alignment[s][j-1];
-            
+
+            ushort prev_aj = viterbi_alignment[s][j - 1];
+
             if (prev_aj >= curI) {
-              
+
               if (aj >= curI) {
-                cur_facount(curI,prev_aj-curI) += 1.0;
+                cur_facount(curI, prev_aj - curI) += 1.0;
               }
               else {
-                cur_facount(aj,prev_aj-curI) += 1.0;
+                cur_facount(aj, prev_aj - curI) += 1.0;
               }
             }
             else {
               if (aj >= curI) {
-                cur_facount(curI,prev_aj) += 1.0;
+                cur_facount(curI, prev_aj) += 1.0;
               }
               else {
-                cur_facount(aj,prev_aj) += 1.0;
+                cur_facount(aj, prev_aj) += 1.0;
               }
             }
           }
@@ -3294,89 +5027,101 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
       }
 
       assert(check_dcount == dcount);
-      for (uint I=0; I < acount.size(); I++) {
-        
+      for (uint I = 0; I < acount.size(); I++) {
+
         if (check_acount[I] != acount[I]) {
+          std::cerr << "I: " << I << std::endl;
           std::cerr << "should be: " << check_acount[I] << std::endl;
           std::cerr << "is: " << acount[I] << std::endl;
         }
 
         assert(check_acount[I] == acount[I]);
       }
+      //assert(check_acount == acount);
       std::cerr << "should be: " << check_source_fert_count << std::endl;
       std::cerr << "is: " << source_fert_count << std::endl;
-      
+
       assert(check_source_fert_count == source_fert_count);
     }
     //END_DEBUG
 #endif
 
-#endif
-
     /***** compute alignment and dictionary probabilities from normalized counts ******/
 
     //compute new dict from normalized fractional counts
-    update_dict_from_counts(dcount, prior_weight, 0.0, iter,  false, 0.0, 0, dict);
+    update_dict_from_counts(dcount, prior_weight, 0.0, iter, false, 0.0, 0, dict, hmm_min_dict_entry);
+
+    //the changes in source-fert-counts are SO FAR NOT accounted for in the ICM hyp score calculations
+    // nevertheless, updating them according to the new counts cannot worsen the energy
+    sfsum = source_fert_count.sum();
+    if (sfsum > 1e-305 && !options.fix_p0_) {
+      for (uint k = 0; k < 2; k++)
+        source_fert[k] = source_fert_count[k] / sfsum;
+      std::cerr << "new source-fert: " << source_fert << std::endl;
+    }
 
     if (init_type == HmmInitPar) {
-      
-      ehmm_init_m_step(icount, init_params, options.init_m_step_iter_);
+
+      fsentence_start_count.set_constant(0.0);
+      fstart_span_count.set_constant(0.0);
+
+      for (uint I = 1; I <= maxI; I++) {
+
+        if (initial_prob[I - 1].size() != 0) {
+          for (uint i = 0; i < I; i++) {
+
+            const double cur_count = icount[I - 1][i];
+            fsentence_start_count[i] += cur_count;
+            fstart_span_count[I - 1] += cur_count;
+          }
+        }
+      }
+
+      start_prob_m_step(fsentence_start_count, fstart_span_count, init_params, options.init_m_step_iter_);
+      par2nonpar_hmm_init_model(init_params, source_fert, init_type, initial_prob, start_empty_word, options.fix_p0_);
     }
 
     if (align_type != HmmAlignProbNonpar && align_type != HmmAlignProbNonpar2) {
 
+      //also applies to deficient_parametric
 
-      if (deficient_parametric) {
-	
-        double fdist_count_sum = dist_count.sum();
-        assert(fdist_count_sum == dist_count_sum);
-        for (uint k=0; k < dist_count.size(); k++)
-          dist_params[k] = dist_count[k] / fdist_count_sum;
-      }
-      else {
+      //noncompact_ehmm_m_step(acount, dist_params, zero_offset, options.align_m_step_iter_, dist_grouping_param, options.deficient_, redpar_limit);
+      ehmm_m_step(acount, dist_params, zero_offset, options.align_m_step_iter_,
+                  dist_grouping_param, options.deficient_, redpar_limit);
 
-        ehmm_m_step(acount, dist_params, zero_offset, options.align_m_step_iter_, dist_grouping_param);
-        //par2nonpar can only be called when source_fert has been updated (may still get some counts from the init model!)
-      }
+      par2nonpar_hmm_alignment_model(dist_params, zero_offset, dist_grouping_param, source_fert,
+                                     align_type, options.deficient_, align_model, redpar_limit);
     }
-
-
-    //the changes in source-fert-counts are SO FAR NOT accounted for in the ICM hyp score calculations
-    // nevertheless, updating them according to the new counts cannot worsen the energy
-    if (source_fert_count.sum() > 1e-305) {
-      for (uint k=0; k < 2; k++)
-        source_fert[k] = source_fert_count[k] / source_fert_count.sum();
-      std::cerr << "new source-fert: " << source_fert << std::endl;
-    }
-
     //compute new alignment probabilities from normalized fractional counts
-    for (uint I=1; I <= maxI; I++) {
+    for (uint I = 1; I <= maxI; I++) {
 
-      if (acount[I-1].xDim() != 0) {
+      if (acount[I - 1].xDim() != 0) {
 
         if (init_type == HmmInitNonpar) {
-          double inv_norm = 1.0 / icount[I-1].sum();
+          double inv_norm = 1.0 / icount[I - 1].sum();
           assert(!isnan(inv_norm));
-          for (uint i=0; i < initial_prob[I-1].size(); i++)
-            initial_prob[I-1][i] = inv_norm * icount[I-1][i]; 
+          for (uint i = 0; i < initial_prob[I - 1].size(); i++)
+            initial_prob[I - 1][i] = std::max(hmm_min_param_entry, inv_norm * icount[I - 1][i]);
         }
 
         if (align_type == HmmAlignProbNonpar) {
 
-          for (uint i=0; i < I; i++) {
-	    
-            double sum = 0.0;
-            for (uint i_next = 0; i_next <= I; i_next++)
-              sum += acount[I-1](i_next,i);
-	    
+          for (uint i = 0; i < I; i++) {
+
+            double sum = acount[I - 1].row_sum(i);
+
             if (sum >= 1e-300) {
-	      
+
               assert(!isnan(sum));
               const double inv_sum = 1.0 / sum;
               assert(!isnan(inv_sum));
-	      
+
               for (uint i_next = 0; i_next <= I; i_next++) {
-                align_model[I-1](i_next,i) = inv_sum *acount[I-1](i_next,i);
+                align_model[I - 1] (i_next, i) = std::max(hmm_min_param_entry, inv_sum * acount[I - 1] (i_next, i));
+                //            if (isnan(align_model[I-1](i_next,i)))
+                //              std::cerr << "nan: " << inv_sum << " * " << acount[I-1](i_next,i) << std::endl;
+
+                //            assert(!isnan(align_model[I-1](i_next,i)));
               }
             }
           }
@@ -3386,73 +5131,79 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
           //changes in these counts are so far not included in the ICM score calculation.
           // nevertheless, updating the probabilities according to the new counts cannor worsen the energy
 
-          for (uint i=0; i < I; i++) {
-	    
-            double sum = 0.0;
-            for (uint i_next = 0; i_next < I; i_next++)
-              sum += acount[I-1](i_next,i);
+          for (uint i = 0; i < I; i++) {
 
-            align_model[I-1](I,i) = source_fert[0];
+            double sum = acount[I - 1].row_sum(i) - acount[I - 1] (I, i);
+
+            align_model[I - 1] (I, i) = source_fert[0];
 
             if (sum >= 1e-300) {
-	      
+
               assert(!isnan(sum));
               const double inv_sum = 1.0 / sum;
               assert(!isnan(inv_sum));
 
               for (uint i_next = 0; i_next < I; i_next++) {
-                align_model[I-1](i_next,i) = inv_sum * source_fert[1] * acount[I-1](i_next,i);
+                align_model[I - 1](i_next, i) = std::max(hmm_min_param_entry, inv_sum * source_fert[1] * acount[I - 1] (i_next, i));
+                //            if (isnan(align_model[I-1](i_next,i)))
+                //              std::cerr << "nan: " << inv_sum << " * " << acount[I-1](i_next,i) << std::endl;
+
+                //            assert(!isnan(align_model[I-1](i_next,i)));
               }
             }
             else {
               for (uint i_next = 0; i_next < I; i_next++) {
-                align_model[I-1](i_next,i) = source_fert[1] / double(I);
+                align_model[I - 1](i_next, i) = source_fert[1] / double (I);
               }
-            }               
-          }          
-        }
-        else if (deficient_parametric) {
-
-          for (uint i=0; i < I; i++) {	    
-
-            double factor = 1.0;
-
-            //NOTE: we do NOT normalize here (to get a computationally tractable model)
-            for (uint ii=0; ii < I; ii++)
-              align_model[I-1](ii,i) = source_fert[1] * factor * dist_params[zero_offset + ii - i];
-            align_model[I-1](I,i) = source_fert[0];
+            }
           }
         }
       }
     }
 
+    double energy = 0.0;
+    for (uint s = 0; s < nSentences; s++) {
 
-    if (init_type == HmmInitPar)
-      //can only call this AFTER source_fert has been updated
-      par2nonpar_hmm_init_model(init_params, source_fert, init_type,  initial_prob, start_empty_word);
+      const Storage1D<uint>& cur_source = source[s];
+      const Storage1D<uint>& cur_target = target[s];
 
-    if (align_type != HmmAlignProbNonpar) {
-      par2nonpar_hmm_alignment_model(dist_params, zero_offset, dist_grouping_param, source_fert,
-                                     align_type, align_model);
+      const Math1D::Vector<AlignBaseType>& cur_alignment = viterbi_alignment[s];
+
+      //std::cerr << "J: " << cur_source.size() << ", I: " << cur_target.size() << std::endl;
+      //std::cerr << "alignment: " << cur_alignment << std::endl;
+
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, nSourceWords, slookup[s], aux_lookup);
+
+      energy -= logl(hmm_alignment_prob(cur_source, cur_lookup, cur_target, dict, align_model, initial_prob, cur_alignment, true));
     }
 
+    for (uint i = 0; i < dcount.size(); i++)
+      for (uint k = 0; k < dcount[i].size(); k++)
+        if (dcount[i][k] > 0)
+          energy += prior_weight[i][k];
+
+    std::cerr << "energy after ICM and all updates: " << (energy / nSentences) << std::endl;
+#else
+    //compute new dict from normalized fractional counts
+    update_dict_from_counts(dcount, prior_weight, 0.0, iter, false, 0.0, 0, dict, hmm_min_dict_entry);
+#endif
 
     /************* compute alignment error rate ****************/
     if (!options.possible_ref_alignments_.empty()) {
-      
+
       double sum_aer = 0.0;
       double sum_marg_aer = 0.0;
       double sum_fmeasure = 0.0;
       double nErrors = 0.0;
       uint nContributors = 0;
 
-      for(std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::iterator it = options.possible_ref_alignments_.begin();
-          it != options.possible_ref_alignments_.end(); it ++) {
+      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType > > >::iterator it = options.possible_ref_alignments_.begin();
+           it != options.possible_ref_alignments_.end(); it++) {
 
-        uint s = it->first-1;
+        uint s = it->first - 1;
 
-	if (s >= nSentences)
-	  break;
+        if (s >= nSentences)
+          break;
 
         nContributors++;
         //compute viterbi alignment
@@ -3460,44 +5211,33 @@ void viterbi_train_extended_hmm(const Storage1D<Storage1D<uint> >& source,
         Storage1D<AlignBaseType> viterbi_alignment;
         const uint curI = target[s].size();
 
-        const SingleLookupTable& cur_lookup = get_wordlookup(source[s],target[s],wcooc,nSourceWords,slookup[s],aux_lookup);
-	
-        if (start_empty_word)
-          compute_sehmm_viterbi_alignment(source[s],cur_lookup, target[s], 
-                                          dict, align_model[curI-1], initial_prob[curI-1],
-                                          viterbi_alignment, false, false, 0.0);
-        else
-          compute_ehmm_viterbi_alignment(source[s],cur_lookup, target[s], 
-                                         dict, align_model[curI-1], initial_prob[curI-1],
-                                         viterbi_alignment, align_type, false, false, 0.0);
-        
+        const SingleLookupTable& cur_lookup = get_wordlookup(source[s], target[s], wcooc, nSourceWords, slookup[s], aux_lookup);
+
+        compute_ehmm_viterbi_alignment(source[s], cur_lookup, target[s], dict, align_model[curI - 1],
+                                       initial_prob[curI - 1], viterbi_alignment, options, false, false, 0.0);
+
         //add alignment error rate
-        sum_aer += AER(viterbi_alignment,options.sure_ref_alignments_[s+1],options.possible_ref_alignments_[s+1]);
-        sum_fmeasure += f_measure(viterbi_alignment,options.sure_ref_alignments_[s+1],options.possible_ref_alignments_[s+1]);
-        nErrors += nDefiniteAlignmentErrors(viterbi_alignment,options.sure_ref_alignments_[s+1],options.possible_ref_alignments_[s+1]);
-        
-        if (!start_empty_word) {
-          Storage1D<AlignBaseType> marg_alignment;
-	  
-          compute_ehmm_optmarginal_alignment(source[s],cur_lookup, target[s], 
-                                             dict, align_model[curI-1], initial_prob[curI-1],
-                                             marg_alignment);
-          
-          sum_marg_aer += AER(marg_alignment,options.sure_ref_alignments_[s+1],options.possible_ref_alignments_[s+1]);
-        }
+        sum_aer += AER(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_fmeasure += f_measure(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        nErrors += nDefiniteAlignmentErrors(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+
+        Storage1D<AlignBaseType> marg_alignment;
+
+        compute_ehmm_optmarginal_alignment(source[s], cur_lookup, target[s], dict, align_model[curI - 1],
+                                           initial_prob[curI - 1], start_empty_word, marg_alignment);
+
+        sum_marg_aer += AER(marg_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
       }
 
       sum_aer *= 100.0 / nContributors;
       sum_marg_aer *= 100.0 / nContributors;
       nErrors /= nContributors;
       sum_fmeasure /= nContributors;
-      
+
       std::cerr << "#### EHMM Viterbi-AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
       std::cerr << "---- EHMM Marginal-AER : " << sum_marg_aer << " %" << std::endl;
       std::cerr << "#### EHMM Viterbi-fmeasure after iteration #" << iter << ": " << sum_fmeasure << std::endl;
       std::cerr << "#### EHMM Viterbi-DAE/S after iteration #" << iter << ": " << nErrors << std::endl;
-
     }
   } //end for (iter)
-
 }

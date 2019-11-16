@@ -1,10 +1,10 @@
 
-
+******************
 November 12 2019
 RegAligner is back on track! Because Google tried to help Mikhail Gorbachev!
 
 There have been plenty of changes, and I will publish stuff that would give a paper. You won't get all I did, though.
-
+******************
 
 
 *********
@@ -40,6 +40,8 @@ There are a few restrictions:
 On the other hand, there are some additional features:
 - implementation of regularity terms (L_0 and weighted L_1), including a dictionary prior
 - the EM-algorithm for parametric HMMs is closer to the model (see [Schoenemann, IJCNLP 2011])
+	and we implement an HMM with classes
+- the fertility models allow to pool the fertility probabilities via fertility classes
 - IBM-3 allows a reduction of the alignment parameters by pooling over all sentence lengths.
 - variants of IBM-4 where instead of the center of a cept one can take the head or the tail
 - variants of word class modes for inter (IBM-4) and intra distortion (IBM-4/5)
@@ -47,7 +49,7 @@ On the other hand, there are some additional features:
 - refined Viterbi training mode with ICM stage (useful with L_0-norms)
 - training the IBM-3 with the ITG constraints and the IBM constraints is supported
 - computation of IBM-3 Viterbi alignments via ILPs is integrated [Schoenemann CoNLL 2010]
-- we use long double precision, and still we are faster than GIZA++
+- we use long double precision, and still we are faster than GIZA++ (with faster dictionary access)
 
 BUILDING REGALIGNER
 

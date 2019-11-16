@@ -1,6 +1,9 @@
 
 tidy:
-	rm *~
+	rm -f *~ *.orig
+
+indent:
+	 astyle --style=stroustrup --align-reference=type --align-pointer=type --attach-return-type --attach-return-type-decl --indent=spaces=2 --indent-namespaces --lineend=linux  *.hh *.cc
 
 #clean:
 #	-rm $(DEBUGDIR)/*.o 

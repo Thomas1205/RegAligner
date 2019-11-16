@@ -12,7 +12,8 @@
 #include "gzstream.h"
 #endif
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
 
   if (argc == 1 || strings_equal(argv[1],"-h")) {
 
@@ -22,7 +23,8 @@ int main(int argc, char** argv) {
 
   const int nParams = 3;
   ParamDescr  params[nParams] = {{"-i",mandInFilename,0,""},{"-voc",mandInFilename,0,""},
-                                 {"-o",mandOutFilename,0,""}};
+    {"-o",mandOutFilename,0,""}
+  };
 
   Application app(argc,argv,params,nParams);
 
@@ -49,7 +51,7 @@ int main(int argc, char** argv) {
     nWords++;
   }
   delete voc_stream;
-  
+
   std::istream* plain_stream;
 #ifdef HAS_GZSTREAM
   if (is_gzip_file(app.getParam("-i"))) {
