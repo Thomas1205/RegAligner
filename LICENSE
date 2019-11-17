@@ -45,6 +45,8 @@ or when emphasis on the corrected HMM training is appropriate)
 - [T. Schoenemann, Training Nondeficient Variants of IBM-3 and IBM-4 for Word
   Alignment, ACL 2013] (when you use nondeficient training of IBM-3 and IBM-4)
 
+- [T. Schoenemann, Computing Optimal Alignments for the IBM-3 Translation Model,
+CoNLL 2010]
 
 6. Citing papers not by the author
 If you use this software for publications, please consider if citing one
@@ -54,7 +56,11 @@ If you use this software for publications, please consider if citing one
 [A. Vaswani and L. Huang and D. Chiang, Smaller Alignment Models for Better
 Translations: Unsupervised Word Alignment with the L0-norm. ACL 2012.]
 
--you probably want to cite the seminal paper
+- if you use the HMM with classes:
+[K. Toutanova, H.T. Ilhan and C. Manning, Extensions to HMM-based Statistical
+Word Alignment Models, EMNLP 2002]
+
+- you probably want to cite the seminal paper
 [P.F. Brown and S.A. Della Pietra and V.J. Della Pietra and R.L. Mercer,
  The mathematics of statistical machine translation: Parameter estimation,
  Computational Linguistics, 19(2), pp 263-311 1993]
@@ -66,3 +72,6 @@ translation, COLING 1996]
 - for deficient empty words and evaluation issues:
 [F.J. Och and H. Ney, A systematic comparison of various statistical alignment
 modes, Computational Linguistics, 29(1), pp 19-51, 2003]
+
+- for IBM-3 Viterbi alignments, you can also cite:
+[S. Ravi and K. Knight, Does GIZA++ Make Search Errors?, Computational Linguistics 2010]
