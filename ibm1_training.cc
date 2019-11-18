@@ -54,7 +54,7 @@ double ibm1_perplexity(const Storage1D<Math1D::Vector<uint> >& source, const Loo
     const uint nCurSourceWords = cur_source.size();
     const uint nCurTargetWords = cur_target.size();
 
-    sum += nCurSourceWords * std::log(nCurTargetWords);
+    sum += nCurSourceWords * std::log(nCurTargetWords+1);
 
     for (uint j = 0; j < nCurSourceWords; j++) {
 
@@ -129,12 +129,11 @@ void train_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
 
     dict[i].resize_dirty(size);
     dict[i].set_constant(1.0 / ((double)size));
-    //dict[i].set_constant(0.0);
   }
   dict[0].set_constant(1.0 / dict[0].size());
 
-#if 0
-  for (uint i = 1; i < nTargetWords; i++) {
+#if 1
+  for (uint i = 1; i < options.nTargetWords_; i++) {
     dict[i].set_constant(0.0);
   }
   for (size_t s = 0; s < nSentences; s++) {
@@ -158,7 +157,7 @@ void train_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
     }
   }
 
-  for (uint i = 1; i < nTargetWords; i++) {
+  for (uint i = 1; i < options.nTargetWords_; i++) {
     double sum = dict[i].sum();
     if (sum > 1e-305)
       dict[i] *= 1.0 / sum;
@@ -221,7 +220,7 @@ void train_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
 
     /*** update dict from counts ***/
 
-    update_dict_from_counts(fcount, prior_weight, dict_weight_sum, iter, smoothed_l0, l0_beta, options.dict_m_step_iter_, dict,
+    update_dict_from_counts(fcount, prior_weight, dict_weight_sum, smoothed_l0, l0_beta, options.dict_m_step_iter_, dict,
                             ibm1_min_dict_entry, options.unconstrained_m_step_);
 
     if (options.print_energy_) {

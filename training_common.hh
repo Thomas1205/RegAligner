@@ -87,8 +87,8 @@ double prob_penalty(double x, double beta);
 double prob_pen_prime(double x, double beta);
 
 void update_dict_from_counts(const SingleWordDictionary& fdict_count, const floatSingleWordDictionary& prior_weight,
-                             double dict_weight_sum, uint iter, bool smoothed_l0, double l0_beta,
-                             uint nDictStepIter, SingleWordDictionary& dict, double min_prob = 0.0, bool unconstrained_m_step = false);
+                             double dict_weight_sum, bool smoothed_l0, double l0_beta, uint nDictStepIter, SingleWordDictionary& dict, 
+                             double min_prob = 0.0, bool unconstrained_m_step = false);
 
 void dict_m_step(const SingleWordDictionary& fdict_count, const floatSingleWordDictionary& prior_weight,
                  SingleWordDictionary& dict, double alpha, uint nIter = 100, bool smoothed_l0 = false, double l0_beta = 1.0);

@@ -2502,7 +2502,7 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
     //END_DEBUG
 
     //update dictionary
-    update_dict_from_counts(fwcount, prior_weight_, dict_weight_sum, iter, smoothed_l0_, l0_beta_, dict_m_step_iter_, dict_, fert_min_dict_entry,
+    update_dict_from_counts(fwcount, prior_weight_, dict_weight_sum, smoothed_l0_, l0_beta_, dict_m_step_iter_, dict_, fert_min_dict_entry,
                             msolve_mode_ != MSSolvePGD);
 
     //update fertility probabilities
@@ -3040,7 +3040,7 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
     //END_DEBUG
 
     //update dictionary
-    update_dict_from_counts(fwcount, prior_weight_, 0.0, iter, false, 0.0, 0, dict_, fert_min_dict_entry);
+    update_dict_from_counts(fwcount, prior_weight_, 0.0, false, 0.0, 0, dict_, fert_min_dict_entry);
 
     //update fertility probabilities
     update_fertility_prob(ffert_count, fert_min_param_entry, false);    //needed at least with fert-prob-sharing
@@ -3276,7 +3276,7 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
       update_fertility_prob(ffert_count, fert_min_param_entry, false);
 
       //update dictionary
-      update_dict_from_counts(fwcount, prior_weight_, 0.0, iter, false, 0.0, 0, dict_, fert_min_dict_entry);
+      update_dict_from_counts(fwcount, prior_weight_, 0.0, false, 0.0, 0, dict_, fert_min_dict_entry);
 
       //TODO: think about whether to update distortions parameters here as well (would need to update the counts)
 

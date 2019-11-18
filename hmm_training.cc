@@ -2878,7 +2878,7 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       nonnullcount += fwcount[k].sum();
     //std::cerr << "non-null-dict-count: " << nonnullcount << std::endl;
 
-    update_dict_from_counts(fwcount, prior_weight, dict_weight_sum, iter, options.smoothed_l0_, options.l0_beta_,
+    update_dict_from_counts(fwcount, prior_weight, dict_weight_sum, options.smoothed_l0_, options.l0_beta_,
                             options.dict_m_step_iter_, dict, hmm_min_dict_entry, options.msolve_mode_ != MSSolvePGD);
 
     //compute new nonparametric probabilities from normalized fractional counts
@@ -5049,7 +5049,7 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
     /***** compute alignment and dictionary probabilities from normalized counts ******/
 
     //compute new dict from normalized fractional counts
-    update_dict_from_counts(dcount, prior_weight, 0.0, iter, false, 0.0, 0, dict, hmm_min_dict_entry);
+    update_dict_from_counts(dcount, prior_weight, 0.0, false, 0.0, 0, dict, hmm_min_dict_entry);
 
     //the changes in source-fert-counts are SO FAR NOT accounted for in the ICM hyp score calculations
     // nevertheless, updating them according to the new counts cannot worsen the energy
@@ -5185,7 +5185,7 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
     std::cerr << "energy after ICM and all updates: " << (energy / nSentences) << std::endl;
 #else
     //compute new dict from normalized fractional counts
-    update_dict_from_counts(dcount, prior_weight, 0.0, iter, false, 0.0, 0, dict, hmm_min_dict_entry);
+    update_dict_from_counts(dcount, prior_weight, 0.0, false, 0.0, 0, dict, hmm_min_dict_entry);
 #endif
 
     /************* compute alignment error rate ****************/
