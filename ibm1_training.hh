@@ -37,21 +37,21 @@ public:
 
 void train_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const Storage1D<Math1D::Vector<uint> >& target,
                 const CooccuringWordsType& cooc, SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight,
-                IBM1Options& options);
+                const IBM1Options& options);
 
 void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup,
                                const Storage1D<Math1D::Vector<uint> >& target, const CooccuringWordsType& cooc,
                                SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight,
-                               IBM1Options& options);
+                               const IBM1Options& options);
 
 void train_ibm1_lbfgs_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup,
                                   const Storage1D<Math1D::Vector<uint> >& target, const CooccuringWordsType& cooc,
                                   SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight,
-                                  IBM1Options& options, uint L = 5);
+                                  const IBM1Options& options, uint L = 5);
 
 void ibm1_viterbi_training(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup,
                            const Storage1D<Math1D::Vector<uint> >& target, const CooccuringWordsType& cooc,
                            SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight,
-                           IBM1Options& options, const Math1D::Vector < double >& xlogx_table);
+                           const IBM1Options& options, const Math1D::Vector < double >& xlogx_table);
 
 #endif

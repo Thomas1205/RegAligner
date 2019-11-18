@@ -2495,7 +2495,7 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
                         const CooccuringWordsType& wcooc, FullHMMAlignmentModel& align_model, Math1D::Vector<double>& dist_params,
                         double& dist_grouping_param, Math1D::Vector<double>& source_fert, InitialAlignmentProbability& initial_prob,
                         Math1D::Vector<double>& init_params, SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight,
-                        HmmOptions& options)
+                        const HmmOptions& options)
 {
   std::cerr << "starting Extended HMM EM-training" << std::endl;
 
@@ -3027,7 +3027,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
                                        FullHMMAlignmentModel& align_model, Math1D::Vector<double>& dist_params,
                                        double& dist_grouping_param, Math1D::Vector<double>& source_fert,
                                        InitialAlignmentProbability& initial_prob, Math1D::Vector<double>& init_params,
-                                       SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight, HmmOptions& options)
+                                       SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight, const HmmOptions& options)
 {
 
   std::cerr << "starting Extended HMM GD-training" << std::endl;
@@ -3948,9 +3948,8 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
                                 double& dist_grouping_param, Math1D::Vector<double>& source_fert,
                                 InitialAlignmentProbability& initial_prob, Math1D::Vector<double>& init_params,
                                 SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight,
-                                HmmOptions& options, const Math1D::Vector<double>& xlogx_table)
+                                const HmmOptions& options, const Math1D::Vector<double>& xlogx_table)
 {
-
   std::cerr << "starting Viterbi Training for Extended HMM" << std::endl;
 
   uint nIterations = options.nIterations_;

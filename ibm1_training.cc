@@ -98,7 +98,7 @@ double ibm1_energy(const Storage1D<Math1D::Vector<uint> >& source, const LookupT
 
 void train_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const Storage1D<Math1D::Vector<uint> >& target,
                 const CooccuringWordsType& wcooc, SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight,
-                IBM1Options& options)
+                const IBM1Options& options)
 {
   uint nIter = options.nIterations_;
   bool smoothed_l0 = options.smoothed_l0_;
@@ -290,9 +290,8 @@ void train_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
 void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup,
                                const Storage1D<Math1D::Vector<uint> >& target, const CooccuringWordsType& wcooc,
                                SingleWordDictionary& dict,      //uint nIter,
-                               const floatSingleWordDictionary& prior_weight, IBM1Options& options)
+                               const floatSingleWordDictionary& prior_weight, const IBM1Options& options)
 {
-
   uint nIter = options.nIterations_;
   bool smoothed_l0 = options.smoothed_l0_;
   double l0_beta = options.l0_beta_;
@@ -691,7 +690,6 @@ double compute_ibm1_lbfgs_gradient(const Storage1D<Math1D::Vector<uint> >& sourc
                                    const floatSingleWordDictionary& prior_weight, const IBM1Options& options,
                                    SingleWordDictionary& dict_param_grad)
 {
-
   //WARNING: regularity terms are so far ignored
 
   const uint nSentences = source.size();
@@ -815,7 +813,7 @@ double compute_ibm1_lbfgs_gradient(const Storage1D<Math1D::Vector<uint> >& sourc
 void train_ibm1_lbfgs_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup,
                                   const Storage1D<Math1D::Vector<uint> >& target, const CooccuringWordsType& wcooc,
                                   SingleWordDictionary& dict, const floatSingleWordDictionary&
-                                  prior_weight, IBM1Options& options, uint L)
+                                  prior_weight, const IBM1Options& options, uint L)
 {
   //NOTE: so far we do not consider slack variables
 
@@ -1358,8 +1356,7 @@ void viterbi_move(const Storage1D<Math1D::Vector<uint> >& source, const LookupTa
   OsiClpSolverInterface clp_interface;
   clp_interface.setLogLevel(0);
 
-  clp_interface.loadProblem(coinMatrix, var_lb.direct_access(),
-                            var_ub.direct_access(), cost.direct_access(),
+  clp_interface.loadProblem(coinMatrix, var_lb.direct_access(), var_ub.direct_access(), cost.direct_access(),
                             rhs_lower.direct_access(), rhs_upper.direct_access());
 
   for (uint v = 0; v < nVars; v++)
@@ -1436,7 +1433,7 @@ void viterbi_move(const Storage1D<Math1D::Vector<uint> >& source, const LookupTa
 void ibm1_viterbi_training(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup,
                            const Storage1D<Math1D::Vector<uint> >& target, const CooccuringWordsType& wcooc,
                            SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight,
-                           IBM1Options& options, const Math1D::Vector<double>& xlogx_table)
+                           const IBM1Options& options, const Math1D::Vector<double>& xlogx_table)
 {
 
   uint nIterations = options.nIterations_;

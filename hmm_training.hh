@@ -88,15 +88,14 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
                         const CooccuringWordsType& wcooc, FullHMMAlignmentModel& align_model, Math1D::Vector<double>& dist_params,
                         double& dist_grouping_param, Math1D::Vector<double>& source_fert, InitialAlignmentProbability& initial_prob,
                         Math1D::Vector<double>& init_params, SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight,
-                        HmmOptions& options);
+                        const HmmOptions& options);
 
 void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup,
                                        const Storage1D<Math1D::Vector<uint> >& target, const CooccuringWordsType& wcooc,
                                        FullHMMAlignmentModel& align_model, Math1D::Vector < double >& dist_params,
                                        double& dist_grouping_param, Math1D::Vector<double>& source_fert,
                                        InitialAlignmentProbability& initial_prob, Math1D::Vector<double>& init_params,
-                                       SingleWordDictionary& dict, const floatSingleWordDictionary&
-                                       prior_weight, HmmOptions& options);
+                                       SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight, const HmmOptions& options);
 
 void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup,
                                 const Storage1D<Math1D::Vector<uint> >& target, const CooccuringWordsType& wcooc,
@@ -104,7 +103,7 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
                                 double& dist_grouping_param, Math1D::Vector<double>& source_fert,
                                 InitialAlignmentProbability& initial_prob, Math1D::Vector<double>& init_params,
                                 SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight,
-                                HmmOptions& options, const Math1D::Vector<double>& xlogx_table);
+                                const HmmOptions& options, const Math1D::Vector<double>& xlogx_table);
 
 void par2nonpar_hmm_init_model(const Math1D::Vector<double>& init_params, const Math1D::Vector<double>& source_fert,
                                HmmInitProbType init_type, InitialAlignmentProbability& initial_prob,

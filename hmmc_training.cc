@@ -839,7 +839,7 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
                         FullHMMAlignmentModelSingleClass& align_model, Math2D::Matrix<double>& dist_params,
                         Math1D::Vector<double>& dist_grouping_param, Math1D::Vector<double>& source_fert,
                         InitialAlignmentProbability& initial_prob, Math1D::Vector<double>& init_params,
-                        SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight, HmmOptions& options)
+                        SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight, const HmmOptions& options)
 {
   std::cerr << "starting Extended HMM-SingleClass EM-training" << std::endl;
 
@@ -1386,7 +1386,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
                                        FullHMMAlignmentModelSingleClass& align_model, Math2D::Matrix<double>& dist_params,
                                        Math1D::Vector<double>& dist_grouping_param, Math1D::Vector<double>& source_fert,
                                        InitialAlignmentProbability& initial_prob, Math1D::Vector<double>& init_params,
-                                       SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight, HmmOptions& options)
+                                       SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight, const HmmOptions& options)
 {
   std::cerr << "starting Extended HMM-Singleclass GD-training" << std::endl;
 
@@ -2340,7 +2340,7 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
                                 Math2D::Matrix<double>& dist_params, Math1D::Vector<double>& dist_grouping_param,
                                 Math1D::Vector<double>& source_fert, InitialAlignmentProbability& initial_prob,
                                 Math1D::Vector<double>& init_params, SingleWordDictionary& dict,
-                                const floatSingleWordDictionary& prior_weight, HmmOptions& options,
+                                const floatSingleWordDictionary& prior_weight, const HmmOptions& options,
                                 const Math1D::Vector<double>& xlogx_table)
 {
   std::cerr << "starting Viterbi Training for Extended HMM-SingleClass" << std::endl;
