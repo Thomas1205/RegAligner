@@ -2974,18 +2974,8 @@ long double IBM3Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
   fertility.set_constant(0);
 
   Math2D::Matrix<double> dict(curJ,curI+1);
-  for (uint j=0; j < curJ; j++) {
-
-    const uint sj = source[j];
-    for (uint i=0; i < curI; i++) {
-
-      dict(j,0) = dict_[0][sj - 1];
-      for (uint aj=1; aj <= curI; aj++) {
-        dict(j,aj) = dict_[target[aj - 1]][lookup(j, aj - 1)];
-      }
-    }
-  }
-
+  compute_dictmat(source, lookup, target, dict_, dict);
+  
   for (uint j = 0; j < curJ; j++) {
 
     const uint aj = alignment[j];
