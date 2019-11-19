@@ -32,6 +32,7 @@ int main(int argc, char** argv)
   if (argc == 1 || strings_equal(argv[1], "-h")) {
 
     std::cerr << "USAGE: " << argv[0] << std::endl
+              << "**************** Inputs *******************" << std::endl
               << " -s <file> : source file (coded as indices)" << std::endl
               << " -t <file> : target file (coded as indices)" << std::endl
               << " [-ds <file>] : additional source file (word indices) " << std::endl
@@ -41,23 +42,24 @@ int main(int argc, char** argv)
               << " [-tfert-classes <file>] : target fertility classe (IBM models)" << std::endl
               << " [-refa <file>] : file containing gold alignments (sure and possible)" << std::endl
               << " [-invert-biling-data] : switch source and target for prior dict and gold alignments" << std::endl
+              << "**************** Main Options **********************" << std::endl
               << " [-method ( em | gd | viterbi )] : use EM, gradient descent or Viterbi training (default EM) " << std::endl
               << " [-dict-regularity <double>] : regularity weight for L0 or L1 regularization" << std::endl
               << " [-sparse-reg] : activate L1-regularity only for rarely occuring target words" << std::endl
-              << " [-fertpen <double>]: regularity weight for fertilities in IBM3&4" << std::endl
+              << " [-fertpen <double>]: regularity weight for fertilities in IBM-3/4/5" << std::endl
               << " [-prior-dict <file>] : file for index pairs that occur in a dictionary" << std::endl
               << " [-l0-beta <double>] : smoothing parameter for the L0-norm in EM-training" << std::endl
-              << " [-hmm-iter <uint>]: iterations for the HMM model (default 20)" << std:: endl
-              << " [-ibm1-iter <uint>]: iterations for the IBM-1 model (default 10)" << std::endl
+              << " [-hmm-iter <uint>]: iterations for the HMM model (default 5)" << std:: endl
+              << " [-ibm1-iter <uint>]: iterations for the IBM-1 model (default 5)" << std::endl
               << " [-ibm2-iter <uint>]: iterations for the IBM-2 model (default 0)" << std::endl
-              << " [-ibm3-iter <uint>]: iterations for the IBM-3 model (default 0)" << std::endl
-              << " [-ibm4-iter <uint>]: iterations for the IBM-4 model (default 0)" << std::endl
+              << " [-ibm3-iter <uint>]: iterations for the IBM-3 model (default 5)" << std::endl
+              << " [-ibm4-iter <uint>]: iterations for the IBM-4 model (default 5)" << std::endl
               << " [-ibm5-iter <uint>]: iterations for the IBM-5 model (default 0)" << std::endl
               << " [-postdec-thresh <double>] : threshold for posterior decoding" << std::endl
               << " [-dont-print-energy] : do not print the energy (speeds up EM for IBM-1 and HMM)" << std::endl
               << " [-max-lookup <uint>] : only store lookup tables up to this size to save memory. Default: 65535" << std::endl
-              << " [-ibm1-transfer-mode (no | viterbi | posterior) ] : how to init HMM from IBM1, default: no" << std::endl
               << "************ Options for HMM only *****************" << std::endl
+              << " [-ibm1-transfer-mode (no | viterbi | posterior) ] : how to init HMM from IBM1, default: no" << std::endl
               << " [-hmm-type (fullpar | redpar | nonpar | nonpar2)]: default redpar as in Vogel&Ney" << std::endl
               << " [-hmm-init-type (auto | par | nonpar | fix | fix2)]: default auto" << std::endl
               << " [-hmm-start-empty-word]: HMM with extra empty word " << std::endl
@@ -96,7 +98,7 @@ int main(int argc, char** argv)
   ParamDescr params[nParams] = {
     {"-s", mandInFilename, 0, ""}, {"-t", mandInFilename, 0, ""}, {"-ds", optInFilename, 0, ""}, {"-dt", optInFilename, 0, ""},
     {"-o", optOutFilename, 0, ""}, {"-oa", mandOutFilename, 0, ""},  {"-refa", optInFilename, 0, ""}, {"-invert-biling-data", flag, 0, ""},
-    {"-dict-regularity", optWithValue, 1, "0.0"}, {"-hillclimb-mode", optWithValue, 1, "reuse"}, {"-sparse-reg", flag, 0, ""},
+    {"-dict-regularity", optWithValue, 1, "0.0"}, {"-hillclimb-mode", optWithValue, 1, "reuse"}, {"-sparse-reg", flag, 0, ""}, 
     {"-prior-dict", optInFilename, 0, ""}, {"-hmm-iter", optWithValue, 1, "5"}, {"-method", optWithValue, 1, "em"}, {"-ibm1-iter", optWithValue, 1, "5"},
     {"-ibm2-iter", optWithValue, 1, "0"}, {"-ibm3-iter", optWithValue, 1, "5"}, {"-ibm4-iter", optWithValue, 1, "5"}, {"-ibm5-iter", optWithValue, 1, "0"},
     {"-fertpen", optWithValue, 1, "0.0"}, {"-constraint-mode", optWithValue, 1, "unconstrained"},  {"-l0-beta", optWithValue, 1, "-1.0"},
@@ -859,7 +861,7 @@ int main(int argc, char** argv)
   ibm5_trainer.set_fertility_limit(fert_limit);
   if (rare_fert_limit < fert_limit)
     ibm5_trainer.set_rare_fertility_limit(rare_fert_limit, nMaxRareOccurances);
-
+  
   //if (fert_p0 >= 0.0)
   //  ibm5_trainer.fix_p0(fert_p0);
 
