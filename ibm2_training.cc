@@ -327,15 +327,47 @@ double reduced_ibm2_perplexity(const Storage1D<Math1D::Vector<uint> >& source, c
   return sum / nSentences;
 }
 
+double reduced_ibm2_energy(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup,
+                           const Storage1D<Math1D::Vector<uint> >& target, const ReducedIBM2AlignmentModel& align_model,
+                           const SingleWordDictionary& dict, const CooccuringWordsType& wcooc, uint nSourceWords,
+                           const floatSingleWordDictionary& prior_weight, double l0_beta, bool smoothed_l0 = true)
+{
+  double energy = 0.0;
+
+  for (uint i = 0; i < dict.size(); i++) {
+
+    const uint size = dict[i].size();
+
+    for (uint k = 0; k < size; k++) {
+      if (smoothed_l0)
+        energy += prior_weight[i][k] * prob_penalty(dict[i][k], l0_beta);
+      else
+        energy += prior_weight[i][k] * dict[i][k];
+    }
+  }
+
+  energy /= target.size();      //since the perplexity is also divided by that amount
+
+  energy += reduced_ibm2_perplexity(source, slookup, target, align_model, dict, wcooc, nSourceWords);
+
+  return energy;
+}
+
 void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup,
                         const Storage1D<Math1D::Vector<uint> >& target, const CooccuringWordsType& wcooc,
                         const CooccuringLengthsType& lcooc, uint nSourceWords, uint nTargetWords,
                         ReducedIBM2AlignmentModel& alignment_model, SingleWordDictionary& dict, uint nIterations,
                         std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
-                        std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments)
+                        std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
+                        const floatSingleWordDictionary& prior_weight, double l0_beta, bool smoothed_l0,
+                        uint dict_m_step_iter)
 {
-
   std::cerr << "starting reduced IBM 2 training" << std::endl;
+
+  double dict_weight_sum = 0.0;
+  for (uint i = 0; i < nTargetWords; i++) {
+    dict_weight_sum += fabs(prior_weight[i].sum());
+  }
 
   assert(wcooc.size() == nTargetWords);
   //NOTE: the dicitionary is assumed to be initialized
@@ -364,7 +396,7 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
   //TODO: estimate first alignment model from IBM1 dictionary
 
-  Storage1D<Math1D::Vector<double> > fwcount(nTargetWords);
+  SingleWordDictionary fwcount(nTargetWords, MAKENAME(fwcount));
   for (uint i = 0; i < nTargetWords; i++) {
     fwcount[i].resize(dict[i].size());
   }
@@ -442,22 +474,8 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       }
     }
 
-    //compute new dict from normalized fractional counts
-    for (uint i = 0; i < nTargetWords; i++) {
-      double inv_sum = 1.0 / fwcount[i].sum();
-
-      if (isnan(inv_sum)) {
-        std::cerr << "invsum " << inv_sum << " for target word #" << i << std::endl;
-        std::cerr << "sum = " << fwcount[i].sum() << std::endl;
-        std::cerr << "number of cooccuring source words: " << fwcount[i].size() << std::endl;
-      }
-
-      assert(!isnan(inv_sum));
-
-      for (uint k = 0; k < fwcount[i].size(); k++) {
-        dict[i][k] = fwcount[i][k] * inv_sum;
-      }
-    }
+    update_dict_from_counts(fwcount, prior_weight, dict_weight_sum, smoothed_l0, l0_beta, dict_m_step_iter, dict, 
+                            ibm1_min_dict_entry, MSSolvePGD);
 
     //compute new alignment model from normalized fractional counts
     for (uint I = 0; I < alignment_model.size(); I++) {
@@ -481,8 +499,8 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       }
     }
 
-    std::cerr << "reduced IBM 2 perplexity after iteration #" << iter << ": "
-              << reduced_ibm2_perplexity(source, slookup, target, alignment_model, dict, wcooc, nSourceWords)
+    std::cerr << "reduced IBM 2 energy after iteration #" << iter << ": "
+              << reduced_ibm2_energy(source, slookup, target, alignment_model, dict, wcooc, nSourceWords, prior_weight, l0_beta, smoothed_l0)
               << std::endl;
 
     /************* compute alignment error rate ****************/
@@ -493,7 +511,7 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       double nErrors = 0.0;
       uint nContributors = 0;
 
-      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::iterator it = possible_ref_alignments.begin();
+      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::const_iterator it = possible_ref_alignments.begin();
            it != possible_ref_alignments.end(); it++) {
 
         uint s = it->first - 1;
@@ -753,8 +771,7 @@ void ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& source, const
                 change -= -cur_acount(j, i) * std::log(cur_acount(j, i));
               change -= -cur_acount(j, cur_aj) * std::log(cur_acount(j, cur_aj));
 
-              change +=
-                -(cur_acount(j, i) + 1) * std::log(cur_acount(j, i) + 1);
+              change += -(cur_acount(j, i) + 1) * std::log(cur_acount(j, i) + 1);
               if (cur_acount(j, cur_aj) > 1)
                 change += -(cur_acount(j, cur_aj) - 1) * std::log(cur_acount(j, cur_aj) - 1);
 
@@ -928,7 +945,7 @@ void ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& source, const
       double nErrors = 0.0;
       uint nContributors = 0;
 
-      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::iterator it = possible_ref_alignments.begin();
+      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::const_iterator it = possible_ref_alignments.begin();
            it != possible_ref_alignments.end(); it++) {
 
         uint s = it->first - 1;

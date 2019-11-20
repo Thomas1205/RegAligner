@@ -602,13 +602,15 @@ int main(int argc, char** argv)
     if (method == "em") {
 
       train_reduced_ibm2(source_sentence, slookup, target_sentence, wcooc, lcooc, nSourceWords, nTargetWords,
-                         reduced_ibm2align_model, dict, ibm2_iter, sure_ref_alignments, possible_ref_alignments);
+                         reduced_ibm2align_model, dict, ibm2_iter, sure_ref_alignments, possible_ref_alignments,
+                         prior_weight, l0_beta, em_l0, 45);
     }
     else if (method == "gd") {
 
       std::cerr << "WARNING: IBM-2 is not available with gradient descent" << std::endl;
       train_reduced_ibm2(source_sentence, slookup, target_sentence, wcooc, lcooc, nSourceWords, nTargetWords,
-                         reduced_ibm2align_model, dict, ibm2_iter, sure_ref_alignments, possible_ref_alignments);
+                         reduced_ibm2align_model, dict, ibm2_iter, sure_ref_alignments, possible_ref_alignments,
+                         prior_weight, l0_beta, em_l0, 45);
     }
     else {
 
@@ -775,8 +777,6 @@ int main(int argc, char** argv)
   ibm3_trainer.set_fertility_limit(fert_limit);
   if (rare_fert_limit < fert_limit)
     ibm3_trainer.set_rare_fertility_limit(rare_fert_limit, nMaxRareOccurances);
-  //if (fert_p0 >= 0.0)
-  //  ibm3_trainer.fix_p0(fert_p0);
 
   if (ibm3_iter > 0) {
 
@@ -830,9 +830,6 @@ int main(int argc, char** argv)
   if (rare_fert_limit < fert_limit)
     ibm4_trainer.set_rare_fertility_limit(rare_fert_limit, nMaxRareOccurances);
 
-  //if (fert_p0 >= 0.0)
-  //  ibm4_trainer.fix_p0(fert_p0);
-
   if (ibm4_iter > 0) {
 
     ibm4_trainer.init_from_prevmodel(last_model, passed_wrapper, true, collect_counts, method == "viterbi");
@@ -861,9 +858,6 @@ int main(int argc, char** argv)
   ibm5_trainer.set_fertility_limit(fert_limit);
   if (rare_fert_limit < fert_limit)
     ibm5_trainer.set_rare_fertility_limit(rare_fert_limit, nMaxRareOccurances);
-  
-  //if (fert_p0 >= 0.0)
-  //  ibm5_trainer.fix_p0(fert_p0);
 
   if (ibm5_iter > 0) {
 
