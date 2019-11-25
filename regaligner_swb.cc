@@ -460,11 +460,11 @@ int main(int argc, char** argv)
   }
 
   std::string ibm3_distortion_string = downcase(app.getParam("-ibm3-distortion"));
-  IBM3ParametricMode ibm3_dist_mode = IBM3ParByPosition;
+  IBM23ParametricMode ibm3_dist_mode = IBM23ParByPosition;
   if (ibm3_distortion_string == "diff")
-    ibm3_dist_mode = IBM3ParByDifference;
+    ibm3_dist_mode = IBM23ParByDifference;
   else if (ibm3_distortion_string == "nonpar")
-    ibm3_dist_mode = IBM3Nonpar;
+    ibm3_dist_mode = IBM23Nonpar;
   else if (ibm3_distortion_string != "pos") {
     USER_ERROR << " unknown ibm3-distortion: \"" << ibm3_distortion_string << "\" " << std::endl;
     exit(1);
@@ -542,7 +542,7 @@ int main(int argc, char** argv)
   fert_options.deficient_ = app.is_set("-deficient-h5");
   fert_options.nondeficient_ = app.is_set("-nondeficient");
   fert_options.reduce_deficiency_ = app.is_set("-ibm4-reduce-deficiency");
-  fert_options.ibm5_nonpar_distortion_ = (ibm3_dist_mode == IBM3Nonpar);
+  fert_options.ibm5_nonpar_distortion_ = (ibm3_dist_mode == IBM23Nonpar);
   fert_options.empty_word_model_ = empty_word_model;
 
   Math1D::NamedVector<double> log_table(MAKENAME(log_table));

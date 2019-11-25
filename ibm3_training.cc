@@ -64,7 +64,7 @@ IBM3Trainer::IBM3Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence
   uint nClasses = target_class_.max()+1;
 
   distortion_prob_.resize(maxJ_);
-  if (par_mode_ != IBM3ParByDifference)
+  if (par_mode_ != IBM23ParByDifference)
     distortion_param_.resize(maxJ_, maxI_, nClasses, 1.0 / maxJ_);
   else
     distortion_param_.resize(maxJ_ + maxI_ - 1, 1, nClasses, 1.0 / (maxJ_ + maxI_ - 1));
@@ -225,7 +225,7 @@ void IBM3Trainer::init_from_prevmodel(FertilityModelTrainerBase* prev_model, con
 
     std::cerr << "initial value of p_zero: " << p_zero_ << std::endl;
 
-    if (par_mode_ != IBM3Nonpar)
+    if (par_mode_ != IBM23Nonpar)
       distortion_param_.set_constant(0.0);
 
     for (uint J = 0; J < distortion_prob_.size(); J++) {
@@ -248,9 +248,9 @@ void IBM3Trainer::init_from_prevmodel(FertilityModelTrainerBase* prev_model, con
 
             for (uint j = 0; j < J + 1; j++) {
 
-              if (par_mode_ == IBM3ParByPosition)
+              if (par_mode_ == IBM23ParByPosition)
                 distortion_param_(j, i, c) += fdcount[J](j, i, c);
-              else if (par_mode_ == IBM3ParByDifference)
+              else if (par_mode_ == IBM23ParByDifference)
                 distortion_param_(maxI_ - 1 + j - i, 0, c) += fdcount[J](j, i, c);
               else {
                 if (viterbi)
@@ -260,7 +260,7 @@ void IBM3Trainer::init_from_prevmodel(FertilityModelTrainerBase* prev_model, con
               }
             }
           }
-          else if (par_mode_ == IBM3Nonpar) {
+          else if (par_mode_ == IBM23Nonpar) {
             for (uint j = 0; j < J + 1; j++)
               distortion_prob_[J](j, i, c) = 1.0 / (J + 1);
           }
@@ -268,7 +268,7 @@ void IBM3Trainer::init_from_prevmodel(FertilityModelTrainerBase* prev_model, con
       }
     }
 
-    if (par_mode_ != IBM3Nonpar) {
+    if (par_mode_ != IBM23Nonpar) {
 
       const double w1 = (viterbi) ? 0.9 : 0.95;
       const double w2 = 1.0 - w1;
@@ -323,7 +323,7 @@ void IBM3Trainer::par2nonpar_distortion(ReducedIBM3ClassDistortionModel& prob)
 
         double sum = 0.0;
 
-        if (par_mode_ == IBM3ParByPosition) {
+        if (par_mode_ == IBM23ParByPosition) {
 
           if (extra_deficiency_)
             sum = 1.0;
@@ -385,7 +385,7 @@ void IBM3Trainer::par2nonpar_distortion(const Math3D::Tensor<double>& param, Red
 
         double sum = 0.0;
 
-        if (par_mode_ == IBM3ParByPosition) {
+        if (par_mode_ == IBM23ParByPosition) {
 
           for (uint j = 0; j <= J; j++)
             sum += param(j, i, c);
@@ -3316,7 +3316,7 @@ void IBM3Trainer::compute_dist_param_gradient(const ReducedIBM3ClassDistortionMo
       double param_sum = 0.0;
       double product_sum = 0.0;
 
-      if (par_mode_ == IBM3ParByPosition) {
+      if (par_mode_ == IBM23ParByPosition) {
 
         for (uint c = 0; c < distort_grad[J].zDim(); c++) {
           for (uint j = 0; j < distort_grad[J].xDim(); j++) {
@@ -3375,7 +3375,7 @@ void IBM3Trainer::compute_dist_param_gradient(const ReducedIBM3ClassDistortionMo
 
 /* virtual */
 void IBM3Trainer::prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-    const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment)
+                                             const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment)
 {
   common_prepare_external_alignment(source, target, lookup, alignment);
 
@@ -3384,12 +3384,10 @@ void IBM3Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
 
   /*** check if respective distortion table is present. If not, create one from the parameters ***/
 
-  if (par_mode_ != IBM3Nonpar) {
-    if (distortion_param_.xDim() < J)
-      distortion_param_.resize(J, distortion_param_.yDim(), distortion_param_.zDim(), 1e-8);
-    if (distortion_param_.yDim() < I)
-      distortion_param_.resize(distortion_param_.xDim(), I, distortion_param_.zDim(), 1e-8);
-  }
+  if (distortion_param_.xDim() < J)
+    distortion_param_.resize(J, distortion_param_.yDim(), distortion_param_.zDim(), 1e-8);
+  if (distortion_param_.yDim() < I)
+    distortion_param_.resize(distortion_param_.xDim(), I, distortion_param_.zDim(), 1e-8);
 
   if (distortion_prob_.size() < J)
     distortion_prob_.resize(J);
@@ -3398,23 +3396,20 @@ void IBM3Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
 
     //std::cerr << "extending" << std::endl;
 
-    uint oldXDim = distortion_prob_[J - 1].xDim();
+    assert(distortion_prob_[J - 1].xDim() == J);
     uint oldYDim = distortion_prob_[J - 1].yDim();
 
     ReducedIBM3ClassDistortionModel temp_prob(J, MAKENAME(temp_prob));
-    temp_prob[J - 1].resize(std::max<size_t>(J, distortion_prob_[J - 1].xDim()), I, distortion_param_.zDim(), 1e-8);
+    temp_prob[J - 1].resize(J, I, distortion_param_.zDim(), 1e-8);
 
-    if (par_mode_ != IBM3Nonpar)
-      par2nonpar_distortion(temp_prob);
+    par2nonpar_distortion(temp_prob);
 
-    distortion_prob_[J - 1].resize(std::max(J, oldXDim), std::max(I, oldYDim), distortion_param_.zDim());
+    distortion_prob_[J - 1].resize(J, I, distortion_param_.zDim());
 
-    for (uint j = 0; j < std::max(J, oldXDim); j++) {
-      for (uint c = 0; c < distortion_param_.zDim(); c++) {
-        for (uint i = 0; i < std::max(I, oldYDim); i++) {
-
-          if (j >= oldXDim || i >= oldYDim)
-            distortion_prob_[J - 1](j, i, c) = temp_prob[J - 1](j, i, c);
+    for (uint i = oldYDim; i < I; i++) {
+      for (uint j = 0; j < J; j++) {
+        for (uint c = 0; c < distortion_param_.zDim(); c++) {
+          distortion_prob_[J - 1](j, i, c) = temp_prob[J - 1](j, i, c);
         }
       }
     }
@@ -3795,12 +3790,12 @@ void IBM3Trainer::update_distortion_probs(const ReducedIBM3ClassDistortionModel&
 
   const uint nClasses = distortion_param_.zDim();
 
-  if (par_mode_ != IBM3Nonpar) {
+  if (par_mode_ != IBM23Nonpar) {
 
     Math3D::Tensor<double> fpar_singleton_count(distortion_param_.xDim(), distortion_param_.yDim(), nClasses, 0.0);
     Math3D::Tensor<double> fpar_span_count(distortion_param_.xDim(), distortion_param_.yDim(), nClasses, 0.0);
 
-    if (par_mode_ == IBM3ParByPosition) {
+    if (par_mode_ == IBM23ParByPosition) {
 
       for (uint J = 0; J < fdistort_count.size(); J++) {
 
@@ -3819,7 +3814,7 @@ void IBM3Trainer::update_distortion_probs(const ReducedIBM3ClassDistortionModel&
     }
     else {
 
-      assert(par_mode_ == IBM3ParByDifference);
+      assert(par_mode_ == IBM23ParByDifference);
 
       const uint zero_offset = maxI_ - 1;
       fpar_span_count.resize(maxI_, distortion_param_.xDim(), nClasses, 0.0);
@@ -3850,7 +3845,7 @@ void IBM3Trainer::update_distortion_probs(const ReducedIBM3ClassDistortionModel&
         for (uint c = 0; c < nClasses; c++) {
           for (uint j = 0; j < fdistort_count[J].xDim(); j++) {
             for (uint i = 0; i < fdistort_count[J].yDim(); i++) {
-              if (par_mode_ == IBM3ParByPosition)
+              if (par_mode_ == IBM23ParByPosition)
                 fnondef_par_distort_count(j, i, c) += fnondef_distort_count[J](j, i, c);
               else
                 fnondef_par_distort_count(maxI_ - 1 + j - i, 0, c) += fnondef_distort_count[J](j, i, c);
@@ -3881,7 +3876,7 @@ void IBM3Trainer::update_distortion_probs(const ReducedIBM3ClassDistortionModel&
         }
       }
 
-      if (par_mode_ == IBM3ParByDifference) {
+      if (par_mode_ == IBM23ParByDifference) {
 
         Storage1D<std::map<Math1D::Vector<ushort,uchar>,double> > cur_nondef_count(nClasses);
 
@@ -4004,7 +3999,7 @@ void IBM3Trainer::update_distortion_probs(const ReducedIBM3ClassDistortionModel&
     else {
       //deficient
 
-      if (par_mode_ == IBM3ParByPosition) {
+      if (par_mode_ == IBM23ParByPosition) {
 
         for (uint i = 0; i < maxI_; i++) {
           std::cerr << "m-step for i=" << i << std::endl;
@@ -4020,7 +4015,7 @@ void IBM3Trainer::update_distortion_probs(const ReducedIBM3ClassDistortionModel&
       }
       else {
 
-        assert(par_mode_ == IBM3ParByDifference);
+        assert(par_mode_ == IBM23ParByDifference);
 
         for (uint c = 0; c < nClasses; c++)
           diffpar_distortion_m_step(fpar_singleton_count, fpar_span_count, c);
@@ -4185,7 +4180,7 @@ void IBM3Trainer::train_em(uint nIter, FertilityModelTrainerBase* prev_model, co
 
   SingleLookupTable aux_lookup;
 
-  if (par_mode_ != IBM3Nonpar)
+  if (par_mode_ != IBM23Nonpar)
     par2nonpar_distortion(distortion_prob_);
 
   ReducedIBM3ClassDistortionModel fdistort_count(distortion_prob_.size(), MAKENAME(fdistort_count));
@@ -4690,7 +4685,7 @@ void IBM3Trainer::train_em(uint nIter, FertilityModelTrainerBase* prev_model, co
     std::cerr << (((double)sum_iter) / source_sentence_.size()) << " average hillclimbing iterations per sentence pair" << std::endl;
   }
 
-  if (par_mode_ == IBM3Nonpar) {
+  if (par_mode_ == IBM23Nonpar) {
 
     //we compute this so that we can use it for computation of external alignments
 
@@ -5141,7 +5136,7 @@ void IBM3Trainer::train_viterbi(uint nIter, const AlignmentSetConstraints& align
 
                   const uint aj_class = target_class_[cur_target[cur_aj - 1]];
 
-                  if (par_mode_ != IBM3Nonpar) {
+                  if (par_mode_ != IBM23Nonpar) {
 
                     change -= -std::log(cur_distort_prob(j, cur_aj - 1, aj_class));
                   }
@@ -5171,7 +5166,7 @@ void IBM3Trainer::train_viterbi(uint nIter, const AlignmentSetConstraints& align
 
                   const uint i_class = target_class_[cur_target[i - 1]];
 
-                  if (par_mode_ != IBM3Nonpar) {
+                  if (par_mode_ != IBM23Nonpar) {
 
                     change += -std::log(cur_distort_prob(j, i - 1, i_class));
                   }
@@ -5364,7 +5359,7 @@ void IBM3Trainer::train_viterbi(uint nIter, const AlignmentSetConstraints& align
     }
   }
 
-  if (par_mode_ == IBM3Nonpar) {
+  if (par_mode_ == IBM23Nonpar) {
 
     //we compute this so that we can use it for computation of external alignments
 

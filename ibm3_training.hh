@@ -183,7 +183,7 @@ protected:
   ReducedIBM3ClassDistortionModel distortion_prob_;
   Math3D::Tensor<double> distortion_param_;
 
-  IBM3ParametricMode par_mode_;
+  IBM23ParametricMode par_mode_;
   bool extra_deficiency_;
 
   IlpMode viterbi_ilp_mode_;

@@ -43,7 +43,7 @@ enum HmmInitProbType {HmmInitFix, HmmInitNonpar, HmmInitPar, HmmInitFix2, HmmIni
 
 enum HmmAlignProbType {HmmAlignProbNonpar, HmmAlignProbFullpar, HmmAlignProbReducedpar, HmmAlignProbNonpar2, HmmAlignProbInvalid};
 
-enum IBM3ParametricMode {IBM3ParByPosition, IBM3ParByDifference, IBM3Nonpar};
+enum IBM23ParametricMode {IBM23ParByPosition, IBM23ParByDifference, IBM23Nonpar};
 
 enum MStepSolveMode {MSSolvePGD, MSSolveLBFGS, MSSolveGD};
 

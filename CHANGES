@@ -27,7 +27,7 @@ RegAligner Change History
 - numerous speed-ups, in particular for hillclimbing
 - more compact implementation of m-steps
 - increased the maximal number of hillclimbing iterations
-- improved dictionary m-step
+- improved dictionary and alignment/distortion m-steps
 
 *** release version 1.21 (released September 1 2013) ****
 - IBM-5 now depends on the IBM-4 intra word class mode and has a nontrivial start probability

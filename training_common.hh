@@ -35,8 +35,9 @@ inline void compute_dictmat(const Storage1D<uint>& source_sentence, const Single
 
   for (uint i=0; i < I; i++) {
     const Math1D::Vector<double>& cur_dict = dict[target_sentence[i]];
+    const uint* lrow = slookup.row_ptr(i);
     for (uint j=0; j < J; j++)
-      dicttab(j,i) = cur_dict[slookup(j,i)];
+      dicttab(j,i) = cur_dict[lrow[j]]; //cur_dict[slookup(j,i)];
   }
   const Math1D::Vector<double>& null_dict = dict[0];
   for (uint j=0; j < J; j++)

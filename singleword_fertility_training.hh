@@ -40,7 +40,7 @@ struct FertModelOptions {
   IlpMode viterbi_ilp_mode_ = IlpOff;
   bool utmost_ilp_precision_ = false;
 
-  IBM3ParametricMode par_mode_ = IBM3ParByPosition;
+  IBM23ParametricMode par_mode_ = IBM23ParByPosition;
 
   IBM4CeptStartMode cept_start_mode_ = IBM4FIRST; //CENTER is the original of Brown et. al.
   IBM4InterDistMode inter_dist_mode_ = IBM4InterDistModePrevious; // previous is the original of Brown et. al.
