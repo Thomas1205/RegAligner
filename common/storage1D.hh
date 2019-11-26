@@ -674,7 +674,7 @@ template<typename T, typename ST>
 
 template<typename T, typename ST> FlexibleStorage1D<T,ST>::~FlexibleStorage1D()
 {
-  delete [] data_;
+  delete[] data_;
 }
 
 template<typename T, typename ST>
@@ -778,7 +778,7 @@ void FlexibleStorage1D<T,ST>::resize(ST size, bool exact_fit)
     reserved_size_ = size;
     T* new_data = new T[reserved_size_];
     
-    Makros::unified_assign(new_data, data_, size_);
+    Makros::unified_assign(new_data, data_, std::min(size_,size));
     
     //for (uint k=0; k < std::min(size_,size); k++)
     //  new_data[k] = data_[k];
@@ -794,11 +794,11 @@ void FlexibleStorage1D<T,ST>::resize(ST size, bool exact_fit)
 
     reserved_size_ = size_;
     T* new_data = new T[reserved_size_];
-    
-    
-    
-    for (uint k=0; k < size_; k++)
-      new_data[k] = data_[k];
+   
+    Makros::unified_assign(new_data, data_, size_);
+   
+    //for (uint k=0; k < size_; k++)
+    //  new_data[k] = data_[k];
 
     delete[] data_;
     data_ = new_data;

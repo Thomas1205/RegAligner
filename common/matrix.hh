@@ -48,8 +48,14 @@ namespace Math2D {
     /*** minimal element ***/
     T min() const;
 
+    inline T row_min(ST y) const;
+
+    inline T row_max(ST y) const;
+
     /*** maximal absolute element = l-infinity norm ***/
     T max_abs() const;
+    
+    inline void ensure_min(T lower_limit);
 
     /*** L2-norm of the matrix ***/
     inline double norm() const;
@@ -142,7 +148,6 @@ namespace Makros {
 
     std::string name() const
     {
-
       return "Math2D::Matrix<" + Typename<T>() + "," + Typename<ST>() + "> ";
     }
   };
@@ -153,7 +158,6 @@ namespace Makros {
 
     std::string name() const
     {
-
       return "Math2D::Matrix<" + Typename<T>() + "> ";
     }
   };
@@ -164,7 +168,6 @@ namespace Makros {
 
     std::string name() const
     {
-
       return "Math2D::NamedMatrix<" + Typename<T>() + "," + Typename<ST>() + "> ";
     }
   };
@@ -176,7 +179,6 @@ namespace Makros {
 
     std::string name() const
     {
-
       return "Math2D::NamedMatrix<" + Typename<T>() + "> ";
     }
   };
@@ -226,7 +228,6 @@ namespace Math2D {
   template<typename T, typename ST>
   inline T Matrix<T,ST>::sum() const
   {
-
     const ST size = Storage2D<T,ST>::size_;
     const T_A16* data = Storage2D<T,ST>::data_;
 
@@ -259,7 +260,7 @@ namespace Math2D {
     //     T maxel = std::numeric_limits<T,ST>::min();
     //     for (ST i=0; i < Storage2D<T,ST>::size_; i++) {
     //       if (Storage2D<T,ST>::data_[i] > maxel)
-    // 	maxel = Storage2D<T,ST>::data_[i];
+    // 	       maxel = Storage2D<T,ST>::data_[i];
     //     }
     //     return maxel;
 
@@ -278,11 +279,10 @@ namespace Math2D {
   template<typename T, typename ST>
   T Matrix<T,ST>::min() const
   {
-
     //     T minel = std::numeric_limits<T,ST>::max();
     //     for (ST i=0; i < Storage2D<T,ST>::size_; i++) {
     //       if (Storage2D<T,ST>::data_[i] < minel)
-    // 	minel = Storage2D<T,ST>::data_[i];
+    //         minel = Storage2D<T,ST>::data_[i];
     //     }
     //     return minel;
 
@@ -296,6 +296,20 @@ namespace Math2D {
 
   template<>
   float Matrix<float>::min() const;
+  
+  template<typename T, typename ST>
+  inline T Matrix<T,ST>::row_min(ST y) const 
+  {
+    const T* data = row_ptr(y);
+    return *std::min_element(data,data+Storage2D<T,ST>::size_);    
+  }
+
+  template<typename T, typename ST>
+  inline T Matrix<T,ST>::row_max(ST y) const 
+  {
+    const T* data = row_ptr(y);
+    return *std::max_element(data,data+Storage2D<T,ST>::size_);        
+  }
 
   /*** maximal absolute element = l-infinity norm ***/
   template<typename T, typename ST>
@@ -311,11 +325,18 @@ namespace Math2D {
     return maxel;
   }
 
+  template<typename T, typename ST>
+  inline void Matrix<T,ST>::ensure_min(T lower_limit) 
+  {
+    const ST size = Storage2D<T,ST>::size_;
+    for (ST i=0; i < size; i++) 
+      Storage2D<T,ST>::data_[i] = std::max(lower_limit,Storage2D<T,ST>::data_[i]);    
+  }
+
   /*** L2-norm of the matrix ***/
   template<typename T, typename ST>
   inline double Matrix<T,ST>::norm() const
   {
-
     double result = 0.0;
     for (ST i=0; i < Storage2D<T,ST>::size_; i++) {
       const double cur = (double) Storage2D<T,ST>::data_[i];
@@ -328,7 +349,6 @@ namespace Math2D {
   template<typename T, typename ST>
   inline double Matrix<T,ST>::sqr_norm() const
   {
-
     double result = 0.0;
     for (ST i=0; i < Storage2D<T,ST>::size_; i++) {
       const double cur = (double) Storage2D<T,ST>::data_[i];
@@ -342,7 +362,6 @@ namespace Math2D {
   template<typename T, typename ST>
   inline double Matrix<T,ST>::norm_l1() const
   {
-
     double result = 0.0;
     for (ST i=0; i < Storage2D<T,ST>::size_; i++) {
       result += Makros::abs<T>(Storage2D<T,ST>::data_[i]);
@@ -354,7 +373,6 @@ namespace Math2D {
   template<typename T, typename ST>
   inline void Matrix<T,ST>::add_constant(const T addon)
   {
-
     T_A16* data = Storage2D<T,ST>::data_;
     const ST size = Storage2D<T,ST>::size_;
 
@@ -451,7 +469,6 @@ namespace Math2D {
   template<typename T, typename ST>
   void Matrix<T,ST>::operator*=(const T scalar)
   {
-
     T_A16* data = Storage2D<T,ST>::data_;
     const ST size = Storage2D<T,ST>::size_;
 
@@ -474,7 +491,6 @@ namespace Math2D {
   template<typename T, typename ST>
   bool Matrix<T,ST>::savePGM(const std::string& filename, size_t max_intensity, bool fit_to_range) const
   {
-
     std::ofstream of(filename.c_str());
 
     if (!of.is_open()) {
@@ -638,7 +654,6 @@ namespace Math2D {
   template <typename T, typename ST>
   std::ostream& operator<<(std::ostream& s, const Matrix<T,ST>& m)
   {
-
     const ST xDim = m.xDim();
     const ST yDim = m.yDim();
 
@@ -668,7 +683,6 @@ namespace Math2D {
   template<typename T, typename ST>
   Matrix<T,ST> transpose(const Matrix<T,ST>& m)
   {
-
     const ST xDim = m.xDim();
     const ST yDim = m.yDim();
 
@@ -688,10 +702,8 @@ namespace Math2D {
   template<typename T, typename ST>
   Math1D::Vector<T,ST> operator*(const Matrix<T,ST>& m, const Math1D::Vector<T,ST>& v)
   {
-
     //there is room for optimization here
     // but if you want efficient code you should never call a routine that returns a vector - except if most of your run-time lies elsewhere
-
 
     const ST xDim = m.xDim();
     const ST yDim = m.yDim();

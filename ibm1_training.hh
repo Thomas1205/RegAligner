@@ -21,6 +21,7 @@ public:
 
   bool smoothed_l0_;
   double l0_beta_;
+  double p0_ = -1.0;
 
   bool print_energy_;
 
@@ -52,6 +53,6 @@ void train_ibm1_lbfgs_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source
 void ibm1_viterbi_training(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup,
                            const Storage1D<Math1D::Vector<uint> >& target, const CooccuringWordsType& cooc,
                            SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight,
-                           const IBM1Options& options, const Math1D::Vector < double >& xlogx_table);
+                           const IBM1Options& options, const Math1D::Vector<double>& xlogx_table);
 
 #endif

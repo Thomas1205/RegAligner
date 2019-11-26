@@ -62,7 +62,7 @@ long double hmm_alignment_prob(const Storage1D<uint>& source, const SingleLookup
   return prob;
 }
 
-void init_hmm_from_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup,
+void init_hmm_from_prev(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup,
                         const Storage1D<Math1D::Vector<uint> >& target, const SingleWordDictionary& dict,
                         const CooccuringWordsType& wcooc, const Math1D::Vector<WordClassType>& target_class,
                         FullHMMAlignmentModelSingleClass& align_model, Math2D::Matrix<double>& dist_params,
@@ -70,24 +70,21 @@ void init_hmm_from_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const Lo
                         InitialAlignmentProbability& initial_prob, Math1D::Vector<double>& init_params,
                         const HmmOptions& options, IBM1TransferMode transfer_mode = IBM1TransferViterbi)
 {
-
   const uint nClasses = target_class.max() + 1;
 
   dist_grouping_param.resize(nClasses);
   dist_grouping_param.set_constant(-1.0);
 
-  HmmInitProbType init_type = options.init_type_;
-  HmmAlignProbType align_type = options.align_type_;
+  const HmmInitProbType init_type = options.init_type_;
+  const HmmAlignProbType align_type = options.align_type_;
   const bool start_empty_word = options.start_empty_word_;
   const int redpar_limit = options.redpar_limit_;
 
   if (init_type >= HmmInitInvalid) {
-
     INTERNAL_ERROR << "invalid type for HMM initial alignment model" << std::endl;
     exit(1);
   }
   if (align_type >= HmmAlignProbInvalid) {
-
     INTERNAL_ERROR << "invalid type for HMM alignment model" << std::endl;
     exit(1);
   }
@@ -181,18 +178,31 @@ void init_hmm_from_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const Lo
   }
 
   if (transfer_mode != IBM1TransferNo) {
+
+    const double ibm1_p0 = options.ibm1_p0_;
+
     if (align_type == HmmAlignProbReducedpar)
       dist_grouping_param.set_constant(0.0);
     dist_params.set_constant(0.0);
-    for (uint s = 0; s < source.size(); s++) {
 
-      const SingleLookupTable& cur_lookup = get_wordlookup(source[s], target[s], wcooc, options.nSourceWords_, slookup[s], aux_lookup);
+    for (uint s = 0; s < source.size(); s++) {
+      const Math1D::Vector<uint>& cur_source = source[s];
+      const Math1D::Vector<uint>& cur_target = target[s];
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, options.nSourceWords_, slookup[s], aux_lookup);
+
+      const uint curJ = cur_source.size();
+      const uint curI = cur_target.size();
 
       if (transfer_mode == IBM1TransferViterbi) {
 
         Storage1D<AlignBaseType> viterbi_alignment(source[s].size(), 0);
 
-        compute_ibm1_viterbi_alignment(source[s], cur_lookup, target[s], dict, viterbi_alignment);
+        if (options.ibm2_alignment_model_.size() > curI && options.ibm2_alignment_model_[curI].size() > 0)
+          compute_ibm2_viterbi_alignment(cur_source, cur_lookup, cur_target, dict, options.ibm2_alignment_model_[curI], viterbi_alignment);
+        else if (ibm1_p0 >= 0.0 && ibm1_p0 < 1.0)
+          compute_ibm1p0_viterbi_alignment(cur_source, cur_lookup, cur_target, dict, ibm1_p0, viterbi_alignment);
+        else
+          compute_ibm1_viterbi_alignment(cur_source, cur_lookup, cur_target, dict, viterbi_alignment);
 
         for (uint j = 1; j < source[s].size(); j++) {
 
@@ -202,41 +212,86 @@ void init_hmm_from_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const Lo
           if (prev_aj != 0 && cur_aj != 0) {
             int diff = cur_aj - prev_aj;
 
-            if (abs(diff) <= redpar_limit
-                || align_type != HmmAlignProbReducedpar)
-              dist_params(zero_offset + diff, target_class[target[s][prev_aj - 1]]) += 1.0;
+            if (abs(diff) <= redpar_limit || align_type != HmmAlignProbReducedpar)
+              dist_params(zero_offset + diff, target_class[cur_target[prev_aj - 1]]) += 1.0;
             else
-              dist_grouping_param[target_class[target[s][prev_aj - 1]]] += 1.0;
+              dist_grouping_param[target_class[cur_target[prev_aj - 1]]] += 1.0;
           }
         }
       }
       else {
         assert(transfer_mode == IBM1TransferPosterior);
 
-        for (uint j = 1; j < source[s].size(); j++) {
+        if (options.ibm2_alignment_model_.size() > curI && options.ibm2_alignment_model_[curI].size() > 0) {
+          const Math2D::Matrix<double>& cur_align_prob = options.ibm2_alignment_model_[curI];
 
-          double sum = dict[0][source[s][j] - 1];
-          for (uint i = 0; i < target[s].size(); i++)
-            sum += dict[target[s][i]][cur_lookup(j, i)];
+          Math1D::Vector<double> prev_marg(curI+1);
+          Math1D::Vector<double> cur_marg(curI+1);
 
-          double prev_sum = dict[0][source[s][j - 1] - 1];
-          for (uint i = 0; i < target[s].size(); i++)
-            prev_sum += dict[target[s][i]][cur_lookup(j - 1, i)];
+          for (uint j = 1; j < curJ; j++) {
 
-          for (int i1 = 0; i1 < int (target[s].size()); i1++) {
+            const uint j_prev = j - 1;
 
-            const double i1_weight = (dict[target[s][i1]][cur_lookup(j - 1, i1)] / prev_sum);
+            cur_marg[0] = cur_align_prob(0, j) * dict[0][cur_source[j] - 1];
+            for (uint i = 0; i < curI; i++)
+              cur_marg[i + 1] = cur_align_prob(i + 1, j) * dict[cur_target[i]][cur_lookup(j, i)];
 
-            for (int i2 = 0; i2 < int (target[s].size()); i2++) {
+            cur_marg *= 1.0 / cur_marg.sum();
 
-              const double marg = (dict[target[s][i2]][cur_lookup(j, i2)] / sum) * i1_weight;
+            prev_marg[0] = cur_align_prob(0, j_prev) * dict[0][cur_source[j - 1] - 1];
+            for (uint i = 0; i < curI; i++)
+              prev_marg[i + 1] = cur_align_prob(i + 1, j_prev) * dict[cur_target[i]][cur_lookup(j - 1, i)];
 
-              int diff = i2 - i1;
-              if (abs(diff) <= redpar_limit || align_type != HmmAlignProbReducedpar)
-                dist_params(zero_offset + diff, target_class[target[s][i2]]) +=
-                  marg;
-              else
-                dist_grouping_param[target_class[target[s][i2]]] += marg;
+            prev_marg *= 1.0 / prev_marg.sum();
+
+            for (int i1 = 0; i1 < int(curI); i1++) {
+              for (int i2 = 0; i2 < int(curI); i2++) {
+
+                const double marg = prev_marg[i1 - 1] * cur_marg[i2 - 1];
+
+                int diff = i2 - i1;
+                if (abs(diff) <= redpar_limit || align_type != HmmAlignProbReducedpar)
+                  dist_params(zero_offset + diff, target_class[cur_target[i1]]) += marg;
+                else
+                  dist_grouping_param[target_class[cur_target[i1]]] += marg;
+              }
+            }
+          }
+        }
+        else {
+
+          double w0 = 1.0;
+          double w1 = 1.0;
+
+          if (ibm1_p0 >= 0.0 && ibm1_p0 < 1.0) {
+            w0 = ibm1_p0;
+            w1 = (1.0 - ibm1_p0) / curI;
+          }
+
+          for (uint j = 1; j < curJ; j++) {
+
+            double sum = w0 * dict[0][cur_source[j] - 1];
+            for (uint i = 0; i < curI; i++)
+              sum += w1 * dict[cur_target[i]][cur_lookup(j, i)];
+
+            double prev_sum = w0 * dict[0][cur_source[j - 1] - 1];
+            for (uint i = 0; i < curI; i++)
+              prev_sum += w1 * dict[cur_target[i]][cur_lookup(j - 1, i)];
+
+            for (int i1 = 0; i1 < int(curI); i1++) {
+
+              const double i1_weight = w1 * (dict[cur_target[i1]][cur_lookup(j - 1, i1)] / prev_sum);
+
+              for (int i2 = 0; i2 < int(curI); i2++) {
+
+                const double marg = w1 * (dict[cur_target[i2]][cur_lookup(j, i2)] / sum) * i1_weight;
+
+                int diff = i2 - i1;
+                if (abs(diff) <= redpar_limit || align_type != HmmAlignProbReducedpar)
+                  dist_params(zero_offset + diff, target_class[cur_target[i1]]) +=  marg;
+                else
+                  dist_grouping_param[target_class[cur_target[i1]]] += marg;
+              }
             }
           }
         }
@@ -353,22 +408,23 @@ double extended_hmm_energy(const Storage1D<Math1D::Vector<uint> >& source, const
                            const Storage1D<WordClassType>& tclass, const FullHMMAlignmentModelSingleClass& align_model,
                            const InitialAlignmentProbability& initial_prob, const SingleWordDictionary& dict,
                            const CooccuringWordsType& wcooc, uint nSourceWords, const floatSingleWordDictionary& prior_weight,
-                           const HmmOptions& options)
+                           const HmmOptions& options, const double dict_weight_sum)
 {
-
   double energy = 0.0;
 
-  for (uint i = 0; i < dict.size(); i++)
-    for (uint k = 0; k < dict[i].size(); k++) {
-      if (options.smoothed_l0_)
-        energy += prior_weight[i][k] * prob_penalty(dict[i][k], options.l0_beta_);
-      else
-        energy += prior_weight[i][k] * dict[i][k];
-    }
+  if (dict_weight_sum != 0.0) {
+    for (uint i = 0; i < dict.size(); i++)
+      for (uint k = 0; k < dict[i].size(); k++) {
+        if (options.smoothed_l0_)
+          energy += prior_weight[i][k] * prob_penalty(dict[i][k], options.l0_beta_);
+        else
+          energy += prior_weight[i][k] * dict[i][k];
+      }
 
-  //std::cerr << "before dividing: " << energy << std::endl;
+    //std::cerr << "before dividing: " << energy << std::endl;
 
-  energy /= source.size();
+    energy /= source.size();
+  }
 
   //std::cerr << "before adding perplexity: " << energy << std::endl;
 
@@ -870,7 +926,7 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
   SingleWordDictionary fwcount(MAKENAME(fwcount));
   fwcount = dict;
 
-  init_hmm_from_ibm1(source, slookup, target, dict, wcooc, target_class, align_model, dist_params, dist_grouping_param, source_fert,
+  init_hmm_from_prev(source, slookup, target, dict, wcooc, target_class, align_model, dist_params, dist_grouping_param, source_fert,
                      initial_prob, init_params, options, options.transfer_mode_);
 
   const uint maxI = align_model.size();
@@ -1310,7 +1366,7 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       double sum_postdec_fmeasure = 0.0;
       double sum_postdec_daes = 0.0;
 
-      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::iterator it = options.possible_ref_alignments_.begin();
+      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::const_iterator it = options.possible_ref_alignments_.begin();
            it != options.possible_ref_alignments_.end(); it++) {
 
         uint s = it->first - 1;
@@ -1364,9 +1420,8 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
       if (options.print_energy_) {
         std::cerr << "#### EHMM energy after iteration # " << iter << ": "
-                  << extended_hmm_energy(source, slookup, target, target_class,
-                                         align_model, initial_prob, dict, wcooc,
-                                         nSourceWords, prior_weight, options)
+                  << extended_hmm_energy(source, slookup, target, target_class, align_model, initial_prob, dict, wcooc,
+                                         nSourceWords, prior_weight, options, dict_weight_sum)
                   << std::endl;
       }
       std::cerr << "#### EHMM-SingleClass Viterbi-AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
@@ -1406,9 +1461,14 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
   const uint nSourceWords = options.nSourceWords_;
 
+  double dict_weight_sum = 0.0;
+  for (uint i = 0; i < options.nTargetWords_; i++) {
+    dict_weight_sum += fabs(prior_weight[i].sum());
+  }
+
   SingleLookupTable aux_lookup;
 
-  init_hmm_from_ibm1(source, slookup, target, dict, wcooc, target_class, align_model, dist_params, dist_grouping_param, source_fert,
+  init_hmm_from_prev(source, slookup, target, dict, wcooc, target_class, align_model, dist_params, dist_grouping_param, source_fert,
                      initial_prob, init_params, options, options.transfer_mode_);
 
   std::cerr << "after init" << std::endl;
@@ -1488,7 +1548,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
   }
 
   double energy = extended_hmm_energy(source, slookup, target, target_class, align_model,
-                                      initial_prob, dict, wcooc, nSourceWords, prior_weight, options);
+                                      initial_prob, dict, wcooc, nSourceWords, prior_weight, options, dict_weight_sum);
 
   double line_reduction_factor = 0.5;
 
@@ -1712,15 +1772,17 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
       }
     }
 
-    for (uint i = 0; i < options.nTargetWords_; i++) {
+    if (dict_weight_sum != 0.0) {
+      for (uint i = 0; i < options.nTargetWords_; i++) {
 
-      const uint size = dict[i].size();
+        const uint size = dict[i].size();
 
-      for (uint k = 0; k < size; k++) {
-        if (smoothed_l0)
-          dict_grad[i][k] += prior_weight[i][k] * prob_pen_prime(dict[i][k], l0_beta);
-        else
-          dict_grad[i][k] += prior_weight[i][k];
+        for (uint k = 0; k < size; k++) {
+          if (smoothed_l0)
+            dict_grad[i][k] += prior_weight[i][k] * prob_pen_prime(dict[i][k], l0_beta);
+          else
+            dict_grad[i][k] += prior_weight[i][k];
+        }
       }
     }
 
@@ -2154,7 +2216,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
       }
 
       double new_energy = extended_hmm_energy(source, slookup, target, target_class, hyp_align_prob,
-                                              hyp_init_prob, hyp_dict_prob, wcooc, nSourceWords, prior_weight, options);
+                                              hyp_init_prob, hyp_dict_prob, wcooc, nSourceWords, prior_weight, options, dict_weight_sum);
 
       std::cerr << "new: " << new_energy << ", prev: " << hyp_energy << std::endl;
 
@@ -2271,7 +2333,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
       double sum_postdec_fmeasure = 0.0;
       double sum_postdec_daes = 0.0;
 
-      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::iterator it = options.possible_ref_alignments_.begin();
+      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::const_iterator it = options.possible_ref_alignments_.begin();
            it != options.possible_ref_alignments_.end(); it++) {
 
         uint s = it->first - 1;
@@ -2369,7 +2431,7 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
 
   //std::cerr << "init_type: " << init_type << std::endl;
 
-  init_hmm_from_ibm1(source, slookup, target, dict, wcooc, target_class, align_model, dist_params, dist_grouping_param, source_fert,
+  init_hmm_from_prev(source, slookup, target, dict, wcooc, target_class, align_model, dist_params, dist_grouping_param, source_fert,
                      initial_prob, init_params, options, options.transfer_mode_);
 
   const uint maxI = align_model.size();
@@ -2706,7 +2768,9 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
       Math1D::Vector<AlignBaseType>& cur_alignment = viterbi_alignment[s];
 
       const Math3D::Tensor<double>& cur_align_model = align_model[curI - 1];
+      const Math1D::Vector<double>& cur_initial_prob = initial_prob[curI - 1];
       Math3D::Tensor<double>& cur_acount = acount[curI - 1];
+      Math1D::Vector<double>& cur_icount = icount[curI - 1];
 
       //std::cerr << "s: " << s << ", I = " << curI << ", J = " << curJ << std::endl;
 
@@ -2750,8 +2814,7 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
         double best_change = 1e300;
 
         const uint cur_target_word = (cur_aj >= curI) ? 0 : cur_target[cur_aj];
-        const uint cur_idx =
-          (cur_aj >= curI) ? cur_source[j] - 1 : cur_lookup(j, cur_aj);
+        const uint cur_idx = (cur_aj >= curI) ? cur_source[j] - 1 : cur_lookup(j, cur_aj);
 
         Math1D::Vector<double>& cur_dictcount = dcount[cur_target_word];
         const uint cur_dictsum = dict_sum[cur_target_word];
@@ -2800,8 +2863,7 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
             uint next_aj = cur_alignment[j + 1];
 
             //TODO: handle these special cases (some distributions are doubly affected)
-            if (align_type == HmmAlignProbNonpar
-                || align_type == HmmAlignProbNonpar2) {
+            if (align_type == HmmAlignProbNonpar || align_type == HmmAlignProbNonpar2) {
 
               fix = false;
 
@@ -2881,13 +2943,13 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
             else if (init_type != HmmInitFix) {
 
               if (cur_aj != 2 * curI)
-                change += std::log(initial_prob[curI - 1][cur_aj]);
+                change += std::log(cur_initial_prob[cur_aj]);
               else
-                change += std::log(initial_prob[curI - 1][curI]);
+                change += std::log(cur_initial_prob[curI]);
               if (i != 2 * curI)
-                change -= std::log(initial_prob[curI - 1][i]);
+                change -= std::log(cur_initial_prob[i]);
               else
-                change -= std::log(initial_prob[curI - 1][curI]);
+                change -= std::log(cur_initial_prob[curI]);
             }
           }
           else {
@@ -2915,8 +2977,8 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
                 }
               }
               else {
-                change -= -std::log(initial_prob[curI - 1][std::min<ushort>(curI, cur_aj)]);
-                change += -std::log(initial_prob[curI - 1][std::min<ushort>(curI, i)]);
+                change -= -std::log(cur_initial_prob[std::min<ushort>(curI, cur_aj)]);
+                change += -std::log(cur_initial_prob[std::min<ushort>(curI, i)]);
               }
             }
             else {              //parametric model
@@ -2937,7 +2999,7 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
                 if (effective_prev_aj < curI)
                   change -= -std::log(cur_align_model(std::min < ushort > (curI, cur_aj), effective_prev_aj, tclass[effective_prev_aj]));
                 else
-                  change -= -std::log(initial_prob[curI - 1][effective_cur_aj]);
+                  change -= -std::log(cur_initial_prob[effective_cur_aj]);
               }
 
               if (!fix && deficient_parametric) {
@@ -2956,7 +3018,7 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
                 if (effective_prev_aj < curI)
                   change += -std::log(cur_align_model(std::min(curI, i), effective_prev_aj, tclass[effective_prev_aj]));
                 else
-                  change += -std::log(initial_prob[curI - 1][effective_i]);
+                  change += -std::log(cur_initial_prob[effective_i]);
               }
 
               //source fertility counts
@@ -3243,18 +3305,18 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
             //if (init_type != HmmInitFix) {
             if (true) {
               if (cur_aj != 2 * curI) {
-                assert(icount[curI - 1][cur_aj] > 0);
-                icount[curI - 1][cur_aj]--;
+                assert(cur_icount[cur_aj] > 0);
+                cur_icount[cur_aj]--;
               }
               else {
-                assert(icount[curI - 1][curI] > 0);
-                icount[curI - 1][curI]--;
+                assert(cur_icount[curI] > 0);
+                cur_icount[curI]--;
               }
 
               if (new_aj != 2 * curI)
-                icount[curI - 1][new_aj]++;
+                cur_icount[new_aj]++;
               else
-                icount[curI - 1][curI]++;
+                cur_icount[curI]++;
             }
 
             if (init_type == HmmInitPar) {
@@ -3278,8 +3340,8 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
               assert(cur_acount(std::min<ushort> (curI, new_aj), effective_prev_aj, tclass[effective_prev_aj]) >= 0);
             }
             else {
-              icount[curI - 1][std::min < ushort > (curI, cur_aj)]--;
-              icount[curI - 1][std::min < ushort > (curI, new_aj)]++;
+              cur_icount[std::min<ushort>(curI, cur_aj)]--;
+              cur_icount[std::min<ushort>(curI, new_aj)]++;
             }
 
             if (deficient_parametric && effective_prev_aj < curI) {
@@ -3324,11 +3386,11 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
               assert(cur_acount(std::min(curI, next_aj), effective_cur_aj, tclass[effective_cur_aj]) >= 0);
             }
             else
-              icount[curI - 1][std::min(curI, next_aj)]--;
+              cur_icount[std::min(curI, next_aj)]--;
             if (effective_new_aj < curI)
               cur_acount(std::min(curI, next_aj), effective_new_aj, tclass[effective_new_aj])++;
             else
-              icount[curI - 1][std::min(curI, next_aj)]++;
+              cur_icount[std::min(curI, next_aj)]++;
 
             if (deficient_parametric) {
               if (next_aj < curI) {
@@ -3509,7 +3571,7 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
       double nErrors = 0.0;
       uint nContributors = 0;
 
-      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::iterator it = options.possible_ref_alignments_.begin();
+      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::const_iterator it = options.possible_ref_alignments_.begin();
            it != options.possible_ref_alignments_.end(); it++) {
 
         uint s = it->first - 1;

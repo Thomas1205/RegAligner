@@ -10,6 +10,7 @@
 #include <set>
 
 const double ibm1_min_dict_entry = 1e-6;
+const double ibm2_min_align_param = 1e-7;
 const double hmm_min_dict_entry = 1e-6; //with and without classes, also for all bi-word HMMs
 const double hmm_min_param_entry = 1e-8; //for init and align params, also for all bi-word HMMs
 
@@ -88,8 +89,8 @@ double prob_penalty(double x, double beta);
 double prob_pen_prime(double x, double beta);
 
 void update_dict_from_counts(const SingleWordDictionary& fdict_count, const floatSingleWordDictionary& prior_weight,
-                             double dict_weight_sum, bool smoothed_l0, double l0_beta, uint nDictStepIter, SingleWordDictionary& dict, 
-                             double min_prob = 0.0, bool unconstrained_m_step = false);
+                             double dict_weight_sum, bool smoothed_l0, double l0_beta,
+                             uint nDictStepIter, SingleWordDictionary& dict, double min_prob = 0.0, bool unconstrained_m_step = false);
 
 void dict_m_step(const SingleWordDictionary& fdict_count, const floatSingleWordDictionary& prior_weight,
                  SingleWordDictionary& dict, double alpha, uint nIter = 100, bool smoothed_l0 = false, double l0_beta = 1.0);
@@ -113,4 +114,19 @@ void start_prob_m_step(const Math1D::Vector<double>& singleton_count, const Math
 
 void start_prob_m_step_unconstrained(const Math1D::Vector<double>& singleton_count, const Math1D::Vector<double>& norm_count,
                                      Math1D::Vector<double>& sentence_start_parameters, uint nIter = 400, uint L = 5);
+
+
+inline void symmetrize_swapmat(Math2D::Matrix<double>& swap_prob, const uint curJ)
+{
+  for (uint j1 = 0; j1 < curJ; j1++) {
+
+    swap_prob(j1, j1) = 0.0;
+
+    for (uint j2 = j1 + 1; j2 < curJ; j2++) {
+
+      swap_prob(j2, j1) = swap_prob(j1, j2);
+    }
+  }
+}
+
 #endif

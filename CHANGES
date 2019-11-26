@@ -17,6 +17,7 @@ RegAligner Change History
 
 **** changes since the last release (for 1.3 probably) ****
 - several new model variants
+- made IBM-2 competitive and bug-free, with parametric models (but so far p0 is fixed to 0.02)
 - implemented fertility pooling via fertility classes
 - HMM now available with classes and with start empty word
 - implemented most combinations

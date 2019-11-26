@@ -35,12 +35,27 @@ public:
 
   //saves all existing entries, new positions contain undefined data
   void resize(ST newxDim, ST newyDim);
+  
+  inline void resize(const std::pair<ST,ST> dims) 
+  {
+     resize(dims.first, dims.second);
+  }
 
   //saves all existing entries, new positions are filled with <code> fill_value </code>
   void resize(ST newxDim, ST newyDim, const T fill_value);
 
+  inline void resize(const std::pair<ST,ST> dims, const T fill_value) 
+  {
+    resize(dims.first, dims.second, fill_value);
+  }
+
   //all elements are uninitialized after this operation
   void resize_dirty(ST newxDim, ST newyDim);
+
+  inline void resize_dirty(const std::pair<ST,ST> dims)
+  {
+    resize_dirty(dims.first, dims.second);
+  }
 
   //access on an element
   inline const T& operator()(ST x, ST y) const;

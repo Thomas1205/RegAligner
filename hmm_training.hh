@@ -18,7 +18,7 @@ enum IBM1TransferMode { IBM1TransferNo, IBM1TransferViterbi,
 class HmmOptions {
 public:
 
-  HmmOptions(uint nSourceWords, uint nTargetWords,
+  HmmOptions(uint nSourceWords, uint nTargetWords, const ReducedIBM2AlignmentModel& ibm2_alignment_model,
              std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
              std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType > > >& possible_ref_alignments);
 
@@ -33,6 +33,8 @@ public:
   bool fix_p0_;
   double l0_beta_;
 
+  double ibm1_p0_ = -1.0;
+
   bool print_energy_;
 
   uint nSourceWords_;
@@ -45,6 +47,8 @@ public:
   IBM1TransferMode transfer_mode_;
 
   MStepSolveMode msolve_mode_;
+
+  const ReducedIBM2AlignmentModel& ibm2_alignment_model_;
 
   std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments_;
   std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments_;

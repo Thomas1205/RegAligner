@@ -68,6 +68,76 @@ void compute_ibm1_postdec_alignment(const Storage1D<uint>& source_sentence, cons
   }
 }
 
+void compute_ibm1p0_viterbi_alignment(const Storage1D<uint>& source_sentence, const SingleLookupTable& slookup, const Storage1D<uint>& target_sentence,
+                                      const SingleWordDictionary& dict, double p0, Storage1D<AlignBaseType>& viterbi_alignment)
+{
+  assert(p0 >= 0.0 && p0 <= 1.0);
+
+  const uint J = source_sentence.size();
+  const uint I = target_sentence.size();
+
+  const double w1 = (1.0 - p0) / I;
+
+  viterbi_alignment.resize_dirty(J);
+
+  for (uint j = 0; j < J; j++) {
+
+    double max_prob = p0 * dict[0][source_sentence[j] - 1];
+    AlignBaseType arg_max = 0;
+    for (uint i = 0; i < I; i++) {
+
+      double cur_prob = w1 * dict[target_sentence[i]][slookup(j, i)];
+
+      if (cur_prob > max_prob) {
+        max_prob = cur_prob;
+        arg_max = i + 1;
+      }
+    }
+
+    viterbi_alignment[j] = arg_max;
+  }
+}
+
+//posterior decoding for IBM-1
+void compute_ibm1p0_postdec_alignment(const Storage1D<uint>& source_sentence, const SingleLookupTable& slookup, const Storage1D<uint>& target_sentence,
+                                      const SingleWordDictionary& dict, const double p0,
+                                      std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment, double threshold)
+{
+  assert(p0 >= 0.0 && p0 <= 1.0);
+
+  const uint J = source_sentence.size();
+  const uint I = target_sentence.size();
+
+  const double w1 = (1.0 - p0) / I;
+
+  postdec_alignment.clear();
+
+  for (uint j = 0; j < J; j++) {
+
+    //std::cerr << "j:" << j << std::endl;
+
+    double sum = p0 * dict[0][source_sentence[j] - 1];
+    //std::cerr << "null-prob: " << dict[0][source_sentence[j]-1] << std::endl;
+    for (uint i = 0; i < I; i++) {
+
+      //std::cerr << i << "-prob: " << dict[target_sentence[i]][slookup(j,i)] << std::endl;
+
+      sum += w1 * std::max(1e-15, dict[target_sentence[i]][slookup(j, i)]);
+    }
+
+    assert(sum > 1e-305);
+
+    for (uint i = 0; i < I; i++) {
+
+      double cur_prob = w1 * std::max(1e-15, dict[target_sentence[i]][slookup(j, i)]) / sum;
+
+      if (cur_prob >= threshold) {
+        postdec_alignment.insert(std::make_pair(j + 1, i + 1));
+      }
+    }
+  }
+}
+
 void compute_ibm2_viterbi_alignment(const Storage1D<uint>& source_sentence, const SingleLookupTable& slookup, const Storage1D<uint>& target_sentence,
                                     const SingleWordDictionary& dict, const Math2D::Matrix<double>& align_prob,
                                     Storage1D<AlignBaseType>& viterbi_alignment)
@@ -79,12 +149,12 @@ void compute_ibm2_viterbi_alignment(const Storage1D<uint>& source_sentence, cons
 
   for (uint j = 0; j < J; j++) {
 
-    double max_prob = dict[0][source_sentence[j] - 1] * align_prob(j, 0);
+    double max_prob = dict[0][source_sentence[j] - 1] * align_prob(0, j);
     AlignBaseType arg_max = 0;
     for (uint i = 0; i < I; i++) {
 
       double cur_prob =
-        dict[target_sentence[i]][slookup(j, i)] * align_prob(j, i + 1);
+        dict[target_sentence[i]][slookup(j, i)] * align_prob(i + 1, j);
 
       if (cur_prob > max_prob) {
         max_prob = cur_prob;
@@ -108,16 +178,16 @@ void compute_ibm2_postdec_alignment(const Storage1D<uint>& source_sentence, cons
 
   for (uint j = 0; j < J; j++) {
 
-    double sum = dict[0][source_sentence[j] - 1] * align_prob(j, 0);    //CHECK: no alignment prob for alignments to 0??
+    double sum = dict[0][source_sentence[j] - 1] * align_prob(0, j);    //CHECK: no alignment prob for alignments to 0??
 
     for (uint i = 0; i < I; i++)
-      sum += std::max(1e-15, dict[target_sentence[i]][slookup(j, i)]) * align_prob(j, i + 1);
+      sum += std::max(1e-15, dict[target_sentence[i]][slookup(j, i)]) * align_prob(i + 1, j);
 
     assert(sum > 1e-305);
 
     for (uint i = 0; i < I; i++) {
 
-      double marg = std::max(1e-15, dict[target_sentence[i]][slookup(j, i)]) * align_prob(j, i + 1) / sum;
+      double marg = std::max(1e-15, dict[target_sentence[i]][slookup(j, i)]) * align_prob(i + 1, j) / sum;
 
       if (marg >= threshold) {
 

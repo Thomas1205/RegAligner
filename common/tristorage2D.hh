@@ -211,12 +211,14 @@ template <typename T, typename ST>
 template<typename T, typename ST>
 inline T* TriStorage2D<T,ST>::row_ptr(ST y) 
 {
+  assert(y < dim_);
   return StorageBase<T,ST>::data_ + (y*(y+1))/2;  
 }
   
 template<typename T, typename ST>
 inline const T* TriStorage2D<T,ST>::row_ptr(ST y) const 
 {
+  assert(y < dim_);
   return StorageBase<T,ST>::data_ + (y*(y+1))/2;
 }
 

@@ -9,6 +9,16 @@
 
 #include "storage1D.hh"
 
+template<typename ST>
+struct Dim3D {
+  
+  Dim3D(ST xDim, ST yDim, ST zDim) : xDim_(xDim), yDim_(yDim), zDim_(zDim) {}
+  
+  ST xDim_;
+  ST yDim_;
+  ST zDim_;
+};
+
 template<typename T, typename ST=size_t>
 class Storage3D : public StorageBase<T,ST> {
 public:
@@ -19,8 +29,12 @@ public:
   Storage3D(const Storage3D& toCopy);
 
   Storage3D(ST xDim, ST yDim, ST zDim);
+  
+  Storage3D(const Dim3D<ST> dims);
 
   Storage3D(ST xDim, ST yDim, ST zDim, const T default_value);
+
+  Storage3D(const Dim3D<ST> dims, const T default_value);
 
   ~Storage3D();
 
@@ -35,6 +49,8 @@ public:
   inline ST yDim() const;
 
   inline ST zDim() const;
+
+  Dim3D<ST> dims() const;
 
   void set_x(ST y, ST z, const Storage1D<T,ST>& vec);
 
@@ -53,11 +69,26 @@ public:
   //existing positions are copied, new ones are uninitialized
   void resize(ST newxDim, ST newyDim, ST newzDim);
 
+  inline void resize(const Dim3D<ST> dims)
+  {
+    resize(dims.xDim_, dims.yDim_, dims.zDim_);
+  }
+
   //existing positions are copied, new ones are uninitialized
   void resize(ST newxDim, ST newyDim, ST newzDim, const T default_value);
 
+  inline void resize(const Dim3D<ST> dims, T default_value)
+  {
+    resize(dims.xDim_, dims.yDim_, dims.zDim_, default_value);
+  }
+
   //all elements are uninitialized after this operation
   void resize_dirty(ST newxDim, ST newyDim, ST newzDim);
+
+  inline void resize_dirty(const Dim3D<ST> dims)
+  {
+    resize_dirty(dims.xDim_, dims.yDim_, dims.zDim_);
+  }
 
 protected:
   ST xDim_;
@@ -173,10 +204,18 @@ Storage3D<T,ST>::Storage3D(ST xDim, ST yDim, ST zDim) : StorageBase<T,ST>(xDim*y
 }
 
 template<typename T, typename ST> 
-Storage3D<T,ST>::Storage3D(ST xDim, ST yDim, ST zDim, const T default_value) :
-  StorageBase<T,ST>(xDim*yDim*zDim,default_value), xDim_(xDim), yDim_(yDim), zDim_(zDim)
+Storage3D<T,ST>::Storage3D(const Dim3D<ST> dims) 
+ : StorageBase<T,ST>(dims.xDim_*dims.yDim_*dims.zDim_), xDim_(dims.xDim), yDim_(dims.yDim_), zDim_(dims.zDim_) {}
+
+template<typename T, typename ST> 
+Storage3D<T,ST>::Storage3D(ST xDim, ST yDim, ST zDim, const T default_value) 
+ : StorageBase<T,ST>(xDim*yDim*zDim,default_value), xDim_(xDim), yDim_(yDim), zDim_(zDim)
 {
 }
+
+template<typename T, typename ST> 
+Storage3D<T,ST>::Storage3D(const Dim3D<ST> dims, const T default_value) 
+ : StorageBase<T,ST>(dims.xDim_*dims.yDim_*dims.zDim_,default_value), xDim_(dims.xDim), yDim_(dims.yDim_), zDim_(dims.zDim_) {}
 
 template<typename T, typename ST> 
 Storage3D<T,ST>::~Storage3D()
@@ -281,6 +320,12 @@ template<typename T, typename ST>
 inline ST Storage3D<T,ST>::zDim() const
 {
   return zDim_;
+}
+
+template<typename T, typename ST>
+Dim3D<ST> Storage3D<T,ST>::dims() const
+{
+  return Dim3D<ST>(xDim_,yDim_,zDim_);
 }
 
 template<typename T, typename ST>

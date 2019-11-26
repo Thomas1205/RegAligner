@@ -49,7 +49,7 @@ namespace Math1D {
 
     inline T sum() const;
 
-    inline T range_sum(ST start, ST end) const;
+    inline T range_sum(ST start, ST end) const;    
 
     /*** maximal element ***/
     T max() const;
@@ -59,6 +59,8 @@ namespace Math1D {
 
     /*** maximal absolute element = l-infinity norm ***/
     T max_abs() const;
+
+    inline void ensure_min(T lower_limit);
 
     /*** L2-norm of the vector ***/
     inline double norm() const;
@@ -348,6 +350,14 @@ namespace Math1D {
     }
 
     return maxel;
+  }
+
+  template<typename T,typename ST>
+  inline void Vector<T,ST>::ensure_min(T lower_limit) 
+  {  
+    const ST size = Storage1D<T,ST>::size_;
+    for (ST i=0; i < size; i++) 
+      Storage1D<T,ST>::data_[i] = std::max(lower_limit,Storage1D<T,ST>::data_[i]);
   }
 
   /*** L2-norm of the vector ***/

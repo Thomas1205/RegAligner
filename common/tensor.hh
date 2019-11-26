@@ -49,6 +49,8 @@ namespace Math3D {
 
     inline double sqr_norm(ST x, ST y) const;
 
+    /**** summing ****/
+    
     inline T sum(ST x, ST y) const;
 
     inline T sum_x(ST y, ST z) const;
@@ -57,21 +59,35 @@ namespace Math3D {
     
     inline T sum_z(ST x, ST y) const;
 
-    inline T min(ST x, ST y) const;
-
     inline T sum() const;
+
+    /**** min/max ****/
 
     T max() const;
 
     T min() const;
 
-    T max_abs() const;
+    inline T min(ST x, ST y) const;
+    
+    inline T min_x(ST y, ST z) const;
 
-    T max(ST z) const;
+    inline T min_y(ST x, ST z) const;
+    
+    inline T min_z(ST x, ST y) const;
 
-    T min(ST z) const;
+    inline T min(ST z) const;
 
-    T max_abs(ST z) const;
+    inline T max_x(ST y, ST z) const;
+
+    inline T max_y(ST x, ST z) const;
+    
+    inline T max_z(ST x, ST y) const;
+
+    inline T max(ST z) const;
+
+    inline T max_abs() const;
+
+    inline T max_abs(ST z) const;
 
     double max_vector_norm() const;
 
@@ -391,6 +407,32 @@ namespace Math3D {
 
 
   template<typename T, typename ST>
+  inline T Tensor<T,ST>::min_x(ST y, ST z) const
+  {
+    T min_el = std::numeric_limits<T>::max();
+    for (ST x = 0; x < Storage3D<T,ST>::xDim_; x++)
+      min_el = std::min(min_el,(*this)(x, y, z));
+    
+    return min_el;
+  }
+
+  template<typename T, typename ST>
+  inline T Tensor<T,ST>::min_y(ST x, ST z) const
+  {
+    T min_el = std::numeric_limits<T>::min();
+    for (ST y = 0; y < Storage3D<T,ST>::yDim_; y++)
+      min_el = std::max(min_el,(*this)(x, y, z));
+    
+    return min_el;
+  }
+    
+  template<typename T, typename ST>
+  inline T Tensor<T,ST>::min_z(ST x, ST y) const
+  {
+    return min(x,y);
+  }
+
+  template<typename T, typename ST>
   double Tensor<T,ST>::norm(ST x, ST y) const
   {
     const T_A16* data = Storage3D<T,ST>::data_;
@@ -441,10 +483,35 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
+  inline T Tensor<T,ST>::max_x(ST y, ST z) const
+  {
+    T max_el = std::numeric_limits<T>::min();
+    for (ST x = 0; x < Storage3D<T,ST>::xDim_; x++)
+      max_el = std::max(max_el, (*this)(x, y, z));
+    
+    return max_el;
+  }
+
+  template<typename T, typename ST>
+  inline T Tensor<T,ST>::max_y(ST x, ST z) const
+  {
+    T max_el = std::numeric_limits<T>::min();
+    for (ST y = 0; y < Storage3D<T,ST>::yDim_; y++)
+      max_el = std::max(max_el, (*this)(x, y, z));
+    
+    return max_el;
+  }
+    
+  template<typename T, typename ST>
+  inline T Tensor<T,ST>::max_z(ST x, ST y) const 
+  {
+     return max(x,y);
+  }
+
+  template<typename T, typename ST>
   T Tensor<T,ST>::max() const
   {
-
-    //     T max_el = std::numeric_limits<T,ST>::min();
+    //     T max_el = std::numeric_limits<T>::min();
     //     for (ST i=0; i < Storage3D<T,ST>::size_; i++)
     //       max_el = std::max(Storage3D<T,ST>::data_[i],max_el);
     //     return max_el;
@@ -463,8 +530,7 @@ namespace Math3D {
   template<typename T, typename ST>
   T Tensor<T,ST>::min() const
   {
-
-    //     T min_el = std::numeric_limits<T,ST>::max();
+    //     T min_el = std::numeric_limits<T>::max();
     //     for (ST i=0; i < Storage3D<T,ST>::size_; i++)
     //       min_el = std::min(Storage3D<T,ST>::data_[i],min_el);
     //     return min_el;
@@ -481,7 +547,7 @@ namespace Math3D {
   float Tensor<float>::min() const;
 
   template<typename T, typename ST>
-  T Tensor<T,ST>::max_abs() const
+  inline T Tensor<T,ST>::max_abs() const
   {
     const T_A16* data = Storage3D<T,ST>::data_;
 
@@ -495,7 +561,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  T Tensor<T,ST>::max(ST z) const
+  inline T Tensor<T,ST>::max(ST z) const
   {
     const T_A16* data = Storage3D<T,ST>::data_;
 
@@ -507,7 +573,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  T Tensor<T,ST>::min(ST z) const
+  inline T Tensor<T,ST>::min(ST z) const
   {
     const T_A16* data = Storage3D<T,ST>::data_;
 
@@ -519,7 +585,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  T Tensor<T,ST>::max_abs(ST z) const
+  inline T Tensor<T,ST>::max_abs(ST z) const
   {
     const T_A16* data = Storage3D<T,ST>::data_;
 

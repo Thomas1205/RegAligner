@@ -1,8 +1,8 @@
 /*-*-c++-*-*/
 /*** written by Thomas Schoenemann as a private person, November 2019 ***/
 
-#ifndef STORGE_BASE_HH
-#define STORGE_BASE_HH
+#ifndef STORAGE_BASE_HH
+#define STORAGE_BASE_HH
 
 #include "makros.hh"
 
@@ -22,19 +22,20 @@ public:
 
   inline ST size() const;
 
-  inline T* direct_access();
+  inline T* attr_restrict direct_access();
 
-  inline const T* direct_access() const;
+  inline const T* attr_restrict direct_access() const;
 
-  inline T& direct_access(ST i);
+  inline T& ref_attr_restrict direct_access(ST i);
 
-  inline T direct_access(ST i) const;
+  inline const T& ref_attr_restrict direct_access(ST i) const;
 
   inline void set_constant(const T constant);
 
 protected:
 
-  T* data_; //pointers returned by new are guaranteed to have an address that is divisible by 16
+  //pointer must go first so that following variables can be grouped for optimal alignment
+  T* data_; //if `T is a basic type this is 16-byte aligned as returned by new
   ST size_;
 	static const std::string stor_base_name_;
 };
@@ -78,25 +79,25 @@ inline ST StorageBase<T,ST>::size() const
 }
 
 template<typename T, typename ST>
-inline T* StorageBase<T,ST>::direct_access()
+inline T* attr_restrict StorageBase<T,ST>::direct_access()
 {
 	return data_;
 }
 
 template<typename T, typename ST>
-inline const T* StorageBase<T,ST>::direct_access() const
+inline const T* attr_restrict StorageBase<T,ST>::direct_access() const
 {
 	return data_;
 }
 
 template<typename T, typename ST>
-inline T& StorageBase<T,ST>::direct_access(ST i)
+inline T& ref_attr_restrict StorageBase<T,ST>::direct_access(ST i)
 {
 	return data_[i];
 }
 
 template<typename T, typename ST>
-inline T StorageBase<T,ST>::direct_access(ST i) const
+inline const T& ref_attr_restrict StorageBase<T,ST>::direct_access(ST i) const
 {
 	return data_[i];
 }
