@@ -16,7 +16,7 @@ The main author has permanently left academic research. He may react to e-mails
 
 This toolkit primarily implements the papers
 
-[Schoenemann, CoNLL 2011] (Viterbi-mode, with or without L0 regularity)
+[Schoenemann, CoNLL 2011] (Viterbi-mode, with or without L0 regularity and dictionary prior)
 
 [Schoenemann, IJCNLP 2011] (penalization of mass, gradient descent)
 
@@ -33,7 +33,7 @@ Chiang ACL 2012], which uses L0-norms together with EM.
 At the same time, it is an adequate replacement for GIZA++ as the models IBM 1-5 and HMM are implemented. 
 
 There are a few restrictions:
-- support for the IBM-2 is limited.
+- The IBM-2 will probably extended (estimation of p0, gradient descent routine).
 - pegging is not implemented (and usually too slow, anyway)
 - smoothing (e.g. for HMMs) is not implemented
 - we do not implement Model 6
@@ -48,7 +48,7 @@ On the other hand, there are some additional features:
 - variants of word class modes for inter (IBM-4) and intra distortion (IBM-4/5)
 - we implement posterior decoding (not active by default)
 - refined Viterbi training mode with ICM stage (useful with L_0-norms)
-- training the IBM-3 with the ITG constraints and the IBM constraints is supported
+- training the IBM-3 with the ITG constraints and the IBM constraints is supported (and run in Viterbi mode)
 - computation of IBM-3 Viterbi alignments via ILPs is integrated [Schoenemann CoNLL 2010]
 - we use long double precision, and still we are faster than GIZA++ (with faster dictionary access)
 
@@ -66,7 +66,8 @@ add -DHAS_GZSTREAM to the compiler options and link against gzstream. Make sure 
 classes in accordance with the respective license conditions.
 
 Also you can include the Integer Linear Programming project CBC: https://projects.coin-or.org/Cbc
-This is needed for the computation of IBM-3 Viterbi alignments (with near exactness).
+This is needed for the computation of IBM-3 Viterbi alignments (with near exactness). Make sure that you are 
+using CBC in accordance with its respective license conditions.
 
 USING REGALIGNER
 
@@ -74,5 +75,5 @@ See doc/INTRODUCTION for the most commonly used options.
 
 CREDITS
 
-RegAligner was written by Thomas Schoenemann, partly in his free time, at Lund University, Sweden, and 
+RegAligner was written by Thomas Schoenemann, mostly in his free time, but also at Lund University, Sweden, and 
 at the University of Düsseldorf, Germany.

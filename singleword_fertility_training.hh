@@ -29,6 +29,8 @@ struct FertModelOptions {
   uint nMaxHCIter_ = 150;
   uint dict_m_step_iter_ = 45;
   uint fert_m_step_iter_ = 250;
+  uint dist_m_step_iter_ = 400;
+  uint nondef_dist34_m_step_iter_ = 250;
 
   HillclimbingMode hillclimb_mode_ = HillclimbingReuse;
 
@@ -95,7 +97,7 @@ public:
 
   void compute_approximate_jmarginals(const Math1D::Vector<AlignBaseType>& alignment, const Math2D::Matrix<long double>& expansion_prob,
                                       const Math2D::Matrix<long double>& swap_prob, const long double sentence_prob,
-                                      Math2D::Matrix <double>& j_marg) const;
+                                      Math2D::Matrix<double>& j_marg) const;
 
   //don't even need the swap matrix
   void compute_approximate_imarginals(const Math1D::Vector<AlignBaseType>& alignment, const Math1D::Vector<uint>& fertility,
@@ -236,7 +238,7 @@ protected:
                                  const long double best_prob, const long double sentence_prob, const long double inv_sentence_prob,
                                  double& fzero_count, double& fnonzero_count);
 
-  inline long double swap_mass(const Math2D::NamedMatrix<long double>& swap_move_prob) const;
+  inline long double swap_mass(const Math2D::Matrix<long double>& swap_move_prob) const;
 
   inline double common_icm_change(const Math1D::Vector<uint>& cur_fertilities, const double log_pzero, const double log_pnonzero,
                                   const Math1D::NamedVector<uint>& dict_sum, const Math1D::Vector<double>& cur_dictcount,
@@ -292,6 +294,7 @@ protected:
   HillclimbingMode hillclimb_mode_;
 
   const floatSingleWordDictionary& prior_weight_;
+  bool prior_weight_active_ = false;
 
   NamedStorage1D<Math1D::Vector<double> > fertility_prob_;
 
@@ -432,7 +435,6 @@ inline void FertilityModelTrainer::update_dict_counts(const Storage1D<uint>& cur
       }
     }
   }
-
 }
 
 inline void FertilityModelTrainer::update_zero_counts(const Math1D::Vector<AlignBaseType>& best_alignment,
@@ -507,7 +509,7 @@ inline void FertilityModelTrainer::update_zero_counts(const Math1D::Vector<Align
   //END_DEBUG
 }
 
-inline long double FertilityModelTrainer::swap_mass(const Math2D::NamedMatrix<long double>& swap_move_prob) const
+inline long double FertilityModelTrainer::swap_mass(const Math2D::Matrix<long double>& swap_move_prob) const
 {
   //return 0.5 * swap_move_prob.sum();
 
@@ -557,6 +559,7 @@ inline double FertilityModelTrainer::common_icm_change(const Math1D::Vector<uint
       change += xlogx_table_[dict_sum[new_target_word] + 1];
     }
 
+    //prior_weight is always relevant
     if (hyp_dictcount[hyp_idx] > 0) {
       //exploit log(1) = 0
       change += xlogx_table_[hyp_dictcount[hyp_idx]];
@@ -571,6 +574,7 @@ inline double FertilityModelTrainer::common_icm_change(const Math1D::Vector<uint
       change += xlogx_table_[cur_dictsum - 1];
     }
 
+    //prior_weight is always relevant
     if (cur_dictcount[cur_idx] > 1) {
       //exploit log(1) = 0
       change -= -xlogx_table_[cur_dictcount[cur_idx]];

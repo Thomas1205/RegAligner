@@ -1888,10 +1888,7 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
 
   SingleLookupTable aux_lookup;
 
-  double dict_weight_sum = 0.0;
-  for (uint i = 0; i < nTargetWords_; i++) {
-    dict_weight_sum += fabs(prior_weight_[i].sum());
-  }
+  double dict_weight_sum = (prior_weight_active_) ? 1.0 : 0.0; //only used as a flag
 
   const uint nTargetWords = dict_.size();
 
@@ -2983,10 +2980,12 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
       }
     }  //loop over sentences finished
 
-    for (uint i = 0; i < fwcount.size(); i++)
-      for (uint k = 0; k < fwcount[i].size(); k++)
-        if (fwcount[i][k] > 0)
-          max_perplexity += prior_weight_[i][k];
+    if (prior_weight_active_) {
+      for (uint i = 0; i < fwcount.size(); i++)
+        for (uint k = 0; k < fwcount[i].size(); k++)
+          if (fwcount[i][k] > 0)
+            max_perplexity += prior_weight_[i][k];
+    }
 
     if (l0_fertpen_ != 0.0) {
       for (uint i = 1; i < ffert_count.size(); i++) {
@@ -3285,10 +3284,12 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
         max_perplexity -= logl(FertilityModelTrainer::alignment_prob(s, best_known_alignment_[s]));
       }
 
-      for (uint i = 0; i < fwcount.size(); i++)
-        for (uint k = 0; k < fwcount[i].size(); k++)
-          if (fwcount[i][k] > 0)
-            max_perplexity += prior_weight_[i][k];
+      if (prior_weight_active_) {
+        for (uint i = 0; i < fwcount.size(); i++)
+          for (uint k = 0; k < fwcount[i].size(); k++)
+            if (fwcount[i][k] > 0)
+              max_perplexity += prior_weight_[i][k];
+      }
 
       if (l0_fertpen_ != 0.0) {
         for (uint i = 1; i < ffert_count.size(); i++) {

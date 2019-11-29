@@ -4173,10 +4173,7 @@ void IBM3Trainer::train_em(uint nIter, FertilityModelTrainerBase* prev_model, co
   if (viterbi_ilp_mode_ != IlpOff)
     viterbi_alignment.resize(source_sentence_.size());
 
-  double dict_weight_sum = 0.0;
-  for (uint i = 0; i < nTargetWords_; i++) {
-    dict_weight_sum += fabs(prior_weight_[i].sum());
-  }
+  double dict_weight_sum = (prior_weight_active_) ? 1.0 : 0.0; //only used as a flag
 
   SingleLookupTable aux_lookup;
 
@@ -4963,10 +4960,12 @@ void IBM3Trainer::train_viterbi(uint nIter, const AlignmentSetConstraints& align
 
     std::cerr << " main loop took " << (diff_seconds(tEndMainLoop, tStartMainLoop) / 60.0) << " minutes." << std::endl;
 
-    for (uint i = 0; i < fwcount.size(); i++)
-      for (uint k = 0; k < fwcount[i].size(); k++)
-        if (fwcount[i][k] > 0)
-          max_perplexity += prior_weight_[i][k];
+    if (prior_weight_active_) {
+      for (uint i = 0; i < fwcount.size(); i++)
+        for (uint k = 0; k < fwcount[i].size(); k++)
+          if (fwcount[i][k] > 0)
+            max_perplexity += prior_weight_[i][k];
+    }
 
     if (l0_fertpen_ != 0.0) {
       for (uint i = 1; i < ffert_count.size(); i++) {
@@ -5331,10 +5330,12 @@ void IBM3Trainer::train_viterbi(uint nIter, const AlignmentSetConstraints& align
           max_perplexity -= logl(FertilityModelTrainer::alignment_prob(s, best_known_alignment_[s]));
       }
 
-      for (uint i = 0; i < fwcount.size(); i++)
-        for (uint k = 0; k < fwcount[i].size(); k++)
-          if (fwcount[i][k] > 0)
-            max_perplexity += prior_weight_[i][k];
+      if (prior_weight_active_) {
+        for (uint i = 0; i < fwcount.size(); i++)
+          for (uint k = 0; k < fwcount[i].size(); k++)
+            if (fwcount[i][k] > 0)
+              max_perplexity += prior_weight_[i][k];
+      }
 
       if (l0_fertpen_ != 0.0) {
         for (uint i = 1; i < ffert_count.size(); i++) {

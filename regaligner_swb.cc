@@ -55,6 +55,7 @@ int main(int argc, char** argv)
               << " [-ibm3-iter <uint>] : iterations for the IBM-3 model (default 5)" << std::endl
               << " [-ibm4-iter <uint>] : iterations for the IBM-4 model (default 5)" << std::endl
               << " [-ibm5-iter <uint>] : iterations for the IBM-5 model (default 0)" << std::endl
+              << " [-dict-iter <uint>] : iterations for the dictionary m-step (with regularity terms, default 45)" << std::endl
               << " [-postdec-thresh <double>] : threshold for posterior decoding" << std::endl
               << " [-dont-print-energy] : do not print the energy (speeds up EM for IBM-1, IBM-2 and HMM)" << std::endl
               << " [-max-lookup <uint>] : only store lookup tables up to this size to save memory. Default: 65535" << std::endl
@@ -100,7 +101,7 @@ int main(int argc, char** argv)
     exit(0);
   }
 
-  const int nParams = 55;
+  const int nParams = 56;
   ParamDescr params[nParams] = {
     {"-s", mandInFilename, 0, ""}, {"-t", mandInFilename, 0, ""}, {"-ds", optInFilename, 0, ""}, {"-dt", optInFilename, 0, ""},
     {"-o", optOutFilename, 0, ""}, {"-oa", mandOutFilename, 0, ""},  {"-refa", optInFilename, 0, ""}, {"-invert-biling-data", flag, 0, ""},
@@ -117,7 +118,7 @@ int main(int argc, char** argv)
     {"-ilp-mode", optWithValue, 1, "off"}, {"-utmost-ilp-precision", flag, 0, ""}, {"-hmm-start-empty-word", flag, 0, ""}, {"-ibm3-extra-deficient", flag, 0, ""},
     {"-deficient-h5", flag, 0, ""},{"-ibm4-deficient-null", optWithValue, 1, "intra"}, {"-rare-fert-limit", optWithValue, 1, "10000"},
     {"-ibm2-alignment", optWithValue, 1, "pos"}, {"-no-h3-classes", flag, 0, ""}, {"-itg-max-mid-dev",optWithValue,1,"8"},{"-itg-ext-level",optWithValue,1,"0"},
-    {"-ibm-max-skip",optWithValue,1,"3"}
+    {"-ibm-max-skip",optWithValue,1,"3"},{"-dict-iter",optWithValue,1,"45"}
   };
 
   Application app(argc, argv, params, nParams);
@@ -176,6 +177,8 @@ int main(int argc, char** argv)
   double postdec_thresh = convert<double>(app.getParam("-postdec-thresh"));
 
   double fert_p0 = convert<double>(app.getParam("-p0"));
+
+  const uint dict_m_step_iter = convert<uint>(app.getParam("-dict-iter"));
 
   MStepSolveMode msolve_mode = MSSolvePGD;
 
@@ -569,6 +572,7 @@ int main(int argc, char** argv)
   fert_options.reduce_deficiency_ = app.is_set("-ibm4-reduce-deficiency");
   fert_options.ibm5_nonpar_distortion_ = (ibm3_dist_mode == IBM23Nonpar);
   fert_options.empty_word_model_ = empty_word_model;
+  fert_options.dict_m_step_iter_ = dict_m_step_iter;
 
   Math1D::NamedVector<double> log_table(MAKENAME(log_table));
   Math1D::NamedVector<double> xlogx_table(MAKENAME(xlogx_table));
@@ -604,6 +608,7 @@ int main(int argc, char** argv)
   ibm1_options.l0_beta_ = l0_beta;
   ibm1_options.print_energy_ = !app.is_set("-dont-print-energy");
   ibm1_options.unconstrained_m_step_ = (msolve_mode != MSSolvePGD);
+  ibm1_options.dict_m_step_iter_ = dict_m_step_iter;
 
   if (method == "em") {
 
@@ -627,6 +632,7 @@ int main(int argc, char** argv)
   ibm2_options.print_energy_ = !app.is_set("-dont-print-energy");
   ibm2_options.unconstrained_m_step_ = (msolve_mode != MSSolvePGD);
   ibm2_options.ibm2_mode_ = ibm2_align_mode;
+  ibm2_options.dict_m_step_iter_ = dict_m_step_iter;
 
   if (ibm2_iter > 0) {
 
@@ -662,6 +668,7 @@ int main(int argc, char** argv)
   hmm_options.deficient_ = app.is_set("-deficient-h5");
   hmm_options.print_energy_ = !app.is_set("-dont-print-energy");
   hmm_options.msolve_mode_ = msolve_mode;
+  hmm_options.dict_m_step_iter_ = dict_m_step_iter;
 
   std::string ibm1_transfer_mode = downcase(app.getParam("-ibm1-transfer-mode"));
   if (ibm1_transfer_mode != "no" && ibm1_transfer_mode != "viterbi" && ibm1_transfer_mode != "posterior") {

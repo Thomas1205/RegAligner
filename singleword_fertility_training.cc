@@ -27,9 +27,10 @@ FertilityModelTrainerBase::FertilityModelTrainerBase(const Storage1D<Math1D::Vec
     SingleWordDictionary& dict, const CooccuringWordsType& wcooc, uint nSourceWords, uint nTargetWords,
     uint fertility_limit)
   :source_sentence_(source_sentence), slookup_(slookup), target_sentence_(target_sentence),
-   wcooc_(wcooc), dict_(dict), nSourceWords_(nSourceWords), nTargetWords_(nTargetWords),
-   best_known_alignment_(MAKENAME(best_known_alignment_)), sure_ref_alignments_(sure_ref_alignments),
-   possible_ref_alignments_(possible_ref_alignments)
+   wcooc_(wcooc), dict_(dict), nSourceWords_(nSourceWords),
+   nTargetWords_(nTargetWords),
+   best_known_alignment_(MAKENAME(best_known_alignment_)),
+   sure_ref_alignments_(sure_ref_alignments), possible_ref_alignments_(possible_ref_alignments)
 {
   maxJ_ = 0;
   maxI_ = 0;
@@ -815,6 +816,14 @@ FertilityModelTrainer::FertilityModelTrainer(const Storage1D<Math1D::Vector<uint
   for (uint i = 0; i < nTargetWords; i++) {
     fertility_prob_[i].resize(max_fertility[i] + 1, 1.0 / (max_fertility[i] + 1));
   }
+
+  prior_weight_active_ = false;
+  for (uint i = 0; i < prior_weight_.size(); i++) {
+    if (prior_weight_[i].max_abs() != 0.0) {
+      prior_weight_active_ = true;
+      break;
+    }
+  }
 }
 
 FertilityModelTrainer::FertilityModelTrainer(const Storage1D<Math1D::Vector<uint> >& source_sentence, const LookupTable& slookup,
@@ -910,6 +919,14 @@ FertilityModelTrainer::FertilityModelTrainer(const Storage1D<Math1D::Vector<uint
   for (uint i = 0; i < nTargetWords; i++) {
     fertility_prob_[i].resize(max_fertility[i] + 1, 1.0 / (max_fertility[i] + 1));
   }
+
+  prior_weight_active_ = false;
+  for (uint i = 0; i < prior_weight_.size(); i++) {
+    if (prior_weight_[i].max_abs() != 0.0) {
+      prior_weight_active_ = true;
+      break;
+    }
+  }
 }
 
 void FertilityModelTrainer::fix_p0(double p0)
@@ -942,6 +959,9 @@ long double FertilityModelTrainer::alignment_prob(uint s, const Math1D::Vector<A
 
 double FertilityModelTrainer::regularity_term() const
 {
+  if (!prior_weight_active_)
+    return 0.0;
+
   double reg_term = 0.0;
   for (uint i = 0; i < dict_.size(); i++)
     for (uint k = 0; k < dict_[i].size(); k++) {
