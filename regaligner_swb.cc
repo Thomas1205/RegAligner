@@ -45,7 +45,7 @@ int main(int argc, char** argv)
               << "**************** Main Options **********************" << std::endl
               << " [-method ( em | gd | viterbi )] : use EM, gradient descent or Viterbi training (default EM) " << std::endl
               << " [-dict-regularity <double>] : regularity weight for L0 or L1 regularization" << std::endl
-              << " [-sparse-reg] : activate L1-regularity only for rarely occuring target words" << std::endl
+              << " [-sparse-reg] : activate L0/1-regularity only for rarely occuring target words" << std::endl
               << " [-fertpen <double>]: regularity weight for fertilities in IBM-3/4/5" << std::endl
               << " [-prior-dict <file>] : file for index pairs that occur in a dictionary" << std::endl
               << " [-l0-beta <double>] : smoothing parameter for the L0-norm in EM-training" << std::endl
@@ -56,6 +56,7 @@ int main(int argc, char** argv)
               << " [-ibm4-iter <uint>] : iterations for the IBM-4 model (default 5)" << std::endl
               << " [-ibm5-iter <uint>] : iterations for the IBM-5 model (default 0)" << std::endl
               << " [-dict-iter <uint>] : iterations for the dictionary m-step (with regularity terms, default 45)" << std::endl
+              << " [-nondef-iter <uint>] : iterations for nondeficient m-steps of IBM-3/4" << std::endl
               << " [-postdec-thresh <double>] : threshold for posterior decoding" << std::endl
               << " [-dont-print-energy] : do not print the energy (speeds up EM for IBM-1, IBM-2 and HMM)" << std::endl
               << " [-max-lookup <uint>] : only store lookup tables up to this size to save memory. Default: 65535" << std::endl
@@ -101,7 +102,7 @@ int main(int argc, char** argv)
     exit(0);
   }
 
-  const int nParams = 56;
+  const int nParams = 57;
   ParamDescr params[nParams] = {
     {"-s", mandInFilename, 0, ""}, {"-t", mandInFilename, 0, ""}, {"-ds", optInFilename, 0, ""}, {"-dt", optInFilename, 0, ""},
     {"-o", optOutFilename, 0, ""}, {"-oa", mandOutFilename, 0, ""},  {"-refa", optInFilename, 0, ""}, {"-invert-biling-data", flag, 0, ""},
@@ -118,7 +119,7 @@ int main(int argc, char** argv)
     {"-ilp-mode", optWithValue, 1, "off"}, {"-utmost-ilp-precision", flag, 0, ""}, {"-hmm-start-empty-word", flag, 0, ""}, {"-ibm3-extra-deficient", flag, 0, ""},
     {"-deficient-h5", flag, 0, ""},{"-ibm4-deficient-null", optWithValue, 1, "intra"}, {"-rare-fert-limit", optWithValue, 1, "10000"},
     {"-ibm2-alignment", optWithValue, 1, "pos"}, {"-no-h3-classes", flag, 0, ""}, {"-itg-max-mid-dev",optWithValue,1,"8"},{"-itg-ext-level",optWithValue,1,"0"},
-    {"-ibm-max-skip",optWithValue,1,"3"},{"-dict-iter",optWithValue,1,"45"}
+    {"-ibm-max-skip",optWithValue,1,"3"},{"-dict-iter",optWithValue,1,"45"}, {"-nondef-iter",optWithValue,1,"250"}
   };
 
   Application app(argc, argv, params, nParams);
@@ -573,6 +574,7 @@ int main(int argc, char** argv)
   fert_options.ibm5_nonpar_distortion_ = (ibm3_dist_mode == IBM23Nonpar);
   fert_options.empty_word_model_ = empty_word_model;
   fert_options.dict_m_step_iter_ = dict_m_step_iter;
+  fert_options.nondef_dist34_m_step_iter_ = convert<uint>(app.getParam("-nondef-iter"));
 
   Math1D::NamedVector<double> log_table(MAKENAME(log_table));
   Math1D::NamedVector<double> xlogx_table(MAKENAME(xlogx_table));

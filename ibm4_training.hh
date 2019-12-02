@@ -185,6 +185,11 @@ protected:
   bool reduce_deficiency_;
   bool uniform_intra_prob_;
 
+  double min_nondef_count_ = 1e-6;
+
+  uint dist_m_step_iter_ = 400;
+  uint nondef_dist_m_step_iter_ = 250;
+
   uint nSourceClasses_;
   uint nTargetClasses_;
 

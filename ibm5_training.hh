@@ -94,6 +94,8 @@ protected:
   uint nTargetClasses_;
 
   bool deficient_;
+
+  uint dist_m_step_iter_ = 400;
 };
 
 #endif

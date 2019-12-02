@@ -1233,9 +1233,9 @@ void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& sourc
                 }
               }
               else {
-                
+
                 //NOTE: in deficient mode we could to update calculations
-                
+
                 change -= -std::log(cur_align_model(cur_aj, j));
                 change += -std::log(cur_align_model(i, j));
               }

@@ -919,7 +919,7 @@ double prob_pen_prime(double x, double beta)
 }
 
 void update_dict_from_counts(const SingleWordDictionary& fdict_count, const floatSingleWordDictionary& prior_weight,
-                             double dict_weight_sum, bool smoothed_l0, double l0_beta, uint nDictStepIter, SingleWordDictionary& dict, 
+                             double dict_weight_sum, bool smoothed_l0, double l0_beta, uint nDictStepIter, SingleWordDictionary& dict,
                              double min_prob, bool unconstrained_m_step)
 {
   if (dict_weight_sum > 0.0) {

@@ -25,6 +25,7 @@ struct FertModelOptions {
   bool smoothed_l0_ = false;
   double l0_beta_ = 0.0;
   double l0_fertpen_ = 0.0;
+  double min_nondef_count_ = 1e-6;
 
   uint nMaxHCIter_ = 150;
   uint dict_m_step_iter_ = 45;
@@ -217,6 +218,8 @@ protected:
                                      const Math1D::Vector<AlignBaseType>& alignment) const = 0;
 
   double regularity_term() const;
+
+  double exact_l0_reg_term(const Storage1D<Math1D::Vector<double> >& fwcount, const Storage1D<Math1D::Vector<double> >& ffert_count) const;
 
   void update_fertility_prob(const Storage1D<Math1D::Vector<double> >& ffert_count, double min_prob = 1e-8, bool with_regularity = true);
 

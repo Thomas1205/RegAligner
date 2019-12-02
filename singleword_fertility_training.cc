@@ -963,16 +963,50 @@ double FertilityModelTrainer::regularity_term() const
     return 0.0;
 
   double reg_term = 0.0;
-  for (uint i = 0; i < dict_.size(); i++)
-    for (uint k = 0; k < dict_[i].size(); k++) {
+  for (uint i = 0; i < dict_.size(); i++) {
+
+    const Math1D::Vector<double>& cur_dict = dict_[i];
+    const Math1D::Vector<float>& cur_prior = prior_weight_[i];
+    for (uint k = 0; k < cur_dict.size(); k++) {
       if (smoothed_l0_)
-        reg_term += prior_weight_[i][k] * prob_penalty(dict_[i][k], l0_beta_);
+        reg_term += cur_prior[k] * prob_penalty(cur_dict[k], l0_beta_);
       else
-        reg_term += prior_weight_[i][k] * dict_[i][k];
+        reg_term += cur_prior[k] * cur_dict[k];
     }
+  }
 
   return reg_term;
 }
+
+double FertilityModelTrainer::exact_l0_reg_term(const Storage1D<Math1D::Vector<double> >& fwcount, const Storage1D<Math1D::Vector<double> >& ffert_count) const
+{
+  double energy = 0.0;
+
+  if (prior_weight_active_) {
+    for (uint i = 0; i < fwcount.size(); i++) {
+
+      const Math1D::Vector<double>& cur_fwcount = fwcount[i];
+      const Math1D::Vector<float>& cur_prior = prior_weight_[i];
+      for (uint k = 0; k < cur_fwcount.size(); k++)
+        if (cur_fwcount[k] > 0)
+          energy += cur_prior[k];
+    }
+  }
+
+  if (l0_fertpen_ != 0.0) {
+    for (uint i = 1; i < ffert_count.size(); i++) {
+
+      const Math1D::Vector<double>& cur_ffert_count = ffert_count[i];
+      for (uint k = 0; k < cur_ffert_count.size(); k++) {
+        if (cur_ffert_count[k] > 0)
+          energy += l0_fertpen_;
+      }
+    }
+  }
+
+  return energy;
+}
+
 
 const NamedStorage1D<Math1D::Vector<double> >& FertilityModelTrainer::fertility_prob() const
 {

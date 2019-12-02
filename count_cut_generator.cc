@@ -3,21 +3,24 @@
 #include "count_cut_generator.hh"
 
 
-CountCutGenerator::CountCutGenerator(const SparseMatrixDescription<double>& lp_descr, 
-				     const Math1D::Vector<uint>& row_start,
-				     const Math2D::Matrix<uint>& active_rows, 
-				     double non_count_sign) : 
-  lp_descr_(lp_descr), row_start_(row_start), active_rows_(active_rows), non_count_sign_(non_count_sign) {
+CountCutGenerator::CountCutGenerator(const SparseMatrixDescription<double>& lp_descr,
+                                     const Math1D::Vector<uint>& row_start,
+                                     const Math2D::Matrix<uint>& active_rows,
+                                     double non_count_sign) :
+  lp_descr_(lp_descr), row_start_(row_start), active_rows_(active_rows), non_count_sign_(non_count_sign)
+{
 }
 
 
-/*virtual*/ CglCutGenerator * CountCutGenerator::clone() const {
+/*virtual*/ CglCutGenerator* CountCutGenerator::clone() const
+{
 
   return new CountCutGenerator(lp_descr_,row_start_,active_rows_,non_count_sign_);
 }
 
-/*virtual*/ void CountCutGenerator::generateCuts( const OsiSolverInterface & si, OsiCuts & cs,
-						  const CglTreeInfo info) {
+/*virtual*/ void CountCutGenerator::generateCuts( const OsiSolverInterface& si, OsiCuts& cs,
+    const CglTreeInfo info)
+{
 
 
   //4 - set global cut flag if at root node
@@ -60,14 +63,14 @@ CountCutGenerator::CountCutGenerator(const SparseMatrixDescription<double>& lp_d
       const double val = lp_descr_.value()[v];
       const uint idx = lp_descr_.col_indices()[v];
       if (idx >= first_var && idx <= last_var)
-	assert(fabs(val) == (idx-first_var+first_count));
+        assert(fabs(val) == (idx-first_var+first_count));
 
       if (val * non_count_sign_ > 0.0) {
 
-	assert( !(idx >= first_var && idx <= last_var) );
-	assert( fabs(val) == 1.0);
+        assert( !(idx >= first_var && idx <= last_var) );
+        assert( fabs(val) == 1.0);
 
-	vec.push_back(std::make_pair(cur_lp_solution[idx],idx));
+        vec.push_back(std::make_pair(cur_lp_solution[idx],idx));
       }
     }
 
@@ -78,7 +81,7 @@ CountCutGenerator::CountCutGenerator(const SparseMatrixDescription<double>& lp_d
     //   std::cerr << "WARNING: mismatch of counts: " << nCountVars << " counts, " << nUsed << " entries on the other side" << std::endl;
     //   std::cerr << "row_size: " << row_size << std::endl;
     // }
-    
+
     //std::cerr << "B" << std::endl;
 
     //b) sort the values
@@ -86,9 +89,9 @@ CountCutGenerator::CountCutGenerator(const SparseMatrixDescription<double>& lp_d
 
     // for (uint k1 = 0; k1 < nUsed-1; k1++) {
     //   for (uint k2 = 0; k2 < nUsed-1-k1; k2++) {
-	
+
     // 	if (var_values[k2] < var_values[k2+1]) {
-	  
+
     // 	  std::swap(var_values[k2],var_values[k2+1]);
     // 	  std::swap(var_indices[k2],var_indices[k2+1]);
     // 	}
@@ -108,37 +111,37 @@ CountCutGenerator::CountCutGenerator(const SparseMatrixDescription<double>& lp_d
 
       //if (c >= nUsed)
       if (c >= vec.size())
-	break;
+        break;
 
       fwd_running_sum += vec[c].first; //var_values[c];
       fwd_count_var_sum += cur_lp_solution[c];
 
       if (fwd_running_sum + fwd_count_var_sum >= (first_count + c + 1.01)) {
 
-	const uint nVarsInCut = c+1 + (c-first_count)+1;
+        const uint nVarsInCut = c+1 + (c-first_count)+1;
 
-	//std::cerr << "nVarsInCut: "<< nVarsInCut << std::endl;
-	
-	int* col_idx = new int[nVarsInCut];
-	double* coeff = new double[nVarsInCut];
-	
-	std::fill_n(coeff,nVarsInCut,1.0); 
-	
-	for (uint nn=0; nn <= c; nn++) {
-	  col_idx[nn] = vec[nn].second; //var_indices[nn];
-	}
-	for (uint nn=first_count; nn <= c; nn++)
-	  col_idx[(c+1) + nn-first_count] = first_var + nn-first_count;
-		
-	OsiRowCut newCut;
-	newCut.setRow(nVarsInCut,col_idx,coeff,false);
-	newCut.setLb(0.0);
-	newCut.setUb(c+1);   
-	
-	cs.insert(newCut);  
-		
-	delete[] col_idx;
-	delete[] coeff;
+        //std::cerr << "nVarsInCut: "<< nVarsInCut << std::endl;
+
+        int* col_idx = new int[nVarsInCut];
+        double* coeff = new double[nVarsInCut];
+
+        std::fill_n(coeff,nVarsInCut,1.0);
+
+        for (uint nn=0; nn <= c; nn++) {
+          col_idx[nn] = vec[nn].second; //var_indices[nn];
+        }
+        for (uint nn=first_count; nn <= c; nn++)
+          col_idx[(c+1) + nn-first_count] = first_var + nn-first_count;
+
+        OsiRowCut newCut;
+        newCut.setRow(nVarsInCut,col_idx,coeff,false);
+        newCut.setLb(0.0);
+        newCut.setUb(c+1);
+
+        cs.insert(newCut);
+
+        delete[] col_idx;
+        delete[] coeff;
       }
     }
 
@@ -148,44 +151,44 @@ CountCutGenerator::CountCutGenerator(const SparseMatrixDescription<double>& lp_d
       double bwd_count_var_sum = 0.0;
 
       //std::cerr << "checking backward cuts" << std::endl;
-      
+
       for (uint c=0; c < nCountVars; c++) {
-	
-	//if (c >= nUsed)
-	if (c >= vec.size())
-	  break;
-	
-	bwd_running_sum += vec[vec.size() - 1 - c].first; //var_values[nUsed - 1 - c];
-	bwd_count_var_sum += cur_lp_solution[last_var-c];
 
-	if (bwd_running_sum + bwd_count_var_sum >= (c + 1.01)) {
-	  
-	  //std::cerr << "backward cut with size " << (2*c+2) << std::endl;
+        //if (c >= nUsed)
+        if (c >= vec.size())
+          break;
 
-	  //add the cut
-	  int* col_idx = new int[2*c+2];
-	  double* coeff = new double[2*c+2];
-	  
-	  for (uint k=0; k <= c; k++) {
-	    col_idx[k] = last_var-k;
-	    coeff[k] = 1.0;
-	  }
+        bwd_running_sum += vec[vec.size() - 1 - c].first; //var_values[nUsed - 1 - c];
+        bwd_count_var_sum += cur_lp_solution[last_var-c];
 
-	  for (uint k=0; k <= c; k++) {
-	    col_idx[c+1 + k] = vec[vec.size() - 1 - k].second; //var_indices[nUsed - 1 - k];
-	    coeff[c+1+k] = -1.0;
-	  }
-		
-	  OsiRowCut newCut;
-	  newCut.setRow(2*c+2,col_idx,coeff,false);
-	  newCut.setLb(-1e20);
-	  newCut.setUb(0.0);   
-	  
-	  delete[] col_idx;
-	  delete[] coeff;
-	  
-	  cs.insert(newCut); 
-	}
+        if (bwd_running_sum + bwd_count_var_sum >= (c + 1.01)) {
+
+          //std::cerr << "backward cut with size " << (2*c+2) << std::endl;
+
+          //add the cut
+          int* col_idx = new int[2*c+2];
+          double* coeff = new double[2*c+2];
+
+          for (uint k=0; k <= c; k++) {
+            col_idx[k] = last_var-k;
+            coeff[k] = 1.0;
+          }
+
+          for (uint k=0; k <= c; k++) {
+            col_idx[c+1 + k] = vec[vec.size() - 1 - k].second; //var_indices[nUsed - 1 - k];
+            coeff[c+1+k] = -1.0;
+          }
+
+          OsiRowCut newCut;
+          newCut.setRow(2*c+2,col_idx,coeff,false);
+          newCut.setLb(-1e20);
+          newCut.setUb(0.0);
+
+          delete[] col_idx;
+          delete[] coeff;
+
+          cs.insert(newCut);
+        }
       }
     }
   }
@@ -196,20 +199,23 @@ CountCutGenerator::CountCutGenerator(const SparseMatrixDescription<double>& lp_d
 
 /*********************************************************************************/
 
-CountColCutGenerator::CountColCutGenerator(const SparseMatrixDescription<double>& lp_descr, 
-					   const Math1D::Vector<uint>& row_start,
-					   const Math2D::Matrix<uint>& active_rows, 
-					   double non_count_sign) : 
-  lp_descr_(lp_descr), row_start_(row_start), active_rows_(active_rows), non_count_sign_(non_count_sign) {
+CountColCutGenerator::CountColCutGenerator(const SparseMatrixDescription<double>& lp_descr,
+    const Math1D::Vector<uint>& row_start,
+    const Math2D::Matrix<uint>& active_rows,
+    double non_count_sign) :
+  lp_descr_(lp_descr), row_start_(row_start), active_rows_(active_rows), non_count_sign_(non_count_sign)
+{
 }
 
-/*virtual*/ CglCutGenerator * CountColCutGenerator::clone() const {
-  
+/*virtual*/ CglCutGenerator* CountColCutGenerator::clone() const
+{
+
   return new CountColCutGenerator(lp_descr_,row_start_,active_rows_,non_count_sign_);
 }
 
-/*virtual*/ void CountColCutGenerator::generateCuts( const OsiSolverInterface & si, OsiCuts & cs,
-						     const CglTreeInfo info) {
+/*virtual*/ void CountColCutGenerator::generateCuts( const OsiSolverInterface& si, OsiCuts& cs,
+    const CglTreeInfo info)
+{
 
   if (info.pass > 0)
     return; //no use applying this several times per node
@@ -238,31 +244,31 @@ CountColCutGenerator::CountColCutGenerator(const SparseMatrixDescription<double>
       first_count = active_rows_(r,3);
 
     assert(last_var >= first_var);
-    uint nCountVars = last_var - first_var + 1;    
+    uint nCountVars = last_var - first_var + 1;
 
     uint nFree = 0;
     uint nOne = 0;
     //uint nZero = 0;
- 
+
     for (uint v=row_start_[row]; v < row_start_[row+1]; v++) {
 
       const double val = lp_descr_.value()[v];
       const uint idx = lp_descr_.col_indices()[v];
 
       if (idx >= first_var && idx <= last_var)
-	assert(fabs(val) == (idx-first_var+first_count));
+        assert(fabs(val) == (idx-first_var+first_count));
 
       if (val * non_count_sign_ > 0.0) {
 
-	assert( !(idx >= first_var && idx <= last_var) );
-	assert( fabs(val) == 1.0);
-	
-	if (colLower[idx] >= 0.99)
-	  nOne++;
-	else if (colUpper[idx] <= 0.01)
-	  ; //nZero++;
-	else
-	  nFree++;
+        assert( !(idx >= first_var && idx <= last_var) );
+        assert( fabs(val) == 1.0);
+
+        if (colLower[idx] >= 0.99)
+          nOne++;
+        else if (colUpper[idx] <= 0.01)
+          ; //nZero++;
+        else
+          nFree++;
       }
     }
 
@@ -271,11 +277,11 @@ CountColCutGenerator::CountColCutGenerator(const SparseMatrixDescription<double>
 
       uint idx = first_var+k-first_count;
       if (idx >= nSolverVars)
-	continue;
+        continue;
 
       if (colUpper[idx] >= 0.99) {
-	var_idx.push_back(idx);
-	//var_ub.push_back(0.0);
+        var_idx.push_back(idx);
+        //var_ub.push_back(0.0);
       }
     }
 
@@ -284,16 +290,16 @@ CountColCutGenerator::CountColCutGenerator(const SparseMatrixDescription<double>
 
       uint idx = first_var+k-first_count;
       if (idx >= nSolverVars)
-	continue;
+        continue;
 
       assert(idx <= last_var);
 
       if (colUpper[idx] >= 0.99) {
-	var_idx.push_back(idx);
-	//var_ub.push_back(0.0);
-      }      
+        var_idx.push_back(idx);
+        //var_ub.push_back(0.0);
+      }
     }
-  }  
+  }
 
   if (var_idx.size() > 0) {
 
@@ -302,6 +308,6 @@ CountColCutGenerator::CountColCutGenerator(const SparseMatrixDescription<double>
     OsiColCut newCut;
     newCut.setUbs(var_idx.size(),var_idx.data(),var_ub.data());
 
-    cs.insert(newCut); 
+    cs.insert(newCut);
   }
 }

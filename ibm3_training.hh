@@ -67,6 +67,8 @@ protected:
 
   void par2nonpar_distortion(const Math3D::Tensor<double>& param, ReducedIBM3ClassDistortionModel& prob) const;
 
+  void nonpar2par_distortion();
+
   double par_distortion_m_step_energy(const Math1D::Vector<double>& fsingleton_count, const Math1D::Vector<double>& fspan_count,
                                       const Math1D::Vector<double>& param) const;
 
@@ -183,11 +185,17 @@ protected:
   ReducedIBM3ClassDistortionModel distortion_prob_;
   Math3D::Tensor<double> distortion_param_;
 
+  double min_nondef_count_ = 1e-6;
+
+  uint dist_m_step_iter_ = 400;
+  uint nondef_dist_m_step_iter_ = 250;
+
   IBM23ParametricMode par_mode_;
   bool extra_deficiency_;
 
   IlpMode viterbi_ilp_mode_;
   bool utmost_ilp_precision_;
+
   bool nondeficient_;
 };
 

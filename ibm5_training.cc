@@ -2,12 +2,10 @@
 
 #include "ibm5_training.hh"
 
-//#include "combinatoric.hh"
 #include "timing.hh"
 #include "projection.hh"
 #include "training_common.hh"   // for get_wordlookup(), dictionary and start-prob m-step
 #include "stl_util.hh"
-//#include "alignment_computation.hh"
 #include "storage_util.hh"
 
 #ifdef HAS_GZSTREAM
@@ -33,7 +31,7 @@ IBM5Trainer::IBM5Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence
     sentence_start_prob_(maxJ_ + 1), nonpar_distortion_(options.ibm5_nonpar_distortion_),
     use_sentence_start_prob_(!options.uniform_sentence_start_prob_), uniform_intra_prob_(options.uniform_intra_prob_),
     cept_start_mode_(options.cept_start_mode_), intra_dist_mode_(options.intra_dist_mode_),
-    source_class_(source_class), target_class_(target_class), deficient_(options.deficient_)
+    source_class_(source_class), target_class_(target_class), deficient_(options.deficient_), dist_m_step_iter_(options.dist_m_step_iter_)
 {
   uint max_source_class = 0;
   uint min_source_class = MAX_UINT;
@@ -1026,7 +1024,7 @@ void IBM5Trainer::inter_distortion_m_step(const Math2D::Matrix<double>& single_d
   double alpha = 0.1;
   double line_reduction_factor = 0.35;
 
-  for (uint iter = 1; iter <= 400; iter++) {
+  for (uint iter = 1; iter <= dist_m_step_iter_; iter++) {
 
     if ((iter % 5) == 0) {
 
@@ -1196,7 +1194,7 @@ void IBM5Trainer::inter_distortion_m_step_unconstrained(const Math2D::Matrix<dou
 
   double scale = 1.0;
 
-  for (uint iter = 1; iter <= 400; iter++) {
+  for (uint iter = 1; iter <= dist_m_step_iter_; iter++) {
 
     if ((iter % 5) == 0) {
 
@@ -1495,7 +1493,7 @@ void IBM5Trainer::intra_distortion_m_step(const Math2D::Matrix<double>& single_d
   double alpha = 0.1;
   double line_reduction_factor = 0.35;
 
-  for (uint iter = 1; iter <= 400; iter++) {
+  for (uint iter = 1; iter <= dist_m_step_iter_; iter++) {
 
     gradient.set_constant(0.0);
 
@@ -1649,7 +1647,7 @@ void IBM5Trainer::intra_distortion_m_step_unconstrained(const Math2D::Matrix<dou
 
   double scale = 1.0;
 
-  for (uint iter = 1; iter <= 400; iter++) {
+  for (uint iter = 1; iter <= dist_m_step_iter_; iter++) {
 
     // a) calculate gradient w.r.t. the probabilities, not the parameters
 
@@ -2980,25 +2978,8 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
       }
     }  //loop over sentences finished
 
-    if (prior_weight_active_) {
-      for (uint i = 0; i < fwcount.size(); i++)
-        for (uint k = 0; k < fwcount[i].size(); k++)
-          if (fwcount[i][k] > 0)
-            max_perplexity += prior_weight_[i][k];
-    }
-
-    if (l0_fertpen_ != 0.0) {
-      for (uint i = 1; i < ffert_count.size(); i++) {
-        for (uint k = 0; k < ffert_count[i].size(); k++) {
-
-          if (ffert_count[i][k] > 0)
-            max_perplexity += l0_fertpen_;
-        }
-      }
-    }
-
+    max_perplexity += exact_l0_reg_term(fwcount, ffert_count);
     max_perplexity /= source_sentence_.size();
-
 
     std::cerr << (((double)sum_iter) / source_sentence_.size()) << " average hillclimbing iterations per sentence pair" << std::endl;
 
@@ -3284,23 +3265,7 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
         max_perplexity -= logl(FertilityModelTrainer::alignment_prob(s, best_known_alignment_[s]));
       }
 
-      if (prior_weight_active_) {
-        for (uint i = 0; i < fwcount.size(); i++)
-          for (uint k = 0; k < fwcount[i].size(); k++)
-            if (fwcount[i][k] > 0)
-              max_perplexity += prior_weight_[i][k];
-      }
-
-      if (l0_fertpen_ != 0.0) {
-        for (uint i = 1; i < ffert_count.size(); i++) {
-          for (uint k = 0; k < ffert_count[i].size(); k++) {
-
-            if (ffert_count[i][k] > 0)
-              max_perplexity += l0_fertpen_;
-          }
-        }
-      }
-
+      max_perplexity += exact_l0_reg_term(fwcount, ffert_count);
       max_perplexity /= source_sentence_.size();
 
       std::cerr << "IBM-5 max-perplex-energy after iteration #" << iter << transfer << ": " << max_perplexity << std::endl;
@@ -3470,8 +3435,7 @@ void IBM5Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
             sum += intra_distortion_param_(j, s);
 
           for (uint j = 0; j < JJ; j++)
-            intra_distortion_prob_[JJ] (j, s) =
-              intra_distortion_param_(j, s) / sum;
+            intra_distortion_prob_[JJ] (j, s) = intra_distortion_param_(j, s) / sum;
         }
       }
     }
