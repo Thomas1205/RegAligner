@@ -23,7 +23,7 @@ const double fert_min_param_entry = 1e-8;
 const double fert_min_p0 = 1e-12;
 const double fert_min_dict_entry = 1e-7;
 
-
+//for HMM
 inline void compute_dictmat(const Storage1D<uint>& source_sentence, const SingleLookupTable& slookup,
                             const Storage1D<uint>& target_sentence, const SingleWordDictionary& dict,
                             Math2D::Matrix<double>& dicttab)
@@ -43,6 +43,28 @@ inline void compute_dictmat(const Storage1D<uint>& source_sentence, const Single
   const Math1D::Vector<double>& null_dict = dict[0];
   for (uint j=0; j < J; j++)
     dicttab(j,I) = null_dict[source_sentence[j]-1];
+}
+
+//for fertility format
+inline void compute_dictmat_fertform(const Storage1D<uint>& source_sentence, const SingleLookupTable& slookup,
+                                     const Storage1D<uint>& target_sentence, const SingleWordDictionary& dict,
+                                     Math2D::Matrix<double>& dicttab)
+{
+  const uint I = target_sentence.size();
+  const uint J = source_sentence.size();
+
+  assert(dicttab.xDim() == J);
+  assert(dicttab.yDim() == I+1);
+
+  for (uint i=0; i < I; i++) {
+    const Math1D::Vector<double>& cur_dict = dict[target_sentence[i]];
+    const uint* lrow = slookup.row_ptr(i);
+    for (uint j=0; j < J; j++)
+      dicttab(j,i+1) = cur_dict[lrow[j]]; //cur_dict[slookup(j,i)];
+  }
+  const Math1D::Vector<double>& null_dict = dict[0];
+  for (uint j=0; j < J; j++)
+    dicttab(j,0) = null_dict[source_sentence[j]-1];
 }
 
 void find_cooccuring_words(const Storage1D<Math1D::Vector<uint> >& source, const Storage1D<Math1D::Vector<uint> >& target,

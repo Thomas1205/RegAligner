@@ -3570,7 +3570,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
   fertility.resize(curI + 1);
 
   Math2D::Matrix<double> dict(curJ,curI+1);
-  compute_dictmat(source, lookup, target, dict_, dict);
+  compute_dictmat_fertform(source, lookup, target, dict_, dict);
 
   long double base_prob = alignment_prob(source, target, lookup, alignment);
 
@@ -5061,7 +5061,7 @@ long double IBM4Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
   }
 
   Math2D::Matrix<double> dict(curJ,curI+1);
-  compute_dictmat(source, lookup, target, dict_, dict);
+  compute_dictmat_fertform(source, lookup, target, dict_, dict);
 
   long double base_distortion_prob = nondeficient_distortion_prob(source, target, aligned_source_words);
   long double base_prob = base_distortion_prob;

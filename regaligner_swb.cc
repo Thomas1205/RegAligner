@@ -38,10 +38,13 @@ int main(int argc, char** argv)
               << " [-ds <file>] : additional source file (word indices) " << std::endl
               << " [-dt <file>] : additional target file (word indices) " << std::endl
               << " [-sclasses <file>] : source word classes (for IBM-4)" << std::endl
-              << " [-tclasses <file>] : target word classes (for IBM-4)" << std::endl
-              << " [-tfert-classes <file>] : target fertility classe (IBM models)" << std::endl
+              << " [-tclasses <file>] : target word classes (for HMM and IBM-4)" << std::endl
+              << " [-tfert-classes <file>] : target fertility classe (IBM-3/4/5)" << std::endl
               << " [-refa <file>] : file containing gold alignments (sure and possible)" << std::endl
               << " [-invert-biling-data] : switch source and target for prior dict and gold alignments" << std::endl
+              << "**************** Outputs *******************" << std::endl
+              << " [-o <file>] : the determined dictionary is written to this file" << std::endl
+              << " -oa <file> : the determined alignment is written to this file"
               << "**************** Main Options **********************" << std::endl
               << " [-method ( em | gd | viterbi )] : use EM, gradient descent or Viterbi training (default EM) " << std::endl
               << " [-dict-regularity <double>] : regularity weight for L0 or L1 regularization" << std::endl
@@ -63,18 +66,18 @@ int main(int argc, char** argv)
               << "************ Options for IBM-2 only **************************"  << std::endl
               << " [-ibm2-alignment] (pos | diff | nonpar) : parametric alignment model for IBM-2, default pos" << std::endl
               << "************ Options for HMM only *****************" << std::endl
-              << " [-ibm1-transfer-mode (no | viterbi | posterior)] : how to init HMM from IBM1/2, default: no" << std::endl
-              << " [-hmm-type (fullpar | redpar | nonpar | nonpar2)] : default redpar as in Vogel&Ney" << std::endl
-              << " [-hmm-init-type (auto | par | nonpar | fix | fix2)] : default auto" << std::endl
+              << " [-transfer-mode (no | viterbi | posterior)] : how to init HMM from IBM-1/2, default: no" << std::endl
+              << " [-hmm-type (fullpar | redpar | nonpar | nonpar2)] : default redpar as in [Vogel&Ney]" << std::endl
+              << " [-hmm-init-type (par | nonpar | fix | fix2)] : default par" << std::endl
               << " [-hmm-start-empty-word] : HMM with extra empty word " << std::endl
               << "************ Options affecting a mixed set of models ****************"
-              << " [-deficient-h5] : introduce deficiency for HMM and IBM-5 by not dividing by the param sum" << std::endl
+              << " [-deficient-h25] : introduce deficiency for IBM-2, HMM and IBM-5 by not dividing by the param sum" << std::endl
               << " [-no-h3-classes] : don't use word classes for HMM" << std::endl
               << "************ Options affecting several (or all) fertility based models ***************" << std::endl
               << " [-count-collection] : collect counts from the previous model when initializing IBM-3/4/5 as in [Brown et al.]" << std::endl
               << " [-hillclimb-mode (reuse | restart | reinit)] : default reuse" << std::endl
               << " [-p0 <double>] : fix probability for empty alignments for IBM-3/4/5" << std::endl
-              << " [-org-empty-word] : for IBM 3/4 use empty word as originally published" << std::endl
+              << " [-org-empty-word] : for IBM-3/4 use empty word as originally published" << std::endl
               << " [-nondeficient] : train nondeficient variants of IBM-3/4" << std::endl
               << " [-fert-limit <uint>] : fertility limit for IBM-3/4/5, default: 10000" << std::endl
               << " [-rare-fert-limit <uint>] : fertility limit for rare words and IBM-3/4, default: 10000" << std::endl
@@ -93,8 +96,8 @@ int main(int argc, char** argv)
               << " [-ibm4-intra-dist-mode (source | target)] : with default source: word class dependency as in [Brown et al.]" << std::endl
               << " [-ibm4-reduce-deficiency] : renormalize probabilities for IBM-4 to stay inside the sentence" << std::endl
               << " [-ibm4-deficient-null (intra | uniform)] : default intra, uniform as in [Och & Ney]" << std::endl
-              << " [-o <file>] : the determined dictionary is written to this file" << std::endl
-              << " -oa <file> : the determined alignment is written to this file"
+              << "************ Options for IBM-5 only *****************" << std::endl
+              << " [-ibm5-nonpar-distortion] : nonparametric distortion for IBM-5" << std::endl
               << std::endl << std::endl;
 
     std::cerr << "this program estimates p(s|t)" << std::endl;;
@@ -102,7 +105,7 @@ int main(int argc, char** argv)
     exit(0);
   }
 
-  const int nParams = 57;
+  const int nParams = 58;
   ParamDescr params[nParams] = {
     {"-s", mandInFilename, 0, ""}, {"-t", mandInFilename, 0, ""}, {"-ds", optInFilename, 0, ""}, {"-dt", optInFilename, 0, ""},
     {"-o", optOutFilename, 0, ""}, {"-oa", mandOutFilename, 0, ""},  {"-refa", optInFilename, 0, ""}, {"-invert-biling-data", flag, 0, ""},
@@ -112,14 +115,14 @@ int main(int argc, char** argv)
     {"-fertpen", optWithValue, 1, "0.0"}, {"-constraint-mode", optWithValue, 1, "unconstrained"},  {"-l0-beta", optWithValue, 1, "-1.0"},
     {"-ibm4-mode", optWithValue, 1, "first"}, {"-fert-limit", optWithValue, 1, "10000"}, {"-postdec-thresh", optWithValue, 1, "-1.0"},
     {"-hmm-type", optWithValue, 1, "redpar"}, {"-p0", optWithValue, 1, "-1.0"}, {"-org-empty-word", flag, 0, ""}, {"-ibm3-distortion", optWithValue, 1, "pos"},
-    {"-hmm-init-type", optWithValue, 1, "auto"}, {"-dont-print-energy", flag, 0, ""}, {"-ibm1-transfer-mode", optWithValue, 1, "no"},
+    {"-hmm-init-type", optWithValue, 1, "par"}, {"-dont-print-energy", flag, 0, ""}, {"-transfer-mode", optWithValue, 1, "no"},
     {"-dict-struct", optWithValue, 0, ""}, {"-ibm4-reduce-deficiency", flag, 0, ""}, {"-count-collection", flag, 0, ""},
     {"-sclasses", optInFilename, 0, ""}, {"-tclasses", optInFilename, 0, ""}, {"-tfert-classes", optInFilename, 0, ""}, {"-max-lookup", optWithValue, 1, "65535"},
     {"-ibm4-inter-dist-mode", optWithValue, 1, "previous"}, {"-ibm4-intra-dist-mode", optWithValue, 1, "source"}, {"-nondeficient", flag, 0, ""},
     {"-ilp-mode", optWithValue, 1, "off"}, {"-utmost-ilp-precision", flag, 0, ""}, {"-hmm-start-empty-word", flag, 0, ""}, {"-ibm3-extra-deficient", flag, 0, ""},
-    {"-deficient-h5", flag, 0, ""},{"-ibm4-deficient-null", optWithValue, 1, "intra"}, {"-rare-fert-limit", optWithValue, 1, "10000"},
+    {"-deficient-h25", flag, 0, ""},{"-ibm4-deficient-null", optWithValue, 1, "intra"}, {"-rare-fert-limit", optWithValue, 1, "10000"},
     {"-ibm2-alignment", optWithValue, 1, "pos"}, {"-no-h3-classes", flag, 0, ""}, {"-itg-max-mid-dev",optWithValue,1,"8"},{"-itg-ext-level",optWithValue,1,"0"},
-    {"-ibm-max-skip",optWithValue,1,"3"},{"-dict-iter",optWithValue,1,"45"}, {"-nondef-iter",optWithValue,1,"250"}
+    {"-ibm-max-skip",optWithValue,1,"3"},{"-dict-iter",optWithValue,1,"45"}, {"-nondef-iter",optWithValue,1,"250"}, {"-ibm5-nonpar-distortion", flag, 0, ""}
   };
 
   Application app(argc, argv, params, nParams);
@@ -335,11 +338,10 @@ int main(int argc, char** argv)
     hmm_init_mode = HmmInitFix2;
 
   std::string hmm_init_string = downcase(app.getParam("-hmm-init-type"));
-  if (hmm_init_string != "auto" && hmm_init_string != "par"
-      && hmm_init_string != "nonpar" && hmm_init_string != "fix"
+  if (hmm_init_string != "par" && hmm_init_string != "nonpar" && hmm_init_string != "fix"
       && hmm_init_string != "fix2") {
-    std::cerr << "WARNING: \"" << hmm_init_string << "\" is not a valid hmm init type. Selecting auto." << std::endl;
-    hmm_init_string = "auto";
+    std::cerr << "WARNING: \"" << hmm_init_string << "\" is not a valid hmm init type. Selecting par." << std::endl;
+    hmm_init_string = "par";
   }
   if (hmm_init_string == "par")
     hmm_init_mode = HmmInitPar;
@@ -557,6 +559,36 @@ int main(int argc, char** argv)
     }
   }
 
+  IBM1Options ibm1_options(nSourceWords, nTargetWords, sure_ref_alignments, possible_ref_alignments);
+  ibm1_options.nIterations_ = ibm1_iter;
+  ibm1_options.smoothed_l0_ = em_l0;
+  ibm1_options.l0_beta_ = l0_beta;
+  ibm1_options.print_energy_ = !app.is_set("-dont-print-energy");
+  ibm1_options.unconstrained_m_step_ = (msolve_mode != MSSolvePGD);
+  ibm1_options.dict_m_step_iter_ = dict_m_step_iter;
+
+  IBM2Options ibm2_options(nSourceWords, nTargetWords, sure_ref_alignments, possible_ref_alignments);
+  ibm2_options.nIterations_ = ibm1_iter;
+  ibm2_options.smoothed_l0_ = em_l0;
+  ibm2_options.l0_beta_ = l0_beta;
+  ibm2_options.print_energy_ = !app.is_set("-dont-print-energy");
+  ibm2_options.unconstrained_m_step_ = (msolve_mode != MSSolvePGD);
+  ibm2_options.ibm2_mode_ = ibm2_align_mode;
+  ibm2_options.dict_m_step_iter_ = dict_m_step_iter;
+  ibm2_options.deficient_ = app.is_set("-deficient-h25");
+
+  HmmOptions hmm_options(nSourceWords, nTargetWords, reduced_ibm2align_model, sure_ref_alignments, possible_ref_alignments);
+  hmm_options.nIterations_ = hmm_iter;
+  hmm_options.align_type_ = hmm_align_mode;
+  hmm_options.init_type_ = hmm_init_mode;
+  hmm_options.smoothed_l0_ = em_l0;
+  hmm_options.l0_beta_ = l0_beta;
+  hmm_options.start_empty_word_ = app.is_set("-hmm-start-empty-word");
+  hmm_options.deficient_ = app.is_set("-deficient-h25");
+  hmm_options.print_energy_ = !app.is_set("-dont-print-energy");
+  hmm_options.msolve_mode_ = msolve_mode;
+  hmm_options.dict_m_step_iter_ = dict_m_step_iter;
+
   FertModelOptions fert_options;
   fert_options.l0_fertpen_ = l0_fertpen;
   fert_options.cept_start_mode_ = ibm4_cept_mode;
@@ -568,10 +600,10 @@ int main(int argc, char** argv)
   fert_options.l0_beta_ = l0_beta;
   fert_options.p0_ = fert_p0;
   fert_options.par_mode_ = ibm3_dist_mode;
-  fert_options.deficient_ = app.is_set("-deficient-h5");
+  fert_options.deficient_ = app.is_set("-deficient-h25");
   fert_options.nondeficient_ = app.is_set("-nondeficient");
   fert_options.reduce_deficiency_ = app.is_set("-ibm4-reduce-deficiency");
-  fert_options.ibm5_nonpar_distortion_ = (ibm3_dist_mode == IBM23Nonpar);
+  fert_options.ibm5_nonpar_distortion_ = app.is_set("-ibm5-nonpar-distortion");
   fert_options.empty_word_model_ = empty_word_model;
   fert_options.dict_m_step_iter_ = dict_m_step_iter;
   fert_options.nondef_dist34_m_step_iter_ = convert<uint>(app.getParam("-nondef-iter"));
@@ -604,14 +636,6 @@ int main(int argc, char** argv)
 
   /*** IBM-1 ***/
 
-  IBM1Options ibm1_options(nSourceWords, nTargetWords, sure_ref_alignments, possible_ref_alignments);
-  ibm1_options.nIterations_ = ibm1_iter;
-  ibm1_options.smoothed_l0_ = em_l0;
-  ibm1_options.l0_beta_ = l0_beta;
-  ibm1_options.print_energy_ = !app.is_set("-dont-print-energy");
-  ibm1_options.unconstrained_m_step_ = (msolve_mode != MSSolvePGD);
-  ibm1_options.dict_m_step_iter_ = dict_m_step_iter;
-
   if (method == "em") {
 
     train_ibm1(source_sentence, slookup, target_sentence, wcooc, dict, prior_weight, ibm1_options);
@@ -626,15 +650,6 @@ int main(int argc, char** argv)
   }
 
   /*** IBM-2 ***/
-
-  IBM2Options ibm2_options(nSourceWords, nTargetWords, sure_ref_alignments, possible_ref_alignments);
-  ibm2_options.nIterations_ = ibm1_iter;
-  ibm2_options.smoothed_l0_ = em_l0;
-  ibm2_options.l0_beta_ = l0_beta;
-  ibm2_options.print_energy_ = !app.is_set("-dont-print-energy");
-  ibm2_options.unconstrained_m_step_ = (msolve_mode != MSSolvePGD);
-  ibm2_options.ibm2_mode_ = ibm2_align_mode;
-  ibm2_options.dict_m_step_iter_ = dict_m_step_iter;
 
   if (ibm2_iter > 0) {
 
@@ -660,19 +675,7 @@ int main(int argc, char** argv)
 
   /*** HMM ***/
 
-  HmmOptions hmm_options(nSourceWords, nTargetWords, reduced_ibm2align_model, sure_ref_alignments, possible_ref_alignments);
-  hmm_options.nIterations_ = hmm_iter;
-  hmm_options.align_type_ = hmm_align_mode;
-  hmm_options.init_type_ = hmm_init_mode;
-  hmm_options.smoothed_l0_ = em_l0;
-  hmm_options.l0_beta_ = l0_beta;
-  hmm_options.start_empty_word_ = app.is_set("-hmm-start-empty-word");
-  hmm_options.deficient_ = app.is_set("-deficient-h5");
-  hmm_options.print_energy_ = !app.is_set("-dont-print-energy");
-  hmm_options.msolve_mode_ = msolve_mode;
-  hmm_options.dict_m_step_iter_ = dict_m_step_iter;
-
-  std::string ibm1_transfer_mode = downcase(app.getParam("-ibm1-transfer-mode"));
+  std::string ibm1_transfer_mode = downcase(app.getParam("-transfer-mode"));
   if (ibm1_transfer_mode != "no" && ibm1_transfer_mode != "viterbi" && ibm1_transfer_mode != "posterior") {
     std::cerr << "WARNING: unknown mode \"" << ibm1_transfer_mode
               << "\" for transfer from IBM-1 to HMM. Selecting \"no\"" << std::endl;

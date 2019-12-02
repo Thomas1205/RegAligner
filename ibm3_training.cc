@@ -3034,7 +3034,7 @@ long double IBM3Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
   fertility.set_constant(0);
 
   Math2D::Matrix<double> dict(curJ,curI+1);
-  compute_dictmat(source, lookup, target, dict_, dict);
+  compute_dictmat_fertform(source, lookup, target, dict_, dict);
 
   for (uint j = 0; j < curJ; j++) {
 

@@ -628,7 +628,7 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
   }
 
   Math2D::Matrix<double> dict(curJ,curI+1);
-  compute_dictmat(source, lookup, target, dict_, dict);
+  compute_dictmat_fertform(source, lookup, target, dict_, dict);
 
   long double base_distortion_prob = distortion_prob(source, target, aligned_source_words);
   long double base_prob = base_distortion_prob;
