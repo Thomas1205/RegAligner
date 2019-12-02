@@ -32,6 +32,10 @@ as proposed by [Brown et al. 1993], add
 
 to the command line. In future versions the default behaviour may change.
 
+If you want to be closest to GIZA++'s model, add 
+
+-hmm-init-type fix -count-collection -hillclimb-mode reinit -uniform-start-prob
+
 ***** Enabling reading of zipped files ****
 
 To enable reading of zipped files (presently these can only be the corpus
@@ -137,10 +141,8 @@ to the command line. The run times and the memory consumption will be much
 
 ***** Evaluating on gold alignments for the training set ****
 
-RegAligner supports the option to evaluate intermediate alignments (arising
-during the iterations) on gold alignments for the training set. These
-alignments are used solely for outputting error/accuracy measures. They do not
-influence the computed alignments.
+RegAligner supports the option to evaluate intermediate alignments (arising during the iterations) on gold alignments for the training set. 
+These alignments are used solely for outputting error/accuracy measures. They do not influence the computed alignments.
 
 To pass in gold alignments, add
 
@@ -164,9 +166,8 @@ have to run one iteration less.
 
 ***** Computing alignments on additional data *****
 
-It is possible to also compute alignments on data that are not to be
-used for the training of the models (e.g. a development set). This is done
-simultaneously with the training. To this end add
+It is possible to also compute alignments on data that are not to be used for the training of the models (e.g. a development set). This is 
+done simultaneously with the training. To this end add
 
 -ds <additional source file> -dt <additional target file>
 
@@ -186,8 +187,7 @@ add
 
 -sparse-reg -dict-regularity 2.5
 
-(or any other value) to the command line. Make sure that you are NOT using
-Viterbi training (e.g. that -method gets the default value of "em").
+(or any other value) to the command line. Make sure that you are NOT using Viterbi training (e.g. that -method gets the default value of "em").
 
 ***** Activating EM-Training with L0-terms ***
 

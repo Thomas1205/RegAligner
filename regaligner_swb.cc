@@ -79,8 +79,8 @@ int main(int argc, char** argv)
               << " [-p0 <double>] : fix probability for empty alignments for IBM-3/4/5" << std::endl
               << " [-org-empty-word] : for IBM-3/4 use empty word as originally published" << std::endl
               << " [-nondeficient] : train nondeficient variants of IBM-3/4" << std::endl
-              << " [-fert-limit <uint>] : fertility limit for IBM-3/4/5, default: 10000" << std::endl
-              << " [-rare-fert-limit <uint>] : fertility limit for rare words and IBM-3/4, default: 10000" << std::endl
+              << " [-fert-limit <uint>] : fertility limit for IBM-3/4/5, default: 9" << std::endl
+              << " [-rare-fert-limit <uint>] : fertility limit for rare words and IBM-3/4, default: 9" << std::endl
               << " [-uniform-start-prob] : use uniform start prob for IBM-4/5 as in GIZA++" << std::endl
               << "************ Options for IBM-3 only *****************" << std::endl
               << " [-ibm3-distortion] (pos | diff | nonpar)] : parametric distortion model for IBM-3, default pos" << std::endl
@@ -114,14 +114,14 @@ int main(int argc, char** argv)
     {"-prior-dict", optInFilename, 0, ""}, {"-hmm-iter", optWithValue, 1, "5"}, {"-method", optWithValue, 1, "em"}, {"-ibm1-iter", optWithValue, 1, "5"},
     {"-ibm2-iter", optWithValue, 1, "0"}, {"-ibm3-iter", optWithValue, 1, "5"}, {"-ibm4-iter", optWithValue, 1, "5"}, {"-ibm5-iter", optWithValue, 1, "0"},
     {"-fertpen", optWithValue, 1, "0.0"}, {"-constraint-mode", optWithValue, 1, "unconstrained"},  {"-l0-beta", optWithValue, 1, "-1.0"},
-    {"-ibm4-mode", optWithValue, 1, "first"}, {"-fert-limit", optWithValue, 1, "10000"}, {"-postdec-thresh", optWithValue, 1, "-1.0"},
+    {"-ibm4-mode", optWithValue, 1, "first"}, {"-fert-limit", optWithValue, 1, "9"}, {"-postdec-thresh", optWithValue, 1, "-1.0"},
     {"-hmm-type", optWithValue, 1, "redpar"}, {"-p0", optWithValue, 1, "-1.0"}, {"-org-empty-word", flag, 0, ""}, {"-ibm3-distortion", optWithValue, 1, "pos"},
     {"-hmm-init-type", optWithValue, 1, "par"}, {"-dont-print-energy", flag, 0, ""}, {"-transfer-mode", optWithValue, 1, "no"},
     {"-dict-struct", optWithValue, 0, ""}, {"-ibm4-reduce-deficiency", flag, 0, ""}, {"-count-collection", flag, 0, ""},
     {"-sclasses", optInFilename, 0, ""}, {"-tclasses", optInFilename, 0, ""}, {"-tfert-classes", optInFilename, 0, ""}, {"-max-lookup", optWithValue, 1, "65535"},
     {"-ibm4-inter-dist-mode", optWithValue, 1, "previous"}, {"-ibm4-intra-dist-mode", optWithValue, 1, "source"}, {"-nondeficient", flag, 0, ""},
     {"-ilp-mode", optWithValue, 1, "off"}, {"-utmost-ilp-precision", flag, 0, ""}, {"-hmm-start-empty-word", flag, 0, ""}, {"-ibm3-extra-deficient", flag, 0, ""},
-    {"-deficient-h25", flag, 0, ""},{"-ibm4-deficient-null", optWithValue, 1, "intra"}, {"-rare-fert-limit", optWithValue, 1, "10000"},
+    {"-deficient-h25", flag, 0, ""},{"-ibm4-deficient-null", optWithValue, 1, "intra"}, {"-rare-fert-limit", optWithValue, 1, "9"},
     {"-ibm2-alignment", optWithValue, 1, "pos"}, {"-no-h3-classes", flag, 0, ""}, {"-itg-max-mid-dev",optWithValue,1,"8"},{"-itg-ext-level",optWithValue,1,"0"},
     {"-ibm-max-skip", optWithValue,1,"3"},{"-dict-iter",optWithValue,1,"45"}, {"-nondef-iter",optWithValue,1,"250"}, {"-ibm5-nonpar-distortion", flag, 0, ""},
     {"-uniform-start-prob", flag, 0, ""}
