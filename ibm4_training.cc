@@ -96,10 +96,9 @@ IBM4Trainer::IBM4Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence
   for (uint x = 0; x < within_cept_prob_.xDim(); x++)
     within_cept_prob_(x, 0) = 0.0;
 
-  if (use_sentence_start_prob_) {
+  sentence_start_prob_.resize(maxJ_ + 1);
+  if (use_sentence_start_prob_)
     sentence_start_parameters_.resize(maxJ_, 1.0 / maxJ_);
-    sentence_start_prob_.resize(maxJ_ + 1);
-  }
 
   std::set<uint> seenJs;
   for (uint s = 0; s < source_sentence.size(); s++)
@@ -108,16 +107,10 @@ IBM4Trainer::IBM4Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence
   inter_distortion_prob_.resize(maxJ_ + 1);
   intra_distortion_prob_.resize(maxJ_ + 1);
 
-  if (use_sentence_start_prob_) {
-    for (uint J = 1; J <= maxJ_; J++) {
-      if (seenJs.find(J) != seenJs.end()) {
-
-        sentence_start_prob_[J].resize(J, 0.0);
-
-        for (uint j = 0; j < J; j++)
-          sentence_start_prob_[J][j] = sentence_start_parameters_[j];
-      }
-    }
+  for (std::set<uint>::const_iterator it = seenJs.begin(); it != seenJs.end(); it++) 
+  {
+    const uint J = *it;
+    sentence_start_prob_[J].resize(J, 1.0 / J);
   }
 
   null_intra_prob_.resize(maxJ_, 1.0 / (maxJ_ - 1));    //entry 0 will not be accessed
@@ -4089,7 +4082,7 @@ long double IBM4Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
                   incoming_prob *= inter_distortion_prob(j, cept_center[cand_prev_i], sc, tc, curJ);
                 }
-                else
+                else if (use_sentence_start_prob_)
                   incoming_prob *= cur_sentence_start_prob[j];
 
                 if (cand_next_i != MAX_UINT) {

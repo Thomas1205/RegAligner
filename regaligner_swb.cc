@@ -81,6 +81,7 @@ int main(int argc, char** argv)
               << " [-nondeficient] : train nondeficient variants of IBM-3/4" << std::endl
               << " [-fert-limit <uint>] : fertility limit for IBM-3/4/5, default: 10000" << std::endl
               << " [-rare-fert-limit <uint>] : fertility limit for rare words and IBM-3/4, default: 10000" << std::endl
+              << " [-uniform-start-prob] : use uniform start prob for IBM-4/5 as in GIZA++" << std::endl
               << "************ Options for IBM-3 only *****************" << std::endl
               << " [-ibm3-distortion] (pos | diff | nonpar)] : parametric distortion model for IBM-3, default pos" << std::endl
               << " [-ibm3-extra-deficient] : don't renormalize parametric distortion for IBM-3" << std::endl
@@ -105,7 +106,7 @@ int main(int argc, char** argv)
     exit(0);
   }
 
-  const int nParams = 58;
+  const int nParams = 59;
   ParamDescr params[nParams] = {
     {"-s", mandInFilename, 0, ""}, {"-t", mandInFilename, 0, ""}, {"-ds", optInFilename, 0, ""}, {"-dt", optInFilename, 0, ""},
     {"-o", optOutFilename, 0, ""}, {"-oa", mandOutFilename, 0, ""},  {"-refa", optInFilename, 0, ""}, {"-invert-biling-data", flag, 0, ""},
@@ -122,7 +123,8 @@ int main(int argc, char** argv)
     {"-ilp-mode", optWithValue, 1, "off"}, {"-utmost-ilp-precision", flag, 0, ""}, {"-hmm-start-empty-word", flag, 0, ""}, {"-ibm3-extra-deficient", flag, 0, ""},
     {"-deficient-h25", flag, 0, ""},{"-ibm4-deficient-null", optWithValue, 1, "intra"}, {"-rare-fert-limit", optWithValue, 1, "10000"},
     {"-ibm2-alignment", optWithValue, 1, "pos"}, {"-no-h3-classes", flag, 0, ""}, {"-itg-max-mid-dev",optWithValue,1,"8"},{"-itg-ext-level",optWithValue,1,"0"},
-    {"-ibm-max-skip",optWithValue,1,"3"},{"-dict-iter",optWithValue,1,"45"}, {"-nondef-iter",optWithValue,1,"250"}, {"-ibm5-nonpar-distortion", flag, 0, ""}
+    {"-ibm-max-skip", optWithValue,1,"3"},{"-dict-iter",optWithValue,1,"45"}, {"-nondef-iter",optWithValue,1,"250"}, {"-ibm5-nonpar-distortion", flag, 0, ""},
+    {"-uniform-start-prob", flag, 0, ""}
   };
 
   Application app(argc, argv, params, nParams);
@@ -607,6 +609,7 @@ int main(int argc, char** argv)
   fert_options.empty_word_model_ = empty_word_model;
   fert_options.dict_m_step_iter_ = dict_m_step_iter;
   fert_options.nondef_dist34_m_step_iter_ = convert<uint>(app.getParam("-nondef-iter"));
+  fert_options.uniform_sentence_start_prob_ = app.is_set("-uniform-start-prob");
 
   Math1D::NamedVector<double> log_table(MAKENAME(log_table));
   Math1D::NamedVector<double> xlogx_table(MAKENAME(xlogx_table));
