@@ -153,8 +153,38 @@ void compute_ibm2_viterbi_alignment(const Storage1D<uint>& source_sentence, cons
     AlignBaseType arg_max = 0;
     for (uint i = 0; i < I; i++) {
 
-      double cur_prob =
-        dict[target_sentence[i]][slookup(j, i)] * align_prob(i + 1, j);
+      double cur_prob = dict[target_sentence[i]][slookup(j, i)] * align_prob(i + 1, j);
+
+      if (cur_prob > max_prob) {
+        max_prob = cur_prob;
+        arg_max = i + 1;
+      }
+    }
+
+    viterbi_alignment[j] = arg_max;
+  }
+}
+
+void compute_ibm2_viterbi_alignment(const Storage1D<uint>& source_sentence, const SingleLookupTable& slookup, const Storage1D<uint>& target_sentence,
+                                    const SingleWordDictionary& dict, const Math3D::Tensor<double>& align_prob,
+                                    const Storage1D<WordClassType>& sclass, Storage1D<AlignBaseType>& viterbi_alignment)
+{
+  const uint J = source_sentence.size();
+  const uint I = target_sentence.size();
+
+  viterbi_alignment.resize_dirty(J);
+
+  for (uint j = 0; j < J; j++) {
+
+    //NOTE: a generative model does not allow to condition on sclass[source_sentence[j]]
+    //  We could cheat if we only want training/word alignment. But we just take the previous word
+    const uint c = (j == 0) ? 0 : sclass[source_sentence[j-1]];
+
+    double max_prob = dict[0][source_sentence[j] - 1] * align_prob(0, j, c);
+    AlignBaseType arg_max = 0;
+    for (uint i = 0; i < I; i++) {
+
+      double cur_prob = dict[target_sentence[i]][slookup(j, i)] * align_prob(i + 1, j, c);
 
       if (cur_prob > max_prob) {
         max_prob = cur_prob;
@@ -194,9 +224,44 @@ void compute_ibm2_postdec_alignment(const Storage1D<uint>& source_sentence, cons
         postdec_alignment.insert(std::make_pair(j + 1, i + 1));
       }
     }
-
   }
 }
+
+void compute_ibm2_postdec_alignment(const Storage1D<uint>& source_sentence, const SingleLookupTable& slookup, const Storage1D<uint>& target_sentence,
+                                    const SingleWordDictionary& dict, const Math3D::Tensor<double>& align_prob,
+                                    const Storage1D<WordClassType>& sclass, std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
+                                    double threshold)
+{
+  const uint J = source_sentence.size();
+  const uint I = target_sentence.size();
+
+  postdec_alignment.clear();
+
+  for (uint j = 0; j < J; j++) {
+
+    //NOTE: a generative model does not allow to condition on sclass[source_sentence[j]]
+    //  We could cheat if we only want training/word alignment. But we just take the previous word
+    const uint c = (j == 0) ? 0 : sclass[source_sentence[j-1]];
+
+    double sum = dict[0][source_sentence[j] - 1] * align_prob(0, j, c);    //CHECK: no alignment prob for alignments to 0??
+
+    for (uint i = 0; i < I; i++)
+      sum += std::max(1e-15, dict[target_sentence[i]][slookup(j, i)]) * align_prob(i + 1, j, c);
+
+    assert(sum > 1e-305);
+
+    for (uint i = 0; i < I; i++) {
+
+      double marg = std::max(1e-15, dict[target_sentence[i]][slookup(j, i)]) * align_prob(i + 1, j, c) / sum;
+
+      if (marg >= threshold) {
+
+        postdec_alignment.insert(std::make_pair(j + 1, i + 1));
+      }
+    }
+  }
+}
+
 
 // long double compute_fullhmm_viterbi_alignment(const Storage1D<uint>& source_sentence, const SingleLookupTable& slookup,
 // const Storage1D<uint>& target_sentence, const SingleWordDictionary& dict,

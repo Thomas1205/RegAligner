@@ -35,8 +35,7 @@ bool operator<(const IBM4CacheStruct& c1, const IBM4CacheStruct& c2)
 
 IBM4Trainer::IBM4Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence, const LookupTable& slookup,
                          const Storage1D<Math1D::Vector<uint> >& target_sentence,
-                         const std::map<uint, std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
-                         const std::map<uint, std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
+                         const RefAlignmentStructure& sure_ref_alignments, const RefAlignmentStructure& possible_ref_alignments,
                          SingleWordDictionary& dict, const CooccuringWordsType& wcooc,
                          const Math1D::Vector<uint>& tfert_class, uint nSourceWords, uint nTargetWords, const floatSingleWordDictionary& prior_weight,
                          const Storage1D<WordClassType>& source_class, const Storage1D<WordClassType>& target_class,
@@ -50,7 +49,7 @@ IBM4Trainer::IBM4Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence
     intra_dist_mode_(options.intra_dist_mode_), use_sentence_start_prob_(!options.uniform_sentence_start_prob_),
     reduce_deficiency_(options.reduce_deficiency_), uniform_intra_prob_(options.uniform_intra_prob_), min_nondef_count_(options.min_nondef_count_),
     dist_m_step_iter_(options.dist_m_step_iter_), nondef_dist_m_step_iter_(options.nondef_dist34_m_step_iter_),
-    nondeficient_(options.nondeficient_), storage_limit_(12)
+    start_m_step_iter_(options.start_m_step_iter_), nondeficient_(options.nondeficient_), storage_limit_(12)
 {
   const uint nDisplacements = 2 * maxJ_ - 1;
   displacement_offset_ = maxJ_ - 1;
@@ -6832,9 +6831,9 @@ void IBM4Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
     if (use_sentence_start_prob_) {
 
       if (msolve_mode_ == MSSolvePGD)
-        start_prob_m_step(fsentence_start_count, fstart_span_count, sentence_start_parameters_);
+        start_prob_m_step(fsentence_start_count, fstart_span_count, sentence_start_parameters_, start_m_step_iter_);
       else
-        start_prob_m_step_unconstrained(fsentence_start_count, fstart_span_count, sentence_start_parameters_);
+        start_prob_m_step_unconstrained(fsentence_start_count, fstart_span_count, sentence_start_parameters_, start_m_step_iter_);
       par2nonpar_start_prob(sentence_start_parameters_, sentence_start_prob_);
     }
 
@@ -7533,9 +7532,9 @@ void IBM4Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
     if (use_sentence_start_prob_) {
 
       if (msolve_mode_ == MSSolvePGD)
-        start_prob_m_step(fsentence_start_count, fstart_span_count, sentence_start_parameters_);
+        start_prob_m_step(fsentence_start_count, fstart_span_count, sentence_start_parameters_, start_m_step_iter_);
       else
-        start_prob_m_step_unconstrained(fsentence_start_count, fstart_span_count, sentence_start_parameters_);
+        start_prob_m_step_unconstrained(fsentence_start_count, fstart_span_count, sentence_start_parameters_, start_m_step_iter_);
 
       par2nonpar_start_prob(sentence_start_parameters_, sentence_start_prob_);
     }

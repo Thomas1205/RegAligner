@@ -15,6 +15,8 @@ namespace Math3D {
   template<typename T, typename ST=size_t>
   class Tensor : public Storage3D<T,ST> {
   public:
+  
+    typedef Storage3D<T,ST> Base;
 
     typedef T ALIGNED16 T_A16;
 
@@ -33,7 +35,7 @@ namespace Math3D {
 
     inline void add_const(T addon);
 
-    void add_tensor_multiple(const Tensor<T,ST>& toAdd, const T alpha);
+    inline void add_tensor_multiple(const Tensor<T,ST>& toAdd, const T alpha);
 
     void operator+=(const Tensor<T,ST>& toAdd);
 
@@ -222,7 +224,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  void Tensor<T,ST>::add_tensor_multiple(const Tensor<T,ST>& toAdd, const T alpha)
+  inline void Tensor<T,ST>::add_tensor_multiple(const Tensor<T,ST>& toAdd, const T alpha)
   {
 
 #ifndef DONT_CHECK_VECTOR_ARITHMETIC
@@ -244,6 +246,27 @@ namespace Math3D {
     ST i;
     for (i=0; i < size; i++)
       Storage3D<T,ST>::data_[i] += alpha * toAdd.direct_access(i);
+  }
+
+  template<>
+  inline void Tensor<double>::add_tensor_multiple(const Tensor<double>& toAdd, const double alpha)
+  {
+
+#ifndef DONT_CHECK_VECTOR_ARITHMETIC
+    if (toAdd.xDim() != Storage3D<double>::xDim_
+        || toAdd.yDim() != Storage3D<double>::yDim_
+        || toAdd.zDim() != Storage3D<double>::zDim_) {
+      INTERNAL_ERROR << "    cannot add multiple of tensor \"" << toAdd.name() << "\" to tensor \""
+                     << this->name() << "\":" << std::endl
+                     << "    sizes " << toAdd.xDim() << "x" << toAdd.yDim() << "x" << toAdd.zDim()
+                     << " and " << Storage3D<double>::xDim_ << "x" << Storage3D<double>::yDim_ << "x"
+                     << Storage3D<double>::zDim_ << " are incompatible. Exiting..."
+                     << std::endl;
+      exit(1);
+    }
+#endif
+
+    Makros::array_add_multiple(Storage3D<double>::data_, Storage3D<double>::size_, alpha, toAdd.direct_access());
   }
 
   template<typename T, typename ST>

@@ -24,8 +24,8 @@
 #include "CglGomory/CglGomory.hpp"
 #endif
 
-IBM1Options::IBM1Options(uint nSourceWords, uint nTargetWords, std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType > > >& sure_ref_alignments,
-                         std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments):
+IBM1Options::IBM1Options(uint nSourceWords, uint nTargetWords, RefAlignmentStructure& sure_ref_alignments,
+                         RefAlignmentStructure& possible_ref_alignments):
   nIterations_(5), smoothed_l0_(false), l0_beta_(1.0), print_energy_(true),
   nSourceWords_(nSourceWords), nTargetWords_(nTargetWords), dict_m_step_iter_(45),
   sure_ref_alignments_(sure_ref_alignments), possible_ref_alignments_(possible_ref_alignments)
@@ -80,17 +80,20 @@ double ibm1_energy(const Storage1D<Math1D::Vector<uint> >& source, const LookupT
   if (dict_weight_sum != 0.0) {
     for (uint i = 0; i < dict.size(); i++) {
 
-      const uint size = dict[i].size();
+      const Math1D::Vector<double>& cur_dict = dict[i];
+      const Math1D::Vector<float>& cur_prior = prior_weight[i];
+      
+      const uint size = cur_dict.size();
 
-      for (uint k = 0; k < size; k++) {
-        if (smoothed_l0)
-          energy += prior_weight[i][k] * prob_penalty(dict[i][k], l0_beta);
-        else
-          energy += prior_weight[i][k] * dict[i][k];
+      if (smoothed_l0) {
+        for (uint k = 0; k < size; k++) 
+          energy += cur_prior[k] * prob_penalty(cur_dict[k], l0_beta);
+      }
+      else {
+        for (uint k = 0; k < size; k++) 
+          energy += cur_prior[k] * cur_dict[k];
       }
     }
-
-    energy /= target.size();      //since the perplexity is also divided by that amount
   }
 
   energy += ibm1_perplexity(source, slookup, target, dict, wcooc, nSourceWords);
@@ -173,6 +176,7 @@ void train_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
   for (uint iter = 1; iter <= nIter; iter++) {
 
     std::cerr << "starting IBM-1 EM-iteration #" << iter << std::endl;
+    std::cerr << "max_prior[0]: " << prior_weight[0].max() << std::endl;
 
     /*** a) compute fractional counts ***/
 
@@ -235,7 +239,7 @@ void train_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
       double sum_postdec_fmeasure = 0.0;
       double sum_postdec_daes = 0.0;
 
-      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::const_iterator it = options.possible_ref_alignments_.begin();
+      for (RefAlignmentStructure::const_iterator it = options.possible_ref_alignments_.begin();
            it != options.possible_ref_alignments_.end(); it++) {
 
         uint s = it->first - 1;
@@ -245,6 +249,9 @@ void train_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
 
         nContributors++;
 
+        const AlignmentStructure& cur_sure = options.sure_ref_alignments_[s + 1];
+        const AlignmentStructure& cur_possible = it->second;
+
         const SingleLookupTable& cur_lookup = get_wordlookup(source[s], target[s], wcooc, nSourceWords, slookup[s], aux_lookup);
 
         //compute viterbi alignment
@@ -252,16 +259,16 @@ void train_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
         compute_ibm1_viterbi_alignment(source[s], cur_lookup, target[s], dict, viterbi_alignment);
 
         //add alignment error rate
-        sum_aer += AER(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        sum_fmeasure += f_measure(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        nErrors += nDefiniteAlignmentErrors(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_aer += AER(viterbi_alignment, cur_sure, cur_possible);
+        sum_fmeasure += f_measure(viterbi_alignment, cur_sure, cur_possible);
+        nErrors += nDefiniteAlignmentErrors(viterbi_alignment, cur_sure, cur_possible);
 
         std::set<std::pair<AlignBaseType,AlignBaseType> > postdec_alignment;
         compute_ibm1_postdec_alignment(source[s], cur_lookup, target[s], dict, postdec_alignment);
 
-        sum_postdec_aer += AER(postdec_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        sum_postdec_fmeasure += f_measure(postdec_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        sum_postdec_daes += nDefiniteAlignmentErrors(postdec_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_postdec_aer += AER(postdec_alignment, cur_sure, cur_possible);
+        sum_postdec_fmeasure += f_measure(postdec_alignment, cur_sure, cur_possible);
+        sum_postdec_daes += nDefiniteAlignmentErrors(postdec_alignment, cur_sure, cur_possible);
       }
 
       sum_aer *= 100.0 / nContributors;
@@ -388,6 +395,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, c
   for (uint iter = 1; iter <= nIter; iter++) {
 
     std::cerr << "starting IBM-1 gradient descent iteration #" << iter << std::endl;
+    std::cerr << "max_prior[0]: " << prior_weight[0].max() << std::endl;
 
     /**** calcuate gradients ****/
 
@@ -434,13 +442,16 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, c
     if (dict_weight_sum != 0.0) {
       for (uint i = 0; i < options.nTargetWords_; i++) {
 
-        const uint size = dict[i].size();
+        const Math1D::Vector<double>& cur_dict = dict[i];
+        const Math1D::Vector<float>& cur_prior = prior_weight[i];
+        Math1D::Vector<double>& cur_dict_grad = dict_grad[i];
+        const uint size = cur_dict.size();
 
         for (uint k = 0; k < size; k++) {
           if (smoothed_l0)
-            dict_grad[i][k] += prior_weight[i][k] * prob_pen_prime(dict[i][k], l0_beta);
+            cur_dict_grad[k] += cur_prior[k] * prob_pen_prime(cur_dict[k], l0_beta);
           else
-            dict_grad[i][k] += prior_weight[i][k];
+            cur_dict_grad[k] += cur_prior[k];
         }
       }
     }
@@ -450,12 +461,13 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, c
     double lower_bound = energy;
     for (uint i = 0; i < options.nTargetWords_; i++) {
 
-      //if (regularity_weight != 0.0)
-      if (false)
-        lower_bound += std::min(0.0, dict_grad[i].min());
+      const Math1D::Vector<double>& cur_dict_grad = dict_grad[i];
+
+      if (dict_weight_sum != 0.0) //consider slack gradient of 0
+        lower_bound += std::min(0.0, cur_dict_grad.min());
       else
-        lower_bound += dict_grad[i].min();
-      lower_bound -= dict_grad[i] % dict[i];
+        lower_bound += cur_dict_grad.min();
+      lower_bound -= cur_dict_grad % dict[i];
     }
 
     best_lower_bound = std::max(best_lower_bound, lower_bound);
@@ -507,12 +519,12 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, c
 
     for (uint i = 0; i < options.nTargetWords_; i++) {
 
-      for (uint k = 0; k < dict[i].size(); k++)
-        new_dict[i][k] = dict[i][k] - real_alpha * dict_grad[i][k];
+      //for (uint k = 0; k < dict[i].size(); k++) 
+      //  new_dict[i][k] = dict[i][k] - real_alpha * dict_grad[i][k];
+      Makros::go_in_neg_direction(new_dict[i].direct_access(), dict[i].size(), dict[i].direct_access(), dict_grad[i].direct_access(), real_alpha);
     }
 
-    //if (regularity_weight != 0.0)
-    if (true)
+    if (dict_weight_sum != 0.0)
       new_slack_vector = slack_vector;
 
     /**** reproject on the simplices [Michelot 1986] ****/
@@ -520,8 +532,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, c
 
       const uint nCurWords = new_dict[i].size();
 
-      //if (regularity_weight != 0.0)
-      if (true)
+      if (dict_weight_sum != 0.0)
         projection_on_simplex_with_slack(new_dict[i].direct_access(), slack_vector[i], nCurWords, ibm1_min_dict_entry);
       else
         projection_on_simplex(new_dict[i].direct_access(), nCurWords, ibm1_min_dict_entry);
@@ -554,12 +565,16 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, c
 
       lambda *= line_reduction_factor;
 
-      double inv_lambda = 1.0 - lambda;
+      const double neg_lambda = 1.0 - lambda;
 
       for (uint i = 0; i < options.nTargetWords_; i++) {
 
-        for (uint k = 0; k < dict[i].size(); k++)
-          hyp_dict[i][k] = inv_lambda * dict[i][k] + lambda * new_dict[i][k];
+        //for (uint k = 0; k < dict[i].size(); k++)
+        //  hyp_dict[i][k] = neg_lambda * dict[i][k] + lambda * new_dict[i][k];
+             
+        assert(dict[i].size() == hyp_dict[i].size());       
+        Makros::assign_weighted_combination(hyp_dict[i].direct_access(), dict[i].size(), neg_lambda, dict[i].direct_access(),
+                                            lambda, new_dict[i].direct_access());
       }
 
       double new_energy = ibm1_energy(source, slookup, target, hyp_dict, wcooc, nSourceWords, prior_weight, smoothed_l0, l0_beta, dict_weight_sum);
@@ -595,19 +610,18 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, c
     }
     //     std::cerr << "alpha: " << alpha << std::endl;
 
+    const double neg_best_lambda = 1.0 - best_lambda;
+
     for (uint i = 0; i < options.nTargetWords_; i++) {
 
-      double inv_lambda = 1.0 - best_lambda;
+      //for (uint k = 0; k < dict[i].size(); k++)
+      //  dict[i][k] = neg_best_lambda * dict[i][k] + best_lambda * new_dict[i][k];
 
-      for (uint k = 0; k < dict[i].size(); k++) {
-        const double cur_new_dict = inv_lambda * dict[i][k] + best_lambda * new_dict[i][k];
+      Makros::assign_weighted_combination(dict[i].direct_access(), dict[i].size(), neg_best_lambda, dict[i].direct_access(),
+                                          best_lambda, new_dict[i].direct_access());
 
-        dict[i][k] = cur_new_dict;
-      }
-
-      //if (regularity_weight > 0.0)
-      if (true)
-        slack_vector[i] = inv_lambda * slack_vector[i] + best_lambda * new_slack_vector[i];
+      if (dict_weight_sum > 0.0)
+        slack_vector[i] = neg_best_lambda * slack_vector[i] + best_lambda * new_slack_vector[i];
     }
 
 #ifndef NDEBUG
@@ -637,7 +651,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, c
       double sum_postdec_fmeasure = 0.0;
       double sum_postdec_daes = 0.0;
 
-      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::const_iterator it = options.possible_ref_alignments_.begin();
+      for (RefAlignmentStructure::const_iterator it = options.possible_ref_alignments_.begin();
            it != options.possible_ref_alignments_.end(); it++) {
 
         uint s = it->first - 1;
@@ -647,6 +661,9 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, c
 
         nContributors++;
 
+        const AlignmentStructure& cur_sure = options.sure_ref_alignments_[s + 1];
+        const AlignmentStructure& cur_possible = it->second;
+
         const SingleLookupTable& cur_lookup = get_wordlookup(source[s], target[s], wcooc, nSourceWords, slookup[s], aux_lookup);
 
         //compute viterbi alignment
@@ -654,16 +671,16 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, c
         compute_ibm1_viterbi_alignment(source[s], cur_lookup, target[s], dict, viterbi_alignment);
 
         //add alignment error rate
-        sum_aer += AER(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        sum_fmeasure += f_measure(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        nErrors += nDefiniteAlignmentErrors(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_aer += AER(viterbi_alignment, cur_sure, cur_possible);
+        sum_fmeasure += f_measure(viterbi_alignment, cur_sure, cur_possible);
+        nErrors += nDefiniteAlignmentErrors(viterbi_alignment, cur_sure, cur_possible);
 
         std::set<std::pair<AlignBaseType,AlignBaseType> > postdec_alignment;
         compute_ibm1_postdec_alignment(source[s], cur_lookup, target[s], dict, postdec_alignment);
 
-        sum_postdec_aer += AER(postdec_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        sum_postdec_fmeasure += f_measure(postdec_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        sum_postdec_daes += nDefiniteAlignmentErrors(postdec_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_postdec_aer += AER(postdec_alignment, cur_sure, cur_possible);
+        sum_postdec_fmeasure += f_measure(postdec_alignment, cur_sure, cur_possible);
+        sum_postdec_daes += nDefiniteAlignmentErrors(postdec_alignment, cur_sure, cur_possible);
       }
 
       sum_aer *= 100.0 / nContributors;
@@ -1103,7 +1120,67 @@ void train_ibm1_lbfgs_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source
     }
 
     energy = best_energy;
-  }
+
+    /************* compute alignment error rate ****************/
+    if (!options.possible_ref_alignments_.empty()) {
+
+      double sum_aer = 0.0;
+      double sum_fmeasure = 0.0;
+      double nErrors = 0.0;
+      uint nContributors = 0;
+
+      double sum_postdec_aer = 0.0;
+      double sum_postdec_fmeasure = 0.0;
+      double sum_postdec_daes = 0.0;
+
+      for (RefAlignmentStructure::const_iterator it = options.possible_ref_alignments_.begin();
+           it != options.possible_ref_alignments_.end(); it++) {
+
+        uint s = it->first - 1;
+
+        if (s >= nSentences)
+          break;
+
+        nContributors++;
+
+        const AlignmentStructure& cur_sure = options.sure_ref_alignments_[s + 1];
+        const AlignmentStructure& cur_possible = it->second;
+
+        const SingleLookupTable& cur_lookup = get_wordlookup(source[s], target[s], wcooc, nSourceWords, slookup[s], aux_lookup);
+
+        //compute viterbi alignment
+        Storage1D<AlignBaseType> viterbi_alignment;
+        compute_ibm1_viterbi_alignment(source[s], cur_lookup, target[s], dict, viterbi_alignment);
+
+        //add alignment error rate
+        sum_aer += AER(viterbi_alignment, cur_sure, cur_possible);
+        sum_fmeasure += f_measure(viterbi_alignment, cur_sure, cur_possible);
+        nErrors += nDefiniteAlignmentErrors(viterbi_alignment, cur_sure, cur_possible);
+
+        std::set<std::pair<AlignBaseType,AlignBaseType> > postdec_alignment;
+        compute_ibm1_postdec_alignment(source[s], cur_lookup, target[s], dict, postdec_alignment);
+
+        sum_postdec_aer += AER(postdec_alignment, cur_sure, cur_possible);
+        sum_postdec_fmeasure += f_measure(postdec_alignment, cur_sure, cur_possible);
+        sum_postdec_daes += nDefiniteAlignmentErrors(postdec_alignment, cur_sure, cur_possible);
+      }
+
+      sum_aer *= 100.0 / nContributors;
+      sum_fmeasure /= nContributors;
+      nErrors /= nContributors;
+
+      sum_postdec_aer *= 100.0 / nContributors;
+      sum_postdec_fmeasure /= nContributors;
+      sum_postdec_daes /= nContributors;
+
+      std::cerr << "#### IBM-1 Viterbi-AER after lbfgs-iteration #" << iter << ": " << sum_aer << " %" << std::endl;
+      std::cerr << "#### IBM-1 Viterbi-fmeasure after lbfgs-iteration #" << iter << ": " << sum_fmeasure << std::endl;
+      std::cerr << "#### IBM-1 Viterbi-DAE/S after lbfgs-iteration #" << iter << ": " << nErrors << std::endl;
+      std::cerr << "#### IBM-1 Postdec-AER after lbfgs-iteration #" << iter << ": " << sum_postdec_aer << " %" << std::endl;
+      std::cerr << "#### IBM-1 Postdec-fmeasure after lbfgs-iteration #" << iter << ": " << sum_postdec_fmeasure << std::endl;
+      std::cerr << "#### IBM-1 Postdec-DAE/S after lbfgs-iteration #" << iter << ": " << sum_postdec_daes << std::endl;
+    }
+  } //end for iter
 }
 
 
@@ -1798,7 +1875,7 @@ void ibm1_viterbi_training(const Storage1D<Math1D::Vector<uint> >& source, const
       double nErrors = 0.0;
       uint nContributors = 0;
 
-      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::const_iterator it = options.possible_ref_alignments_.begin();
+      for (RefAlignmentStructure::const_iterator it = options.possible_ref_alignments_.begin();
            it != options.possible_ref_alignments_.end(); it++) {
 
         uint s = it->first - 1;
@@ -1806,12 +1883,15 @@ void ibm1_viterbi_training(const Storage1D<Math1D::Vector<uint> >& source, const
         if (s >= nSentences)
           break;
 
+        const AlignmentStructure& cur_sure = options.sure_ref_alignments_[s + 1];
+        const AlignmentStructure& cur_possible = it->second;
+
         nContributors++;
 
         //add alignment error rate
-        sum_aer += AER(viterbi_alignment[s], options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        sum_fmeasure += f_measure(viterbi_alignment[s], options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        nErrors += nDefiniteAlignmentErrors(viterbi_alignment[s], options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_aer += AER(viterbi_alignment[s], cur_sure, cur_possible);
+        sum_fmeasure += f_measure(viterbi_alignment[s], cur_sure, cur_possible);
+        nErrors += nDefiniteAlignmentErrors(viterbi_alignment[s], cur_sure, cur_possible);
       }
 
       sum_aer *= 100.0 / nContributors;

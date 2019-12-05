@@ -15,14 +15,13 @@
 #include "alignment_computation.hh"
 #include "projection.hh"
 
-IBM2Options::IBM2Options(uint nSourceWords, uint nTargetWords, std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType > > >& sure_ref_alignments,
-                         std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments):
+IBM2Options::IBM2Options(uint nSourceWords, uint nTargetWords, RefAlignmentStructure& sure_ref_alignments,
+                         RefAlignmentStructure& possible_ref_alignments):
   nIterations_(5), smoothed_l0_(false), l0_beta_(1.0), print_energy_(true),
   nSourceWords_(nSourceWords), nTargetWords_(nTargetWords), dict_m_step_iter_(45),
   sure_ref_alignments_(sure_ref_alignments), possible_ref_alignments_(possible_ref_alignments)
 {
 }
-
 
 double ibm2_perplexity(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const Storage1D<Math1D::Vector<uint> >& target,
                        const IBM2AlignmentModel& align_model, const SingleWordDictionary& dict, const CooccuringWordsType& wcooc, uint nSourceWords)
@@ -89,8 +88,6 @@ double ibm2_energy(const Storage1D<Math1D::Vector<uint> >& source, const LookupT
           energy += prior_weight[i][k] * dict[i][k];
       }
     }
-
-    energy /= target.size();      //since the perplexity is also divided by that amount
   }
 
   energy += ibm2_perplexity(source, slookup, target, align_model, dict, wcooc, nSourceWords);
@@ -251,7 +248,7 @@ void train_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
       }
     }
 
-    std::cerr << "IBM 2 perplexity after iteration #" << iter << ": "
+    std::cerr << "IBM 2 energy after iteration #" << iter << ": "
               << ibm2_energy(source, slookup, target, alignment_model, dict, wcooc, nSourceWords, prior_weight, l0_beta, smoothed_l0, dict_weight_sum)
               << std::endl;
 
@@ -263,7 +260,7 @@ void train_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
       double nErrors = 0.0;
       uint nContributors = 0;
 
-      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::const_iterator it = possible_ref_alignments.begin();
+      for (RefAlignmentStructure::const_iterator it = possible_ref_alignments.begin();
            it != possible_ref_alignments.end(); it++) {
 
         uint s = it->first - 1;
@@ -357,6 +354,56 @@ void par2nonpar_reduced_ibm2alignment_model(const Math2D::Matrix<double>& align_
   }
 }
 
+void par2nonpar_reduced_ibm2alignment_model(const Math3D::Tensor<double>& align_param, const Math1D::Vector<double>& source_fert,
+    ReducedIBM2ClassAlignmentModel& alignment_model, IBM23ParametricMode par_mode, uint offset, bool deficient)
+{
+  for (uint k = 0; k < alignment_model.size(); k++) {
+
+    for (uint c = 0; c < alignment_model[k].zDim(); c++) {
+
+      for (uint j = 0; j < alignment_model[k].yDim(); j++) {
+
+        double sum = 0.0;
+
+        if (par_mode == IBM23ParByPosition) {
+
+          if (deficient)
+            sum = 1.0;
+          else {
+            for (uint i = 1; i < alignment_model[k].xDim(); i++)
+              sum += align_param(i - 1, j, c);
+          }
+
+          if (sum > 1e-305) {
+            const double inv_sum = 1.0 / sum;
+            alignment_model[k](0, j, c) = source_fert[0];
+            for (uint i = 1; i < alignment_model[k].xDim(); i++) {
+              alignment_model[k](i, j, c) = source_fert[1] * align_param(i - 1, j, c) * inv_sum;
+            }
+          }
+        }
+        else {
+
+          if (deficient)
+            sum = 1.0;
+          else {
+            for (uint i = 1; i < alignment_model[k].xDim(); i++)
+              sum += align_param(offset + j - (i - 1), 0, c);
+          }
+
+          if (sum > 1e-305) {
+            const double inv_sum = 1.0 / sum;
+            alignment_model[k](0, j, c) = source_fert[0];
+            for (uint i = 1; i < alignment_model[k].xDim(); i++) {
+              alignment_model[k](i, j, c) = source_fert[1] * align_param(offset + j - (i - 1), 0, c) * inv_sum;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 void nonpar2par_reduced_ibm2alignment_model(Math2D::Matrix<double>& align_param, const ReducedIBM2AlignmentModel& align_model)
 {
   align_param.set_constant(0.0);
@@ -375,6 +422,30 @@ void nonpar2par_reduced_ibm2alignment_model(Math2D::Matrix<double>& align_param,
 
     for (uint x = 0; x < align_param.xDim(); x++)
       align_param(x, y) /= sum;
+  }
+}
+
+void nonpar2par_reduced_ibm2alignment_model(Math3D::Tensor<double>& align_param, const ReducedIBM2ClassAlignmentModel& align_model)
+{
+  align_param.set_constant(0.0);
+
+  for (uint I = 0; I < align_model.size(); I++) {
+
+    for (uint c = 0; c < align_model[I].zDim(); c++)
+      for (uint y = 0; y < align_model[I].yDim(); y++)
+        for (uint i = 1; i < align_model[I].xDim(); i++)
+          align_param(i-1, y, c) += align_model[I](i, y, c);
+  }
+
+  for (uint c = 0; c < align_param.zDim(); c++) {
+    for (uint y = 0; y < align_param.yDim(); y++) {
+
+      double sum = align_param.sum_x(y, c);
+      assert(sum > 1e-305);
+
+      for (uint x = 0; x < align_param.xDim(); x++)
+        align_param(x, y, c) /= sum;
+    }
   }
 }
 
@@ -397,7 +468,8 @@ double reducedibm2_par_m_step_energy(const Math1D::Vector<double>& align_param, 
   return energy;
 }
 
-void reducedibm2_par_m_step(Math2D::Matrix<double>& align_param, const ReducedIBM2AlignmentModel& acount, uint j, uint nIter, bool deficient)
+void reducedibm2_par_m_step(Math3D::Tensor<double>& align_param, const ReducedIBM2ClassAlignmentModel& acount, uint j, uint c, uint nIter, 
+                            bool deficient, bool quiet = false)
 {
   //std::cerr << "reducedibm2_par_m_step" << std::endl;
 
@@ -405,7 +477,7 @@ void reducedibm2_par_m_step(Math2D::Matrix<double>& align_param, const ReducedIB
 
   Math1D::Vector<double> cur_param(xDim);
   for (uint k = 0; k < xDim; k++)
-    cur_param[k] = std::max(ibm2_min_align_param, align_param(k, j));
+    cur_param[k] = std::max(ibm2_min_align_param, align_param(k, j, c));
 
   Math1D::Vector<double> hyp_param(xDim);
   Math1D::Vector<double> new_param(xDim);
@@ -416,13 +488,13 @@ void reducedibm2_par_m_step(Math2D::Matrix<double>& align_param, const ReducedIB
 
   for (uint k = 0; k < acount.size(); k++) {
 
-    const Math2D::Matrix<double>& cur_acount = acount[k];
+    const Math3D::Tensor<double>& cur_acount = acount[k];
     if (cur_acount.yDim() > j) {
 
       uint curI = cur_acount.xDim()-1;
       for (uint i=1; i <= curI; i++) {
-        singleton_count[i - 1] += cur_acount(i,j);
-        span_count[curI - 1] += cur_acount(i,j);
+        singleton_count[i - 1] += cur_acount(i, j, c);
+        span_count[curI - 1] += cur_acount(i, j, c);
       }
     }
   }
@@ -438,7 +510,8 @@ void reducedibm2_par_m_step(Math2D::Matrix<double>& align_param, const ReducedIB
     double hyp_energy = reducedibm2_par_m_step_energy(hyp_param, singleton_count, span_count);
 
     if (deficient || hyp_energy < energy) {
-      std::cerr << "switching to normalized counts: " << hyp_energy << " instead of " << energy << std::endl;
+      if (!quiet)
+        std::cerr << "switching to normalized counts: " << hyp_energy << " instead of " << energy << std::endl;
 
       energy = hyp_energy;
       cur_param = hyp_param;
@@ -448,7 +521,7 @@ void reducedibm2_par_m_step(Math2D::Matrix<double>& align_param, const ReducedIB
   if (deficient) {
 
     for (uint k = 0; k < xDim; k++)
-      align_param(k, j) = cur_param[k];
+      align_param(k, j, c) = cur_param[k];
 
     return;
   }
@@ -521,7 +594,8 @@ void reducedibm2_par_m_step(Math2D::Matrix<double>& align_param, const ReducedIB
       line_reduction_factor *= 0.9;
 
     if (nIter > 15 || fabs(energy - best_energy) < 1e-4) {
-      std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
+      if (!quiet)
+        std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
       break;
     }
 
@@ -535,18 +609,18 @@ void reducedibm2_par_m_step(Math2D::Matrix<double>& align_param, const ReducedIB
   }
 
   for (uint k = 0; k < xDim; k++)
-    align_param(k, j) = cur_param[k];
+    align_param(k, j, c) = cur_param[k];
 }
 
-double reducedibm2_diffpar_m_step_energy(const Math2D::Matrix<double>& align_param, const Math1D::Vector<double>& singleton_count,
-    const Math2D::TriMatrix<double>& span_count)
+double reducedibm2_diffpar_m_step_energy(const Math3D::Tensor<double>& align_param, const Math1D::Vector<double>& singleton_count,
+    const Math2D::TriMatrix<double>& span_count, uint c)
 {
   const uint xDim = align_param.xDim();
 
   double energy = 0.0;
 
   for (uint x = 0; x < xDim; x++)
-    energy -= singleton_count[x] * std::log(align_param(x, 0) );
+    energy -= singleton_count[x] * std::log(align_param(x, 0, c) );
 
   for (uint x_start = 0; x_start < xDim; x_start++) {
 
@@ -554,7 +628,7 @@ double reducedibm2_diffpar_m_step_energy(const Math2D::Matrix<double>& align_par
 
     for (uint x_end = x_start; x_end < xDim; x_end++) {
 
-      param_sum += align_param(x_end, 0);
+      param_sum += align_param(x_end, 0, c);
       const double count = span_count(x_start, x_end);
 
       if (count != 0.0)
@@ -565,7 +639,7 @@ double reducedibm2_diffpar_m_step_energy(const Math2D::Matrix<double>& align_par
   return energy;
 }
 
-void reducedibm2_diffpar_m_step(Math2D::Matrix<double>& align_param, const ReducedIBM2AlignmentModel& acount, uint offset,
+void reducedibm2_diffpar_m_step(Math3D::Tensor<double>& align_param, const ReducedIBM2ClassAlignmentModel& acount, uint offset, uint c,
                                 uint nIter, bool deficient)
 {
   const uint xDim = align_param.xDim();
@@ -575,30 +649,30 @@ void reducedibm2_diffpar_m_step(Math2D::Matrix<double>& align_param, const Reduc
 
   for (uint k = 0; k < acount.size(); k++) {
 
-    const Math2D::Matrix<double>& cur_acount = acount[k];
+    const Math3D::Tensor<double>& cur_acount = acount[k];
     for (uint j = 0; j < cur_acount.yDim(); j++) {
 
       uint curI = cur_acount.xDim()-1;
       for (uint i=1; i <= curI; i++) {
-        singleton_count[offset + j - (i - 1)] += cur_acount(i, j);
-        span_count(offset + j - (curI - 1), offset + j) += cur_acount(i, j);
+        singleton_count[offset + j - (i - 1)] += cur_acount(i, j, c);
+        span_count(offset + j - (curI - 1), offset + j) += cur_acount(i, j, c);
       }
     }
   }
 
-  Math2D::Matrix<double> hyp_param(xDim, 1);
+  Math3D::Tensor<double> hyp_param(xDim, 1, align_param.zDim());
   Math1D::Vector<double> new_param(xDim);
   Math1D::Vector<double> grad(xDim);
 
-  double energy = reducedibm2_diffpar_m_step_energy(align_param, singleton_count, span_count);
+  double energy = reducedibm2_diffpar_m_step_energy(align_param, singleton_count, span_count, c);
 
   {
     //test start point
     double sum = singleton_count.sum();
     for (uint x = 0; x < xDim; x++)
-      hyp_param(x, 0) = singleton_count[x] / sum;
+      hyp_param(x, 0, c) = singleton_count[x] / sum;
 
-    double hyp_energy = reducedibm2_diffpar_m_step_energy(hyp_param, singleton_count, span_count);
+    double hyp_energy = reducedibm2_diffpar_m_step_energy(hyp_param, singleton_count, span_count, c);
 
     if (deficient || hyp_energy < energy) {
 
@@ -620,7 +694,7 @@ void reducedibm2_diffpar_m_step(Math2D::Matrix<double>& align_param, const Reduc
 
     /***** compute gradient *****/
     for (uint i = 0; i < xDim; i++)
-      grad[i] = -singleton_count[i] / align_param(i, 0);
+      grad[i] = -singleton_count[i] / align_param(i, 0, c);
 
     for (uint x_start = 0; x_start < xDim; x_start++) {
 
@@ -628,7 +702,7 @@ void reducedibm2_diffpar_m_step(Math2D::Matrix<double>& align_param, const Reduc
 
       for (uint x_end = x_start; x_end < xDim; x_end++) {
 
-        param_sum += align_param(x_end, 0);
+        param_sum += align_param(x_end, 0, c);
         const double count = span_count(x_start, x_end);
 
         if (count != 0.0) {
@@ -642,7 +716,7 @@ void reducedibm2_diffpar_m_step(Math2D::Matrix<double>& align_param, const Reduc
     /**** go in negative gradient direction and reproject ****/
 
     for (uint i = 0; i < xDim; i++)
-      new_param[i] = align_param(i, 0) - alpha * grad[i];
+      new_param[i] = align_param(i, 0, c) - alpha * grad[i];
 
     projection_on_simplex(new_param.direct_access(), xDim, ibm2_min_align_param);
 
@@ -669,9 +743,9 @@ void reducedibm2_diffpar_m_step(Math2D::Matrix<double>& align_param, const Reduc
       double neg_lambda = 1.0 - lambda;
 
       for (uint i = 0; i < xDim; i++)
-        hyp_param(i, 0) = lambda * new_param[i] + neg_lambda * align_param(i, 0);
+        hyp_param(i, 0, c) = lambda * new_param[i] + neg_lambda * align_param(i, 0, c);
 
-      double new_energy = reducedibm2_diffpar_m_step_energy(hyp_param, singleton_count, span_count);
+      double new_energy = reducedibm2_diffpar_m_step_energy(hyp_param, singleton_count, span_count, c);
 
       if (new_energy < best_energy) {
         best_energy = new_energy;
@@ -698,13 +772,14 @@ void reducedibm2_diffpar_m_step(Math2D::Matrix<double>& align_param, const Reduc
     double neg_best_lambda = 1.0 - best_lambda;
 
     for (uint i = 0; i < xDim; i++)
-      align_param(i, 0) = best_lambda * new_param[i] + neg_best_lambda * align_param(i, 0);
+      align_param(i, 0, c) = best_lambda * new_param[i] + neg_best_lambda * align_param(i, 0, c);
   }
 }
 
 double reduced_ibm2_perplexity(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup,
-                               const Storage1D<Math1D::Vector<uint> >& target, const ReducedIBM2AlignmentModel& align_model,
-                               const SingleWordDictionary& dict, const CooccuringWordsType& wcooc, uint nSourceWords)
+                               const Storage1D<Math1D::Vector<uint> >& target, const ReducedIBM2ClassAlignmentModel& align_model,
+                               const SingleWordDictionary& dict, const Math1D::Vector<WordClassType>& sclass,
+                               const CooccuringWordsType& wcooc, uint nSourceWords)
 {
   //std::cerr << "calculating ReducedIBM 2 perplexity" << std::endl;
 
@@ -724,16 +799,20 @@ double reduced_ibm2_perplexity(const Storage1D<Math1D::Vector<uint> >& source, c
     const uint curJ = cur_source.size();
     const uint curI = cur_target.size();
 
-    const Math2D::Matrix<double>& cur_align_model = align_model[curI];
+    const Math3D::Tensor<double>& cur_align_model = align_model[curI];
 
     for (uint j = 0; j < curJ; j++) {
 
+      //NOTE: a generative model does not allow to condition on sclass[source_sentence[j]]
+      //  We could cheat if we only want training/word alignment. But we just take the previous word
+      const uint c = (j == 0) ? 0 : sclass[cur_source[j - 1]];
+
       const uint s_idx = cur_source[j];
-      double cur_sum = cur_align_model(0, j) * dict[0][s_idx - 1];
+      double cur_sum = cur_align_model(0, j, c) * dict[0][s_idx - 1];
 
       for (uint i = 0; i < curI; i++) {
         const uint t_idx = cur_target[i];
-        cur_sum += cur_align_model(i + 1, j) * dict[t_idx][cur_lookup(j, i)];
+        cur_sum += cur_align_model(i + 1, j, c) * dict[t_idx][cur_lookup(j, i)];
       }
       sum -= std::log(cur_sum);
     }
@@ -743,8 +822,8 @@ double reduced_ibm2_perplexity(const Storage1D<Math1D::Vector<uint> >& source, c
 }
 
 double reduced_ibm2_energy(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup,
-                           const Storage1D<Math1D::Vector<uint> >& target, const ReducedIBM2AlignmentModel& align_model,
-                           const SingleWordDictionary& dict, const CooccuringWordsType& wcooc, uint nSourceWords,
+                           const Storage1D<Math1D::Vector<uint> >& target, const ReducedIBM2ClassAlignmentModel& align_model,
+                           const SingleWordDictionary& dict, const Math1D::Vector<WordClassType>& sclass, const CooccuringWordsType& wcooc, uint nSourceWords,
                            const floatSingleWordDictionary& prior_weight, double l0_beta, bool smoothed_l0, double dict_weight_sum)
 {
   double energy = 0.0;
@@ -752,32 +831,39 @@ double reduced_ibm2_energy(const Storage1D<Math1D::Vector<uint> >& source, const
   if (dict_weight_sum != 0.0) {
     for (uint i = 0; i < dict.size(); i++) {
 
-      const uint size = dict[i].size();
+      const Math1D::Vector<double>& cur_dict = dict[i];
+      const Math1D::Vector<float>& cur_prior = prior_weight[i];
+      
+      const uint size = cur_dict.size();
 
-      for (uint k = 0; k < size; k++) {
-        if (smoothed_l0)
-          energy += prior_weight[i][k] * prob_penalty(dict[i][k], l0_beta);
-        else
-          energy += prior_weight[i][k] * dict[i][k];
+      if (smoothed_l0) {
+        for (uint k = 0; k < size; k++) 
+          energy += cur_prior[k] * prob_penalty(cur_dict[k], l0_beta);
+      }
+      else {
+        for (uint k = 0; k < size; k++) 
+          energy += cur_prior[k] * cur_dict[k];
       }
     }
 
     energy /= target.size();      //since the perplexity is also divided by that amount
   }
 
-  energy += reduced_ibm2_perplexity(source, slookup, target, align_model, dict, wcooc, nSourceWords);
+  energy += reduced_ibm2_perplexity(source, slookup, target, align_model, dict, sclass, wcooc, nSourceWords);
 
   return energy;
 }
 
 void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const Storage1D<Math1D::Vector<uint> >& target,
-                        const CooccuringWordsType& wcooc, const CooccuringLengthsType& lcooc, ReducedIBM2AlignmentModel& alignment_model,
-                        Math2D::Matrix<double>& align_param, Math1D::Vector<double>& source_fert, SingleWordDictionary& dict,
-                        const IBM2Options& options, const floatSingleWordDictionary& prior_weight)
+                        const CooccuringWordsType& wcooc, const CooccuringLengthsType& lcooc, ReducedIBM2ClassAlignmentModel& alignment_model,
+                        Math3D::Tensor<double>& align_param, Math1D::Vector<double>& source_fert, SingleWordDictionary& dict,
+                        const Math1D::Vector<WordClassType>& sclass, const IBM2Options& options, const floatSingleWordDictionary& prior_weight)
 {
   const uint nIter = options.nIterations_;
   bool smoothed_l0 = options.smoothed_l0_;
   double l0_beta = options.l0_beta_;
+
+  const uint nClasses = sclass.max() + 1;
 
   const IBM23ParametricMode par_mode = options.ibm2_mode_;
 
@@ -808,7 +894,7 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       uint maxJ = lcooc[I].max();
 
       if (maxJ > 0) {
-        alignment_model[I].resize_dirty(I + 1, maxJ);
+        alignment_model[I].resize_dirty(I + 1, maxJ, nClasses);
         alignment_model[I].set_constant(1.0 / (I + 1));
       }
     }
@@ -822,9 +908,9 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
   }
 
   if (par_mode != IBM23ParByDifference)
-    align_param.resize(maxI, maxJ, 1.0);
+    align_param.resize(maxI, maxJ, nClasses, 1.0);
   else
-    align_param.resize(maxJ + maxI - 1, 1, 1.0);
+    align_param.resize(maxJ + maxI - 1, 1, nClasses, 1.0);
 
   SingleLookupTable aux_lookup;
 
@@ -835,9 +921,9 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
     fwcount[i].resize(dict[i].size());
   }
 
-  ReducedIBM2AlignmentModel facount(alignment_model.size(), MAKENAME(facount));
+  ReducedIBM2ClassAlignmentModel facount(alignment_model.size(), MAKENAME(facount));
   for (uint I = 0; I < lcooc.size(); I++) {
-    facount[I].resize_dirty(alignment_model[I].xDim(),alignment_model[I].yDim());
+    facount[I].resize_dirty(alignment_model[I].dims());
   }
 
   for (uint iter = 1; iter <= nIter; iter++) {
@@ -862,8 +948,8 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       const uint curJ = cur_source.size();
       const uint curI = cur_target.size();
 
-      const Math2D::Matrix<double>& cur_align_model = alignment_model[curI];
-      Math2D::Matrix<double>& cur_facount = facount[curI];
+      const Math3D::Tensor<double>& cur_align_model = alignment_model[curI];
+      Math3D::Tensor<double>& cur_facount = facount[curI];
 
       const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, options.nSourceWords_, slookup[s], aux_lookup);
 
@@ -874,33 +960,37 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
         const uint s_idx = cur_source[j];
 
-        double coeff = dict[0][s_idx - 1] * cur_align_model(0, j);
+        //NOTE: a generative model does not allow to condition on sclass[source_sentence[j]]
+        //  We could cheat if we only want training/word alignment. But we just take the previous word
+        const uint c = (j == 0) ? 0 : sclass[cur_source[j - 1]];
+
+        double coeff = dict[0][s_idx - 1] * cur_align_model(0, j, c);
 
         for (uint i = 0; i < curI; i++) {
           const uint t_idx = cur_target[i];
-          coeff += dict[t_idx][cur_lookup(j, i)] * cur_align_model(i + 1, j);
+          coeff += dict[t_idx][cur_lookup(j, i)] * cur_align_model(i + 1, j, c);
         }
 
         coeff = 1.0 / coeff;
         assert(!isnan(coeff));
 
         double addon;
-        addon = coeff * dict[0][s_idx - 1] * cur_align_model(0, j);
+        addon = coeff * dict[0][s_idx - 1] * cur_align_model(0, j, c);
 
         fwcount[0][s_idx - 1] += addon;
-        cur_facount(0, j) += addon;
+        cur_facount(0, j, c) += addon;
 
         for (uint i = 0; i < curI; i++) {
           const uint t_idx = cur_target[i];
           const uint l = cur_lookup(j, i);
 
-          addon = coeff * dict[t_idx][l] * cur_align_model(i + 1, j);
+          addon = coeff * dict[t_idx][l] * cur_align_model(i + 1, j, c);
 
           //update dict
           fwcount[t_idx][l] += addon;
 
           //update alignment
-          cur_facount(i + 1, j) += addon;
+          cur_facount(i + 1, j, c) += addon;
         }
       }
     }
@@ -917,15 +1007,18 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
         if (J > 0) {
           assert(alignment_model[I].xDim() == (I + 1));
 
-          for (uint j = 0; j < J; j++) {
+          for (uint c = 0; c < nClasses; c++) {
 
-            double sum = facount[I].row_sum(j);
+            for (uint j = 0; j < J; j++) {
 
-            if (sum > 1e-305) {
-              sum = 1.0 / sum;
+              double sum = facount[I].sum_x(j, c);
 
-              for (uint i = 0; i <= I; i++)
-                alignment_model[I](i, j) = std::max(ibm2_min_align_param, sum * facount[I](i, j));
+              if (sum > 1e-305) {
+                sum = 1.0 / sum;
+
+                for (uint i = 0; i <= I; i++)
+                  alignment_model[I](i, j, c) = std::max(ibm2_min_align_param, sum * facount[I](i, j, c));
+              }
             }
           }
         }
@@ -935,12 +1028,15 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
       if (par_mode == IBM23ParByPosition) {
 
-        for (uint j = 0; j < align_param.yDim(); j++) {
-          reducedibm2_par_m_step(align_param, facount, j, options.align_m_step_iter_, options.deficient_);
+        for (uint c = 0; c < nClasses; c++) {
+          for (uint j = 0; j < align_param.yDim(); j++) {
+            reducedibm2_par_m_step(align_param, facount, j, c, options.align_m_step_iter_, options.deficient_, (nClasses > 1));
+          }
         }
       }
       else {
-        reducedibm2_diffpar_m_step(align_param, facount, maxI - 1, options.align_m_step_iter_, options.deficient_);
+        for (uint c = 0; c < nClasses; c++)
+          reducedibm2_diffpar_m_step(align_param, facount, maxI - 1, c, options.align_m_step_iter_, options.deficient_);
       }
 
       par2nonpar_reduced_ibm2alignment_model(align_param, source_fert, alignment_model, par_mode, maxI - 1);
@@ -948,8 +1044,8 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
     if (options.print_energy_) {
       std::cerr << "reduced IBM 2 energy after iteration #" << iter << ": "
-                << reduced_ibm2_energy(source, slookup, target, alignment_model, dict, wcooc, options.nSourceWords_, prior_weight,
-                                       l0_beta, smoothed_l0, dict_weight_sum)
+                << reduced_ibm2_energy(source, slookup, target, alignment_model, dict, sclass, wcooc, options.nSourceWords_,
+                                       prior_weight, l0_beta, smoothed_l0, dict_weight_sum)
                 << std::endl;
     }
 
@@ -964,7 +1060,7 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       double sum_postdec_fmeasure = 0.0;
       double sum_postdec_daes = 0.0;
 
-      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::const_iterator it = options.possible_ref_alignments_.begin();
+      for (RefAlignmentStructure::const_iterator it = options.possible_ref_alignments_.begin();
            it != options.possible_ref_alignments_.end(); it++) {
 
         uint s = it->first - 1;
@@ -979,24 +1075,27 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
         nContributors++;
 
+        const AlignmentStructure& cur_sure = options.sure_ref_alignments_[s + 1];
+        const AlignmentStructure& cur_possible = it->second;
+
         const uint curI = cur_target.size();
-        const Math2D::Matrix<double>& cur_align_model = alignment_model[curI];
+        const Math3D::Tensor<double>& cur_align_model = alignment_model[curI];
 
         //compute viterbi alignment
         Storage1D<AlignBaseType> viterbi_alignment;
-        compute_ibm2_viterbi_alignment(cur_source, cur_lookup, cur_target, dict, cur_align_model, viterbi_alignment);
+        compute_ibm2_viterbi_alignment(cur_source, cur_lookup, cur_target, dict, cur_align_model, sclass, viterbi_alignment);
 
         //add alignment error rate
-        sum_aer += AER(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        sum_fmeasure += f_measure(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        nErrors += nDefiniteAlignmentErrors(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_aer += AER(viterbi_alignment, cur_sure, cur_possible);
+        sum_fmeasure += f_measure(viterbi_alignment, cur_sure, cur_possible);
+        nErrors += nDefiniteAlignmentErrors(viterbi_alignment, cur_sure, cur_possible);
 
         std::set<std::pair<AlignBaseType,AlignBaseType> > postdec_alignment;
-        compute_ibm2_postdec_alignment(cur_source, cur_lookup, cur_target, dict, cur_align_model, postdec_alignment);
+        compute_ibm2_postdec_alignment(cur_source, cur_lookup, cur_target, dict, cur_align_model, sclass, postdec_alignment);
 
-        sum_postdec_aer += AER(postdec_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        sum_postdec_fmeasure += f_measure(postdec_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        sum_postdec_daes += nDefiniteAlignmentErrors(postdec_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_postdec_aer += AER(postdec_alignment, cur_sure, cur_possible);
+        sum_postdec_fmeasure += f_measure(postdec_alignment, cur_sure, cur_possible);
+        sum_postdec_daes += nDefiniteAlignmentErrors(postdec_alignment, cur_sure, cur_possible);
       }
 
       sum_aer *= 100.0 / nContributors;
@@ -1022,15 +1121,18 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 }
 
 void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const Storage1D<Math1D::Vector<uint> >& target,
-                                   const CooccuringWordsType& wcooc, const CooccuringLengthsType& lcooc, ReducedIBM2AlignmentModel& alignment_model,
-                                   Math2D::Matrix<double>& align_param, Math1D::Vector<double>& source_fert, SingleWordDictionary& dict,
-                                   const IBM2Options& options, const floatSingleWordDictionary& prior_weight, const Math1D::Vector<double>& xlogx_table)
+                                   const CooccuringWordsType& wcooc, const CooccuringLengthsType& lcooc, ReducedIBM2ClassAlignmentModel& alignment_model,
+                                   Math3D::Tensor<double>& align_param, Math1D::Vector<double>& source_fert, SingleWordDictionary& dict,
+                                   const Math1D::Vector<WordClassType>& sclass, const IBM2Options& options, const floatSingleWordDictionary& prior_weight,
+                                   const Math1D::Vector<double>& xlogx_table)
 {
   const uint nIter = options.nIterations_;
   const IBM23ParametricMode par_mode = options.ibm2_mode_;
 
   const size_t nSentences = source.size();
   assert(nSentences == target.size());
+
+  const uint nClasses = sclass.max() + 1;
 
   if (source_fert.size() != 2)
     source_fert.resize(2);
@@ -1039,7 +1141,7 @@ void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& sourc
 
   //initialize alignment model
   alignment_model.resize_dirty(lcooc.size());
-  ReducedIBM2AlignmentModel acount(lcooc.size(), MAKENAME(acount));
+  ReducedIBM2ClassAlignmentModel acount(lcooc.size(), MAKENAME(acount));
 
   for (uint I = 0; I < lcooc.size(); I++) {
 
@@ -1048,9 +1150,9 @@ void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& sourc
       uint maxJ = lcooc[I].max();
 
       if (maxJ > 0) {
-        alignment_model[I].resize_dirty(I + 1, maxJ);
+        alignment_model[I].resize_dirty(I + 1, maxJ, nClasses);
         alignment_model[I].set_constant(1.0 / (I + 1));
-        acount[I].resize_dirty(I + 1, maxJ);
+        acount[I].resize_dirty(I + 1, maxJ, nClasses);
       }
     }
   }
@@ -1062,9 +1164,9 @@ void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& sourc
     maxI = std::max<uint>(maxI, target[s].size());
   }
   if (par_mode != IBM23ParByDifference)
-    align_param.resize(maxI,maxJ, 1.0);
+    align_param.resize(maxI, maxJ, nClasses, 1.0);
   else
-    align_param.resize(maxJ + maxI - 1, 1, 1.0);
+    align_param.resize(maxJ + maxI - 1, 1, nClasses, 1.0);
 
   SingleLookupTable aux_lookup;
 
@@ -1107,21 +1209,25 @@ void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& sourc
       const uint curI = cur_target.size();
       const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, options.nSourceWords_, slookup[s], aux_lookup);
 
-      const Math2D::Matrix<double>& cur_align_model = alignment_model[curI];
-      Math2D::Matrix<double>& cur_acount = acount[curI];
+      const Math3D::Tensor<double>& cur_align_model = alignment_model[curI];
+      Math3D::Tensor<double>& cur_acount = acount[curI];
 
       for (uint j = 0; j < curJ; j++) {
 
-        const uint s_idx = source[s][j];
+        const uint s_idx = cur_source[j];
+
+        //NOTE: a generative model does not allow to condition on sclass[source_sentence[j]]
+        //  We could cheat if we only want training/word alignment. But we just take the previous word
+        const uint c = (j == 0) ? 0 : sclass[cur_source[j - 1]];
 
         uint arg_max = MAX_UINT;
 
-        double max = dict[0][s_idx - 1] * cur_align_model(0, j);
+        double max = dict[0][s_idx - 1] * cur_align_model(0, j, c);
         arg_max = 0;
 
         for (uint i = 0; i < curI; i++) {
 
-          double hyp = dict[cur_target[i]][cur_lookup(j, i)] * cur_align_model(i + 1, j);
+          double hyp = dict[cur_target[i]][cur_lookup(j, i)] * cur_align_model(i + 1, j, c);
 
           //std::cerr << "hyp: " << hyp << ", min: " << min << std::endl;
 
@@ -1136,7 +1242,7 @@ void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& sourc
         sum -= std::log(max);
 
         viterbi_alignment[s][j] = arg_max;
-        cur_acount(arg_max, j)++;
+        cur_acount(arg_max, j, c)++;
 
         if (arg_max == 0)
           dcount[0][s_idx - 1]++;
@@ -1159,11 +1265,14 @@ void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& sourc
 
       if (par_mode == IBM23ParByPosition) {
 
-        for (uint j = 0; j < align_param.yDim(); j++)
-          reducedibm2_par_m_step(align_param, acount, j, options.align_m_step_iter_, options.deficient_);
+        for (uint c = 0; c < nClasses; c++) {
+          for (uint j = 0; j < align_param.yDim(); j++)
+            reducedibm2_par_m_step(align_param, acount, j, c, options.align_m_step_iter_, options.deficient_, (nClasses > 1));
+        }
       }
       else {
-        reducedibm2_diffpar_m_step(align_param, acount, maxI - 1, options.align_m_step_iter_, options.deficient_);
+        for (uint c = 0; c < nClasses; c++)
+          reducedibm2_diffpar_m_step(align_param, acount, maxI - 1, c, options.align_m_step_iter_, options.deficient_);
       }
     }
 
@@ -1187,12 +1296,16 @@ void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& sourc
         const uint curI = target[s].size();
 
         const SingleLookupTable& cur_lookup = slookup[s];
-        Math2D::Matrix<double>& cur_acount = acount[curI];
-        const Math2D::Matrix<double>& cur_align_model = alignment_model[curI];
+        Math3D::Tensor<double>& cur_acount = acount[curI];
+        const Math3D::Tensor<double>& cur_align_model = alignment_model[curI];
 
         for (uint j = 0; j < curJ; j++) {
 
           //std::cerr << "j: " << j << std::endl;
+
+          //NOTE: a generative model does not allow to condition on sclass[source_sentence[j]]
+          //  We could cheat if we only want training/word alignment. But we just take the previous word
+          const uint c = (j == 0) ? 0 : sclass[cur_source[j - 1]];
 
           double best_change = 0.0;
           const ushort cur_aj = viterbi_alignment[s][j];
@@ -1217,27 +1330,27 @@ void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& sourc
 
               double change = 0.0;
 
-              assert(cur_acount(cur_aj, j) > 0);
+              assert(cur_acount(cur_aj, j, c) > 0);
 
               if (par_mode == IBM23Nonpar) {
-                if (cur_acount(i, j) > 0) {
+                if (cur_acount(i, j, c) > 0) {
                   //exploit log(1) = 0
-                  change -= -xlogx_table[cur_acount(i, j)];
-                  change += -xlogx_table[cur_acount(i, j) + 1];
+                  change -= -xlogx_table[cur_acount(i, j, c)];
+                  change += -xlogx_table[cur_acount(i, j, c) + 1];
                 }
 
-                if (cur_acount(cur_aj, j) > 1) {
+                if (cur_acount(cur_aj, j, c) > 1) {
                   //exploit log(1) = 0
-                  change -= -xlogx_table[cur_acount(cur_aj, j)];
-                  change += -xlogx_table[cur_acount(cur_aj, j) - 1];
+                  change -= -xlogx_table[cur_acount(cur_aj, j, c)];
+                  change += -xlogx_table[cur_acount(cur_aj, j, c) - 1];
                 }
               }
               else {
 
                 //NOTE: in deficient mode we could to update calculations
 
-                change -= -std::log(cur_align_model(cur_aj, j));
-                change += -std::log(cur_align_model(i, j));
+                change -= -std::log(cur_align_model(cur_aj, j, c));
+                change += -std::log(cur_align_model(i, j, c));
               }
 
               assert(!isnan(change));
@@ -1305,8 +1418,8 @@ void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& sourc
               dict_sum[new_target_word] += 1.0;
             }
 
-            cur_acount(cur_aj, j)--;
-            cur_acount(best_i, j)++;
+            cur_acount(cur_aj, j, c)--;
+            cur_acount(best_i, j, c)++;
           }
         }
       }
@@ -1356,15 +1469,17 @@ void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& sourc
         if (J > 0) {
           assert(alignment_model[I].xDim() == (I + 1));
 
-          for (uint j = 0; j < J; j++) {
+          for (uint c = 0; c < nClasses; c++) {
+            for (uint j = 0; j < J; j++) {
 
-            double sum = acount[I].row_sum(j);
+              double sum = acount[I].sum_x(j, c);
 
-            if (sum > 1e-305) {
-              const double inv_sum = 1.0 / sum;
+              if (sum > 1e-305) {
+                const double inv_sum = 1.0 / sum;
 
-              for (uint i = 0; i <= I; i++) {
-                alignment_model[I](i, j) = std::max(ibm2_min_align_param, inv_sum * acount[I](i, j));
+                for (uint i = 0; i <= I; i++) {
+                  alignment_model[I](i, j, c) = std::max(ibm2_min_align_param, inv_sum * acount[I](i, j, c));
+                }
               }
             }
           }
@@ -1375,12 +1490,15 @@ void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& sourc
 
       if (par_mode == IBM23ParByPosition) {
 
-        for (uint j = 0; j < align_param.yDim(); j++) {
-          reducedibm2_par_m_step(align_param, acount, j, options.align_m_step_iter_, options.deficient_);
+        for (uint c = 0; c < nClasses; c++) {
+          for (uint j = 0; j < align_param.yDim(); j++) {
+            reducedibm2_par_m_step(align_param, acount, j, c, options.align_m_step_iter_, options.deficient_, (nClasses > 1));
+          }
         }
       }
       else {
-        reducedibm2_diffpar_m_step(align_param, acount, maxI - 1, options.align_m_step_iter_, options.deficient_);
+        for (uint c = 0; c < nClasses; c++)
+          reducedibm2_diffpar_m_step(align_param, acount, maxI - 1, c, options.align_m_step_iter_, options.deficient_);
       }
 
       par2nonpar_reduced_ibm2alignment_model(align_param, source_fert, alignment_model, par_mode, maxI - 1);
@@ -1399,15 +1517,20 @@ void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& sourc
       const uint curI = cur_target.size();
       const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, options.nSourceWords_, slookup[s], aux_lookup);
 
-      const Math2D::Matrix<double>& cur_align_model = alignment_model[curI];
+      const Math3D::Tensor<double>& cur_align_model = alignment_model[curI];
 
       for (uint j = 0; j < curJ; j++) {
+
+        //NOTE: a generative model does not allow to condition on sclass[source_sentence[j]]
+        //  We could cheat if we only want training/word alignment. But we just take the previous word
+        const uint c = (j == 0) ? 0 : sclass[cur_source[j - 1]];
+
         const uint aj = viterbi_alignment[s][j];
-        energy -= std::log(cur_align_model(aj,j));
+        energy -= std::log(cur_align_model(aj, j, c));
         if (aj == 0)
-          energy -= std::log(dict[0][cur_source[j]-1]);
+          energy -= std::log(dict[0][cur_source[j] - 1]);
         else
-          energy -= std::log(dict[cur_target[aj-1]][cur_lookup(j, aj-1)]);
+          energy -= std::log(dict[cur_target[aj - 1]][cur_lookup(j, aj - 1)]);
       }
     }
 
@@ -1430,7 +1553,7 @@ void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& sourc
       double nErrors = 0.0;
       uint nContributors = 0;
 
-      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::const_iterator it = options.possible_ref_alignments_.begin();
+      for (RefAlignmentStructure::const_iterator it = options.possible_ref_alignments_.begin();
            it != options.possible_ref_alignments_.end(); it++) {
 
         uint s = it->first - 1;
@@ -1440,10 +1563,13 @@ void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& sourc
 
         nContributors++;
 
+        const AlignmentStructure& cur_sure = options.sure_ref_alignments_[s + 1];
+        const AlignmentStructure& cur_possible = it->second;
+
         //add alignment error rate
-        sum_aer += AER(viterbi_alignment[s], options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        sum_fmeasure += f_measure(viterbi_alignment[s], options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        nErrors += nDefiniteAlignmentErrors(viterbi_alignment[s], options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_aer += AER(viterbi_alignment[s], cur_sure, cur_possible);
+        sum_fmeasure += f_measure(viterbi_alignment[s], cur_sure, cur_possible);
+        nErrors += nDefiniteAlignmentErrors(viterbi_alignment[s], cur_sure, cur_possible);
       }
 
       sum_aer *= 100.0 / nContributors;

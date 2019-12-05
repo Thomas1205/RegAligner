@@ -5,6 +5,20 @@
 
 #include "hmm_training.hh"
 
+class HmmWrapperWithClasses {
+public:
+
+  HmmWrapperWithClasses(const FullHMMAlignmentModelSingleClass& align_model,
+                        const InitialAlignmentProbability& initial_prob,
+                        const Storage1D<WordClassType>& target_class,
+                        const HmmOptions& hmm_options);
+
+  const FullHMMAlignmentModelSingleClass& align_model_;
+  const InitialAlignmentProbability& initial_prob_;
+  const HmmOptions& hmm_options_;
+  const Storage1D<WordClassType>& target_class_;
+};
+
 long double hmm_alignment_prob(const Storage1D<uint>& source, const SingleLookupTable& slookup,
                                const Storage1D<uint>& target, const Storage1D<uint>& tclass,
                                const SingleWordDictionary& dict, const FullHMMAlignmentModelSingleClass& align_model,

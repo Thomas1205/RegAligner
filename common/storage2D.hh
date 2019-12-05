@@ -15,6 +15,8 @@ template<typename T, typename ST = size_t>
 class Storage2D : public StorageBase<T,ST> {
 public:
 
+  typedef StorageBase<T,ST> Base;
+
   //default constructor
   Storage2D();
 

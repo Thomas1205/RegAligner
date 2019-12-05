@@ -13,8 +13,8 @@
 class IBM2Options {
 public:
 
-  IBM2Options(uint nSourceWords, uint nTargetWords, std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
-              std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments);
+  IBM2Options(uint nSourceWords, uint nTargetWords, RefAlignmentStructure& sure_ref_alignments,
+              RefAlignmentStructure& possible_ref_alignments);
 
   uint nIterations_;
 
@@ -35,10 +35,9 @@ public:
   bool deficient_ = false;
   bool unconstrained_m_step_ = false;
 
-  std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments_;
-  std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments_;
+  RefAlignmentStructure& sure_ref_alignments_;
+  RefAlignmentStructure& possible_ref_alignments_;
 };
-
 
 //train IBM-2 with the original proposal [Brown et al.] to condition on both J and I
 void train_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const Storage1D<Math1D::Vector<uint> >& target,
@@ -48,17 +47,18 @@ void train_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
                 std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
                 const floatSingleWordDictionary& prior_weight, double l0_beta, bool smoothed_l0, uint dict_m_step_iter);
 
-void par2nonpar_reduced_ibm2alignment_model(const Math2D::Matrix<double>& align_param, const Math1D::Vector<double>& source_fert,
-    ReducedIBM2AlignmentModel& alignment_model, IBM23ParametricMode par_mode, uint offset, bool deficient = false);
+void par2nonpar_reduced_ibm2alignment_model(const Math3D::Tensor<double>& align_param, const Math1D::Vector<double>& source_fert,
+    ReducedIBM2ClassAlignmentModel& alignment_model, IBM23ParametricMode par_mode, uint offset, bool deficient = false);
 
 void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const Storage1D<Math1D::Vector<uint> >& target,
-                        const CooccuringWordsType& wcooc, const CooccuringLengthsType& lcooc, ReducedIBM2AlignmentModel& alignment_model,
-                        Math2D::Matrix<double>& align_param, Math1D::Vector<double>& source_fert, SingleWordDictionary& dict,
-                        const IBM2Options& options, const floatSingleWordDictionary& prior_weight);
+                        const CooccuringWordsType& wcooc, const CooccuringLengthsType& lcooc, ReducedIBM2ClassAlignmentModel& alignment_model,
+                        Math3D::Tensor<double>& align_param, Math1D::Vector<double>& source_fert, SingleWordDictionary& dict,
+                        const Math1D::Vector<WordClassType>& sclass, const IBM2Options& options, const floatSingleWordDictionary& prior_weight);
 
 void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const Storage1D<Math1D::Vector<uint> >& target,
-                                   const CooccuringWordsType& wcooc, const CooccuringLengthsType& lcooc, ReducedIBM2AlignmentModel& alignment_model,
-                                   Math2D::Matrix<double>& align_param, Math1D::Vector<double>& source_fert, SingleWordDictionary& dict,
-                                   const IBM2Options& options, const floatSingleWordDictionary& prior_weight, const Math1D::Vector<double>& xlogx_table);
+                                   const CooccuringWordsType& wcooc, const CooccuringLengthsType& lcooc, ReducedIBM2ClassAlignmentModel& alignment_model,
+                                   Math3D::Tensor<double>& align_param, Math1D::Vector<double>& source_fert, SingleWordDictionary& dict,
+                                   const Math1D::Vector<WordClassType>& sclass, const IBM2Options& options, const floatSingleWordDictionary& prior_weight,
+                                   const Math1D::Vector<double>& xlogx_table);
 
 #endif

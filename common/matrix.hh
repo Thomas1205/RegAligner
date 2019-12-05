@@ -17,6 +17,8 @@ namespace Math2D {
   class Matrix : public ::Storage2D<T,ST> {
   public:
 
+    typedef Storage2D<T,ST> Base;
+
     typedef T ALIGNED16 T_A16;
 
     /*---- constructors -----*/
@@ -68,7 +70,7 @@ namespace Math2D {
 
     inline void add_constant(const T addon);
 
-    void add_matrix_multiple(const Matrix<T,ST>& toAdd, const T alpha);
+    inline void add_matrix_multiple(const Matrix<T,ST>& toAdd, const T alpha);
 
     //---- mathematical operators ----
 
@@ -136,7 +138,6 @@ namespace Math2D {
 
   template<typename T, typename ST>
   Math1D::Vector<T,ST> operator*(const Matrix<T,ST>& m, const Math1D::Vector<T,ST>& v);
-
 }
 
 
@@ -213,7 +214,7 @@ namespace Math2D {
   template<typename T,typename ST>
   void Matrix<T,ST>::set_zeros()
   {
-    memset(Storage2D<T,ST>::data_,0,Storage2D<T,ST>::size_*sizeof(T));
+    memset(Base::data_,0,Base::size_*sizeof(T));
   }
 
   template<typename T, typename ST> 
@@ -228,8 +229,8 @@ namespace Math2D {
   template<typename T, typename ST>
   inline T Matrix<T,ST>::sum() const
   {
-    const ST size = Storage2D<T,ST>::size_;
-    const T_A16* data = Storage2D<T,ST>::data_;
+    const ST size = Base::size_;
+    const T_A16* data = Base::data_;
 
     assertAligned16(data);
 
@@ -237,7 +238,7 @@ namespace Math2D {
 
     // T result = (T) 0;
     // for (ST i=0; i < size; i++)
-    //   result += Storage2D<T,ST>::data_[i];
+    //   result += Base::data_[i];
 
     // return result;
   }
@@ -245,10 +246,10 @@ namespace Math2D {
   template<typename T, typename ST>
   inline T Matrix<T,ST>::row_sum(ST y) const
   {
-    const ST yDim = Storage2D<T,ST>::yDim_;
-    const ST xDim = Storage2D<T,ST>::xDim_;
+    const ST yDim = Base::yDim_;
+    const ST xDim = Base::xDim_;
     assert(y < yDim);
-    const T_A16* data = Storage2D<T,ST>::data_;
+    const T_A16* data = Base::data_;
     return std::accumulate(data+y*xDim,data+(y+1)*xDim,(T)0);
   }
 
@@ -258,14 +259,14 @@ namespace Math2D {
   {
 
     //     T maxel = std::numeric_limits<T,ST>::min();
-    //     for (ST i=0; i < Storage2D<T,ST>::size_; i++) {
-    //       if (Storage2D<T,ST>::data_[i] > maxel)
-    // 	       maxel = Storage2D<T,ST>::data_[i];
+    //     for (ST i=0; i < Base::size_; i++) {
+    //       if (Base::data_[i] > maxel)
+    // 	       maxel = Base::data_[i];
     //     }
     //     return maxel;
 
-    const T_A16* data = Storage2D<T,ST>::data_;
-    const ST size = Storage2D<T,ST>::size_;
+    const T_A16* data = Base::data_;
+    const ST size = Base::size_;
 
     assertAligned16(data);
 
@@ -280,14 +281,14 @@ namespace Math2D {
   T Matrix<T,ST>::min() const
   {
     //     T minel = std::numeric_limits<T,ST>::max();
-    //     for (ST i=0; i < Storage2D<T,ST>::size_; i++) {
-    //       if (Storage2D<T,ST>::data_[i] < minel)
-    //         minel = Storage2D<T,ST>::data_[i];
+    //     for (ST i=0; i < Base::size_; i++) {
+    //       if (Base::data_[i] < minel)
+    //         minel = Base::data_[i];
     //     }
     //     return minel;
 
-    const T_A16* data = Storage2D<T,ST>::data_;
-    const ST size = Storage2D<T,ST>::size_;
+    const T_A16* data = Base::data_;
+    const ST size = Base::size_;
 
     assertAligned16(data);
 
@@ -301,14 +302,14 @@ namespace Math2D {
   inline T Matrix<T,ST>::row_min(ST y) const 
   {
     const T* data = row_ptr(y);
-    return *std::min_element(data,data+Storage2D<T,ST>::size_);    
+    return *std::min_element(data,data+Base::size_);    
   }
 
   template<typename T, typename ST>
   inline T Matrix<T,ST>::row_max(ST y) const 
   {
     const T* data = row_ptr(y);
-    return *std::max_element(data,data+Storage2D<T,ST>::size_);        
+    return *std::max_element(data,data+Base::size_);        
   }
 
   /*** maximal absolute element = l-infinity norm ***/
@@ -317,8 +318,8 @@ namespace Math2D {
   {
 
     T maxel = (T) 0;
-    for (ST i=0; i < Storage2D<T,ST>::size_; i++) {
-      const T candidate = Makros::abs<T>(Storage2D<T,ST>::data_[i]);
+    for (ST i=0; i < Base::size_; i++) {
+      const T candidate = Makros::abs<T>(Base::data_[i]);
       maxel = std::max(maxel,candidate);
     }
 
@@ -328,9 +329,9 @@ namespace Math2D {
   template<typename T, typename ST>
   inline void Matrix<T,ST>::ensure_min(T lower_limit) 
   {
-    const ST size = Storage2D<T,ST>::size_;
+    const ST size = Base::size_;
     for (ST i=0; i < size; i++) 
-      Storage2D<T,ST>::data_[i] = std::max(lower_limit,Storage2D<T,ST>::data_[i]);    
+      Base::data_[i] = std::max(lower_limit,Base::data_[i]);    
   }
 
   /*** L2-norm of the matrix ***/
@@ -338,8 +339,8 @@ namespace Math2D {
   inline double Matrix<T,ST>::norm() const
   {
     double result = 0.0;
-    for (ST i=0; i < Storage2D<T,ST>::size_; i++) {
-      const double cur = (double) Storage2D<T,ST>::data_[i];
+    for (ST i=0; i < Base::size_; i++) {
+      const double cur = (double) Base::data_[i];
       result += cur*cur;
     }
 
@@ -350,8 +351,8 @@ namespace Math2D {
   inline double Matrix<T,ST>::sqr_norm() const
   {
     double result = 0.0;
-    for (ST i=0; i < Storage2D<T,ST>::size_; i++) {
-      const double cur = (double) Storage2D<T,ST>::data_[i];
+    for (ST i=0; i < Base::size_; i++) {
+      const double cur = (double) Base::data_[i];
       result += cur*cur;
     }
 
@@ -363,8 +364,8 @@ namespace Math2D {
   inline double Matrix<T,ST>::norm_l1() const
   {
     double result = 0.0;
-    for (ST i=0; i < Storage2D<T,ST>::size_; i++) {
-      result += Makros::abs<T>(Storage2D<T,ST>::data_[i]);
+    for (ST i=0; i < Base::size_; i++) {
+      result += Makros::abs<T>(Base::data_[i]);
     }
 
     return result;
@@ -373,8 +374,8 @@ namespace Math2D {
   template<typename T, typename ST>
   inline void Matrix<T,ST>::add_constant(const T addon)
   {
-    T_A16* data = Storage2D<T,ST>::data_;
-    const ST size = Storage2D<T,ST>::size_;
+    T_A16* data = Base::data_;
+    const ST size = Base::size_;
 
     assertAligned16(data);
 
@@ -383,13 +384,13 @@ namespace Math2D {
   }
 
   template<typename T, typename ST>
-  void Matrix<T,ST>::add_matrix_multiple(const Matrix<T,ST>& toAdd, const T alpha)
+  inline void Matrix<T,ST>::add_matrix_multiple(const Matrix<T,ST>& toAdd, const T alpha)
   {
 
 #ifndef DONT_CHECK_VECTOR_ARITHMETIC
-    if (toAdd.xDim() != Storage2D<T,ST>::xDim_ || toAdd.yDim() != Storage2D<T,ST>::yDim_) {
+    if (toAdd.xDim() != Base::xDim_ || toAdd.yDim() != Base::yDim_) {
       INTERNAL_ERROR << "    dimension mismatch ("
-                     << Storage2D<T,ST>::xDim_ << "," << Storage2D<T,ST>::yDim_ << ") vs. ("
+                     << Base::xDim_ << "," << Base::yDim_ << ") vs. ("
                      << toAdd.xDim() << "," << toAdd.yDim() << ")." << std::endl;
       std::cerr << "     When multiple of adding matrix \"" << toAdd.name() << "\" to  matrix \""
                 << this->name() << "\". Exiting" << std::endl;
@@ -397,11 +398,11 @@ namespace Math2D {
     }
 #endif
 
-    //assert( Storage2D<T,ST>::size_ == Storage2D<T,ST>::xDim_*Storage2D<T,ST>::yDim_ );
+    //assert( Base::size_ == Base::xDim_*Base::yDim_ );
 
-    T_A16* attr_restrict data = Storage2D<T,ST>::data_;
+    T_A16* attr_restrict data = Base::data_;
     const T_A16* attr_restrict data2 = toAdd.direct_access();
-    const ST size = Storage2D<T,ST>::size_;
+    const ST size = Base::size_;
 
     assertAligned16(data);
     assertAligned16(data2);
@@ -410,15 +411,33 @@ namespace Math2D {
       data[i] += alpha * data2[i]; //toAdd.direct_access(i);
   }
 
+  template<>
+  inline void Matrix<double>::add_matrix_multiple(const Matrix<double>& toAdd, const double alpha)
+  {
+
+#ifndef DONT_CHECK_VECTOR_ARITHMETIC
+    if (toAdd.xDim() != Base::xDim_ || toAdd.yDim() != Base::yDim_) {
+      INTERNAL_ERROR << "    dimension mismatch ("
+                     << Base::xDim_ << "," << Base::yDim_ << ") vs. ("
+                     << toAdd.xDim() << "," << toAdd.yDim() << ")." << std::endl;
+      std::cerr << "     When multiple of adding matrix \"" << toAdd.name() << "\" to  matrix \""
+                << this->name() << "\". Exiting" << std::endl;
+      exit(1);
+    }
+#endif
+
+    Makros::array_add_multiple(Base::data_, Base::size_, alpha, toAdd.direct_access());
+  }
+
   //addition of another matrix of equal dimensions
   template<typename T, typename ST>
   void Matrix<T,ST>::operator+=(const Matrix<T,ST>& toAdd)
   {
 
 #ifndef DONT_CHECK_VECTOR_ARITHMETIC
-    if (toAdd.xDim() != Storage2D<T,ST>::xDim_ || toAdd.yDim() != Storage2D<T,ST>::yDim_) {
+    if (toAdd.xDim() != Base::xDim_ || toAdd.yDim() != Base::yDim_) {
       INTERNAL_ERROR << "    dimension mismatch in matrix addition(+=): ("
-                     << Storage2D<T,ST>::xDim_ << "," << Storage2D<T,ST>::yDim_ << ") vs. ("
+                     << Base::xDim_ << "," << Base::yDim_ << ") vs. ("
                      << toAdd.xDim() << "," << toAdd.yDim() << ")." << std::endl;
       std::cerr << "     When adding matrix \"" << toAdd.name() << "\" to  matrix \""
                 << this->name() << "\". Exiting" << std::endl;
@@ -426,14 +445,14 @@ namespace Math2D {
     }
 #endif
 
-    T_A16* attr_restrict data = Storage2D<T,ST>::data_;
+    T_A16* attr_restrict data = Base::data_;
     const T_A16* attr_restrict data2 = toAdd.direct_access();
-    const ST size = Storage2D<T,ST>::size_;
+    const ST size = Base::size_;
 
     assertAligned16(data);
     assertAligned16(data2);
 
-    //assert( Storage2D<T,ST>::size_ == Storage2D<T,ST>::xDim_*Storage2D<T,ST>::yDim_ );
+    //assert( Base::size_ == Base::xDim_*Base::yDim_ );
     for (ST i=0; i < size; i++)
       data[i] += data2[i]; //toAdd.direct_access(i);
   }
@@ -443,9 +462,9 @@ namespace Math2D {
   {
 
 #ifndef DONT_CHECK_VECTOR_ARITHMETIC
-    if (toSub.xDim() != Storage2D<T,ST>::xDim_ || toSub.yDim() != Storage2D<T,ST>::yDim_) {
+    if (toSub.xDim() != Base::xDim_ || toSub.yDim() != Base::yDim_) {
       INTERNAL_ERROR << "    dimension mismatch in matrix subtraction(-=): ("
-                     << Storage2D<T,ST>::xDim_ << "," << Storage2D<T,ST>::yDim_ << ") vs. ("
+                     << Base::xDim_ << "," << Base::yDim_ << ") vs. ("
                      << toSub.xDim() << "," << toSub.yDim() << ")." << std::endl;
       std::cerr << "     When subtracting matrix \"" << toSub.name() << "\" from  matrix \""
                 << this->name() << "\". Exiting" << std::endl;
@@ -453,14 +472,14 @@ namespace Math2D {
     }
 #endif
 
-    T_A16* attr_restrict data = Storage2D<T,ST>::data_;
+    T_A16* attr_restrict data = Base::data_;
     const T_A16* attr_restrict data2 = toSub.direct_access();
-    const ST size = Storage2D<T,ST>::size_;
+    const ST size = Base::size_;
 
     assertAligned16(data);
     assertAligned16(data2);
 
-    //assert(Storage2D<T,ST>::size_ == Storage2D<T,ST>::xDim_*Storage2D<T,ST>::yDim_);
+    //assert(Base::size_ == Base::xDim_*Base::yDim_);
     for (ST i=0; i < size; i++)
       data[i] -= data2[i]; //toSub.direct_access(i);
   }
@@ -469,12 +488,12 @@ namespace Math2D {
   template<typename T, typename ST>
   void Matrix<T,ST>::operator*=(const T scalar)
   {
-    T_A16* data = Storage2D<T,ST>::data_;
-    const ST size = Storage2D<T,ST>::size_;
+    T_A16* data = Base::data_;
+    const ST size = Base::size_;
 
     assertAligned16(data);
 
-    //assert(Storage2D<T,ST>::size_ == Storage2D<T,ST>::xDim_*Storage2D<T,ST>::yDim_);
+    //assert(Base::size_ == Base::xDim_*Base::yDim_);
     ST i;
     for (i=0; i < size; i++)
       data[i] *= scalar;
@@ -499,17 +518,17 @@ namespace Math2D {
       return false;
     }
 
-    of << "P5\n" << Storage2D<T,ST>::xDim_ << " " << Storage2D<T,ST>::yDim_ << "\n" << max_intensity;
+    of << "P5\n" << Base::xDim_ << " " << Base::yDim_ << "\n" << max_intensity;
 
     //Reopen in binary mode to avoid silent conversion from '\n' to "\r\n" under Windows
     of.close();
     of.open(filename.c_str(), std::ios::binary | std::ios::app);
     of << '\n';
 
-    for (ST i=0; i < Storage2D<T,ST>::size_; i++) {
+    for (ST i=0; i < Base::size_; i++) {
 
       if (max_intensity < 256) {
-        T cur_datum = Storage2D<T,ST>::data_[i];
+        T cur_datum = Base::data_[i];
         if (fit_to_range) {
           cur_datum = std::max(cur_datum,(T) 0);
           cur_datum = std::min(cur_datum,(T) max_intensity);

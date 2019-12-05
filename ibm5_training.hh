@@ -10,8 +10,7 @@ public:
 
   IBM5Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence, const LookupTable& slookup,
               const Storage1D<Math1D::Vector<uint> >& target_sentence,
-              const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
-              const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
+              const RefAlignmentStructure& sure_ref_alignments, const RefAlignmentStructure& possible_ref_alignments,
               SingleWordDictionary& dict, const CooccuringWordsType& wcooc, const Math1D::Vector<uint>& tfert_class, uint nSourceWords,
               uint nTargetWords, const floatSingleWordDictionary& prior_weight,
               const Storage1D<WordClassType>& source_class, const Storage1D<WordClassType>& target_class,
@@ -96,6 +95,7 @@ protected:
   bool deficient_;
 
   uint dist_m_step_iter_ = 400;
+  uint start_m_step_iter_ = 100;
 };
 
 #endif

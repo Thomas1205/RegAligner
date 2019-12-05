@@ -18,9 +18,8 @@ enum IBM1TransferMode { IBM1TransferNo, IBM1TransferViterbi,
 class HmmOptions {
 public:
 
-  HmmOptions(uint nSourceWords, uint nTargetWords, const ReducedIBM2AlignmentModel& ibm2_alignment_model,
-             std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
-             std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType > > >& possible_ref_alignments);
+  HmmOptions(uint nSourceWords, uint nTargetWords, const ReducedIBM2ClassAlignmentModel& ibm2_alignment_model, const Math1D::Vector<WordClassType>& ibm2_sclass,
+             RefAlignmentStructure& sure_ref_alignments, RefAlignmentStructure& possible_ref_alignments);
 
   uint nIterations_;
   HmmInitProbType init_type_;
@@ -48,10 +47,11 @@ public:
 
   MStepSolveMode msolve_mode_;
 
-  const ReducedIBM2AlignmentModel& ibm2_alignment_model_;
+  const ReducedIBM2ClassAlignmentModel& ibm2_alignment_model_;
+  const Math1D::Vector<WordClassType>& ibm2_sclass_;
 
-  std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments_;
-  std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments_;
+  RefAlignmentStructure& sure_ref_alignments_;
+  RefAlignmentStructure& possible_ref_alignments_;
 };
 
 class HmmWrapper {
@@ -64,20 +64,6 @@ public:
   const FullHMMAlignmentModel& align_model_;
   const InitialAlignmentProbability& initial_prob_;
   const HmmOptions& hmm_options_;
-};
-
-class HmmWrapperWithClasses {
-public:
-
-  HmmWrapperWithClasses(const FullHMMAlignmentModelSingleClass& align_model,
-                        const InitialAlignmentProbability& initial_prob,
-                        const Storage1D<WordClassType>& target_class,
-                        const HmmOptions& hmm_options);
-
-  const FullHMMAlignmentModelSingleClass& align_model_;
-  const InitialAlignmentProbability& initial_prob_;
-  const HmmOptions& hmm_options_;
-  const Storage1D<WordClassType>& target_class_;
 };
 
 long double hmm_alignment_prob(const Storage1D<uint>& source, const SingleLookupTable& slookup, const Storage1D<uint>& target,

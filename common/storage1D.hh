@@ -16,8 +16,7 @@ template<typename T, typename ST=size_t>
 class Storage1D : public StorageBase<T,ST> {
 public:
 
-  //NOTE: for non-math types new does not return 16-byte multiples!!!
-  //typedef T ALIGNED16 T_A16;
+  typedef StorageBase<T,ST> Base;
 
   Storage1D();
 

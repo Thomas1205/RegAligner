@@ -9,7 +9,7 @@
 #include "vector.hh"
 #include "tensor.hh"
 
-#include "hmm_training.hh"
+#include "hmmc_training.hh"
 #include "combinatoric.hh"
 
 #include <map>
@@ -31,6 +31,7 @@ struct FertModelOptions {
   uint dict_m_step_iter_ = 45;
   uint fert_m_step_iter_ = 250;
   uint dist_m_step_iter_ = 400;
+  uint start_m_step_iter_ = 100;
   uint nondef_dist34_m_step_iter_ = 250;
 
   HillclimbingMode hillclimb_mode_ = HillclimbingReuse;
@@ -60,8 +61,8 @@ public:
 
   FertilityModelTrainerBase(const Storage1D<Math1D::Vector<uint> >& source_sentence, const LookupTable& slookup,
                             const Storage1D<Math1D::Vector<uint> >& target_sentence,
-                            const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
-                            const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
+                            const RefAlignmentStructure& sure_ref_alignments,
+                            const RefAlignmentStructure& possible_ref_alignments,
                             SingleWordDictionary& dict, const CooccuringWordsType& wcooc,
                             uint nSourceWords, uint nTargetWords, uint fertility_limit = 10000);
 
@@ -166,8 +167,8 @@ protected:
 
   NamedStorage1D<Math1D::Vector<AlignBaseType> > best_known_alignment_;
 
-  std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType > > > sure_ref_alignments_;
-  std::map<uint,std::set<std::pair < AlignBaseType,AlignBaseType > > > possible_ref_alignments_;
+  RefAlignmentStructure sure_ref_alignments_;
+  RefAlignmentStructure possible_ref_alignments_;
 };
 
 /*abstract*/ class FertilityModelTrainer : public FertilityModelTrainerBase {
@@ -178,8 +179,8 @@ public:
                         const CooccuringWordsType& wcooc, const Math1D::Vector<uint>& tfert_class,
                         uint nSourceWords, uint nTargetWords, const floatSingleWordDictionary& prior_weight,
                         FertNullModel empty_word_model, bool smoothed_l0, double l0_beta, double l0_fertpen, bool no_factorial,
-                        const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
-                        const std::map<uint,std::set<std::pair< AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
+                        const RefAlignmentStructure& sure_ref_alignments,
+                        const RefAlignmentStructure& possible_ref_alignments,
                         const Math1D::Vector<double>& log_table, const Math1D::Vector<double>& xlogx_table, uint fertility_limit = 10000,
                         MStepSolveMode msolve_mode = MSSolvePGD, HillclimbingMode hillclimb_mode = HillclimbingReuse);
 
@@ -187,8 +188,8 @@ public:
                         const Storage1D<Math1D::Vector<uint> >& target_sentence, SingleWordDictionary& dict,
                         const CooccuringWordsType& wcooc, const Math1D::Vector<uint>& tfert_class,
                         uint nSourceWords, uint nTargetWords, const floatSingleWordDictionary& prior_weight,
-                        const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
-                        const std::map<uint,std::set<std::pair< AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
+                        const RefAlignmentStructure& sure_ref_alignments,
+                        const RefAlignmentStructure& possible_ref_alignments,
                         const Math1D::Vector<double>& log_table, const Math1D::Vector<double>& xlogx_table,
                         const FertModelOptions& options, bool no_factorial, uint fertility_limit = 10000);
 

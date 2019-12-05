@@ -11,12 +11,18 @@
 #include "stl_out.hh"
 #include "storage_util.hh"
 
+HmmWrapperWithClasses::HmmWrapperWithClasses(const FullHMMAlignmentModelSingleClass& align_model, const InitialAlignmentProbability& initial_prob,
+    const Storage1D<WordClassType>& target_class, const HmmOptions& hmm_options)
+  :align_model_(align_model), initial_prob_(initial_prob),
+   hmm_options_(hmm_options), target_class_(target_class)
+{
+}
+
 long double hmm_alignment_prob(const Storage1D<uint>& source, const SingleLookupTable& slookup, const Storage1D<uint>& target,
                                const Storage1D<uint>& tclass, const SingleWordDictionary& dict, const FullHMMAlignmentModelSingleClass& align_model,
                                const InitialAlignmentProbability& initial_prob, const Storage1D<AlignBaseType>& alignment,
                                bool with_dict)
 {
-
   const uint I = target.size();
   const uint J = source.size();
 
@@ -198,7 +204,7 @@ void init_hmm_from_prev(const Storage1D<Math1D::Vector<uint> >& source, const Lo
         Storage1D<AlignBaseType> viterbi_alignment(source[s].size(), 0);
 
         if (options.ibm2_alignment_model_.size() > curI && options.ibm2_alignment_model_[curI].size() > 0)
-          compute_ibm2_viterbi_alignment(cur_source, cur_lookup, cur_target, dict, options.ibm2_alignment_model_[curI], viterbi_alignment);
+          compute_ibm2_viterbi_alignment(cur_source, cur_lookup, cur_target, dict, options.ibm2_alignment_model_[curI], options.ibm2_sclass_, viterbi_alignment);
         else if (ibm1_p0 >= 0.0 && ibm1_p0 < 1.0)
           compute_ibm1p0_viterbi_alignment(cur_source, cur_lookup, cur_target, dict, ibm1_p0, viterbi_alignment);
         else
@@ -223,24 +229,29 @@ void init_hmm_from_prev(const Storage1D<Math1D::Vector<uint> >& source, const Lo
         assert(transfer_mode == IBM1TransferPosterior);
 
         if (options.ibm2_alignment_model_.size() > curI && options.ibm2_alignment_model_[curI].size() > 0) {
-          const Math2D::Matrix<double>& cur_align_prob = options.ibm2_alignment_model_[curI];
+
+          const Math3D::Tensor<double>& cur_align_prob = options.ibm2_alignment_model_[curI];
+          const Math1D::Vector<WordClassType>& sclass = options.ibm2_sclass_;
 
           Math1D::Vector<double> prev_marg(curI+1);
           Math1D::Vector<double> cur_marg(curI+1);
 
           for (uint j = 1; j < curJ; j++) {
 
+            const uint c = sclass[cur_source[j - 1]];
+            const uint c_prev = (j-1 == 0) ? 0 : sclass[cur_source[j - 2]];
+
             const uint j_prev = j - 1;
 
-            cur_marg[0] = cur_align_prob(0, j) * dict[0][cur_source[j] - 1];
+            cur_marg[0] = cur_align_prob(0, j, c) * dict[0][cur_source[j] - 1];
             for (uint i = 0; i < curI; i++)
-              cur_marg[i + 1] = cur_align_prob(i + 1, j) * dict[cur_target[i]][cur_lookup(j, i)];
+              cur_marg[i + 1] = cur_align_prob(i + 1, j, c) * dict[cur_target[i]][cur_lookup(j, i)];
 
             cur_marg *= 1.0 / cur_marg.sum();
 
-            prev_marg[0] = cur_align_prob(0, j_prev) * dict[0][cur_source[j - 1] - 1];
+            prev_marg[0] = cur_align_prob(0, j_prev, c_prev) * dict[0][cur_source[j - 1] - 1];
             for (uint i = 0; i < curI; i++)
-              prev_marg[i + 1] = cur_align_prob(i + 1, j_prev) * dict[cur_target[i]][cur_lookup(j - 1, i)];
+              prev_marg[i + 1] = cur_align_prob(i + 1, j_prev, c_prev) * dict[cur_target[i]][cur_lookup(j - 1, i)];
 
             prev_marg *= 1.0 / prev_marg.sum();
 
@@ -413,17 +424,23 @@ double extended_hmm_energy(const Storage1D<Math1D::Vector<uint> >& source, const
   double energy = 0.0;
 
   if (dict_weight_sum != 0.0) {
-    for (uint i = 0; i < dict.size(); i++)
-      for (uint k = 0; k < dict[i].size(); k++) {
-        if (options.smoothed_l0_)
-          energy += prior_weight[i][k] * prob_penalty(dict[i][k], options.l0_beta_);
-        else
-          energy += prior_weight[i][k] * dict[i][k];
+    
+    for (uint i = 0; i < dict.size(); i++) {
+      
+      const Math1D::Vector<double>& cur_dict = dict[i];
+      const Math1D::Vector<float>& cur_prior = prior_weight[i];
+      
+      const uint size = cur_dict.size();
+
+      if (options.smoothed_l0_) {
+        for (uint k = 0; k < size; k++) 
+          energy += cur_prior[k] * prob_penalty(cur_dict[k], options.l0_beta_);
       }
-
-    //std::cerr << "before dividing: " << energy << std::endl;
-
-    energy /= source.size();
+      else {
+        for (uint k = 0; k < size; k++) 
+          energy += cur_prior[k] * cur_dict[k];
+      }
+    }
   }
 
   //std::cerr << "before adding perplexity: " << energy << std::endl;
@@ -1366,7 +1383,7 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       double sum_postdec_fmeasure = 0.0;
       double sum_postdec_daes = 0.0;
 
-      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::const_iterator it = options.possible_ref_alignments_.begin();
+      for (RefAlignmentStructure::const_iterator it = options.possible_ref_alignments_.begin();
            it != options.possible_ref_alignments_.end(); it++) {
 
         uint s = it->first - 1;
@@ -1378,6 +1395,9 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
         nContributors++;
         //compute viterbi alignment
+
+        const AlignmentStructure& cur_sure = options.sure_ref_alignments_[s + 1];
+        const AlignmentStructure& cur_possible = it->second;
 
         Math1D::Vector<AlignBaseType> viterbi_alignment;
         const uint curI = target[s].size();
@@ -1396,17 +1416,17 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
         //std::cerr << "alignment: " << viterbi_alignment << std::endl;
 
         //add alignment error rate
-        sum_aer += AER(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        sum_fmeasure += f_measure(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        nErrors += nDefiniteAlignmentErrors(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_aer += AER(viterbi_alignment, cur_sure, cur_possible);
+        sum_fmeasure += f_measure(viterbi_alignment, cur_sure, cur_possible);
+        nErrors += nDefiniteAlignmentErrors(viterbi_alignment, cur_sure, cur_possible);
 
         std::set<std::pair<AlignBaseType,AlignBaseType> > postdec_alignment;
         compute_ehmm_postdec_alignment(source[s], cur_lookup, target[s], tclass, dict, align_model[curI - 1],
                                        initial_prob[curI - 1], options, postdec_alignment);
 
-        sum_postdec_aer += AER(postdec_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        sum_postdec_fmeasure += f_measure(postdec_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        sum_postdec_daes += nDefiniteAlignmentErrors(postdec_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_postdec_aer += AER(postdec_alignment, cur_sure, cur_possible);
+        sum_postdec_fmeasure += f_measure(postdec_alignment, cur_sure, cur_possible);
+        sum_postdec_daes += nDefiniteAlignmentErrors(postdec_alignment, cur_sure, cur_possible);
       }
 
       sum_aer *= 100.0 / nContributors;
@@ -2333,7 +2353,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
       double sum_postdec_fmeasure = 0.0;
       double sum_postdec_daes = 0.0;
 
-      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::const_iterator it = options.possible_ref_alignments_.begin();
+      for (RefAlignmentStructure::const_iterator it = options.possible_ref_alignments_.begin();
            it != options.possible_ref_alignments_.end(); it++) {
 
         uint s = it->first - 1;
@@ -2345,6 +2365,9 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
         nContributors++;
         //compute viterbi alignment
+
+        const AlignmentStructure& cur_sure = options.sure_ref_alignments_[s + 1];
+        const AlignmentStructure& cur_possible = it->second;
 
         Math1D::Vector<AlignBaseType> viterbi_alignment;
         const uint curI = target[s].size();
@@ -2363,17 +2386,17 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
         //std::cerr << "alignment: " << viterbi_alignment << std::endl;
 
         //add alignment error rate
-        sum_aer += AER(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        sum_fmeasure += f_measure(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        nErrors += nDefiniteAlignmentErrors(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_aer += AER(viterbi_alignment, cur_sure, cur_possible);
+        sum_fmeasure += f_measure(viterbi_alignment, cur_sure, cur_possible);
+        nErrors += nDefiniteAlignmentErrors(viterbi_alignment, cur_sure, cur_possible);
 
         std::set<std::pair<AlignBaseType,AlignBaseType> > postdec_alignment;
         compute_ehmm_postdec_alignment(source[s], cur_lookup, target[s], tclass, dict, align_model[curI - 1],
                                        initial_prob[curI - 1], options, postdec_alignment);
 
-        sum_postdec_aer += AER(postdec_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        sum_postdec_fmeasure += f_measure(postdec_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        sum_postdec_daes += nDefiniteAlignmentErrors(postdec_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_postdec_aer += AER(postdec_alignment, cur_sure, cur_possible);
+        sum_postdec_fmeasure += f_measure(postdec_alignment, cur_sure, cur_possible);
+        sum_postdec_daes += nDefiniteAlignmentErrors(postdec_alignment, cur_sure, cur_possible);
       }
 
       sum_aer *= 100.0 / nContributors;
@@ -3571,7 +3594,7 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
       double nErrors = 0.0;
       uint nContributors = 0;
 
-      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::const_iterator it = options.possible_ref_alignments_.begin();
+      for (RefAlignmentStructure::const_iterator it = options.possible_ref_alignments_.begin();
            it != options.possible_ref_alignments_.end(); it++) {
 
         uint s = it->first - 1;
@@ -3583,6 +3606,9 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
 
         nContributors++;
         //compute viterbi alignment
+
+        const AlignmentStructure& cur_sure = options.sure_ref_alignments_[s + 1];
+        const AlignmentStructure& cur_possible = it->second;
 
         Math1D::Vector<AlignBaseType> viterbi_alignment;
         const uint curI = target[s].size();
@@ -3601,9 +3627,9 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
         //std::cerr << "alignment: " << viterbi_alignment << std::endl;
 
         //add alignment error rate
-        sum_aer += AER(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        sum_fmeasure += f_measure(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
-        nErrors += nDefiniteAlignmentErrors(viterbi_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_aer += AER(viterbi_alignment, cur_sure, cur_possible);
+        sum_fmeasure += f_measure(viterbi_alignment, cur_sure, cur_possible);
+        nErrors += nDefiniteAlignmentErrors(viterbi_alignment, cur_sure, cur_possible);
       }
 
       sum_aer *= 100.0 / nContributors;

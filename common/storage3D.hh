@@ -23,6 +23,8 @@ template<typename T, typename ST=size_t>
 class Storage3D : public StorageBase<T,ST> {
 public:
 
+  typedef StorageBase<T,ST> Base;
+
   Storage3D();
 
   //copy constructor

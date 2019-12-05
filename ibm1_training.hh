@@ -14,8 +14,8 @@
 class IBM1Options {
 public:
 
-  IBM1Options(uint nSourceWords, uint nTargetWords, std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
-              std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments);
+  IBM1Options(uint nSourceWords, uint nTargetWords, RefAlignmentStructure& sure_ref_alignments,
+              RefAlignmentStructure& possible_ref_alignments);
 
   uint nIterations_;
 
@@ -32,8 +32,8 @@ public:
 
   bool unconstrained_m_step_ = false;
 
-  std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments_;
-  std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments_;
+  RefAlignmentStructure& sure_ref_alignments_;
+  RefAlignmentStructure& possible_ref_alignments_;
 };
 
 void train_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const Storage1D<Math1D::Vector<uint> >& target,

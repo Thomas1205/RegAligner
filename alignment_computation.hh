@@ -19,7 +19,7 @@ void compute_ibm1_postdec_alignment(const Storage1D<uint>& source_sentence, cons
 void compute_ibm1p0_viterbi_alignment(const Storage1D<uint>& source_sentence, const SingleLookupTable& slookup, const Storage1D<uint>& target_sentence,
                                       const SingleWordDictionary& dict, double p0, Storage1D<AlignBaseType>& viterbi_alignment);
 
-//posterior decoding for IBM-1
+//posterior decoding for IBM-1-p0
 void compute_ibm1p0_postdec_alignment(const Storage1D<uint>& source_sentence, const SingleLookupTable& slookup, const Storage1D<uint>& target_sentence,
                                       const SingleWordDictionary& dict, double p0,
                                       std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment, double threshold = 0.25);
@@ -28,9 +28,18 @@ void compute_ibm2_viterbi_alignment(const Storage1D<uint>& source_sentence, cons
                                     const SingleWordDictionary& dict, const Math2D::Matrix<double>& align_prob,
                                     Storage1D<AlignBaseType>& viterbi_alignment);
 
+void compute_ibm2_viterbi_alignment(const Storage1D<uint>& source_sentence, const SingleLookupTable& slookup, const Storage1D<uint>& target_sentence,
+                                    const SingleWordDictionary& dict, const Math3D::Tensor<double>& align_prob,
+                                    const Storage1D<WordClassType>& sclass, Storage1D<AlignBaseType>& viterbi_alignment);
+
 void compute_ibm2_postdec_alignment(const Storage1D<uint>& source_sentence, const SingleLookupTable& slookup, const Storage1D<uint>& target_sentence,
                                     const SingleWordDictionary& dict, const Math2D::Matrix<double>& align_prob,
                                     std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
+                                    double threshold = 0.25);
+
+void compute_ibm2_postdec_alignment(const Storage1D<uint>& source_sentence, const SingleLookupTable& slookup, const Storage1D<uint>& target_sentence,
+                                    const SingleWordDictionary& dict, const Math3D::Tensor<double>& align_prob,
+                                    const Storage1D<WordClassType>& sclass, std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment,
                                     double threshold = 0.25);
 
 //long double compute_fullhmm_viterbi_alignment(const Storage1D<uint>& source_sentence, const SingleLookupTable& slookup,

@@ -14,6 +14,47 @@
 #include "gzstream.h"
 #endif
 
+uint set_prior_dict_weights(const std::set<std::pair<uint,uint> >& known_pairs, const CooccuringWordsType& wcooc,
+                            floatSingleWordDictionary prior_weight, float init_dict_regularity)
+{
+
+  uint nIgnored = 0;
+
+  uint nTargetWords = prior_weight.size();
+
+  for (uint i = 0; i < nTargetWords; i++)
+    prior_weight[i].set_constant(init_dict_regularity);
+
+  std::cerr << "processing read list" << std::endl;
+
+  for (std::set<std::pair<uint,uint> >::const_iterator it = known_pairs.begin(); it != known_pairs.end(); it++) {
+
+    uint tword = it->first;
+    uint sword = it->second;
+
+    if (tword >= wcooc.size()) {
+      std::cerr << "tword out of range: " << tword << std::endl;
+    }
+
+    if (tword == 0) {
+      prior_weight[0][sword-1] = 0.0;
+    }
+    else {
+      uint pos = std::lower_bound(wcooc[tword].direct_access(), wcooc[tword].direct_access() + wcooc[tword].size(), sword) - wcooc[tword].direct_access();
+
+      if (pos < wcooc[tword].size() && wcooc[tword][pos] == sword) {
+        prior_weight[tword][pos] = 0.0;
+      }
+      else {
+        nIgnored++;
+        //std::cerr << "WARNING: ignoring entry of prior dictionary" << std::endl;
+      }
+    }
+  }
+
+  return nIgnored;
+}
+
 void find_cooccuring_words(const Storage1D<Math1D::Vector<uint> >& source, const Storage1D<Math1D::Vector<uint> >& target,
                            uint nSourceWords, uint nTargetWords, CooccuringWordsType& cooc)
 {
@@ -918,8 +959,8 @@ double prob_pen_prime(double x, double beta)
   return -prob_penalty(x, beta) / beta;
 }
 
-void update_dict_from_counts(const SingleWordDictionary& fdict_count, const floatSingleWordDictionary& prior_weight,
-                             double dict_weight_sum, bool smoothed_l0, double l0_beta, uint nDictStepIter, SingleWordDictionary& dict,
+void update_dict_from_counts(const UnnamedSingleWordDictionary& fdict_count, const floatUnnamedSingleWordDictionary& prior_weight,
+                             double dict_weight_sum, bool smoothed_l0, double l0_beta, uint nDictStepIter, UnnamedSingleWordDictionary& dict,
                              double min_prob, bool unconstrained_m_step)
 {
   if (dict_weight_sum > 0.0) {
@@ -953,7 +994,7 @@ void update_dict_from_counts(const SingleWordDictionary& fdict_count, const floa
 
         //NOTE: if the entries in prior_weight[i] are all the same, hyp_energy should always be small or equal to cur_energy
         if (hyp_energy < cur_energy)
-          dict[i] = hyp_dict;
+          cur_dict = hyp_dict;
       }
       if (!unconstrained_m_step)
         single_dict_m_step(cur_count, cur_prior, cur_dict, alpha, nDictStepIter, smoothed_l0, l0_beta, false);
@@ -1061,7 +1102,9 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count, const Math1D:
 
   double line_reduction_factor = 0.5;
 
-  bool norm_constraint = true;
+  //NOTE: the norm constraint can only be turned off when there is no slack
+  // in orthant mode we would get a problem because the slack variable has no gradient
+  bool norm_constraint = true; //DON'T PUBLISH
 
   for (uint iter = 1; iter <= nIter; iter++) {
 
@@ -1078,7 +1121,7 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count, const Math1D:
           dict_grad[k] = prior_weight[k] * prob_pen_prime(cur_dict_entry, l0_beta) - fdict_count[k] / cur_dict_entry;
       }
     }
-    else {
+    else {   //DON'T PUBLISH -- START
 
       //the energy is NOT scale invariant as it does not account for renormalization
       // => need to modify the gradient
@@ -1133,12 +1176,17 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count, const Math1D:
 
         dict_grad[k] -= own_subst;
       }
-    }
+    }   //DON'T PUBLISH -- END
 
     //go in neg. gradient direction
-    for (uint k = 0; k < dict_size; k++) {
-      new_dict[k] = dict[k] - alpha * dict_grad[k];
-    }
+    //for (uint k = 0; k < dict_size; k++) {
+    //  new_dict[k] = dict[k] - alpha * dict_grad[k];
+    //}
+
+    //new_dict = dict;
+    //new_dict.add_vector_multiple(dict_grad, -alpha);
+
+    Makros::go_in_neg_direction(new_dict.direct_access(), new_dict.size(), dict.direct_access(), dict_grad.direct_access(), alpha);
 
     new_slack_entry = slack_entry;
 
@@ -1189,9 +1237,10 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count, const Math1D:
       lambda *= line_reduction_factor;
       double neg_lambda = 1.0 - lambda;
 
-      for (uint k = 0; k < dict_size; k++) {
-        hyp_dict[k] = lambda * new_dict[k] + neg_lambda * dict[k];
-      }
+      //for (uint k = 0; k < dict_size; k++) {
+      //  hyp_dict[k] = lambda * new_dict[k] + neg_lambda * dict[k];
+      //}
+      Makros::assign_weighted_combination(hyp_dict.direct_access(), dict_size, lambda, new_dict.direct_access(), neg_lambda, dict.direct_access());
 
       double hyp_energy = single_dict_m_step_energy(fdict_count, prior_weight, hyp_dict, smoothed_l0, l0_beta);
       //std::cerr << "lambda = " << lambda << ", hyp_energy = " << hyp_energy << std::endl;
@@ -1225,9 +1274,10 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count, const Math1D:
 
     double neg_best_lambda = 1.0 - best_lambda;
 
-    for (uint k = 0; k < dict_size; k++) {
-      dict[k] = best_lambda * new_dict[k] + neg_best_lambda * dict[k];
-    }
+    //for (uint k = 0; k < dict_size; k++) {
+    //  dict[k] = best_lambda * new_dict[k] + neg_best_lambda * dict[k];
+    //}
+    Makros::assign_weighted_combination(dict.direct_access(), dict_size, best_lambda, new_dict.direct_access(), neg_best_lambda, dict.direct_access());
 
     slack_entry = best_lambda * new_slack_entry + neg_best_lambda * slack_entry;
 
@@ -1726,8 +1776,14 @@ void start_prob_m_step(const Math1D::Vector<double>& singleton_count, const Math
     }
 
     //go in neg. gradient direction
-    for (uint k = 0; k < sentence_start_parameters.size(); k++)
-      new_param[k] = sentence_start_parameters[k] - alpha * param_grad[k];
+    //for (uint k = 0; k < sentence_start_parameters.size(); k++)
+    //  new_param[k] = sentence_start_parameters[k] - alpha * param_grad[k];
+  
+    //new_param = sentence_start_parameters;
+    //new_param.add_vector_multiple(param_grad, -alpha);
+
+    Makros::go_in_neg_direction(new_param.direct_access(), new_param.size(), sentence_start_parameters.direct_access(), 
+                                param_grad.direct_access(), alpha);
 
     //reproject
     projection_on_simplex(new_param.direct_access(), new_param.size(), 1e-10);
@@ -1748,8 +1804,10 @@ void start_prob_m_step(const Math1D::Vector<double>& singleton_count, const Math
       lambda *= 0.5;
       double neg_lambda = 1.0 - lambda;
 
-      for (uint k = 0; k < new_param.size(); k++)
-        hyp_param[k] = neg_lambda * sentence_start_parameters[k] + lambda * new_param[k];
+      //for (uint k = 0; k < new_param.size(); k++)
+      //  hyp_param[k] = neg_lambda * sentence_start_parameters[k] + lambda * new_param[k];
+      Makros::assign_weighted_combination(hyp_param.direct_access(), new_param.size(), neg_lambda, sentence_start_parameters.direct_access(),
+                                          lambda, new_param.direct_access());
 
       double hyp_energy = start_prob_m_step_energy(singleton_count, norm_count, hyp_param);
 
@@ -1776,8 +1834,10 @@ void start_prob_m_step(const Math1D::Vector<double>& singleton_count, const Math
 
     double neg_best_lambda = 1.0 - best_lambda;
 
-    for (uint k = 0; k < new_param.size(); k++)
-      sentence_start_parameters[k] = neg_best_lambda * sentence_start_parameters[k] + best_lambda * new_param[k];
+    //for (uint k = 0; k < new_param.size(); k++)
+    //  sentence_start_parameters[k] = neg_best_lambda * sentence_start_parameters[k] + best_lambda * new_param[k];
+    Makros::assign_weighted_combination(sentence_start_parameters.direct_access(), new_param.size(), neg_best_lambda,
+                                        sentence_start_parameters.direct_access(), best_lambda, new_param.direct_access());
 
     energy = best_energy;
 

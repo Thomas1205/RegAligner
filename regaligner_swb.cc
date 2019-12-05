@@ -60,6 +60,8 @@ int main(int argc, char** argv)
               << " [-ibm5-iter <uint>] : iterations for the IBM-5 model (default 0)" << std::endl
               << " [-dict-iter <uint>] : iterations for the dictionary m-step (with regularity terms, default 45)" << std::endl
               << " [-nondef-iter <uint>] : iterations for nondeficient m-steps of IBM-3/4" << std::endl
+              << " [-start-param-iter <uint>] : iterations for start m-steps (HMM and IBM-4/5)" << std::endl
+              << " [-main-param-iter <uint>] : iterations for most alignment/distortion m-steps (HMM and IBM-4/5)" << std::endl
               << " [-postdec-thresh <double>] : threshold for posterior decoding" << std::endl
               << " [-dont-print-energy] : do not print the energy (speeds up EM for IBM-1, IBM-2 and HMM)" << std::endl
               << " [-max-lookup <uint>] : only store lookup tables up to this size to save memory. Default: 65535" << std::endl
@@ -72,7 +74,7 @@ int main(int argc, char** argv)
               << " [-hmm-start-empty-word] : HMM with extra empty word " << std::endl
               << "************ Options affecting a mixed set of models ****************"
               << " [-deficient-h25] : introduce deficiency for IBM-2, HMM and IBM-5 by not dividing by the param sum" << std::endl
-              << " [-no-h3-classes] : don't use word classes for HMM" << std::endl
+              << " [-no-h23-classes] : don't use word classes for HMM" << std::endl
               << "************ Options affecting several (or all) fertility based models ***************" << std::endl
               << " [-count-collection] : collect counts from the previous model when initializing IBM-3/4/5 as in [Brown et al.]" << std::endl
               << " [-hillclimb-mode (reuse | restart | reinit)] : default reuse" << std::endl
@@ -106,7 +108,7 @@ int main(int argc, char** argv)
     exit(0);
   }
 
-  const int nParams = 59;
+  const int nParams = 60;
   ParamDescr params[nParams] = {
     {"-s", mandInFilename, 0, ""}, {"-t", mandInFilename, 0, ""}, {"-ds", optInFilename, 0, ""}, {"-dt", optInFilename, 0, ""},
     {"-o", optOutFilename, 0, ""}, {"-oa", mandOutFilename, 0, ""},  {"-refa", optInFilename, 0, ""}, {"-invert-biling-data", flag, 0, ""},
@@ -122,9 +124,9 @@ int main(int argc, char** argv)
     {"-ibm4-inter-dist-mode", optWithValue, 1, "previous"}, {"-ibm4-intra-dist-mode", optWithValue, 1, "source"}, {"-nondeficient", flag, 0, ""},
     {"-ilp-mode", optWithValue, 1, "off"}, {"-utmost-ilp-precision", flag, 0, ""}, {"-hmm-start-empty-word", flag, 0, ""}, {"-ibm3-extra-deficient", flag, 0, ""},
     {"-deficient-h25", flag, 0, ""},{"-ibm4-deficient-null", optWithValue, 1, "intra"}, {"-rare-fert-limit", optWithValue, 1, "9"},
-    {"-ibm2-alignment", optWithValue, 1, "pos"}, {"-no-h3-classes", flag, 0, ""}, {"-itg-max-mid-dev",optWithValue,1,"8"},{"-itg-ext-level",optWithValue,1,"0"},
+    {"-ibm2-alignment", optWithValue, 1, "pos"}, {"-no-h23-classes", flag, 0, ""}, {"-itg-max-mid-dev",optWithValue,1,"8"},{"-itg-ext-level",optWithValue,1,"0"},
     {"-ibm-max-skip", optWithValue,1,"3"},{"-dict-iter",optWithValue,1,"45"}, {"-nondef-iter",optWithValue,1,"250"}, {"-ibm5-nonpar-distortion", flag, 0, ""},
-    {"-uniform-start-prob", flag, 0, ""}
+    {"-uniform-start-prob", flag, 0, ""}, {"-start-param-iter", optWithValue, 1, "250"}, {"-main-param-iter", optWithValue, 1, "500"}
   };
 
   Application app(argc, argv, params, nParams);
@@ -135,8 +137,8 @@ int main(int argc, char** argv)
   NamedStorage1D<Math1D::Vector<uint> > dev_source_sentence(MAKENAME(dev_source_sentence));
   NamedStorage1D<Math1D::Vector<uint> > dev_target_sentence(MAKENAME(dev_target_sentence));
 
-  std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > > sure_ref_alignments;
-  std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > > possible_ref_alignments;
+  RefAlignmentStructure sure_ref_alignments;
+  RefAlignmentStructure possible_ref_alignments;
 
   uint ibm1_iter = convert<uint>(app.getParam("-ibm1-iter"));
   uint ibm2_iter = convert<uint>(app.getParam("-ibm2-iter"));
@@ -179,11 +181,8 @@ int main(int argc, char** argv)
   uint nMaxRareOccurances = 4;  //3;
 
   const uint max_lookup = convert<uint>(app.getParam("-max-lookup"));
-
   double postdec_thresh = convert<double>(app.getParam("-postdec-thresh"));
-
   double fert_p0 = convert<double>(app.getParam("-p0"));
-
   const uint dict_m_step_iter = convert<uint>(app.getParam("-dict-iter"));
 
   MStepSolveMode msolve_mode = MSSolvePGD;
@@ -192,7 +191,6 @@ int main(int argc, char** argv)
   tStartRead = std::clock();
 
   if (app.getParam("-s") == app.getParam("-t")) {
-
     std::cerr << "WARNING: files for source and target sentences are identical!" << std::endl;
   }
 
@@ -301,8 +299,9 @@ int main(int argc, char** argv)
 
   Math1D::Vector<double> source_fert(2,0.5);
 
-  ReducedIBM2AlignmentModel reduced_ibm2align_model(MAKENAME(reduced_ibm2align_model));
-  Math2D::NamedMatrix<double> reduced_ibm2align_param(MAKENAME(reduced_ibm2align_param));
+  ReducedIBM2ClassAlignmentModel reduced_ibm2align_model(MAKENAME(reduced_ibm2align_model));
+  Math3D::NamedTensor<double> reduced_ibm2align_param(MAKENAME(reduced_ibm2align_param));
+  Math1D::Vector<WordClassType> ibm2_sclass;
 
   FullHMMAlignmentModel hmmalign_model(MAKENAME(hmmalign_model));
   FullHMMAlignmentModelSingleClass hmmcalign_model(MAKENAME(hmmcalign_model));
@@ -370,8 +369,6 @@ int main(int argc, char** argv)
 
   floatSingleWordDictionary prior_weight(nTargetWords, MAKENAME(prior_weight));
 
-  Math1D::Vector<double> distribution_weight;
-
   std::set<std::pair<uint,uint> > known_pairs;
   if (app.is_set("-prior-dict"))
     read_prior_dict(app.getParam("-prior-dict"), known_pairs, app.is_set("-invert-biling-data"));
@@ -387,43 +384,45 @@ int main(int argc, char** argv)
       std::cerr << "WARNING: prior dict given, but regularity weight is 0" << std::endl;
     }
 
-    for (uint i = 0; i < nTargetWords; i++)
-      prior_weight[i].set_constant(dict_regularity);
+    uint nIgnored = set_prior_dict_weights(known_pairs, wcooc, prior_weight, dict_regularity);
 
-    uint nIgnored = 0;
+    // for (uint i = 0; i < nTargetWords; i++)
+    // prior_weight[i].set_constant(dict_regularity);
 
-    std::cerr << "processing read list" << std::endl;
+    // uint nIgnored = 0;
 
-    for (std::set<std::pair<uint,uint> >::iterator it = known_pairs.begin(); it != known_pairs.end(); it++) {
+    // std::cerr << "processing read list" << std::endl;
 
-      uint tword = it->first;
-      uint sword = it->second;
+    // for (std::set<std::pair<uint,uint> >::iterator it = known_pairs.begin(); it != known_pairs.end(); it++) {
 
-      if (tword >= wcooc.size()) {
-        std::cerr << "tword out of range: " << tword << std::endl;
-      }
+    // uint tword = it->first;
+    // uint sword = it->second;
 
-      if (tword == 0) {
-        prior_weight[0][sword-1] = 0.0;
-      }
-      else {
-        uint pos = std::lower_bound(wcooc[tword].direct_access(), wcooc[tword].direct_access() + wcooc[tword].size(), sword) - wcooc[tword].direct_access();
+    // if (tword >= wcooc.size()) {
+    // std::cerr << "tword out of range: " << tword << std::endl;
+    // }
 
-        if (pos < wcooc[tword].size() && wcooc[tword][pos] == sword) {
-          prior_weight[tword][pos] = 0.0;
-        }
-        else {
-          nIgnored++;
-          //std::cerr << "WARNING: ignoring entry of prior dictionary" << std::endl;
-        }
-      }
-    }
+    // if (tword == 0) {
+    // prior_weight[0][sword-1] = 0.0;
+    // }
+    // else {
+    // uint pos = std::lower_bound(wcooc[tword].direct_access(), wcooc[tword].direct_access() + wcooc[tword].size(), sword) - wcooc[tword].direct_access();
+
+    // if (pos < wcooc[tword].size() && wcooc[tword][pos] == sword) {
+    // prior_weight[tword][pos] = 0.0;
+    // }
+    // else {
+    // nIgnored++;
+    // //std::cerr << "WARNING: ignoring entry of prior dictionary" << std::endl;
+    // }
+    // }
+    // }
 
     std::cerr << "ignored " << nIgnored << " entries of prior dictionary" << std::endl;
   }
   else {
 
-    distribution_weight.resize(nTargetWords, dict_regularity);
+    Math1D::Vector<double> distribution_weight(nTargetWords, dict_regularity);
 
     if (app.is_set("-sparse-reg")) {
 
@@ -561,6 +560,9 @@ int main(int argc, char** argv)
     }
   }
 
+  const uint main_m_step_iter = convert<uint>(app.getParam("-main-param-iter"));
+  const uint start_m_step_iter = convert<uint>(app.getParam("-start-param-iter"));
+
   IBM1Options ibm1_options(nSourceWords, nTargetWords, sure_ref_alignments, possible_ref_alignments);
   ibm1_options.nIterations_ = ibm1_iter;
   ibm1_options.smoothed_l0_ = em_l0;
@@ -578,8 +580,9 @@ int main(int argc, char** argv)
   ibm2_options.ibm2_mode_ = ibm2_align_mode;
   ibm2_options.dict_m_step_iter_ = dict_m_step_iter;
   ibm2_options.deficient_ = app.is_set("-deficient-h25");
+  ibm2_options.align_m_step_iter_ = main_m_step_iter;
 
-  HmmOptions hmm_options(nSourceWords, nTargetWords, reduced_ibm2align_model, sure_ref_alignments, possible_ref_alignments);
+  HmmOptions hmm_options(nSourceWords, nTargetWords, reduced_ibm2align_model, ibm2_sclass, sure_ref_alignments, possible_ref_alignments);
   hmm_options.nIterations_ = hmm_iter;
   hmm_options.align_type_ = hmm_align_mode;
   hmm_options.init_type_ = hmm_init_mode;
@@ -590,6 +593,8 @@ int main(int argc, char** argv)
   hmm_options.print_energy_ = !app.is_set("-dont-print-energy");
   hmm_options.msolve_mode_ = msolve_mode;
   hmm_options.dict_m_step_iter_ = dict_m_step_iter;
+  hmm_options.init_m_step_iter_ = start_m_step_iter;
+  hmm_options.align_m_step_iter_ = main_m_step_iter;
 
   FertModelOptions fert_options;
   fert_options.l0_fertpen_ = l0_fertpen;
@@ -610,6 +615,8 @@ int main(int argc, char** argv)
   fert_options.dict_m_step_iter_ = dict_m_step_iter;
   fert_options.nondef_dist34_m_step_iter_ = convert<uint>(app.getParam("-nondef-iter"));
   fert_options.uniform_sentence_start_prob_ = app.is_set("-uniform-start-prob");
+  fert_options.dist_m_step_iter_ = main_m_step_iter;
+  fert_options.start_m_step_iter_ = start_m_step_iter;
 
   Math1D::NamedVector<double> log_table(MAKENAME(log_table));
   Math1D::NamedVector<double> xlogx_table(MAKENAME(xlogx_table));
@@ -656,23 +663,25 @@ int main(int argc, char** argv)
 
   if (ibm2_iter > 0) {
 
+    ibm2_sclass.resize(source_class.size(),0);
+
     find_cooccuring_lengths(source_sentence, target_sentence, lcooc);
 
     if (method == "em") {
 
       train_reduced_ibm2(source_sentence, slookup, target_sentence, wcooc, lcooc, reduced_ibm2align_model, reduced_ibm2align_param, source_fert,
-                         dict, ibm2_options, prior_weight);
+                         dict, ibm2_sclass, ibm2_options, prior_weight);
     }
     else if (method == "gd") {
 
       std::cerr << "WARNING: IBM-2 is not available with gradient descent" << std::endl;
       train_reduced_ibm2(source_sentence, slookup, target_sentence, wcooc, lcooc, reduced_ibm2align_model, reduced_ibm2align_param, source_fert,
-                         dict, ibm2_options, prior_weight);
+                         dict, ibm2_sclass, ibm2_options, prior_weight);
     }
     else {
 
-      reduced_ibm2_viterbi_training(source_sentence, slookup, target_sentence, wcooc, lcooc, reduced_ibm2align_model, reduced_ibm2align_param, source_fert,
-                                    dict, ibm2_options, prior_weight, xlogx_table);
+      reduced_ibm2_viterbi_training(source_sentence, slookup, target_sentence, wcooc, lcooc, reduced_ibm2align_model, reduced_ibm2align_param,
+                                    source_fert, dict, ibm2_sclass, ibm2_options, prior_weight, xlogx_table);
     }
   }
 
@@ -693,7 +702,7 @@ int main(int argc, char** argv)
 
   if (method == "em") {
 
-    if (app.is_set("-no-h3-classes") || target_class.max() == 0) {
+    if (app.is_set("-no-h23-classes") || target_class.max() == 0) {
       train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, hmmalign_model, hmm_dist_params,
                          hmm_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict, prior_weight, hmm_options);
     }
@@ -704,7 +713,7 @@ int main(int argc, char** argv)
   }
   else if (method == "gd" || method == "l-bfgs") {
 
-    if (app.is_set("-no-h3-classes") || target_class.max() == 0) {
+    if (app.is_set("-no-h23-classes") || target_class.max() == 0) {
       train_extended_hmm_gd_stepcontrol(source_sentence, slookup, target_sentence, wcooc, hmmalign_model, hmm_dist_params,
                                         hmm_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict,
                                         prior_weight, hmm_options);
@@ -716,7 +725,7 @@ int main(int argc, char** argv)
   }
   else {
 
-    if (app.is_set("-no-h3-classes") || target_class.max() == 0) {
+    if (app.is_set("-no-h23-classes") || target_class.max() == 0) {
       viterbi_train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, hmmalign_model, hmm_dist_params,
                                  hmm_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict, prior_weight, hmm_options, xlogx_table);
     }
@@ -981,6 +990,7 @@ int main(int argc, char** argv)
 
     if (ibm2_iter > 0) {
 
+      uint nClasses = reduced_ibm2align_param.zDim();
       uint offset = std::max<uint>(maxI,max_devI) - 1;
 
       if (reduced_ibm2align_model.size() < max_devI+1)
@@ -988,15 +998,16 @@ int main(int argc, char** argv)
 
       if (max_devJ > maxJ || max_devI > maxI) {
         if (ibm2_align_mode != IBM23ParByDifference) {
-          reduced_ibm2align_param.resize(std::max<uint>(maxI,max_devI), std::max<uint>(maxJ,max_devJ), ibm2_min_align_param);
+          reduced_ibm2align_param.resize(std::max<uint>(maxI,max_devI), std::max<uint>(maxJ,max_devJ), nClasses, ibm2_min_align_param);
         }
         else {
 
-          Math2D::Matrix<double> temp_param(std::max<uint>(maxJ, max_devJ) + std::max<uint>(maxI, max_devI) - 1, 1, ibm2_min_align_param);
+          Math3D::Tensor<double> temp_param(std::max<uint>(maxJ, max_devJ) + std::max<uint>(maxI, max_devI) - 1, 1, nClasses, ibm2_min_align_param);
 
-          for (uint j = 0; j < maxJ; j++)
-            for (uint i = 0; i < maxI; i++)
-              temp_param(offset + j - i, 0) = reduced_ibm2align_param(maxI - 1 + j - i, 0);
+          for (uint c = 0; c < nClasses; c++)
+            for (uint j = 0; j < maxJ; j++)
+              for (uint i = 0; i < maxI; i++)
+                temp_param(offset + j - i, 0, c) = reduced_ibm2align_param(maxI - 1 + j - i, 0, c);
 
           reduced_ibm2align_param = temp_param;
         }
@@ -1010,14 +1021,14 @@ int main(int argc, char** argv)
           const int curJ = dev_source_sentence[s].size();
 
           if (reduced_ibm2align_model[curI].yDim() < curJ)
-            reduced_ibm2align_model[curI].resize(curI + 1, curJ);
+            reduced_ibm2align_model[curI].resize(curI + 1, curJ, nClasses);
         }
 
         par2nonpar_reduced_ibm2alignment_model(reduced_ibm2align_param, source_fert, reduced_ibm2align_model, ibm2_align_mode, offset);
       }
       else {
 
-        ReducedIBM2AlignmentModel temp_reduced_ibm2align_model(max_devI+1, MAKENAME(temp_reduced_ibm2align_model));
+        ReducedIBM2ClassAlignmentModel temp_reduced_ibm2align_model(max_devI+1, MAKENAME(temp_reduced_ibm2align_model));
 
         for (size_t s = 0; s < dev_source_sentence.size(); s++) {
 
@@ -1025,7 +1036,7 @@ int main(int argc, char** argv)
           const int curJ = dev_source_sentence[s].size();
 
           if (temp_reduced_ibm2align_model[curI].yDim() < curJ)
-            temp_reduced_ibm2align_model[curI].resize(curI + 1, curJ);
+            temp_reduced_ibm2align_model[curI].resize(curI + 1, curJ, nClasses);
         }
 
         par2nonpar_reduced_ibm2alignment_model(reduced_ibm2align_param, source_fert, temp_reduced_ibm2align_model, IBM23ParByPosition, offset);
@@ -1036,11 +1047,12 @@ int main(int argc, char** argv)
           size_t prev_yDim = reduced_ibm2align_model[I].yDim();
 
           reduced_ibm2align_model[I].resize(std::max(prev_xDim,temp_reduced_ibm2align_model[I].xDim()),
-                                            std::max(prev_yDim,temp_reduced_ibm2align_model[I].yDim()));
+                                            std::max(prev_yDim,temp_reduced_ibm2align_model[I].yDim()), nClasses);
 
-          for (uint x = prev_xDim; x < temp_reduced_ibm2align_model[I].xDim(); x++)
-            for (uint y = prev_yDim; y < temp_reduced_ibm2align_model[I].yDim(); y++)
-              reduced_ibm2align_model[I](x, y) = temp_reduced_ibm2align_model[I](x, y);
+          for (uint c = 0; c < nClasses; c++)
+            for (uint x = prev_xDim; x < temp_reduced_ibm2align_model[I].xDim(); x++)
+              for (uint y = prev_yDim; y < temp_reduced_ibm2align_model[I].yDim(); y++)
+                reduced_ibm2align_model[I](x, y, c) = temp_reduced_ibm2align_model[I](x, y, c);
         }
       }
     }
@@ -1263,12 +1275,12 @@ int main(int argc, char** argv)
       }
       else if (ibm2_iter > 0) {
 
-        const Math2D::Matrix<double>& cur_align_model = reduced_ibm2align_model[curI];
+        const Math3D::Tensor<double>& cur_align_model = reduced_ibm2align_model[curI];
 
         if (postdec_thresh <= 0.0)
-          compute_ibm2_viterbi_alignment(cur_source, cur_lookup, cur_target, dict, cur_align_model, viterbi_alignment);
+          compute_ibm2_viterbi_alignment(cur_source, cur_lookup, cur_target, dict, cur_align_model, ibm2_sclass, viterbi_alignment);
         else
-          compute_ibm2_postdec_alignment(cur_source, cur_lookup, cur_target, dict, cur_align_model, postdec_alignment, postdec_thresh);
+          compute_ibm2_postdec_alignment(cur_source, cur_lookup, cur_target, dict, cur_align_model, ibm2_sclass, postdec_alignment, postdec_thresh);
       }
       else {
 
@@ -1339,12 +1351,12 @@ int main(int argc, char** argv)
         }
         else if (ibm2_iter > 0) {
 
-          const Math2D::Matrix<double>& cur_align_model = reduced_ibm2align_model[curI];
+          const Math3D::Tensor<double>& cur_align_model = reduced_ibm2align_model[curI];
 
           if (postdec_thresh <= 0.0)
-            compute_ibm2_viterbi_alignment(cur_dev_source, cur_lookup, cur_dev_target, dict, cur_align_model, viterbi_alignment);
+            compute_ibm2_viterbi_alignment(cur_dev_source, cur_lookup, cur_dev_target, dict, cur_align_model, ibm2_sclass, viterbi_alignment);
           else
-            compute_ibm2_postdec_alignment(cur_dev_source, cur_lookup, cur_dev_target, dict, cur_align_model, postdec_alignment, postdec_thresh);
+            compute_ibm2_postdec_alignment(cur_dev_source, cur_lookup, cur_dev_target, dict, cur_align_model, ibm2_sclass, postdec_alignment, postdec_thresh);
         }
         else {
 

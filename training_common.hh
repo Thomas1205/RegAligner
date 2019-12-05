@@ -67,6 +67,10 @@ inline void compute_dictmat_fertform(const Storage1D<uint>& source_sentence, con
     dicttab(j,0) = null_dict[source_sentence[j]-1];
 }
 
+//returns the number of ignored entries
+uint set_prior_dict_weights(const std::set<std::pair<uint,uint> >& known_pairs, const CooccuringWordsType& wcooc,
+                            floatSingleWordDictionary prior_weight, float init_dict_regularity);
+
 void find_cooccuring_words(const Storage1D<Math1D::Vector<uint> >& source, const Storage1D<Math1D::Vector<uint> >& target,
                            uint nSourceWords, uint nTargetWords, CooccuringWordsType& cooc);
 
@@ -110,9 +114,9 @@ double prob_penalty(double x, double beta);
 
 double prob_pen_prime(double x, double beta);
 
-void update_dict_from_counts(const SingleWordDictionary& fdict_count, const floatSingleWordDictionary& prior_weight,
-                             double dict_weight_sum, bool smoothed_l0, double l0_beta,
-                             uint nDictStepIter, SingleWordDictionary& dict, double min_prob = 0.0, bool unconstrained_m_step = false);
+void update_dict_from_counts(const UnnamedSingleWordDictionary& fdict_count, const floatUnnamedSingleWordDictionary& prior_weight,
+                             double dict_weight_sum, bool smoothed_l0, double l0_beta, uint nDictStepIter, UnnamedSingleWordDictionary& dict,
+                             double min_prob = 0.0, bool unconstrained_m_step = false);
 
 void dict_m_step(const SingleWordDictionary& fdict_count, const floatSingleWordDictionary& prior_weight,
                  SingleWordDictionary& dict, double alpha, uint nIter = 100, bool smoothed_l0 = false, double l0_beta = 1.0);

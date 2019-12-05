@@ -18,8 +18,7 @@
 
 IBM5Trainer::IBM5Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence, const LookupTable& slookup,
                          const Storage1D<Math1D::Vector<uint> >& target_sentence,
-                         const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
-                         const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
+                         const RefAlignmentStructure& sure_ref_alignments, const RefAlignmentStructure& possible_ref_alignments,
                          SingleWordDictionary& dict, const CooccuringWordsType& wcooc, const Math1D::Vector<uint>& tfert_class, uint nSourceWords,
                          uint nTargetWords, const floatSingleWordDictionary& prior_weight,
                          const Storage1D<WordClassType>& source_class, const Storage1D<WordClassType>& target_class,
@@ -31,7 +30,8 @@ IBM5Trainer::IBM5Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence
     sentence_start_prob_(maxJ_ + 1), nonpar_distortion_(options.ibm5_nonpar_distortion_),
     use_sentence_start_prob_(!options.uniform_sentence_start_prob_), uniform_intra_prob_(options.uniform_intra_prob_),
     cept_start_mode_(options.cept_start_mode_), intra_dist_mode_(options.intra_dist_mode_),
-    source_class_(source_class), target_class_(target_class), deficient_(options.deficient_), dist_m_step_iter_(options.dist_m_step_iter_)
+    source_class_(source_class), target_class_(target_class), deficient_(options.deficient_),
+    dist_m_step_iter_(options.dist_m_step_iter_), start_m_step_iter_(options.start_m_step_iter_)
 {
   uint max_source_class = 0;
   uint min_source_class = MAX_UINT;
@@ -79,6 +79,7 @@ IBM5Trainer::IBM5Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence
     const uint J = *it;
     sentence_start_prob_[J].resize(J, 1.0 / J);
   }
+
   for (uint J=1; J <= maxJ_; J++) {
     //need this for all J as the number of open positions counts
     intra_distortion_prob_[J].resize(J, nClasses, 1.0 / J);
@@ -1991,10 +1992,6 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
 
       //std::cerr << "calling hillclimbing" << std::endl;
 
-      //in iter 1 this is guaranteed
-      //if (iter > 1 && hillclimb_mode_ == HillclimbingRestart)
-      //  best_known_alignment_[s] = initial_alignment[s];
-
       if (fert_trainer != 0 && iter == 1) {
         best_prob = fert_trainer->update_alignment_by_hillclimbing(cur_source, cur_target, cur_lookup, sum_iter,
                     fertility, expansion_move_prob, swap_move_prob, cur_alignment);
@@ -2574,9 +2571,9 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
     if (use_sentence_start_prob_) {
 
       if (msolve_mode_ == MSSolvePGD)
-        start_prob_m_step(fsentence_start_count, fstart_span_count, sentence_start_parameters_);
+        start_prob_m_step(fsentence_start_count, fstart_span_count, sentence_start_parameters_, start_m_step_iter_);
       else
-        start_prob_m_step_unconstrained(fsentence_start_count, fstart_span_count, sentence_start_parameters_);
+        start_prob_m_step_unconstrained(fsentence_start_count, fstart_span_count, sentence_start_parameters_, start_m_step_iter_);
 
       par2nonpar_start_prob(sentence_start_parameters_, sentence_start_prob_);
     }
@@ -3091,9 +3088,9 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
 
     if (use_sentence_start_prob_) {
       if (msolve_mode_ == MSSolvePGD)
-        start_prob_m_step(fsentence_start_count, fstart_span_count, sentence_start_parameters_);
+        start_prob_m_step(fsentence_start_count, fstart_span_count, sentence_start_parameters_, start_m_step_iter_);
       else
-        start_prob_m_step_unconstrained(fsentence_start_count, fstart_span_count, sentence_start_parameters_);
+        start_prob_m_step_unconstrained(fsentence_start_count, fstart_span_count, sentence_start_parameters_, start_m_step_iter_);
       par2nonpar_start_prob(sentence_start_parameters_, sentence_start_prob_);
     }
 
