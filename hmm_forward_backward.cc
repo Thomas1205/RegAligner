@@ -77,21 +77,24 @@ void calculate_scaled_hmm_forward(const Storage1D<uint>& source, const Storage1D
 double calculate_hmm_forward_log_sum(const Storage1D<uint>& source_sentence, const Storage1D<uint>& target_sentence,
                                      const SingleLookupTable& slookup, const SingleWordDictionary& dict,
                                      const Math2D::Matrix<double>& align_model, const Math1D::Vector<double>& start_prob,
-                                     const HmmAlignProbType align_type,
-                                     int redpar_limit)
+                                     const HmmAlignProbType align_type, bool start_empty_word, int redpar_limit)
 {
   const uint I = target_sentence.size();
   const uint J = source_sentence.size();
 
   Math2D::Matrix<double> dicttab(J,I+1);
-  for (uint i=0; i < I; i++) {
-    const Math1D::Vector<double>& cur_dict = dict[target_sentence[i]];
-    for (uint j=0; j < J; j++)
-      dicttab(j,i) = cur_dict[slookup(j,i)];
-  }
-  for (uint j=0; j < J; j++)
-    dicttab(j,I) = dict[0][source_sentence[j]-1];
+  compute_dictmat(source_sentence, slookup, target_sentence, dict, dicttab);
+  
+  // for (uint i=0; i < I; i++) {
+    // const Math1D::Vector<double>& cur_dict = dict[target_sentence[i]];
+    // for (uint j=0; j < J; j++)
+      // dicttab(j,i) = cur_dict[slookup(j,i)];
+  // }
+  // for (uint j=0; j < J; j++)
+    // dicttab(j,I) = dict[0][source_sentence[j]-1];
 
+  if (start_empty_word)
+    return calculate_sehmm_forward_log_sum(dicttab, align_model, start_prob);
   if (align_type == HmmAlignProbReducedpar)
     return calculate_hmm_forward_log_sum_with_tricks(dicttab, align_model, start_prob, redpar_limit);
   else
@@ -104,11 +107,11 @@ double calculate_hmm_forward_log_sum(const Math2D::Matrix<double>& dict, const M
   const uint I = dict.yDim()-1;
   const uint J = dict.xDim();
 
+  assert(start_prob.size() == 2*I);
+
   Math1D::Vector<double> forward[2];
   forward[0].resize(2 * I);
   forward[1].resize(2 * I);
-
-  double log_sum = 0.0;
 
   /*** init ***/
   for (uint i = 0; i < I; i++) {
@@ -122,7 +125,7 @@ double calculate_hmm_forward_log_sum(const Math2D::Matrix<double>& dict, const M
   }
 
   double scale = forward[0].max();
-  log_sum = std::log(scale);
+  double log_sum = std::log(scale);
 
   forward[0] *= 1.0 / scale;
 
@@ -165,6 +168,78 @@ double calculate_hmm_forward_log_sum(const Math2D::Matrix<double>& dict, const M
   return log_sum + std::log(forward[cur_idx].sum());
 }
 
+double calculate_sehmm_forward_log_sum(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model, const Math1D::Vector<double>& start_prob)
+{
+  const uint I = dict.yDim()-1;
+  const uint J = dict.xDim();
+
+  assert(start_prob.size() > I);
+
+  Math1D::Vector<double> forward[2];
+  forward[0].resize(2 * I + 1, 0.0);
+  forward[1].resize(2 * I + 1);
+
+  /*** init ***/
+  for (uint i = 0; i < I; i++) {
+    const double start_align_prob = start_prob[i];
+    forward[0][i] = start_align_prob * dict(0,i);
+  }
+
+  const double start_align_prob = start_prob[I];
+  forward[0][2*I] = start_align_prob * dict(0,I);
+
+  double scale = forward[0].max();
+  double log_sum = std::log(scale);
+
+  forward[0] *= 1.0 / scale;
+
+  /*** proceed ***/
+
+  uint cur_idx = 0;
+
+  for (uint j = 1; j < J; j++) {
+
+    const Math1D::Vector<double>& prev_forward = forward[cur_idx];
+
+    cur_idx = 1 - cur_idx;
+
+    Math1D::Vector<double>& cur_forward = forward[cur_idx];
+  
+    for (uint i = 0; i < I; i++) {
+
+      double sum = 0.0;
+
+      for (uint i_prev = 0; i_prev < I; i_prev++)
+        sum += align_model(i, i_prev) * (prev_forward[i_prev] + prev_forward[i_prev + I]);
+
+      sum += prev_forward[2 * I] * start_prob[i];
+
+      cur_forward[i] = sum * dict(j,i);
+
+      assert(!isnan(cur_forward[i]));
+    }
+
+    const double cur_emptyword_prob = dict(j,I);
+
+    for (uint i = I; i < 2 * I; i++) {
+
+      double sum = align_model(I, i - I) * (prev_forward[i] + prev_forward[i - I]);
+
+      cur_forward[i] = sum * cur_emptyword_prob;
+    }
+
+    //initial empty word
+    cur_forward[2 * I] = prev_forward[2 * I] * start_prob[I] * cur_emptyword_prob;  
+    
+    double scale = cur_forward.max();
+    log_sum += std::log(scale);
+
+    cur_forward *= 1.0 / scale;
+  }
+  
+  return log_sum + std::log(forward[cur_idx].sum());
+}
+
 double calculate_hmm_forward_log_sum(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& slookup,
                                      const Storage1D<uint>& tclass, const SingleWordDictionary& dict, const Math3D::Tensor<double>& align_model,
                                      const Math1D::Vector<double>& start_prob)
@@ -176,7 +251,7 @@ double calculate_hmm_forward_log_sum(const Storage1D<uint>& source, const Storag
   forward[0].resize(2 * I);
   forward[1].resize(2 * I);
 
-  double log_sum = 0.0;
+  assert(start_prob.size() == 2*I);
 
   /*** init ***/
   const uint start_s_idx = source[0];
@@ -191,7 +266,7 @@ double calculate_hmm_forward_log_sum(const Storage1D<uint>& source, const Storag
   }
 
   double scale = forward[0].max();
-  log_sum = std::log(scale);
+  double log_sum = std::log(scale);
 
   forward[0] *= 1.0 / scale;
 
@@ -237,8 +312,82 @@ double calculate_hmm_forward_log_sum(const Storage1D<uint>& source, const Storag
   return log_sum + std::log(forward[cur_idx].sum());
 }
 
+double calculate_sehmm_forward_log_sum(const Storage1D<uint>& source, const Storage1D<uint>& target,
+                                       const SingleLookupTable& slookup, const Storage1D<uint>& tclass,
+                                       const SingleWordDictionary& dict, const Math3D::Tensor<double>& align_model,
+                                       const Math1D::Vector<double>& start_prob) 
+{
+  const uint I = target.size();
+  const uint J = source.size();
+
+  Math1D::Vector<double> forward[2];
+  forward[0].resize(2 * I + 1, 0.0);
+  forward[1].resize(2 * I + 1);
+
+  assert(start_prob.size() == 2*I);
+
+    /*** init ***/
+  const uint start_s_idx = source[0];
+  for (uint i = 0; i < I; i++) {
+    const double start_align_prob = start_prob[i];
+    forward[0][i] = start_align_prob * dict[target[i]][slookup(0, i)];
+  }
+
+  const double start_align_prob = start_prob[I];
+  forward[0][2*I] = start_align_prob * dict[0][start_s_idx - 1];
+
+  double scale = forward[0].max();
+  double log_sum = std::log(scale);
+
+  forward[0] *= 1.0 / scale;
+
+  /*** proceed ***/
+
+  uint cur_idx = 0;
+
+  for (uint j = 1; j < J; j++) {
+
+    const Math1D::Vector<double>& prev_forward = forward[cur_idx];
+
+    cur_idx = 1 - cur_idx;
+
+    Math1D::Vector<double>& cur_forward = forward[cur_idx];
+
+    const uint s_idx = source[j];
+
+    for (uint i = 0; i < I; i++) {
+      
+      double sum = 0.0;
+
+      for (uint i_prev = 0; i_prev < I; i_prev++)
+        sum += align_model(i, i_prev, tclass[i_prev]) * (prev_forward[i_prev] + prev_forward[i_prev + I]);
+      sum += prev_forward[2 * I] * start_prob[i];
+      
+      cur_forward[i] = sum * dict[target[i]][slookup(j, i)];
+    }
+    
+    const double cur_emptyword_prob = dict[0][s_idx - 1];
+
+    for (uint i = I; i < 2 * I; i++) {
+
+      const double sum = align_model(I, i - I, tclass[i - I]) * (prev_forward[i] + prev_forward[i - I]);
+      cur_forward[i] = sum * cur_emptyword_prob;
+    }
+
+    //initial empty word
+    cur_forward[2 * I] = prev_forward[2 * I] * start_prob[I] * cur_emptyword_prob;  
+    
+    double scale = cur_forward.max();
+    log_sum += std::log(scale);
+
+    cur_forward *= 1.0 / scale;    
+  }
+  
+  return log_sum + std::log(forward[cur_idx].sum());  
+}
+
 double calculate_hmm_forward_log_sum_with_tricks(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model,
-    const Math1D::Vector<double>& start_prob, int redpar_limit)
+                                                 const Math1D::Vector<double>& start_prob, int redpar_limit)
 {
   const int I = dict.yDim()-1;
   const int J = dict.xDim();

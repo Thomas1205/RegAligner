@@ -12,10 +12,8 @@ HmmFertInterface::HmmFertInterface(const HmmWrapperWithClasses& wrapper, const S
                                    const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
                                    SingleWordDictionary& dict, const CooccuringWordsType& wcooc, uint nSourceWords, uint nTargetWords,
                                    uint fertility_limit)
-  :FertilityModelTrainerBase(source_sentence, slookup, target_sentence,
-                             sure_ref_alignments, possible_ref_alignments, dict,
-                             wcooc, nSourceWords, nTargetWords, fertility_limit),
-   hmm_wrapper_(wrapper)
+  : FertilityModelTrainerBase(source_sentence, slookup, target_sentence, sure_ref_alignments, possible_ref_alignments, dict,
+                              wcooc, nSourceWords, nTargetWords, fertility_limit), hmm_wrapper_(wrapper)
 {
   SingleLookupTable aux_lookup;
 
@@ -34,8 +32,7 @@ HmmFertInterface::HmmFertInterface(const HmmWrapperWithClasses& wrapper, const S
     Math2D::NamedMatrix<long double> swap_move_prob(curJ, curJ, MAKENAME(swap_move_prob));
     Math2D::NamedMatrix<long double> expansion_move_prob(curJ, curI + 1, MAKENAME(expansion_move_prob));
 
-    update_alignment_by_hillclimbing(cur_source, cur_target, cur_lookup,
-                                     sum_iter, fertility, expansion_move_prob,
+    update_alignment_by_hillclimbing(cur_source, cur_target, cur_lookup, sum_iter, fertility, expansion_move_prob,
                                      swap_move_prob, best_known_alignment_[s]);
   }
 }
@@ -255,5 +252,6 @@ long double HmmFertInterface::update_alignment_by_hillclimbing(const Storage1D<u
 /*virtual*/ void HmmFertInterface::prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
     const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment)
 {
+
   //this is just an interface class. we would need the parameters to do this properly
 }

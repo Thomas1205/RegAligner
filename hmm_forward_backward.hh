@@ -39,7 +39,7 @@ void calculate_hmm_forward(const Storage1D<uint>& tclass, const Math2D::Matrix<d
 double calculate_hmm_forward_log_sum(const Storage1D<uint>& source_sentence, const Storage1D<uint>& target_sentence,
                                      const SingleLookupTable& slookup, const SingleWordDictionary& dict,
                                      const Math2D::Matrix<double>& align_model, const Math1D::Vector<double>& start_prob,
-                                     const HmmAlignProbType align_type, int redpar_limit);
+                                     const HmmAlignProbType align_type, bool start_empty_word, int redpar_limit);
 
 //backward
 
@@ -110,7 +110,14 @@ double calculate_hmm_forward_log_sum(const Storage1D<uint>& source_sentence, con
                                      const Math1D::Vector<double>& start_prob);
 
 double calculate_hmm_forward_log_sum_with_tricks(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model,
-    const Math1D::Vector<double>& start_prob, int redpar_limit);
+                                                 const Math1D::Vector<double>& start_prob, int redpar_limit);
+
+double calculate_sehmm_forward_log_sum(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model, const Math1D::Vector<double>& start_prob);
+
+double calculate_sehmm_forward_log_sum(const Storage1D<uint>& source_sentence, const Storage1D<uint>& target_sentence,
+                                       const SingleLookupTable& slookup, const Storage1D<uint>& tclass,
+                                       const SingleWordDictionary& dict, const Math3D::Tensor<double>& align_model,
+                                       const Math1D::Vector<double>& start_prob);
 
 /*** backward routines ***/
 
@@ -150,7 +157,7 @@ void calculate_hmm_forward(const Storage1D<uint>& source_sentence, const Storage
   const uint J = source_sentence.size();
   const uint I = target_sentence.size();
 
-  Math2D::Matrix<double> dicttab(J,I+1);
+  Math2D::Matrix<double> dicttab(J, I + 1);
   compute_dictmat(source_sentence, slookup, target_sentence, dict, dicttab);
 
   calculate_hmm_forward(dicttab, align_model, start_prob, align_type, start_empty_word, forward, redpar_limit);
@@ -160,7 +167,6 @@ template<typename T>
 void calculate_hmm_forward(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model, const Math1D::Vector<double>& start_prob,
                            const HmmAlignProbType align_type, bool start_empty_word, Math2D::Matrix<T>& forward, int redpar_limit)
 {
-
   if (start_empty_word)
     calculate_sehmm_forward(dict, align_model, start_prob, forward);
   else if (align_type == HmmAlignProbReducedpar)
@@ -513,7 +519,7 @@ void calculate_hmm_backward(const Storage1D<uint>& source_sentence, const Storag
   const uint J = source_sentence.size();
   const uint I = target_sentence.size();
 
-  Math2D::Matrix<double> dicttab(J,I+1);
+  Math2D::Matrix<double> dicttab(J, I + 1);
   compute_dictmat(source_sentence, slookup, target_sentence, dict, dicttab);
 
   calculate_hmm_backward(dicttab, align_model, start_prob, align_type, start_empty_word, backward, include_start_alignment, redpar_limit);
@@ -523,11 +529,10 @@ template<typename T>
 void calculate_hmm_backward(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model, const Math1D::Vector<double>& start_prob,
                             const HmmAlignProbType align_type, bool start_empty_word, Math2D::Matrix<T>& backward,
                             bool include_start_alignment, int redpar_limit)
-{
-
+{ 
   if (start_empty_word)
     calculate_sehmm_backward(dict, align_model, start_prob, backward, include_start_alignment);
-  if (align_type == HmmAlignProbReducedpar)
+  else if (align_type == HmmAlignProbReducedpar)
     calculate_hmm_backward_with_tricks(dict, align_model, start_prob, backward, include_start_alignment, redpar_limit);
   else
     calculate_hmm_backward(dict, align_model, start_prob, backward, include_start_alignment);
@@ -540,7 +545,6 @@ void calculate_hmm_backward(const Storage1D<uint>& source_sentence, const Storag
                             const Math1D::Vector<double>& start_prob, const HmmAlignProbType align_type, bool start_empty_word,
                             Math2D::Matrix<T>& backward, bool include_start_alignment, int redpar_limit)
 {
-
   const uint J = source_sentence.size();
   const uint I = target_sentence.size();
 
@@ -555,7 +559,6 @@ void calculate_hmm_backward(const Storage1D<uint>& tclass, const Math2D::Matrix<
                             const Math1D::Vector<double>& start_prob, const HmmAlignProbType align_type, bool start_empty_word,
                             Math2D::Matrix<T>& backward, bool include_start_alignment, int redpar_limit)
 {
-
   if (start_empty_word)
     calculate_sehmm_backward(tclass, dict, align_model, start_prob, backward, include_start_alignment);
   else
@@ -620,15 +623,15 @@ void calculate_hmm_backward(const Storage1D<uint>& tclass, const Math2D::Matrix<
   //const uint end_s_idx = source[J - 1];
 
   for (uint i = 0; i < I; i++)
-    backward(i, J - 1) = dict(J-1,i); //dict[target[i]][slookup(J - 1, i)];
+    backward(i, J - 1) = dict(J - 1, i); //dict[target[i]][slookup(J - 1, i)];
   for (uint i = I; i < 2 * I; i++)
-    backward(i, J - 1) = dict(J-1,I); //dict[0][end_s_idx - 1];
+    backward(i, J - 1) = dict(J - 1, I); //dict[0][end_s_idx - 1];
 
   for (int j = J - 2; j >= 0; j--) {
     //const uint s_idx = source[j];
     const uint j_next = j + 1;
 
-    const T cur_emptyword_prob = dict(j,I); //dict[0][s_idx - 1];
+    const T cur_emptyword_prob = dict(j, I); //dict[0][s_idx - 1];
 
     for (uint i = 0; i < I; i++) {
 
@@ -663,14 +666,14 @@ void calculate_sehmm_backward(const Math2D::Matrix<double>& dict, const Math2D::
   backward.resize(2 * I + 1, J);
 
   for (uint i = 0; i < I; i++)
-    backward(i, J - 1) = dict(J-1,i);
+    backward(i, J - 1) = dict(J - 1, i);
   for (uint i = I; i <= 2 * I; i++)
-    backward(i, J - 1) = dict(J-1,I);
+    backward(i, J - 1) = dict(J - 1, I);
 
   for (int j = J - 2; j >= 0; j--) {
     const uint j_next = j + 1;
 
-    const T cur_emptyword_prob = dict(0,I);
+    const T cur_emptyword_prob = dict(j, I);
 
     for (uint i = 0; i < I; i++) {
 
@@ -679,7 +682,7 @@ void calculate_sehmm_backward(const Math2D::Matrix<double>& dict, const Math2D::
         sum += backward(i_next, j_next) * align_model(i_next, i);
       sum += backward(i + I, j_next) * align_model(I, i);
 
-      backward(i, j) = sum * dict(j,i);
+      backward(i, j) = sum * dict(j, i);
       backward(i + I, j) = sum * cur_emptyword_prob;
     }
 
@@ -695,16 +698,13 @@ void calculate_sehmm_backward(const Math2D::Matrix<double>& dict, const Math2D::
   }
 
   if (include_start_alignment) {
-    for (uint i = 0; i < I; i++) {
-
-      const T start_align_prob = start_prob[i];
-      backward(i, 0) *= start_align_prob;
-      backward(i + I, 0) = 0.0;
-    }
+    for (uint i = 0; i < I; i++) 
+      backward(i, 0) *= start_prob[i];
+    for (uint i=I; i < 2*I; i++)
+      backward(i, 0) = 0.0;
 
     backward(2 * I, 0) *= start_prob[I];
   }
-
 }
 
 template<typename T>
@@ -722,15 +722,15 @@ void calculate_sehmm_backward(const Storage1D<uint>& tclass, const Math2D::Matri
   //const uint end_s_idx = source[J - 1];
 
   for (uint i = 0; i < I; i++)
-    backward(i, J - 1) = dict(J-1,i); //dict[target[i]][slookup(J - 1, i)];
+    backward(i, J - 1) = dict(J - 1, i); //dict[target[i]][slookup(J - 1, i)];
   for (uint i = I; i <= 2 * I; i++)
-    backward(i, J - 1) = dict(J-1,I); //dict[0][end_s_idx - 1];
+    backward(i, J - 1) = dict(J - 1, I); //dict[0][end_s_idx - 1];
 
   for (int j = J - 2; j >= 0; j--) {
     //const uint s_idx = source[j];
     const uint j_next = j + 1;
 
-    const T cur_emptyword_prob = dict(j,I); //dict[0][s_idx - 1];
+    const T cur_emptyword_prob = dict(j, I); //dict[0][s_idx - 1];
 
     for (uint i = 0; i < I; i++) {
 
@@ -739,7 +739,7 @@ void calculate_sehmm_backward(const Storage1D<uint>& tclass, const Math2D::Matri
         sum += backward(i_next, j_next) * align_model(i_next, i, tclass[i]);
       sum += backward(i + I, j_next) * align_model(I, i, tclass[i]);
 
-      backward(i, j) = sum * dict(j,i); //dict[target[i]][slookup(j, i)];
+      backward(i, j) = sum * dict(j, i); //dict[target[i]][slookup(j, i)];
 
       backward(i + I, j) = sum * cur_emptyword_prob;
     }
@@ -756,12 +756,11 @@ void calculate_sehmm_backward(const Storage1D<uint>& tclass, const Math2D::Matri
   }
 
   if (include_start_alignment) {
-    for (uint i = 0; i < I; i++) {
-
-      const T start_align_prob = start_prob[i];
-      backward(i, 0) *= start_align_prob;
-      backward(i + I, 0) = 0.0;
-    }
+    
+    for (uint i = 0; i < I; i++) 
+      backward(i, 0) *= start_prob[i];
+    for (uint i=I; i < 2*I; i++)
+      backward(i, 0) = 0.0;
 
     backward(2 * I, 0) *= start_prob[I];
   }

@@ -80,6 +80,8 @@ public:
 
   void set_row(ST y, const Storage1D<T,ST>& row_vec);
 
+  void get_row(ST y, Storage1D<T,ST>& row_vec) const;
+
   inline ST xDim() const;
 
   inline ST yDim() const;
@@ -212,11 +214,11 @@ Storage2D<T,ST>::Storage2D(const Storage2D<T,ST>& toCopy) : StorageBase<T,ST>(to
   xDim_ = toCopy.xDim();
   yDim_ = toCopy.yDim();
 
-  const ST size = StorageBase<T,ST>::size_;
+  const ST size = Base::size_;
   assert(size == xDim_*yDim_);
 
   if (size > 0) 
-    Makros::unified_assign(StorageBase<T,ST>::data_, toCopy.direct_access(), size);
+    Makros::unified_assign(Base::data_, toCopy.direct_access(), size);
 }
 
 // template<>
@@ -251,14 +253,14 @@ template<typename T, typename ST>
 inline T* Storage2D<T,ST>::row_ptr(ST y)
 {
   assert(y < yDim_);
-  return StorageBase<T,ST>::data_ + y * xDim_;
+  return Base::data_ + y * xDim_;
 } 
   
 template<typename T, typename ST>  
 inline T* Storage2D<T,ST>::row_ptr(ST y) const
 {
   assert(y < yDim_);
-  return StorageBase<T,ST>::data_ + y * xDim_;  
+  return Base::data_ + y * xDim_;  
 }
 
 template<typename T, typename ST>  
@@ -267,29 +269,24 @@ void Storage2D<T,ST>::set_row(ST y, const Storage1D<T,ST>& row_vec)
   assert(y < yDim_);
   assert(row_vec.size() == xDim_);
 
-  T* data = StorageBase<T,ST>::data_ + y * xDim_;
+  T* data = Base::data_ + y * xDim_;
   Makros::unified_assign(data, row_vec.direct_access(), xDim_);
 }
 
-// template<>
-// void Storage2D<int>::set_row(size_t y, const Storage1D<int>& row_vec);
+template<typename T, typename ST>  
+void Storage2D<T,ST>::get_row(ST y, Storage1D<T,ST>& row_vec) const
+{
+  assert(y < yDim_);
+  assert(row_vec.size() == xDim_);
 
-// template<>
-// void Storage2D<uint>::set_row(size_t y, const Storage1D<uint>& row_vec);
-
-// template<>
-// void Storage2D<float>::set_row(size_t y, const Storage1D<float>& row_vec);
-
-// template<>
-// void Storage2D<double>::set_row(size_t y, const Storage1D<double>& row_vec);
-
-// template<>
-// void Storage2D<long double>::set_row(size_t y, const Storage1D<long double>& row_vec);
+  const T* data = Base::data_ + y * xDim_;
+  Makros::unified_assign(row_vec.direct_access(), data, xDim_);  
+}
 
 template<typename T, typename ST>
 inline T Storage2D<T,ST>::value(ST i) const
 {
-  return StorageBase<T,ST>::data_[i];
+  return Base::data_[i];
 }
 
 template<typename T, typename ST>
@@ -325,7 +322,7 @@ OPTINLINE const T& Storage2D<T,ST>::operator()(ST x, ST y) const
     exit(1);
   }
 #endif
-  return StorageBase<T,ST>::data_[y*xDim_+x];
+  return Base::data_[y*xDim_+x];
 }
 
 
@@ -345,27 +342,27 @@ OPTINLINE T& Storage2D<T,ST>::operator()(ST x, ST y)
     exit(1);
   }
 #endif
-  return StorageBase<T,ST>::data_[y*xDim_+x];
+  return Base::data_[y*xDim_+x];
 }
 
 template <typename T, typename ST>
 void Storage2D<T,ST>::operator=(const Storage2D<T,ST>& toCopy)
 {
-  if (StorageBase<T,ST>::size_ != toCopy.size()) {
-    if (StorageBase<T,ST>::data_ != 0)
-      delete[] StorageBase<T,ST>::data_;
+  if (Base::size_ != toCopy.size()) {
+    if (Base::data_ != 0)
+      delete[] Base::data_;
 
-    StorageBase<T,ST>::size_ = toCopy.size();
-    StorageBase<T,ST>::data_ = new T[StorageBase<T,ST>::size_];
+    Base::size_ = toCopy.size();
+    Base::data_ = new T[Base::size_];
   }
 
   xDim_ = toCopy.xDim();
   yDim_ = toCopy.yDim();
   
-  const ST size = StorageBase<T,ST>::size_;
+  const ST size = Base::size_;
   
   assert(size == xDim_*yDim_);
-  Makros::unified_assign(StorageBase<T,ST>::data_, toCopy.direct_access(), size);
+  Makros::unified_assign(Base::data_, toCopy.direct_access(), size);
 
   // for (ST i = 0; i < size; i++)
     // data_[i] = toCopy.value(i);
@@ -383,7 +380,7 @@ void Storage2D<T,ST>::operator=(const T& invalid_object)
 {
   INTERNAL_ERROR << "assignment of an atomic entity to Storage2D \"" << this->name() << "\" of type "
                  << Makros::Typename<T>()
-                 << " with " << StorageBase<T,ST>::size_ << " elements. exiting." << std::endl;
+                 << " with " << Base::size_ << " elements. exiting." << std::endl;
 }
 #endif
 
@@ -407,8 +404,8 @@ void Storage2D<T,ST>::operator=(const T& invalid_object)
 template <typename T, typename ST>
 void Storage2D<T,ST>::resize(ST newxDim, ST newyDim)
 {
-  if (StorageBase<T,ST>::data_ == 0) {
-    StorageBase<T,ST>::data_ = new T[newxDim*newyDim];
+  if (Base::data_ == 0) {
+    Base::data_ = new T[newxDim*newyDim];
   }
   else if (newxDim != xDim_ || newyDim != yDim_) {
 
@@ -417,15 +414,15 @@ void Storage2D<T,ST>::resize(ST newxDim, ST newyDim)
     /* copy data */
     for (ST y=0; y < std::min(yDim_,newyDim); y++)
       for (ST x=0; x < std::min(xDim_,newxDim); x++)
-        new_data[y*newxDim+x] = StorageBase<T,ST>::data_[y*xDim_+x];
+        new_data[y*newxDim+x] = Base::data_[y*xDim_+x];
 
-    delete[] StorageBase<T,ST>::data_;
-    StorageBase<T,ST>::data_ = new_data;
+    delete[] Base::data_;
+    Base::data_ = new_data;
   }
 
   xDim_ = newxDim;
   yDim_ = newyDim;
-  StorageBase<T,ST>::size_ = xDim_*yDim_;
+  Base::size_ = xDim_*yDim_;
 }
 
 template <typename T, typename ST>
@@ -433,9 +430,9 @@ void Storage2D<T,ST>::resize(ST newxDim, ST newyDim, const T fill_value)
 {
   const uint newsize = newxDim*newyDim;
 
-  if (StorageBase<T,ST>::data_ == 0) {
-    StorageBase<T,ST>::data_ = new T[newsize];
-    std::fill_n(StorageBase<T,ST>::data_,newsize,fill_value);
+  if (Base::data_ == 0) {
+    Base::data_ = new T[newsize];
+    std::fill_n(Base::data_,newsize,fill_value);
   }
   else if (newxDim != xDim_ || newyDim != yDim_) {
 
@@ -448,30 +445,30 @@ void Storage2D<T,ST>::resize(ST newxDim, ST newyDim, const T fill_value)
     /* copy data */
     for (ST y=0; y < std::min(yDim_,newyDim); y++)
       for (ST x=0; x < std::min(xDim_,newxDim); x++)
-        new_data[y*newxDim+x] = StorageBase<T,ST>::data_[y*xDim_+x];
+        new_data[y*newxDim+x] = Base::data_[y*xDim_+x];
 
-    delete[] StorageBase<T,ST>::data_;
-    StorageBase<T,ST>::data_ = new_data;
+    delete[] Base::data_;
+    Base::data_ = new_data;
   }
 
   xDim_ = newxDim;
   yDim_ = newyDim;
-  StorageBase<T,ST>::size_ = newsize;
+  Base::size_ = newsize;
 }
 
 template<typename T, typename ST>
 void Storage2D<T,ST>::resize_dirty(ST newxDim, ST newyDim)
 {
   if (newxDim != xDim_ || newyDim != yDim_) {
-    if (StorageBase<T,ST>::data_ != 0) {
-      delete[] StorageBase<T,ST>::data_;
+    if (Base::data_ != 0) {
+      delete[] Base::data_;
     }
 
     xDim_ = newxDim;
     yDim_ = newyDim;
-    StorageBase<T,ST>::size_ = xDim_*yDim_;
+    Base::size_ = xDim_*yDim_;
 
-    StorageBase<T,ST>::data_ = new T[StorageBase<T,ST>::size_];
+    Base::data_ = new T[Base::size_];
   }
 }
 

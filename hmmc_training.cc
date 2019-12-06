@@ -1026,58 +1026,9 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
       const uint start_s_idx = cur_source[0];
 
-      long double sentence_prob = 0.0;
-      for (uint i = 0; i < forward.xDim(); i++) {
-
-        //std::cerr << "i: " << i << std::endl;
-        //std::cerr << "fwd: " << forward(i,curJ-1) << std::endl;
-
-#ifndef NDEBUG
-        //DEBUG
-        if (!(forward(i, curJ - 1) >= 0.0)) {
-
-          std::cerr << "s=" << s << ", I=" << curI << ", i= " << i << ", value " << forward(i, curJ - 1) << std::endl;
-
-          for (uint k = 0; k < cur_init_prob.size(); k++) {
-            double p = cur_init_prob[k];
-            if (!(p >= 0))
-              std::cerr << "initial prob[" << k << "]: " << p << std::endl;
-          }
-
-          for (uint c = 0; c < nClasses; c++) {
-            for (uint x = 0; x < cur_align_model.xDim(); x++) {
-              for (uint y = 0; y < cur_align_model.yDim(); y++) {
-                double p = cur_align_model(x, y, c);
-                if (!(p >= 0))
-                  std::cerr << "align model(" << x << "," << y << "," << c << "): " << p << std::endl;
-              }
-            }
-          }
-
-          for (uint j = 0; j < curJ; j++) {
-
-            double p = dict[0][cur_source[j] - 1];
-            if (!(p >= 0))
-              std::cerr << "null-prob for source word " << j << ": " << p << std::endl;
-
-            for (uint i = 0; i < curI; i++) {
-
-              p = dict[cur_target[i]][cur_lookup(j, i)];
-              if (!(p >= 0)) {
-                std::cerr << "dict-prob for source word " << j << " and target word " << i << ": " << p << std::endl;
-              }
-            }
-          }
-
-          exit(1);
-        }
-        //END_DEBUG
-#endif
-
-        assert(forward(i, curJ - 1) >= 0.0);
-        sentence_prob += forward(i, curJ - 1);
-      }
-
+      const long double sentence_prob = forward.row_sum(curJ - 1);
+      assert(forward.min() >= 0.0);
+      
       prev_perplexity -= std::log(sentence_prob);
 
       if (!(sentence_prob > 0.0)) {
@@ -1095,11 +1046,10 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       calculate_hmm_backward(tclass, cur_dict, cur_align_model, cur_init_prob,
                              align_type, start_empty_word, backward, true, redpar_limit);
 
-      long double bwd_sentence_prob = 0.0;
-      for (uint i = 0; i < backward.xDim(); i++)
-        bwd_sentence_prob += backward(i, 0);
+      const long double bwd_sentence_prob = backward.row_sum(0);
+      assert(backward.min() >= 0.0);
 
-      long double fwd_bwd_ratio = sentence_prob / bwd_sentence_prob;
+      const long double fwd_bwd_ratio = sentence_prob / bwd_sentence_prob;
 
       if (fwd_bwd_ratio < 0.999 || fwd_bwd_ratio > 1.001) {
 
@@ -1635,16 +1585,8 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
       const uint start_s_idx = cur_source[0];
 
-      long double sentence_prob = 0.0;
-      for (uint i = 0; i < 2 * curI + start_addon; i++) {
-
-        //      if (!(forward(i,curJ-1) >= 0.0)) {
-        //        std::cerr << "s=" << s << ", I=" << curI << ", i= " << i << ", value " << forward(i,curJ-1) << std::endl;
-        //      }
-
-        assert(forward(i, curJ - 1) >= 0.0);
-        sentence_prob += forward(i, curJ - 1);
-      }
+      const long double sentence_prob = forward.row_sum(curJ - 1);
+      assert(forward.min() >= 0.0);
 
       if (!(sentence_prob > 0.0)) {
 
@@ -1656,6 +1598,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
       calculate_hmm_backward(tclass, cur_dict, cur_align_model, cur_init_prob,
                              align_type, start_empty_word, backward, true, redpar_limit);
+      assert(backward.min() >= 0.0);
 
       const long double inv_sentence_prob = 1.0 / sentence_prob;
 
