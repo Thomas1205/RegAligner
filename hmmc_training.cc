@@ -1157,8 +1157,7 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
           cur_ficount[curI] += addon;
         }
       }
-
-    }                           //loop over sentences finished
+    }    //loop over sentences finished
 
     //finish counts
 
@@ -1243,13 +1242,6 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
     /***** compute alignment and dictionary probabilities from normalized counts ******/
 
     //compute new dict from normalized fractional counts
-
-    //std::cerr << "null-dict-count: " << fwcount[0].sum() << std::endl;
-    double nonnullcount = 0.0;
-    for (uint k = 1; k < fwcount.size(); k++)
-      nonnullcount += fwcount[k].sum();
-    //std::cerr << "non-null-dict-count: " << nonnullcount << std::endl;
-
     update_dict_from_counts(fwcount, prior_weight, dict_weight_sum, options.smoothed_l0_, options.l0_beta_,
                             options.dict_m_step_iter_, dict, hmm_min_dict_entry, options.msolve_mode_ != MSSolvePGD);
 

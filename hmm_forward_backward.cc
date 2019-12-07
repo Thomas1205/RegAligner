@@ -324,7 +324,7 @@ double calculate_sehmm_forward_log_sum(const Storage1D<uint>& source, const Stor
   forward[0].resize(2 * I + 1, 0.0);
   forward[1].resize(2 * I + 1);
 
-  assert(start_prob.size() == 2*I);
+  assert(start_prob.size() == I+1);
 
     /*** init ***/
   const uint start_s_idx = source[0];

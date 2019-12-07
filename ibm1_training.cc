@@ -176,7 +176,6 @@ void train_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
   for (uint iter = 1; iter <= nIter; iter++) {
 
     std::cerr << "starting IBM-1 EM-iteration #" << iter << std::endl;
-    std::cerr << "max_prior[0]: " << prior_weight[0].max() << std::endl;
 
     /*** a) compute fractional counts ***/
 
@@ -395,7 +394,6 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, c
   for (uint iter = 1; iter <= nIter; iter++) {
 
     std::cerr << "starting IBM-1 gradient descent iteration #" << iter << std::endl;
-    std::cerr << "max_prior[0]: " << prior_weight[0].max() << std::endl;
 
     /**** calcuate gradients ****/
 
