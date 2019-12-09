@@ -121,6 +121,23 @@ namespace Math2D {
     std::string name_;
   };
 
+  //NOTE: dest can be the same as src1 or src2
+  inline void go_in_neg_direction(Math2D::Matrix<double>& dest, const Math2D::Matrix<double>& src1, const Math2D::Matrix<double>& src2, double alpha) {
+    
+    assert(dest.dims() == src1.dims());
+    assert(dest.dims() == src2.dims());
+    Makros::go_in_neg_direction(dest.direct_access(), dest.size(), src1.direct_access(), src2.direct_access(), alpha);
+  }
+
+  //NOTE: dest can be the same as src1 or src2
+  inline void assign_weighted_combination(Math2D::Matrix<double>& dest, double w1, const Math2D::Matrix<double>& src1, 
+                                          double w2, const Math2D::Matrix<double>& src2) {
+  
+    assert(dest.dims() == src1.dims());
+    assert(dest.dims() == src2.dims());
+    Makros::assign_weighted_combination(dest.direct_access(), dest.size(), w1, src1.direct_access(), w2, src2.direct_access());
+  }
+
   /***************** stand-alone operators and routines ********************/
 
   template<typename T, typename ST>
@@ -388,7 +405,7 @@ namespace Math2D {
   {
 
 #ifndef DONT_CHECK_VECTOR_ARITHMETIC
-    if (toAdd.xDim() != Base::xDim_ || toAdd.yDim() != Base::yDim_) {
+    if (toAdd.dims() != Base::dims()) {
       INTERNAL_ERROR << "    dimension mismatch ("
                      << Base::xDim_ << "," << Base::yDim_ << ") vs. ("
                      << toAdd.xDim() << "," << toAdd.yDim() << ")." << std::endl;
@@ -416,7 +433,7 @@ namespace Math2D {
   {
 
 #ifndef DONT_CHECK_VECTOR_ARITHMETIC
-    if (toAdd.xDim() != Base::xDim_ || toAdd.yDim() != Base::yDim_) {
+    if (toAdd.dims() != Base::dims()) {
       INTERNAL_ERROR << "    dimension mismatch ("
                      << Base::xDim_ << "," << Base::yDim_ << ") vs. ("
                      << toAdd.xDim() << "," << toAdd.yDim() << ")." << std::endl;
@@ -435,7 +452,7 @@ namespace Math2D {
   {
 
 #ifndef DONT_CHECK_VECTOR_ARITHMETIC
-    if (toAdd.xDim() != Base::xDim_ || toAdd.yDim() != Base::yDim_) {
+    if (toAdd.dims() != Base::dims()) {
       INTERNAL_ERROR << "    dimension mismatch in matrix addition(+=): ("
                      << Base::xDim_ << "," << Base::yDim_ << ") vs. ("
                      << toAdd.xDim() << "," << toAdd.yDim() << ")." << std::endl;
@@ -462,7 +479,7 @@ namespace Math2D {
   {
 
 #ifndef DONT_CHECK_VECTOR_ARITHMETIC
-    if (toSub.xDim() != Base::xDim_ || toSub.yDim() != Base::yDim_) {
+    if (toSub.dims() != Base::dims()) {
       INTERNAL_ERROR << "    dimension mismatch in matrix subtraction(-=): ("
                      << Base::xDim_ << "," << Base::yDim_ << ") vs. ("
                      << toSub.xDim() << "," << toSub.yDim() << ")." << std::endl;
@@ -605,7 +622,7 @@ namespace Math2D {
   {
 
 #ifndef DONT_CHECK_VECTOR_ARITHMETIC
-    if (m1.xDim() != m2.xDim() || m1.yDim() != m2.yDim()) {
+    if (m1.dims() != m2.dims()) {
 
       INTERNAL_ERROR << "     dimension mismatch in matrix addition(+): ("
                      << m1.xDim() << "," << m1.yDim() << ") vs. ("

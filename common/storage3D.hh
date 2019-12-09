@@ -19,6 +19,18 @@ struct Dim3D {
   ST zDim_;
 };
 
+template<typename ST>
+bool operator==(const Dim3D<ST>& d1, const Dim3D<ST>& d2) {
+  
+  return (d1.xDim_ == d2.xDim_ && d1.yDim_ == d2.yDim_ && d1.zDim_ == d2.zDim_);
+}
+
+template<typename ST>
+bool operator!=(const Dim3D<ST>& d1, const Dim3D<ST>& d2) {
+  
+  return (d1.xDim_ != d2.xDim_ || d1.yDim_ != d2.yDim_ || d1.zDim_ != d2.zDim_);
+}
+
 template<typename T, typename ST=size_t>
 class Storage3D : public StorageBase<T,ST> {
 public:
@@ -213,7 +225,7 @@ Storage3D<T,ST>::Storage3D(ST xDim, ST yDim, ST zDim) : StorageBase<T,ST>(xDim*y
 
 template<typename T, typename ST> 
 Storage3D<T,ST>::Storage3D(const Dim3D<ST> dims) 
- : StorageBase<T,ST>(dims.xDim_*dims.yDim_*dims.zDim_), xDim_(dims.xDim), yDim_(dims.yDim_), zDim_(dims.zDim_) {}
+ : StorageBase<T,ST>(dims.xDim_*dims.yDim_*dims.zDim_), xDim_(dims.xDim_), yDim_(dims.yDim_), zDim_(dims.zDim_) {}
 
 template<typename T, typename ST> 
 Storage3D<T,ST>::Storage3D(ST xDim, ST yDim, ST zDim, const T default_value) 
@@ -223,7 +235,7 @@ Storage3D<T,ST>::Storage3D(ST xDim, ST yDim, ST zDim, const T default_value)
 
 template<typename T, typename ST> 
 Storage3D<T,ST>::Storage3D(const Dim3D<ST> dims, const T default_value) 
- : StorageBase<T,ST>(dims.xDim_*dims.yDim_*dims.zDim_,default_value), xDim_(dims.xDim), yDim_(dims.yDim_), zDim_(dims.zDim_) {}
+ : StorageBase<T,ST>(dims.xDim_*dims.yDim_*dims.zDim_,default_value), xDim_(dims.xDim_), yDim_(dims.yDim_), zDim_(dims.zDim_) {}
 
 template<typename T, typename ST> 
 Storage3D<T,ST>::~Storage3D()

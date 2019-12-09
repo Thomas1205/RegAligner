@@ -56,6 +56,6 @@ void par2nonpar_hmm_alignment_model(const Math2D::Matrix<double>& dist_params, c
                                     FullHMMAlignmentModelSingleClass& align_model);
 
 void ehmm_m_step(const FullHMMAlignmentModelSingleClass& facount, Math2D::Matrix<double>& dist_params, uint zero_offset,
-                 uint nIter, Math1D::Vector<double>& grouping_param, bool deficient, int redpar_limit);
+                 uint nIter, Math1D::Vector<double>& grouping_param, bool deficient, int redpar_limit, bool quiet = true);
 
 #endif

@@ -153,18 +153,18 @@ double extended_hmm_energy(const Storage1D<Math1D::Vector<uint> >& source, const
   if (dict_weight_sum != 0.0) {
 
     for (uint i = 0; i < dict.size(); i++) {
-      
+
       const Math1D::Vector<double>& cur_dict = dict[i];
       const Math1D::Vector<float>& cur_prior = prior_weight[i];
-      
+
       const uint size = cur_dict.size();
 
       if (options.smoothed_l0_) {
-        for (uint k = 0; k < size; k++) 
+        for (uint k = 0; k < size; k++)
           energy += cur_prior[k] * prob_penalty(cur_dict[k], options.l0_beta_);
       }
       else {
-        for (uint k = 0; k < size; k++) 
+        for (uint k = 0; k < size; k++)
           energy += cur_prior[k] * cur_dict[k];
       }
     }
@@ -284,6 +284,7 @@ double ehmm_m_step_energy(const Math1D::Vector<double>& singleton_count, double 
 
   }
   else {
+
     uint first_diff = zero_offset - redpar_limit;
     uint last_diff = zero_offset + redpar_limit;
 
@@ -297,8 +298,7 @@ double ehmm_m_step_energy(const Math1D::Vector<double>& singleton_count, double 
     //normalization terms
     for (uint span_start = 0; span_start < span_count.xDim(); span_start++) {
 
-      for (uint span_end = zero_offset;
-           span_end < zero_offset + span_count.yDim(); span_end++) {
+      for (uint span_end = zero_offset; span_end < zero_offset + span_count.yDim(); span_end++) {
 
         //there should be plenty of room for speed-ups here
 
@@ -374,11 +374,11 @@ void noncompact_ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector
 
           for (int ii = 0; ii < (int)I; ii++) {
             if (grouping_param < 0.0 || abs(ii - i) <= redpar_limit)
-              dist_count[zero_offset + ii - i] += facount[I - 1] (ii, i);
+              dist_count[zero_offset + ii - i] += facount[I - 1](ii, i);
             else {
               //don't divide by grouping norm, the deficient problem doesn't need it:
               //  due to log laws we get additive constants
-              dist_grouping_count += facount[I - 1] (ii, i);
+              dist_grouping_count += facount[I - 1](ii, i);
             }
           }
         }
@@ -545,7 +545,7 @@ void noncompact_ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector
     else if (new_grouping_param <= -1e75)
       new_grouping_param = -9e74;
 
-    if (norm_constraint) {      
+    if (norm_constraint) {
       // reproject
       if (grouping_param < 0.0) {
         projection_on_simplex(new_dist_params.direct_access(), dist_params.size(), hmm_min_param_entry);
@@ -555,12 +555,12 @@ void noncompact_ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector
         new_grouping_param = std::max(hmm_min_param_entry, new_grouping_param);
       }
     }
-    else {  
-      //projection on the positive orthant, followed by renormalization 
+    else {
+      //projection on the positive orthant, followed by renormalization
       //(justified by scale invariance with positive scaling factors)
       // may be faster than the simplex projection
 
-      uint nNeg = 0;            //DEBUG
+      uint nNeg = 0; //DEBUG
 
       double sum = 0.0;
       for (uint k = start_idx; k <= end_idx; k++) {
@@ -587,6 +587,7 @@ void noncompact_ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector
       //std::cerr << "sum: " << sum << ", " << nNeg << " were negative" << std::endl;
       //END_DEBUG
 
+      //projection done, now renormalize to keep the probability constraint
       double inv_sum = 1.0 / sum;
       for (uint k = start_idx; k <= end_idx; k++) {
         new_dist_params[k] = std::max(hmm_min_param_entry,inv_sum * new_dist_params[k]);
@@ -676,7 +677,7 @@ void noncompact_ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector
 }
 
 void ehmm_m_step(const FullHMMAlignmentModelNoClasses& facount, Math1D::Vector<double>& dist_params, uint zero_offset,
-                 uint nIter, double& grouping_param, bool deficient, int redpar_limit)
+                 uint nIter, double& grouping_param, bool deficient, int redpar_limit, ProjectionMode projection_mode)
 {
   bool norm_constraint = true;
 
@@ -726,12 +727,39 @@ void ehmm_m_step(const FullHMMAlignmentModelNoClasses& facount, Math1D::Vector<d
   const uint start_idx = (grouping_param < 0.0) ? 0 : zero_offset - redpar_limit;
   const uint end_idx = (grouping_param < 0.0) ? dist_params.size() - 1 : zero_offset + redpar_limit;
 
-  if (grouping_param < 0.0) {
-    projection_on_simplex(dist_params.direct_access(), dist_params.size(), hmm_min_param_entry);
+
+  if (projection_mode == Simplex) {
+    if (grouping_param < 0.0) {
+      projection_on_simplex(dist_params.direct_access(), dist_params.size(), hmm_min_param_entry);
+    }
+    else {
+      projection_on_simplex_with_slack(dist_params.direct_access() + zero_offset - redpar_limit, grouping_param, 2 * redpar_limit + 1, hmm_min_param_entry);
+      grouping_param = std::max(hmm_min_param_entry, grouping_param);
+    }
   }
   else {
-    projection_on_simplex_with_slack(dist_params.direct_access() + zero_offset - redpar_limit, grouping_param, 2 * redpar_limit + 1, hmm_min_param_entry);
-    grouping_param = std::max(hmm_min_param_entry, grouping_param);
+
+    //projection on the positive orthant, followed by renormalization
+    //(justified by scale invariance with positive scaling factors)
+    // may be faster than the simplex projection
+
+    double sum = 0.0;
+    for (uint k = start_idx; k <= end_idx; k++) {
+
+      dist_params[k] = std::max(hmm_min_param_entry, dist_params[k]);
+      sum += dist_params[k];
+    }
+    if (grouping_param >= 0.0) {
+
+      grouping_param = std::max(hmm_min_param_entry, grouping_param);
+      sum += grouping_param;
+    }
+
+    double inv_sum = 1.0 / sum;
+    for (uint k = start_idx; k <= end_idx; k++) {
+      dist_params[k] = std::max(hmm_min_param_entry, inv_sum * dist_params[k]);
+    }
+    grouping_param = std::max(hmm_min_param_entry, inv_sum * grouping_param);
   }
 
   //std::cerr << "init params after projection: " << dist_params << std::endl;
@@ -956,17 +984,43 @@ void ehmm_m_step(const FullHMMAlignmentModelNoClasses& facount, Math1D::Vector<d
     }
     else {
 
-      //projection on the positive orthant, followed by re-normalization (allowed because the energy is scale invariant)
+      //projection on the positive orthant, followed by renormalization
+      //(justified by scale invariance with positive scaling factors)
+      // may be faster than the simplex projection
+
+      uint nNeg = 0; //DEBUG
 
       double sum = 0.0;
       for (uint k = start_idx; k <= end_idx; k++) {
+
+        //DEBUG
+        if (new_dist_params[k] < 0.0)
+          nNeg++;
+        //END_DEBUG
+
         new_dist_params[k] = std::max(hmm_min_param_entry, new_dist_params[k]);
         sum += new_dist_params[k];
       }
+      if (grouping_param >= 0.0) {
 
-      assert(sum > hmm_min_param_entry);
-      for (uint k = start_idx; k <= end_idx; k++)
-        new_dist_params[k] /= sum;
+        //DEBUG
+        if (new_grouping_param < 0.0)
+          nNeg++;
+        //END_DEBUG
+
+        new_grouping_param = std::max(hmm_min_param_entry, new_grouping_param);
+        sum += new_grouping_param;
+      }
+      //DEBUG
+      //std::cerr << "sum: " << sum << ", " << nNeg << " were negative" << std::endl;
+      //END_DEBUG
+
+      //projection done, now renormalize to keep the probability constraint
+      double inv_sum = 1.0 / sum;
+      for (uint k = start_idx; k <= end_idx; k++) {
+        new_dist_params[k] = std::max(hmm_min_param_entry,inv_sum * new_dist_params[k]);
+      }
+      new_grouping_param = std::max(hmm_min_param_entry,inv_sum * new_grouping_param);
     }
 
     //std::cerr << "new params after projection: " << new_dist_params << std::endl;
@@ -2049,7 +2103,8 @@ double ehmm_init_m_step_energy(const InitialAlignmentProbability& init_acount, c
   return energy;
 }
 
-void ehmm_init_m_step(const InitialAlignmentProbability& init_acount, Math1D::Vector<double>& init_params, uint nIter)
+void ehmm_init_m_step(const InitialAlignmentProbability& init_acount, Math1D::Vector<double>& init_params, uint nIter,
+                      ProjectionMode projection_mode)
 {
   projection_on_simplex(init_params.direct_access(), init_params.size(), hmm_min_param_entry);
 
@@ -2133,7 +2188,20 @@ void ehmm_init_m_step(const InitialAlignmentProbability& init_acount, Math1D::Ve
       if (new_init_params[k] <= -1e75)
         new_init_params[k] = -9e74;
     }
-    projection_on_simplex(new_init_params.direct_access(), init_params.size(), hmm_min_param_entry);
+
+    if (projection_mode == Simplex)
+      projection_on_simplex(new_init_params.direct_access(), init_params.size(), hmm_min_param_entry);
+    else {
+
+      double sum = 0;
+      for (uint k = 0; k < init_params.size(); k++) {
+        new_init_params[k] = std::max(hmm_min_param_entry, new_init_params[k]);
+        sum += new_init_params[k];
+      }
+
+      //projection on orthant done, now renormalize to keep the probability constraint
+      new_init_params *= 1.0 / sum;
+    }
 
     //std::cerr << "projection done" << std::endl;
 
@@ -2581,7 +2649,7 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
   double dict_weight_sum = 0.0;
   for (uint i = 0; i < options.nTargetWords_; i++) {
-    dict_weight_sum += fabs(prior_weight[i].sum());
+    dict_weight_sum += prior_weight[i].max_abs();
   }
 
   assert(wcooc.size() == options.nTargetWords_);
@@ -2835,9 +2903,9 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
           for (int i = 0; i < (int)I; i++) {
 
             for (int ii = 0; ii < (int)I; ii++) {
-              source_fert_count[1] += facount[I - 1] (ii, i);
+              source_fert_count[1] += facount[I - 1](ii, i);
             }
-            source_fert_count[0] += facount[I - 1] (I, i);
+            source_fert_count[0] += facount[I - 1](I, i);
           }
         }
       }
@@ -2864,7 +2932,8 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
       //call m-step
       if (options.msolve_mode_ == MSSolvePGD)
-        ehmm_m_step(facount, dist_params, zero_offset, options.align_m_step_iter_, dist_grouping_param, options.deficient_, redpar_limit);
+        ehmm_m_step(facount, dist_params, zero_offset, options.align_m_step_iter_, dist_grouping_param, options.deficient_, redpar_limit,
+                    options.projection_mode_);
       else if (options.msolve_mode_ == MSSolveGD)
         ehmm_m_step_unconstrained(facount, dist_params, zero_offset, options.align_m_step_iter_, dist_grouping_param,
                                   options.deficient_, redpar_limit);
@@ -3065,7 +3134,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
   double dict_weight_sum = 0.0;
   for (uint i = 0; i < options.nTargetWords_; i++) {
-    dict_weight_sum += fabs(prior_weight[i].sum());
+    dict_weight_sum += prior_weight[i].max_abs();
   }
 
   init_hmm_from_prev(source, slookup, target, dict, wcooc, align_model, dist_params, dist_grouping_param, source_fert,
@@ -3352,13 +3421,16 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
     if (dict_weight_sum != 0.0) {
       for (uint i = 0; i < options.nTargetWords_; i++) {
 
-        const uint size = dict[i].size();
+        const Math1D::Vector<double>& cur_dict = dict[i];
+        const Math1D::Vector<float>& cur_prior = prior_weight[i];
+        Math1D::Vector<double>& cur_dict_grad = dict_grad[i];
+        const uint size = cur_dict.size();
 
         for (uint k = 0; k < size; k++) {
           if (smoothed_l0)
-            dict_grad[i][k] += prior_weight[i][k] * prob_pen_prime(dict[i][k], l0_beta);
+            cur_dict_grad[k] += cur_prior[k] * prob_pen_prime(cur_dict[k], l0_beta);
           else
-            dict_grad[i][k] += prior_weight[i][k];
+            cur_dict_grad[k] += cur_prior[k];
         }
       }
     }
@@ -3541,8 +3613,9 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
     if (init_type == HmmInitPar) {
 
-      for (uint k = 0; k < init_params.size(); k++)
-        new_init_params[k] = init_params[k] - real_alpha * init_param_grad[k];
+      //for (uint k = 0; k < init_params.size(); k++)
+      //  new_init_params[k] = init_params[k] - real_alpha * init_param_grad[k];
+      Math1D::go_in_neg_direction(new_init_params, init_params, init_param_grad, real_alpha);
 
       projection_on_simplex(new_init_params.direct_access(), new_init_params.size(), hmm_min_param_entry);
     }
@@ -3550,15 +3623,17 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
     if (align_type == HmmAlignProbFullpar) {
 
-      for (uint k = 0; k < dist_params.size(); k++)
-        new_dist_params[k] = dist_params[k] - real_alpha * dist_grad[k];
+      //for (uint k = 0; k < dist_params.size(); k++)
+      //  new_dist_params[k] = dist_params[k] - real_alpha * dist_grad[k];
+      Math1D::go_in_neg_direction(new_dist_params, dist_params, dist_grad, real_alpha);
 
       projection_on_simplex(new_dist_params.direct_access(), new_dist_params.size(), hmm_min_param_entry);
     }
     else if (align_type == HmmAlignProbReducedpar) {
 
-      for (uint k = 0; k < dist_params.size(); k++)
-        new_dist_params[k] = dist_params[k] - real_alpha * dist_grad[k];
+      //for (uint k = 0; k < dist_params.size(); k++)
+      //  new_dist_params[k] = dist_params[k] - real_alpha * dist_grad[k];
+      Math1D::go_in_neg_direction(new_dist_params, dist_params, dist_grad, real_alpha);
 
       new_dist_grouping_param = dist_grouping_param - real_alpha * dist_grouping_grad;
 
@@ -3575,8 +3650,8 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
       //for (uint k = 0; k < dict[i].size(); k++)
       //  new_dict_prob[i][k] = dict[i][k] - real_alpha * dict_grad[i][k];
-      
-      Makros::go_in_neg_direction(new_dict_prob[i].direct_access(), dict[i].size(), dict[i].direct_access(), dict_grad[i].direct_access(), real_alpha);
+
+      Math1D::go_in_neg_direction(new_dict_prob[i], dict[i], dict_grad[i], real_alpha);
     }
 
     //std::cerr << "params: " << new_init_params << std::endl;
@@ -3608,18 +3683,25 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
           }
         }
         else if (init_type != HmmInitFix && init_type == HmmInitFix2) {
-          for (uint k = 0; k < initial_prob[I - 1].size(); k++)
-            new_init_prob[I - 1][k] = initial_prob[I - 1][k] - alpha * init_grad[I - 1][k];
+          //for (uint k = 0; k < initial_prob[I - 1].size(); k++)
+          //  new_init_prob[I - 1][k] = initial_prob[I - 1][k] - alpha * init_grad[I - 1][k];
+          
+          if (new_init_prob[I - 1].size() > 0)
+            Math1D::go_in_neg_direction(new_init_prob[I - 1], initial_prob[I - 1], init_grad[I -1], alpha);
         }
 
         if (align_type == HmmAlignProbNonpar || align_type == HmmAlignProbNonpar2) {
-          for (uint k = 0; k < align_model[I - 1].size(); k++)
-            new_align_prob[I - 1].direct_access(k) = align_model[I - 1].direct_access(k) - alpha * align_grad[I - 1].direct_access(k);
+          //for (uint k = 0; k < align_model[I - 1].size(); k++)
+          //  new_align_prob[I - 1].direct_access(k) = align_model[I - 1].direct_access(k) - alpha * align_grad[I - 1].direct_access(k);
+          
+          if (align_model[I - 1].size() > 0)
+            Math2D::go_in_neg_direction(new_align_prob[I - 1], align_model[I - 1], align_grad[I - 1], alpha);
         }
       }
     }
 
-    new_slack_vector = slack_vector;
+    if (dict_weight_sum > 0.0)
+      new_slack_vector = slack_vector;
 
     /******** 3. reproject on the simplices [Michelot 1986] *********/
 
@@ -3662,8 +3744,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
           projection_on_simplex(new_init_prob[I - 1].direct_access(), new_init_prob[I - 1].size(), hmm_min_param_entry);
         }
 
-        if (align_type == HmmAlignProbNonpar
-            || align_type == HmmAlignProbNonpar2) {
+        if (align_type == HmmAlignProbNonpar || align_type == HmmAlignProbNonpar2) {
 
           for (uint k = 0; k < new_align_prob[I - 1].size(); k++) {
             if (new_align_prob[I - 1].direct_access(k) <= -1e75)
@@ -3677,7 +3758,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
           for (uint y = 0; y < align_model[I - 1].yDim(); y++) {
 
             const uint dim = (align_type == HmmAlignProbNonpar) ? align_model[I - 1].xDim() : align_model[I - 1].xDim() - 1;
-            projection_on_simplex(new_align_prob[I - 1].direct_access() + y * align_model[I - 1].xDim(), dim, hmm_min_param_entry);
+            projection_on_simplex(new_align_prob[I - 1].row_ptr(y), dim, hmm_min_param_entry);
           }
         }
       }
@@ -3712,9 +3793,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
         //for (uint k = 0; k < dict[i].size(); k++)
         //  hyp_dict_prob[i][k] = lambda * new_dict_prob[i][k] + neg_lambda * dict[i][k];
-        
-        Makros::assign_weighted_combination(hyp_dict_prob[i].direct_access(), dict[i].size(), neg_lambda, dict[i].direct_access(),
-                                            lambda, new_dict_prob[i].direct_access());
+        Math1D::assign_weighted_combination(hyp_dict_prob[i], neg_lambda, dict[i], lambda, new_dict_prob[i]);
       }
 
       if (align_type != HmmAlignProbNonpar || init_type == HmmInitPar) {
@@ -3723,12 +3802,10 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
           hyp_source_fert[i] = lambda * new_source_fert[i] + neg_lambda * source_fert[i];
       }
 
-      if (align_type == HmmAlignProbReducedpar)
-        hyp_dist_grouping_param = lambda * new_dist_grouping_param + neg_lambda * dist_grouping_param;
-
       if (init_type == HmmInitPar) {
-        for (uint k = 0; k < hyp_init_params.size(); k++)
-          hyp_init_params[k] = lambda * new_init_params[k] + neg_lambda * init_params[k];
+        //for (uint k = 0; k < hyp_init_params.size(); k++)
+        //  hyp_init_params[k] = lambda * new_init_params[k] + neg_lambda * init_params[k];
+        Math1D::assign_weighted_combination(hyp_init_params, lambda, new_init_params, neg_lambda, init_params);
 
         par2nonpar_hmm_init_model(hyp_init_params, hyp_source_fert, init_type, hyp_init_prob, start_empty_word, options.fix_p0_);
       }
@@ -3736,17 +3813,22 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
         for (uint I = 1; I <= maxI; I++) {
 
-          for (uint k = 0; k < initial_prob[I - 1].size(); k++) {
-
-            hyp_init_prob[I - 1][k] = lambda * new_init_prob[I - 1][k] + neg_lambda * initial_prob[I - 1][k];
-          }
+          //for (uint k = 0; k < initial_prob[I - 1].size(); k++) 
+          //  hyp_init_prob[I - 1][k] = lambda * new_init_prob[I - 1][k] + neg_lambda * initial_prob[I - 1][k];
+        
+          if (hyp_init_prob[I - 1].size() > 0)
+            Math1D::assign_weighted_combination(hyp_init_prob[I - 1], lambda, new_init_prob[I - 1], neg_lambda, initial_prob[I - 1]);
         }
       }
 
+      if (align_type == HmmAlignProbReducedpar)
+        hyp_dist_grouping_param = lambda * new_dist_grouping_param + neg_lambda * dist_grouping_param;
+
       if (align_type != HmmAlignProbNonpar && align_type != HmmAlignProbNonpar2) {
 
-        for (uint k = 0; k < dist_params.size(); k++)
-          hyp_dist_params[k] = lambda * new_dist_params[k] + neg_lambda * dist_params[k];
+        //for (uint k = 0; k < dist_params.size(); k++)
+        //  hyp_dist_params[k] = lambda * new_dist_params[k] + neg_lambda * dist_params[k];
+        Math1D::assign_weighted_combination(hyp_dist_params, lambda, new_dist_params, neg_lambda, dist_params);
 
         par2nonpar_hmm_alignment_model(hyp_dist_params, zero_offset, hyp_dist_grouping_param, hyp_source_fert,
                                        align_type, options.deficient_, hyp_align_prob, redpar_limit);
@@ -3754,23 +3836,17 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
         //std::cerr << "hyp_dist_params: " << hyp_dist_params << std::endl;
         //std::cerr << "hyp source fert: " << hyp_source_fert << std::endl;
       }
-      else if (align_type == HmmAlignProbNonpar) {
+      else {
+
+        //combination for Nonpar2 is also correct
 
         for (uint I = 1; I <= maxI; I++) {
-          for (uint k = 0; k < hyp_align_prob[I - 1].size(); k++)
-            hyp_align_prob[I - 1].direct_access(k) = lambda * new_align_prob[I - 1].direct_access(k)
-                + neg_lambda * align_model[I - 1].direct_access(k);
-        }
-      }
-      else {                    //Nonpar2
-
-        for (uint I = 1; I <= maxI; I++) {
-          for (uint i = 0; i < hyp_align_prob[I - 1].yDim(); i++) {
-            hyp_align_prob[I - 1] (I, i) = hyp_source_fert[0];
-            for (uint ii = 0; ii < I; ii++)
-              hyp_align_prob[I - 1] (ii, i) = hyp_source_fert[1] * (lambda * new_align_prob[I - 1] (ii, i)
-                                              + neg_lambda * align_model[I - 1] (ii, i) / source_fert[1]);
-          }
+          //for (uint k = 0; k < hyp_align_prob[I - 1].size(); k++)
+          //  hyp_align_prob[I - 1].direct_access(k) = lambda * new_align_prob[I - 1].direct_access(k)
+          //      + neg_lambda * align_model[I - 1].direct_access(k);
+                
+          if (hyp_align_prob[I - 1].size() > 0)
+            Math2D::assign_weighted_combination(hyp_align_prob[I - 1], lambda, new_align_prob[I - 1], neg_lambda, align_model[I - 1]);
         }
       }
 
@@ -3822,14 +3898,13 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
     for (uint i = 0; i < options.nTargetWords_; i++) {
 
-      slack_vector[i] = best_lambda * new_slack_vector[i] + neg_best_lambda * slack_vector[i];
-
       //for (uint k = 0; k < dict[i].size(); k++)
       //  dict[i][k] = best_lambda * new_dict_prob[i][k] + neg_best_lambda * dict[i][k];
-      
-      Makros::assign_weighted_combination(dict[i].direct_access(), dict[i].size(), neg_best_lambda, dict[i].direct_access(),
-                                          best_lambda, new_dict_prob[i].direct_access());
+
+      Math1D::assign_weighted_combination(dict[i], neg_best_lambda, dict[i], best_lambda, new_dict_prob[i]);
     }
+    if (dict_weight_sum > 0.0)
+      Math1D::assign_weighted_combination(slack_vector, neg_best_lambda, slack_vector, best_lambda, new_slack_vector);
 
     if (align_type != HmmAlignProbNonpar || init_type == HmmInitPar) {
 
@@ -3839,25 +3914,28 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
     if (init_type == HmmInitPar) {
 
-      for (uint k = 0; k < init_params.size(); k++)
-        init_params[k] = best_lambda * new_init_params[k] + neg_best_lambda * init_params[k];
+      //for (uint k = 0; k < init_params.size(); k++)
+      //  init_params[k] = best_lambda * new_init_params[k] + neg_best_lambda * init_params[k];
+      Math1D::assign_weighted_combination(init_params, best_lambda, new_init_params, neg_best_lambda, init_params);
 
       par2nonpar_hmm_init_model(init_params, source_fert, init_type, initial_prob, start_empty_word, options.fix_p0_);
     }
     else if (init_type == HmmInitNonpar) {
       for (uint I = 1; I <= maxI; I++) {
 
-        for (uint k = 0; k < initial_prob[I - 1].size(); k++) {
-
-          initial_prob[I - 1][k] = best_lambda * new_init_prob[I - 1][k] + neg_best_lambda * initial_prob[I - 1][k];
-        }
+        //for (uint k = 0; k < initial_prob[I - 1].size(); k++) 
+        //  initial_prob[I - 1][k] = best_lambda * new_init_prob[I - 1][k] + neg_best_lambda * initial_prob[I - 1][k];
+        
+        if (initial_prob[I - 1].size() > 0) 
+          Math1D::assign_weighted_combination(initial_prob[I - 1], best_lambda, new_init_prob[I - 1], neg_best_lambda, initial_prob[I - 1]);
       }
     }
 
-    if (align_type != HmmAlignProbNonpar) {
+    if (align_type != HmmAlignProbNonpar && align_type != HmmAlignProbNonpar2) {
 
-      for (uint k = 0; k < dist_params.size(); k++)
-        dist_params[k] = best_lambda * new_dist_params[k] + neg_best_lambda * dist_params[k];
+      //for (uint k = 0; k < dist_params.size(); k++)
+      //  dist_params[k] = best_lambda * new_dist_params[k] + neg_best_lambda * dist_params[k];
+      Math1D::assign_weighted_combination(dist_params, best_lambda, new_dist_params, neg_best_lambda, dist_params);
 
       if (align_type == HmmAlignProbReducedpar)
         dist_grouping_param = best_lambda * new_dist_grouping_param + neg_best_lambda * dist_grouping_param;
@@ -3868,9 +3946,12 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
     else {
       for (uint I = 1; I <= maxI; I++) {
 
-        for (uint k = 0; k < align_model[I - 1].size(); k++)
-          align_model[I - 1].direct_access(k) = best_lambda * new_align_prob[I - 1].direct_access(k)
-                                                + neg_best_lambda * align_model[I - 1].direct_access(k);
+        //for (uint k = 0; k < align_model[I - 1].size(); k++)
+        //  align_model[I - 1].direct_access(k) = best_lambda * new_align_prob[I - 1].direct_access(k)
+        //                                        + neg_best_lambda * align_model[I - 1].direct_access(k);
+                                                
+        if (align_model[I - 1].size() > 0)
+          Math2D::assign_weighted_combination(align_model[I - 1], best_lambda, new_align_prob[I - 1], neg_best_lambda, align_model[I - 1]);
       }
     }
 
@@ -3988,6 +4069,11 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
   }
   assert(wcooc.size() == options.nTargetWords_);
   //NOTE: the dictionary is assumed to be initialized
+
+  double dict_weight_sum = 0.0;
+  for (uint i = 0; i < options.nTargetWords_; i++) {
+    dict_weight_sum += prior_weight[i].max_abs();
+  }
 
   //std::cerr << "init_type: " << init_type << std::endl;
 
@@ -4187,13 +4273,15 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
     }
 
     //include the dict_regularity term in the output energy
-    if (options.print_energy_) {
+    if (options.print_energy_ ) {
       double energy = prev_perplexity;
-      for (uint i = 0; i < dcount.size(); i++)
-        for (uint k = 0; k < dcount[i].size(); k++)
-          if (dcount[i][k] > 0)
-            //we need to divide as we are truly minimizing the perplexity WITHOUT division plus the l0-term
-            energy += prior_weight[i][k];
+      if (dict_weight_sum > 0.0) {
+        for (uint i = 0; i < dcount.size(); i++)
+          for (uint k = 0; k < dcount[i].size(); k++)
+            if (dcount[i][k] > 0)
+              //we need to divide as we are truly minimizing the perplexity WITHOUT division plus the l0-term
+              energy += prior_weight[i][k];
+      }
 
       std::cerr << "energy after iteration #" << (iter - 1) << ": " << (energy / nSentences) << std::endl;
     }
@@ -4232,7 +4320,7 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
       //call m-step
       //noncompact_ehmm_m_step(acount, dist_params, zero_offset, options.align_m_step_iter_, dist_grouping_param, options.deficient, redpar_limit);
       ehmm_m_step(acount, dist_params, zero_offset, options.align_m_step_iter_,
-                  dist_grouping_param, options.deficient_, redpar_limit);
+                  dist_grouping_param, options.deficient_, redpar_limit, options.projection_mode_);
 
       par2nonpar_hmm_alignment_model(dist_params, zero_offset, dist_grouping_param, source_fert,
                                      align_type, options.deficient_, align_model, redpar_limit);
@@ -5098,7 +5186,7 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
 
       //noncompact_ehmm_m_step(acount, dist_params, zero_offset, options.align_m_step_iter_, dist_grouping_param, options.deficient_, redpar_limit);
       ehmm_m_step(acount, dist_params, zero_offset, options.align_m_step_iter_,
-                  dist_grouping_param, options.deficient_, redpar_limit);
+                  dist_grouping_param, options.deficient_, redpar_limit, options.projection_mode_);
 
       par2nonpar_hmm_alignment_model(dist_params, zero_offset, dist_grouping_param, source_fert,
                                      align_type, options.deficient_, align_model, redpar_limit);
@@ -5188,10 +5276,12 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
       energy -= logl(hmm_alignment_prob(cur_source, cur_lookup, cur_target, dict, align_model, initial_prob, cur_alignment, true));
     }
 
-    for (uint i = 0; i < dcount.size(); i++)
-      for (uint k = 0; k < dcount[i].size(); k++)
-        if (dcount[i][k] > 0)
-          energy += prior_weight[i][k];
+    if (dict_weight_sum > 0.0) {
+      for (uint i = 0; i < dcount.size(); i++)
+        for (uint k = 0; k < dcount[i].size(); k++)
+          if (dcount[i][k] > 0)
+            energy += prior_weight[i][k];
+    }
 
     std::cerr << "energy after ICM and all updates: " << (energy / nSentences) << std::endl;
 #else
@@ -5254,1694 +5344,4 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
       std::cerr << "#### EHMM Viterbi-DAE/S after iteration #" << iter << ": " << nErrors << std::endl;
     }
   } //end for (iter)
-}
-
-void derive_symEHMM_alignment(const Math1D::Vector<uint>& source, const SingleLookupTable& slookup, const SingleLookupTable& tlookup,
-                              const Math1D::Vector<uint>& target, FullHMMAlignmentModel& s2t_align_model, FullHMMAlignmentModel& t2s_align_model,
-                              InitialAlignmentProbability& s2t_initial_prob, InitialAlignmentProbability& t2s_initial_prob,
-                              SingleWordDictionary& s2t_dict, SingleWordDictionary& t2s_dict,
-                              std::set<std::pair<AlignBaseType,AlignBaseType> >& alignment, double threshold = 0.1)
-{
-
-  alignment.clear();
-
-  const uint curJ = source.size();
-  const uint curI = target.size();
-
-  Math2D::Matrix<double> marginal(curI, curJ, 0.0);
-
-  const Math2D::Matrix<double>& cur_s2t_align_model = s2t_align_model[curI - 1];
-  const Math2D::Matrix<double>& cur_t2s_align_model = t2s_align_model[curJ - 1];
-
-  /*** 1.) s|t ***/
-
-  // a) forward
-  Math2D::NamedMatrix<long double> forward(2 * curI, curJ, MAKENAME(forward));
-
-  const uint start_s_idx = source[0];
-  for (uint i = 0; i < curI; i++) {
-    forward(i, 0) = s2t_initial_prob[curI - 1][i] * s2t_dict[target[i]][slookup(0, i)];
-    assert(forward(i, 0) >= 0.0);
-  }
-  for (uint i = curI; i < 2 * curI; i++) {
-    forward(i, 0) = s2t_initial_prob[curI - 1][i] * s2t_dict[0][start_s_idx - 1];
-    assert(forward(i, 0) >= 0.0);
-  }
-
-  for (uint j = 1; j < curJ; j++) {
-    const uint j_prev = j - 1;
-    const uint s_idx = source[j];
-
-    for (uint i = 0; i < curI; i++) {
-
-      long double sum = 0.0;
-      for (uint i_prev = 0; i_prev < curI; i_prev++)
-        sum += cur_s2t_align_model(i, i_prev) * (forward(i_prev, j_prev) + forward(i_prev + curI, j_prev));
-
-      forward(i, j) = sum * s2t_dict[target[i]][slookup(j, i)];
-      assert(forward(i, j) >= 0.0);
-    }
-
-    long double cur_emptyword_prob = s2t_dict[0][s_idx - 1];
-    assert(cur_emptyword_prob >= 0.0);
-
-    for (uint i = curI; i < 2 * curI; i++) {
-
-      long double sum = cur_s2t_align_model(curI, i - curI) * (forward(i, j_prev) + forward(i - curI, j_prev));
-      forward(i, j) = sum * cur_emptyword_prob;
-
-      assert(forward(i, j) >= 0.0);
-    }
-  }
-
-  long double sentence_prob = 0.0;
-  for (uint i = 0; i < 2 * curI; i++) {
-
-    assert(forward(i, curJ - 1) >= 0.0);
-    sentence_prob += forward(i, curJ - 1);
-  }
-  long double inv_sentence_prob = 1.0 / sentence_prob;
-
-  //b) backward
-
-  Math2D::NamedMatrix<long double> backward(2 * curI, curJ, MAKENAME(backward));
-  const uint end_s_idx = source[curJ - 1];
-
-  for (uint i = 0; i < curI; i++)
-    backward(i, curJ - 1) = s2t_dict[target[i]][slookup(curJ - 1, i)];
-  for (uint i = curI; i < 2 * curI; i++)
-    backward(i, curJ - 1) = s2t_dict[0][end_s_idx - 1];
-
-  for (int j = curJ - 2; j >= 0; j--) {
-    const uint s_idx = source[j];
-    const uint j_next = j + 1;
-
-    for (uint i = 0; i < curI; i++) {
-
-      long double sum = 0.0;
-      for (uint i_next = 0; i_next < curI; i_next++)
-        sum += backward(i_next, j_next) * cur_s2t_align_model(i_next, i);
-      sum += backward(i + curI, j_next) * cur_s2t_align_model(curI, i);
-
-      backward(i, j) = sum * s2t_dict[target[i]][slookup(j, i)];
-    }
-
-    long double cur_emptyword_prob = s2t_dict[0][s_idx - 1];
-
-    for (uint i = curI; i < 2 * curI; i++) {
-
-      long double sum = 0.0;
-      for (uint i_next = 0; i_next < curI; i_next++)
-        sum += backward(i_next, j_next) * cur_s2t_align_model(i_next, i - curI);
-      sum += backward(i, j_next) * cur_s2t_align_model(curI, i - curI);
-
-      backward(i, j) = sum * cur_emptyword_prob;
-    }
-  }
-
-  //c) compute marginals
-  for (uint i = 0; i < curI; i++) {
-    for (uint j = 0; j < curJ; j++) {
-
-      double cur_marg = 0.0;
-      if (s2t_dict[target[i]][slookup(j, i)] > 1e-305) {
-
-        cur_marg = inv_sentence_prob * forward(i, j) * backward(i, j) / s2t_dict[target[i]][slookup(j, i)];
-      }
-
-      marginal(i, j) += 0.5 * cur_marg;
-    }
-  }
-
-  /***** 2.) t2s ***/
-
-  //a) forward
-  forward.resize(2 * curJ, curI);
-
-  const uint start_t_idx = target[0];
-  for (uint j = 0; j < curJ; j++) {
-    forward(j, 0) = t2s_initial_prob[curJ - 1][j] * t2s_dict[source[j]][tlookup(0, j)];
-    assert(forward(j, 0) >= 0.0);
-  }
-  for (uint j = curJ; j < 2 * curJ; j++) {
-    forward(j, 0) = t2s_initial_prob[curJ - 1][j] * t2s_dict[0][start_t_idx - 1];
-    assert(forward(j, 0) >= 0.0);
-  }
-
-  for (uint i = 1; i < curI; i++) {
-    const uint i_prev = i - 1;
-    const uint t_idx = target[i];
-
-    for (uint j = 0; j < curJ; j++) {
-
-      long double sum = 0.0;
-      for (uint j_prev = 0; j_prev < curJ; j_prev++)
-        sum += cur_t2s_align_model(j, j_prev) * (forward(j_prev, i_prev) + forward(j_prev + curJ, i_prev));
-
-      forward(j, i) = sum * t2s_dict[source[j]][tlookup(i, j)];
-      assert(forward(j, i) >= 0.0);
-    }
-
-    long double cur_emptyword_prob = t2s_dict[0][t_idx - 1];
-    assert(cur_emptyword_prob >= 0.0);
-
-    for (uint j = curJ; j < 2 * curJ; j++) {
-
-      long double sum = cur_t2s_align_model(curJ, j - curJ) * (forward(j, i_prev) + forward(j - curJ, i_prev));
-      forward(j, i) = sum * cur_emptyword_prob;
-
-      assert(forward(j, i) >= 0.0);
-    }
-  }
-
-  sentence_prob = 0.0;
-  for (uint j = 0; j < 2 * curJ; j++) {
-
-    assert(forward(j, curI - 1) >= 0.0);
-    sentence_prob += forward(j, curI - 1);
-  }
-
-  inv_sentence_prob = 1.0 / sentence_prob;
-
-  //std::cerr << "b)" << std::endl;
-
-  //b) backward
-  backward.resize(2 * curJ, curI);
-
-  const uint end_t_idx = target[curI - 1];
-
-  for (uint j = 0; j < curJ; j++)
-    backward(j, curI - 1) = t2s_dict[source[j]][tlookup(curI - 1, j)];
-  for (uint j = curJ; j < 2 * curJ; j++)
-    backward(j, curI - 1) = t2s_dict[0][end_t_idx - 1];
-
-  for (int i = curI - 2; i >= 0; i--) {
-    const uint t_idx = target[i];
-    const uint i_next = i + 1;
-
-    for (uint j = 0; j < curJ; j++) {
-
-      long double sum = 0.0;
-      for (uint j_next = 0; j_next < curJ; j_next++)
-        sum += backward(j_next, i_next) * cur_t2s_align_model(j_next, j);
-      sum += backward(j + curJ, i_next) * cur_t2s_align_model(curJ, j);
-
-      backward(j, i) = sum * t2s_dict[source[j]][tlookup(i, j)];
-    }
-
-    long double cur_emptyword_prob = t2s_dict[0][t_idx - 1];
-
-    for (uint j = curJ; j < 2 * curJ; j++) {
-
-      long double sum = 0.0;
-      for (uint j_next = 0; j_next < curJ; j_next++)
-        sum += backward(j_next, i_next) * cur_t2s_align_model(j_next, j - curJ);
-      sum += backward(j, i_next) * cur_t2s_align_model(curJ, j - curJ);
-
-      backward(j, i) = sum * cur_emptyword_prob;
-    }
-  }
-
-  //std::cerr << "c)" << std::endl;
-
-  //c) compute marginals
-  for (uint i = 0; i < curI; i++) {
-    for (uint j = 0; j < curJ; j++) {
-
-      double cur_marg = 0.0;
-      if (t2s_dict[source[j]][tlookup(i, j)] > 1e-305) {
-
-        cur_marg = inv_sentence_prob * forward(j, i) * backward(j, i) / t2s_dict[source[j]][tlookup(i, j)];
-      }
-
-      marginal(i, j) += 0.5 * cur_marg;
-    }
-  }
-
-  for (uint j = 0; j < curJ; j++)
-    for (uint i = 0; i < curI; i++)
-      if (marginal(i, j) >= threshold)
-        alignment.insert(std::make_pair(j + 1, i + 1));
-
-}
-
-double symEHMM_energy(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const LookupTable& tlookup,
-                      const Storage1D<Math1D::Vector<uint> >& target, FullHMMAlignmentModel& s2t_align_model,
-                      FullHMMAlignmentModel& t2s_align_model, InitialAlignmentProbability& s2t_initial_prob,
-                      InitialAlignmentProbability& t2s_initial_prob, SingleWordDictionary& s2t_dict,
-                      SingleWordDictionary& t2s_dict, double gamma)
-{
-
-  double sum = 0.0;
-
-  const size_t nSentences = target.size();
-
-  for (size_t s = 0; s < nSentences; s++) {
-
-    //std::cerr << "s: " << s << std::endl;
-
-    const Storage1D<uint>& cur_source = source[s];
-    const Storage1D<uint>& cur_target = target[s];
-    const SingleLookupTable& cur_slookup = slookup[s];
-    const SingleLookupTable& cur_tlookup = tlookup[s];
-
-    const uint curJ = cur_source.size();
-    const uint curI = cur_target.size();
-
-    const Math2D::Matrix<double>& cur_s2t_align_model = s2t_align_model[curI - 1];
-    const Math2D::Matrix<double>& cur_t2s_align_model = t2s_align_model[curJ - 1];
-
-    Math2D::NamedMatrix<double> marginal_diff(curI, curJ, 0.0, MAKENAME(marginal_diff));
-
-    /**** 1. s2t ********/
-
-    // a) forward
-    Math2D::NamedMatrix<long double>forward(2 * curI, curJ, MAKENAME(forward));
-
-    const uint start_s_idx = cur_source[0];
-    for (uint i = 0; i < curI; i++) {
-      forward(i, 0) = s2t_initial_prob[curI - 1][i] * s2t_dict[cur_target[i]][cur_slookup(0, i)];
-      assert(forward(i, 0) >= 0.0);
-    }
-    for (uint i = curI; i < 2 * curI; i++) {
-      forward(i, 0) = s2t_initial_prob[curI - 1][i] * s2t_dict[0][start_s_idx - 1];
-      assert(forward(i, 0) >= 0.0);
-    }
-
-    for (uint j = 1; j < curJ; j++) {
-      const uint j_prev = j - 1;
-      const uint s_idx = cur_source[j];
-
-      for (uint i = 0; i < curI; i++) {
-
-        long double sum = 0.0;
-        for (uint i_prev = 0; i_prev < curI; i_prev++)
-          sum += cur_s2t_align_model(i, i_prev) * (forward(i_prev, j_prev) + forward(i_prev + curI, j_prev));
-
-        forward(i, j) = sum * s2t_dict[cur_target[i]][cur_slookup(j, i)];
-        assert(forward(i, j) >= 0.0);
-      }
-
-      long double cur_emptyword_prob = s2t_dict[0][s_idx - 1];
-      assert(cur_emptyword_prob >= 0.0);
-
-      for (uint i = curI; i < 2 * curI; i++) {
-
-        long double sum = cur_s2t_align_model(curI, i - curI) * (forward(i, j_prev) + forward(i - curI, j_prev));
-        forward(i, j) = sum * cur_emptyword_prob;
-
-        assert(forward(i, j) >= 0.0);
-      }
-    }
-
-    long double sentence_prob = 0.0;
-    for (uint i = 0; i < 2 * curI; i++) {
-
-      assert(forward(i, curJ - 1) >= 0.0);
-      sentence_prob += forward(i, curJ - 1);
-    }
-
-    long double inv_sentence_prob = 1.0 / sentence_prob;
-    if (sentence_prob < 1e-305)
-      inv_sentence_prob = 0.0;
-
-    sum -= std::log(sentence_prob);
-
-    //b) backward
-
-    Math2D::NamedMatrix<long double> backward(2 * curI, curJ, MAKENAME(backward));
-    const uint end_s_idx = cur_source[curJ - 1];
-
-    for (uint i = 0; i < curI; i++)
-      backward(i, curJ - 1) = s2t_dict[cur_target[i]][cur_slookup(curJ - 1, i)];
-    for (uint i = curI; i < 2 * curI; i++)
-      backward(i, curJ - 1) = s2t_dict[0][end_s_idx - 1];
-
-    for (int j = curJ - 2; j >= 0; j--) {
-      const uint s_idx = cur_source[j];
-      const uint j_next = j + 1;
-
-      for (uint i = 0; i < curI; i++) {
-
-        long double sum = 0.0;
-        for (uint i_next = 0; i_next < curI; i_next++)
-          sum += backward(i_next, j_next) * cur_s2t_align_model(i_next, i);
-        sum += backward(i + curI, j_next) * cur_s2t_align_model(curI, i);
-
-        backward(i, j) = sum * s2t_dict[cur_target[i]][cur_slookup(j, i)];
-      }
-
-      long double cur_emptyword_prob = s2t_dict[0][s_idx - 1];
-
-      for (uint i = curI; i < 2 * curI; i++) {
-
-        long double sum = 0.0;
-        for (uint i_next = 0; i_next < curI; i_next++)
-          sum += backward(i_next, j_next) * cur_s2t_align_model(i_next, i - curI);
-        sum += backward(i, j_next) * cur_s2t_align_model(curI, i - curI);
-
-        backward(i, j) = sum * cur_emptyword_prob;
-      }
-    }
-
-    //c) compute marginals
-    for (uint i = 0; i < curI; i++) {
-      for (uint j = 0; j < curJ; j++) {
-
-        double cur_marg = 0.0;
-        if (s2t_dict[cur_target[i]][cur_slookup(j, i)] > 1e-305) {
-
-          cur_marg = inv_sentence_prob * forward(i, j) * backward(i, j) / s2t_dict[cur_target[i]][cur_slookup(j, i)];
-        }
-
-        marginal_diff(i, j) += cur_marg;
-      }
-    }
-
-    //std::cerr << "t2s" << std::endl;
-
-    /***** 2.) t2s ***/
-
-    //a) forward
-    forward.resize(2 * curJ, curI);
-
-    const uint start_t_idx = cur_target[0];
-    for (uint j = 0; j < curJ; j++) {
-      forward(j, 0) = t2s_initial_prob[curJ - 1][j] * t2s_dict[cur_source[j]][cur_tlookup(0, j)];
-      assert(forward(j, 0) >= 0.0);
-    }
-    for (uint j = curJ; j < 2 * curJ; j++) {
-      forward(j, 0) = t2s_initial_prob[curJ - 1][j] * t2s_dict[0][start_t_idx - 1];
-      assert(forward(j, 0) >= 0.0);
-    }
-
-    for (uint i = 1; i < curI; i++) {
-      const uint i_prev = i - 1;
-      const uint t_idx = cur_target[i];
-
-      for (uint j = 0; j < curJ; j++) {
-
-        long double sum = 0.0;
-        for (uint j_prev = 0; j_prev < curJ; j_prev++)
-          sum += cur_t2s_align_model(j, j_prev) * (forward(j_prev, i_prev) + forward(j_prev + curJ, i_prev));
-
-        forward(j, i) = sum * t2s_dict[cur_source[j]][cur_tlookup(i, j)];
-        assert(forward(j, i) >= 0.0);
-      }
-
-      long double cur_emptyword_prob = t2s_dict[0][t_idx - 1];
-      assert(cur_emptyword_prob >= 0.0);
-
-      for (uint j = curJ; j < 2 * curJ; j++) {
-
-        long double sum = cur_t2s_align_model(curJ, j - curJ) * (forward(j, i_prev) + forward(j - curJ, i_prev));
-        forward(j, i) = sum * cur_emptyword_prob;
-
-        assert(forward(j, i) >= 0.0);
-      }
-    }
-
-    sentence_prob = 0.0;
-    for (uint j = 0; j < 2 * curJ; j++) {
-
-      assert(forward(j, curI - 1) >= 0.0);
-      sentence_prob += forward(j, curI - 1);
-    }
-
-    inv_sentence_prob = 1.0 / sentence_prob;
-    if (sentence_prob < 1e-305)
-      inv_sentence_prob = 0.0;
-
-    sum -= std::log(sentence_prob);
-
-    //std::cerr << "b)" << std::endl;
-
-    //b) backward
-    backward.resize(2 * curJ, curI);
-
-    const uint end_t_idx = cur_target[curI - 1];
-
-    for (uint j = 0; j < curJ; j++)
-      backward(j, curI - 1) = t2s_dict[cur_source[j]][cur_tlookup(curI - 1, j)];
-    for (uint j = curJ; j < 2 * curJ; j++)
-      backward(j, curI - 1) = t2s_dict[0][end_t_idx - 1];
-
-    for (int i = curI - 2; i >= 0; i--) {
-      const uint t_idx = cur_target[i];
-      const uint i_next = i + 1;
-
-      for (uint j = 0; j < curJ; j++) {
-
-        long double sum = 0.0;
-        for (uint j_next = 0; j_next < curJ; j_next++)
-          sum += backward(j_next, i_next) * cur_t2s_align_model(j_next, j);
-        sum += backward(j + curJ, i_next) * cur_t2s_align_model(curJ, j);
-
-        backward(j, i) = sum * t2s_dict[cur_source[j]][cur_tlookup(i, j)];
-      }
-
-      long double cur_emptyword_prob = t2s_dict[0][t_idx - 1];
-
-      for (uint j = curJ; j < 2 * curJ; j++) {
-
-        long double sum = 0.0;
-        for (uint j_next = 0; j_next < curJ; j_next++)
-          sum += backward(j_next, i_next) * cur_t2s_align_model(j_next, j - curJ);
-        sum += backward(j, i_next) * cur_t2s_align_model(curJ, j - curJ);
-
-        backward(j, i) = sum * cur_emptyword_prob;
-      }
-    }
-
-    //std::cerr << "c)" << std::endl;
-
-    //c) compute marginals
-    for (uint i = 0; i < curI; i++) {
-      for (uint j = 0; j < curJ; j++) {
-
-        double cur_marg = 0.0;
-        if (t2s_dict[cur_source[j]][cur_tlookup(i, j)] > 1e-305) {
-
-          cur_marg = inv_sentence_prob * forward(j, i) * backward(j, i) / t2s_dict[cur_source[j]][cur_tlookup(i, j)];
-        }
-
-        marginal_diff(i, j) -= cur_marg;
-      }
-    }
-
-    /***** 3.) marginal differences ****/
-    for (uint i = 0; i < curI; i++) {
-      for (uint j = 0; j < curJ; j++) {
-
-        sum += 0.5 * gamma * marginal_diff(i, j) * marginal_diff(i, j);
-      }
-    }
-  }
-
-  return sum / nSentences;
-}
-
-void symtrain_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const LookupTable& tlookup,
-                           const Storage1D<Math1D::Vector<uint> >& target, uint nSourceWords, uint nTargetWords,
-                           FullHMMAlignmentModel& s2t_align_model, FullHMMAlignmentModel& t2s_align_model,
-                           InitialAlignmentProbability& s2t_initial_prob, InitialAlignmentProbability& t2s_initial_prob,
-                           SingleWordDictionary& s2t_dict, SingleWordDictionary& t2s_dict, uint nIterations,
-                           double gamma, std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
-                           std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments)
-{
-
-  assert(s2t_dict.size() == nTargetWords);
-  assert(t2s_dict.size() == nSourceWords);
-  //NOTE: the dicitionary is assumed to be initialized
-
-  const size_t nSentences = source.size();
-  assert(nSentences == target.size());
-
-  std::set < uint > seenIs;
-  std::set < uint > seenJs;
-
-  uint maxI = 0;
-  uint maxJ = 0;
-  for (size_t s = 0; s < nSentences; s++) {
-    const uint curI = target[s].size();
-    const uint curJ = source[s].size();
-
-    seenIs.insert(curI);
-    seenJs.insert(curJ);
-
-    if (curI > maxI)
-      maxI = curI;
-    if (curJ > maxJ)
-      maxJ = curJ;
-  }
-
-  s2t_align_model.resize_dirty(maxI);   //note: access using I-1
-  s2t_initial_prob.resize(maxI);
-
-  for (std::set<uint>::const_iterator it = seenIs.begin(); it != seenIs.end(); it++) {
-    const uint I = *it;
-    //x = new index, y = given index
-    s2t_align_model[I - 1].resize_dirty(I + 1, I);      //because of empty words
-    s2t_align_model[I - 1].set_constant(1.0 / (I + 1));
-
-    s2t_initial_prob[I - 1].resize_dirty(2 * I);
-    s2t_initial_prob[I - 1].set_constant(0.5 / I);
-  }
-
-  t2s_align_model.resize_dirty(maxJ);   //note: access using J-1
-  t2s_initial_prob.resize(maxJ);
-
-  for (std::set<uint>::const_iterator it = seenJs.begin(); it != seenJs.end(); it++) {
-    const uint J = *it;
-    t2s_align_model[J - 1].resize_dirty(J + 1, J);
-    t2s_align_model[J - 1].set_constant(1.0 / (J + 1));
-    t2s_initial_prob[J - 1].resize_dirty(2 * J);
-    t2s_initial_prob[J - 1].set_constant(0.5 / J);
-  }
-
-  InitialAlignmentProbability s2t_init_grad(maxI, MAKENAME(s2t_init_grad));
-  InitialAlignmentProbability t2s_init_grad(maxJ, MAKENAME(t2s_init_grad));
-
-  Storage1D<Math1D::Vector<double> > s2t_dict_grad(nTargetWords);
-  for (uint i = 0; i < nTargetWords; i++) {
-    s2t_dict_grad[i].resize(s2t_dict[i].size());
-  }
-  Storage1D<Math1D::Vector<double> > t2s_dict_grad(nSourceWords);
-  for (uint j = 0; j < nSourceWords; j++) {
-    t2s_dict_grad[j].resize(t2s_dict[j].size());
-  }
-
-  SingleWordDictionary new_s2t_dict(nTargetWords, MAKENAME(new_s2t_dict));
-  SingleWordDictionary hyp_s2t_dict(nTargetWords, MAKENAME(hyp_s2t_dict));
-  SingleWordDictionary new_t2s_dict(nSourceWords, MAKENAME(new_t2s_dict));
-  SingleWordDictionary hyp_t2s_dict(nSourceWords, MAKENAME(hyp_t2s_dict));
-
-  for (uint i = 0; i < nTargetWords; i++) {
-
-    const uint size = s2t_dict[i].size();
-    new_s2t_dict[i].resize_dirty(size);
-    hyp_s2t_dict[i].resize_dirty(size);
-  }
-  for (uint j = 0; j < nSourceWords; j++) {
-
-    const uint size = t2s_dict[j].size();
-    new_t2s_dict[j].resize_dirty(size);
-    hyp_t2s_dict[j].resize_dirty(size);
-  }
-
-  FullHMMAlignmentModel s2t_align_grad(maxI, MAKENAME(s2t_align_grad));
-  for (uint I = 1; I <= maxI; I++) {
-    if (s2t_align_model[I - 1].size() > 0) {
-      s2t_align_grad[I - 1].resize_dirty(I + 1, I);
-      s2t_init_grad[I - 1].resize_dirty(2 * I);
-    }
-  }
-
-  FullHMMAlignmentModel t2s_align_grad(maxJ, MAKENAME(t2s_align_grad));
-  for (uint J = 1; J <= maxJ; J++) {
-    if (t2s_align_model[J - 1].size() > 0) {
-      t2s_align_grad[J - 1].resize_dirty(J + 1, J);
-      t2s_init_grad[J - 1].resize_dirty(2 * J);
-    }
-  }
-
-  InitialAlignmentProbability new_s2t_init_prob(maxI, MAKENAME(new_s2t_init_prob));
-  InitialAlignmentProbability hyp_s2t_init_prob(maxI, MAKENAME(hyp_s2t_init_prob));
-
-  FullHMMAlignmentModel new_s2t_align_prob(maxI, MAKENAME(new_s2t_align_prob));
-  FullHMMAlignmentModel hyp_s2t_align_prob(maxI, MAKENAME(hyp_s2t_align_prob));
-
-  for (uint I = 1; I <= maxI; I++) {
-    if (s2t_align_model[I - 1].size() > 0) {
-      new_s2t_align_prob[I - 1].resize_dirty(I + 1, I);
-      hyp_s2t_align_prob[I - 1].resize_dirty(I + 1, I);
-
-      new_s2t_init_prob[I - 1].resize_dirty(2 * I);
-      hyp_s2t_init_prob[I - 1].resize_dirty(2 * I);
-    }
-  }
-
-  InitialAlignmentProbability new_t2s_init_prob(maxJ, MAKENAME(new_t2s_init_prob));
-  InitialAlignmentProbability hyp_t2s_init_prob(maxJ, MAKENAME(hyp_t2s_init_prob));
-
-  FullHMMAlignmentModel new_t2s_align_prob(maxJ, MAKENAME(new_t2s_align_prob));
-  FullHMMAlignmentModel hyp_t2s_align_prob(maxJ, MAKENAME(hyp_t2s_align_prob));
-
-  for (uint J = 1; J <= maxJ; J++) {
-    if (t2s_align_model[J - 1].size() > 0) {
-      new_t2s_align_prob[J - 1].resize_dirty(J + 1, J);
-      hyp_t2s_align_prob[J - 1].resize_dirty(J + 1, J);
-
-      new_t2s_init_prob[J - 1].resize_dirty(2 * J);
-      hyp_t2s_init_prob[J - 1].resize_dirty(2 * J);
-    }
-  }
-
-  double energy = symEHMM_energy(source, slookup, tlookup, target, s2t_align_model, t2s_align_model,
-                                 s2t_initial_prob, t2s_initial_prob, s2t_dict, t2s_dict, gamma);
-
-  double line_reduction_factor = 0.5;
-
-  uint nSuccessiveReductions = 0;
-
-  std::cerr << "start energy: " << energy << std::endl;
-
-  for (uint iter = 1; iter <= nIterations; iter++) {
-
-    std::cerr << "******* symEHMM iteration #" << iter << " *******" << std::endl;
-
-    /*** set gradients to 0 ***/
-    SingleWordDictionary s2t_dict_grad(nTargetWords, MAKENAME(s2t_dict_grad));
-    SingleWordDictionary t2s_dict_grad(nSourceWords, MAKENAME(t2s_dict_grad));
-
-    for (uint i = 0; i < nTargetWords; i++) {
-
-      const uint size = s2t_dict[i].size();
-      s2t_dict_grad[i].resize_dirty(size);
-      s2t_dict_grad[i].set_constant(0.0);
-    }
-    for (uint j = 0; j < nSourceWords; j++) {
-
-      const uint size = t2s_dict[j].size();
-      t2s_dict_grad[j].resize_dirty(size);
-      t2s_dict_grad[j].set_constant(0.0);
-    }
-
-    for (uint I = 1; I <= maxI; I++) {
-      s2t_init_grad[I - 1].set_constant(0.0);
-      s2t_align_grad[I - 1].set_constant(0.0);
-    }
-    for (uint J = 1; J <= maxJ; J++) {
-      t2s_init_grad[J - 1].set_constant(0.0);
-      t2s_align_grad[J - 1].set_constant(0.0);
-    }
-
-    for (size_t s = 0; s < nSentences; s++) {
-
-      if ((s % 100) == 0)
-        std::cerr << "s: " << s << std::endl;
-
-      const Storage1D<uint>& cur_source = source[s];
-      const Storage1D<uint>& cur_target = target[s];
-      const SingleLookupTable& cur_slookup = slookup[s];
-      const SingleLookupTable& cur_tlookup = tlookup[s];
-
-      const uint curJ = cur_source.size();
-      const uint curI = cur_target.size();
-
-      const Math2D::Matrix<double>& cur_s2t_align_model = s2t_align_model[curI - 1];
-      const Math2D::Matrix<double>& cur_t2s_align_model = t2s_align_model[curJ - 1];
-
-      Math2D::Matrix<double>& cur_s2t_align_grad = s2t_align_grad[curI - 1];
-      Math2D::Matrix<double>& cur_t2s_align_grad = t2s_align_grad[curJ - 1];
-
-      Math2D::NamedMatrix<double> marginal_diff(curI, curJ, 0.0, MAKENAME(marginal_diff));
-      Math2D::NamedMatrix<double> s2t_joint_marginal(curI, curJ, 0.0, MAKENAME(s2t_joint_marginal));
-      Math2D::NamedMatrix<double> t2s_joint_marginal(curI, curJ, 0.0, MAKENAME(t2s_joint_marginal));
-
-      /**** 1. s2t ********/
-
-      // a) forward
-      Math2D::NamedMatrix<long double> s2t_forward(2 * curI, curJ, MAKENAME(s2t_forward));
-
-      const uint start_s_idx = cur_source[0];
-      for (uint i = 0; i < curI; i++) {
-        s2t_forward(i, 0) = s2t_initial_prob[curI - 1][i] * s2t_dict[cur_target[i]][cur_slookup(0, i)];
-        assert(s2t_forward(i, 0) >= 0.0);
-      }
-      for (uint i = curI; i < 2 * curI; i++) {
-        s2t_forward(i, 0) = s2t_initial_prob[curI - 1][i] * s2t_dict[0][start_s_idx - 1];
-        assert(s2t_forward(i, 0) >= 0.0);
-      }
-
-      for (uint j = 1; j < curJ; j++) {
-        const uint j_prev = j - 1;
-        const uint s_idx = cur_source[j];
-
-        for (uint i = 0; i < curI; i++) {
-
-          long double sum = 0.0;
-          for (uint i_prev = 0; i_prev < curI; i_prev++)
-            sum += cur_s2t_align_model(i, i_prev) * (s2t_forward(i_prev, j_prev) + s2t_forward(i_prev + curI, j_prev));
-
-          s2t_forward(i, j) = sum * s2t_dict[cur_target[i]][cur_slookup(j, i)];
-          assert(s2t_forward(i, j) >= 0.0);
-        }
-
-        long double cur_emptyword_prob = s2t_dict[0][s_idx - 1];
-        assert(cur_emptyword_prob >= 0.0);
-
-        for (uint i = curI; i < 2 * curI; i++) {
-
-          long double sum = cur_s2t_align_model(curI, i - curI) * (s2t_forward(i, j_prev) + s2t_forward(i - curI, j_prev));
-          s2t_forward(i, j) = sum * cur_emptyword_prob;
-
-          assert(s2t_forward(i, j) >= 0.0);
-        }
-      }
-
-      long double s2t_sentence_prob = 0.0;
-      for (uint i = 0; i < 2 * curI; i++) {
-
-        assert(s2t_forward(i, curJ - 1) >= 0.0);
-        s2t_sentence_prob += s2t_forward(i, curJ - 1);
-      }
-
-      if (s2t_sentence_prob < 1e-305)
-        continue;
-
-      double inv_s2t_sentence_prob = 1.0 / s2t_sentence_prob;
-
-      //b) backward
-
-      Math2D::NamedMatrix<long double> s2t_backward(2 * curI, curJ, MAKENAME(s2t_backward));
-      const uint end_s_idx = cur_source[curJ - 1];
-
-      for (uint i = 0; i < curI; i++)
-        s2t_backward(i, curJ - 1) = s2t_dict[cur_target[i]][cur_slookup(curJ - 1, i)];
-      for (uint i = curI; i < 2 * curI; i++)
-        s2t_backward(i, curJ - 1) = s2t_dict[0][end_s_idx - 1];
-
-      for (int j = curJ - 2; j >= 0; j--) {
-        const uint s_idx = cur_source[j];
-        const uint j_next = j + 1;
-
-        for (uint i = 0; i < curI; i++) {
-
-          long double sum = 0.0;
-          for (uint i_next = 0; i_next < curI; i_next++)
-            sum += s2t_backward(i_next, j_next) * cur_s2t_align_model(i_next, i);
-          sum += s2t_backward(i + curI, j_next) * cur_s2t_align_model(curI, i);
-
-          s2t_backward(i, j) = sum * s2t_dict[cur_target[i]][cur_slookup(j, i)];
-        }
-
-        long double cur_emptyword_prob = s2t_dict[0][s_idx - 1];
-
-        for (uint i = curI; i < 2 * curI; i++) {
-
-          long double sum = 0.0;
-          for (uint i_next = 0; i_next < curI; i_next++)
-            sum += s2t_backward(i_next, j_next) * cur_s2t_align_model(i_next, i - curI);
-          sum += s2t_backward(i, j_next) * cur_s2t_align_model(curI, i - curI);
-
-          s2t_backward(i, j) = sum * cur_emptyword_prob;
-        }
-      }
-
-      //c) compute marginals
-      for (uint i = 0; i < curI; i++) {
-        for (uint j = 0; j < curJ; j++) {
-
-          double cur_marg = 0.0;
-          if (s2t_dict[cur_target[i]][cur_slookup(j, i)] > 1e-305) {
-
-            cur_marg = s2t_forward(i, j) * s2t_backward(i, j) / s2t_dict[cur_target[i]][cur_slookup(j, i)];
-          }
-
-          s2t_joint_marginal(i, j) = cur_marg;
-          marginal_diff(i, j) += cur_marg * inv_s2t_sentence_prob;
-        }
-      }
-
-      //d) update gradient
-      std::map<std::pair<AlignBaseType,AlignBaseType>,double> cur_s2t_dict_grad_contrib;
-      Math2D::Matrix<double> cur_s2t_align_grad_contrib(curI + 1, curI, 0.0);
-
-      //start of sentence
-      for (uint i = 0; i < curI; i++) {
-        uint t_idx = cur_target[i];
-
-        double coeff = inv_s2t_sentence_prob * s2t_backward(i, 0);
-
-        if (s2t_dict[t_idx][cur_slookup(0, i)] > 1e-300) {
-
-          s2t_dict_grad[t_idx][cur_slookup(0, i)] -= coeff * s2t_initial_prob[curI - 1][i] / s2t_dict[t_idx][cur_slookup(0, i)];
-          cur_s2t_dict_grad_contrib[std::make_pair(t_idx, cur_slookup(0, i))] -= s2t_backward(i, 0) * s2t_initial_prob[curI - 1][i] /
-              s2t_dict[t_idx][cur_slookup(0, i)];
-        }
-
-        s2t_init_grad[curI - 1][i] -= coeff;
-      }
-      for (uint i = 0; i < curI; i++) {
-
-        double coeff = inv_s2t_sentence_prob * s2t_backward(i + curI, 0);
-
-        if (s2t_dict[0][start_s_idx - 1] > 1e-300) {
-          s2t_dict_grad[0][start_s_idx - 1] -= coeff * s2t_initial_prob[curI - 1][i + curI] / s2t_dict[0][start_s_idx - 1];
-          cur_s2t_dict_grad_contrib[std::make_pair(0, start_s_idx - 1)] -= s2t_backward(i + curI, 0) * s2t_initial_prob[curI - 1][i + curI] /
-              s2t_dict[0][start_s_idx - 1];
-        }
-
-        s2t_init_grad[curI - 1][i + curI] -= coeff;
-      }
-
-      //mid-sentence
-      for (uint j = 1; j < curJ; j++) {
-        const uint s_idx = cur_source[j];
-        const uint j_prev = j - 1;
-
-        //real positions
-        for (uint i = 0; i < curI; i++) {
-          const uint t_idx = cur_target[i];
-
-          if (s2t_dict[t_idx][cur_slookup(j, i)] > 1e-70) {
-            s2t_dict_grad[t_idx][cur_slookup(j, i)] -= s2t_forward(i, j) * s2t_backward(i, j)
-                / (s2t_sentence_prob * s2t_dict[t_idx][cur_slookup(j, i)] * s2t_dict[t_idx][cur_slookup(j, i)]);
-            cur_s2t_dict_grad_contrib[std::make_pair(t_idx, cur_slookup(j, i))] -=
-              s2t_forward(i, j) * s2t_backward(i, j) / (s2t_dict[t_idx][cur_slookup(j, i)] * s2t_dict[t_idx][cur_slookup(j, i)]);
-
-            long double bw = s2t_backward(i, j) * inv_s2t_sentence_prob;
-
-            uint i_prev;
-            double addon;
-
-            for (i_prev = 0; i_prev < curI; i_prev++) {
-              addon = bw * (s2t_forward(i_prev, j_prev) + s2t_forward(i_prev + curI, j_prev));
-              cur_s2t_align_grad(i, i_prev) -= addon;
-              cur_s2t_align_grad_contrib(i, i_prev) -= addon * s2t_sentence_prob;       //cancel out inv-sent-prob
-            }
-          }
-        }
-
-        //empty words
-        for (uint i = curI; i < 2 * curI; i++) {
-
-          long double bw = s2t_backward(i, j) * inv_s2t_sentence_prob;
-
-          if (s2t_dict[0][s_idx - 1] > 1e-70) {
-            s2t_dict_grad[0][s_idx - 1] -= bw * s2t_forward(i, j) / (s2t_dict[0][s_idx - 1] * s2t_dict[0][s_idx - 1]);
-            cur_s2t_dict_grad_contrib[std::make_pair(0, s_idx - 1)] -=
-              s2t_backward(i, j) * s2t_forward(i, j) / (s2t_dict[0][s_idx - 1] * s2t_dict[0][s_idx - 1]);
-          }
-
-          long double align_addon = bw * (s2t_forward(i, j_prev) + s2t_forward(i - curI, j_prev));
-          cur_s2t_align_grad(curI, i - curI) -= align_addon;
-          cur_s2t_align_grad_contrib(curI, i - curI) -= align_addon * s2t_sentence_prob;
-        }
-      }
-
-      //std::cerr << "t2s" << std::endl;
-
-      /***** 2.) t2s ***/
-
-      //a) forward
-      Math2D::NamedMatrix<long double> t2s_forward(2 * curJ, curI, MAKENAME(t2s_forward));
-
-      const uint start_t_idx = cur_target[0];
-      for (uint j = 0; j < curJ; j++) {
-        t2s_forward(j, 0) = t2s_initial_prob[curJ - 1][j] * t2s_dict[cur_source[j]][cur_tlookup(0, j)];
-        assert(t2s_forward(j, 0) >= 0.0);
-      }
-      for (uint j = curJ; j < 2 * curJ; j++) {
-        t2s_forward(j, 0) = t2s_initial_prob[curJ - 1][j] * t2s_dict[0][start_t_idx - 1];
-        assert(t2s_forward(j, 0) >= 0.0);
-      }
-
-      for (uint i = 1; i < curI; i++) {
-        const uint i_prev = i - 1;
-        const uint t_idx = cur_target[i];
-
-        for (uint j = 0; j < curJ; j++) {
-
-          long double sum = 0.0;
-          for (uint j_prev = 0; j_prev < curJ; j_prev++)
-            sum += cur_t2s_align_model(j, j_prev) * (t2s_forward(j_prev, i_prev) + t2s_forward(j_prev + curJ, i_prev));
-
-          t2s_forward(j, i) = sum * t2s_dict[cur_source[j]][cur_tlookup(i, j)];
-          assert(t2s_forward(j, i) >= 0.0);
-        }
-
-        long double cur_emptyword_prob = t2s_dict[0][t_idx - 1];
-        assert(cur_emptyword_prob >= 0.0);
-
-        for (uint j = curJ; j < 2 * curJ; j++) {
-
-          long double sum = cur_t2s_align_model(curJ, j - curJ) * (t2s_forward(j, i_prev) + t2s_forward(j - curJ, i_prev));
-          t2s_forward(j, i) = sum * cur_emptyword_prob;
-
-          assert(t2s_forward(j, i) >= 0.0);
-        }
-      }
-
-      long double t2s_sentence_prob = 0.0;
-      for (uint j = 0; j < 2 * curJ; j++) {
-
-        assert(t2s_forward(j, curI - 1) >= 0.0);
-        t2s_sentence_prob += t2s_forward(j, curI - 1);
-      }
-
-      if (t2s_sentence_prob < 1e-305)
-        continue;
-
-      double inv_t2s_sentence_prob = 1.0 / t2s_sentence_prob;
-
-      //std::cerr << "b)" << std::endl;
-
-      //b) backward
-      Math2D::NamedMatrix<long double> t2s_backward(2 * curJ, curI, MAKENAME(t2s_backward));
-
-      const uint end_t_idx = cur_target[curI - 1];
-
-      for (uint j = 0; j < curJ; j++)
-        t2s_backward(j, curI - 1) = t2s_dict[cur_source[j]][cur_tlookup(curI - 1, j)];
-      for (uint j = curJ; j < 2 * curJ; j++)
-        t2s_backward(j, curI - 1) = t2s_dict[0][end_t_idx - 1];
-
-      for (int i = curI - 2; i >= 0; i--) {
-        const uint t_idx = cur_target[i];
-        const uint i_next = i + 1;
-
-        for (uint j = 0; j < curJ; j++) {
-
-          long double sum = 0.0;
-          for (uint j_next = 0; j_next < curJ; j_next++)
-            sum += t2s_backward(j_next, i_next) * cur_t2s_align_model(j_next, j);
-          sum += t2s_backward(j + curJ, i_next) * cur_t2s_align_model(curJ, j);
-
-          t2s_backward(j, i) = sum * t2s_dict[cur_source[j]][cur_tlookup(i, j)];
-        }
-
-        long double cur_emptyword_prob = t2s_dict[0][t_idx - 1];
-
-        for (uint j = curJ; j < 2 * curJ; j++) {
-
-          long double sum = 0.0;
-          for (uint j_next = 0; j_next < curJ; j_next++)
-            sum += t2s_backward(j_next, i_next) * cur_t2s_align_model(j_next, j - curJ);
-          sum += t2s_backward(j, i_next) * cur_t2s_align_model(curJ, j - curJ);
-
-          t2s_backward(j, i) = sum * cur_emptyword_prob;
-        }
-      }
-
-      //std::cerr << "c)" << std::endl;
-
-      //c) compute marginals
-      for (uint i = 0; i < curI; i++) {
-        for (uint j = 0; j < curJ; j++) {
-
-          double cur_marg = 0.0;
-          if (t2s_dict[cur_source[j]][cur_tlookup(i, j)] > 1e-305) {
-
-            cur_marg = t2s_forward(j, i) * t2s_backward(j, i) /
-                       t2s_dict[cur_source[j]][cur_tlookup(i, j)];
-          }
-
-          t2s_joint_marginal(i, j) = cur_marg;
-          marginal_diff(i, j) -= cur_marg * inv_t2s_sentence_prob;
-        }
-      }
-
-      //d) update gradient
-      std::map<std::pair<AlignBaseType,AlignBaseType>,double> cur_t2s_dict_grad_contrib;
-      Math2D::Matrix<double> cur_t2s_align_grad_contrib(curJ + 1, curJ, 0.0);
-
-      //start of sentence
-      for (uint j = 0; j < curJ; j++) {
-        uint s_idx = cur_source[j];
-
-        double coeff = inv_t2s_sentence_prob * t2s_backward(j, 0);
-
-        if (t2s_dict[s_idx][cur_tlookup(0, j)] > 1e-300) {
-
-          t2s_dict_grad[s_idx][cur_tlookup(0, j)] -=
-            coeff * t2s_initial_prob[curJ - 1][j] / t2s_dict[s_idx][cur_tlookup(0, j)];
-          cur_t2s_dict_grad_contrib[std::make_pair(s_idx, cur_tlookup(0, j))] -=
-            t2s_backward(j, 0) * t2s_initial_prob[curJ - 1][j] / t2s_dict[s_idx][cur_tlookup(0, j)];
-        }
-
-        if (t2s_initial_prob[curJ - 1][j] > 1e-300)
-          t2s_init_grad[curJ - 1][j] -= coeff;
-      }
-      for (uint j = 0; j < curJ; j++) {
-
-        double coeff = inv_t2s_sentence_prob * t2s_backward(j + curJ, 0);
-
-        if (t2s_dict[0][start_t_idx - 1] > 1e-300) {
-          t2s_dict_grad[0][start_t_idx - 1] -= coeff * t2s_initial_prob[curJ - 1][j + curJ] /  t2s_dict[0][start_t_idx - 1];
-          cur_t2s_dict_grad_contrib[std::make_pair(0, start_t_idx - 1)] -=
-            t2s_backward(j + curJ, 0) * t2s_initial_prob[curJ - 1][j + curJ] / t2s_dict[0][start_t_idx - 1];
-        }
-
-        t2s_init_grad[curJ - 1][j + curJ] -= coeff;
-      }
-
-      //mid-sentence
-      for (uint i = 1; i < curI; i++) {
-        const uint t_idx = cur_target[i];
-        const uint i_prev = i - 1;
-
-        //real positions
-        for (uint j = 0; j < curJ; j++) {
-          const uint s_idx = cur_source[j];
-
-          if (t2s_dict[s_idx][cur_tlookup(i, j)] > 1e-70) {
-            t2s_dict_grad[s_idx][cur_tlookup(i, j)] -=
-              t2s_forward(j, i) * t2s_backward(j, i) / (t2s_sentence_prob * t2s_dict[s_idx][cur_tlookup(i, j)] * t2s_dict[s_idx][cur_tlookup(i, j)]);
-            cur_t2s_dict_grad_contrib[std::make_pair(s_idx, cur_tlookup(i, j))] -=
-              t2s_forward(j, i) * t2s_backward(j, i) / (t2s_dict[s_idx][cur_tlookup(i, j)] * t2s_dict[s_idx][cur_tlookup(i, j)]);
-
-            long double bw = t2s_backward(j, i) * inv_t2s_sentence_prob;
-
-            uint j_prev;
-            double addon;
-
-            for (j_prev = 0; j_prev < curJ; j_prev++) {
-              addon = bw * (t2s_forward(j_prev, i_prev) + t2s_forward(j_prev + curJ, i_prev));
-              cur_t2s_align_grad(j, j_prev) -= addon;
-              cur_t2s_align_grad_contrib(j, j_prev) -= addon * t2s_sentence_prob;
-            }
-          }
-        }
-
-        //empty words
-        for (uint j = curJ; j < 2 * curJ; j++) {
-
-          long double bw = t2s_backward(j, i) * inv_t2s_sentence_prob;
-
-          if (t2s_dict[0][t_idx - 1] > 1e-70) {
-            t2s_dict_grad[0][t_idx - 1] -= bw * t2s_forward(j, i) / (t2s_dict[0][t_idx - 1] * t2s_dict[0][t_idx - 1]);
-            cur_t2s_dict_grad_contrib[std::make_pair(0, t_idx - 1)] -= bw * t2s_forward(j, i) / (t2s_dict[0][t_idx - 1] * t2s_dict[0][t_idx - 1]);
-          }
-
-          long double align_addon = bw * (t2s_forward(j, i_prev) + t2s_forward(j - curJ, i_prev));
-          cur_t2s_align_grad(curJ, j - curJ) -= align_addon;
-          cur_t2s_align_grad_contrib(curJ, j - curJ) -=
-            align_addon * t2s_sentence_prob;
-        }
-      }
-
-#if 1
-      //gradient of symmetry term
-      for (uint i_outer = 0; i_outer < curI; i_outer++) {
-        for (uint j_outer = 0; j_outer < curJ; j_outer++) {
-
-          double cur_diff = marginal_diff(i_outer, j_outer);
-          assert(fabs(cur_diff) <= 1.01);
-
-          if (gamma > 0.0 && fabs(cur_diff) > 0.005) {
-
-            // s2t
-            double s2t_denom = s2t_sentence_prob * s2t_sentence_prob;
-
-            Math2D::NamedMatrix<long double> aux_s2t_forward = s2t_forward;
-            Math2D::NamedMatrix<long double> aux_s2t_backward = s2t_backward;
-
-            std::map<std::pair<AlignBaseType,AlignBaseType>,double> marg_s2t_dict_grad_contrib;
-            Math2D::Matrix<double> marg_s2t_align_grad_contrib(curI + 1, curI, 0.0);
-
-            for (uint ii = 0; ii < 2 * curI; ii++) {
-              if (ii != i_outer) {
-                aux_s2t_forward(ii, j_outer) = 0.0;
-                aux_s2t_backward(ii, j_outer) = 0.0;
-              }
-            }
-
-            //recompute forward (where necessary)
-            for (uint jj = j_outer + 1; jj < curJ; jj++) {
-              const uint j_prev = jj - 1;
-              const uint s_idx = cur_source[jj];
-
-              for (uint i = 0; i < curI; i++) {
-
-                long double sum = 0.0;
-                for (uint i_prev = 0; i_prev < curI; i_prev++)
-                  sum += cur_s2t_align_model(i, i_prev) * (aux_s2t_forward(i_prev, j_prev) + aux_s2t_forward(i_prev + curI, j_prev));
-
-                aux_s2t_forward(i, jj) = sum * s2t_dict[cur_target[i]][cur_slookup(jj, i)];
-                assert(s2t_forward(i, jj) >= 0.0);
-              }
-
-              long double cur_emptyword_prob = s2t_dict[0][s_idx - 1];
-              assert(cur_emptyword_prob >= 0.0);
-
-              for (uint i = curI; i < 2 * curI; i++) {
-
-                long double sum = cur_s2t_align_model(curI, i - curI) * (aux_s2t_forward(i, j_prev) + aux_s2t_forward(i - curI, j_prev));
-                aux_s2t_forward(i, jj) = sum * cur_emptyword_prob;
-
-                assert(s2t_forward(i, jj) >= 0.0);
-              }
-            }
-
-            //recompute backward (where necessary)
-            for (int jj = j_outer - 1; jj >= 0; jj--) {
-
-              const uint s_idx = cur_source[jj];
-              const uint j_next = jj + 1;
-
-              for (uint i = 0; i < curI; i++) {
-
-                long double sum = 0.0;
-                for (uint i_next = 0; i_next < curI; i_next++)
-                  sum += aux_s2t_backward(i_next, j_next) * cur_s2t_align_model(i_next, i);
-                sum += aux_s2t_backward(i + curI, j_next) * cur_s2t_align_model(curI, i);
-
-                aux_s2t_backward(i, jj) = sum * s2t_dict[cur_target[i]][cur_slookup(jj, i)];
-              }
-
-              long double cur_emptyword_prob = s2t_dict[0][s_idx - 1];
-
-              for (uint i = curI; i < 2 * curI; i++) {
-
-                long double sum = 0.0;
-                for (uint i_next = 0; i_next < curI; i_next++)
-                  sum += aux_s2t_backward(i_next, j_next) * cur_s2t_align_model(i_next, i - curI);
-                sum += aux_s2t_backward(i, j_next) * cur_s2t_align_model(curI, i - curI);
-
-                aux_s2t_backward(i, jj) = sum * cur_emptyword_prob;
-              }
-            }
-
-            //now compute marginal gradient
-
-            //start of sentence
-            for (uint ii = 0; ii < curI; ii++) {
-              uint t_idx = cur_target[ii];
-
-              double coeff = aux_s2t_backward(ii, 0);
-
-              if (s2t_dict[t_idx][cur_slookup(0, ii)] > 1e-300) {
-
-                marg_s2t_dict_grad_contrib[std::make_pair(t_idx, cur_slookup(0, ii))] -=
-                  coeff * s2t_initial_prob[curI - 1][ii] / s2t_dict[t_idx][cur_slookup(0, ii)];
-              }
-            }
-            for (uint ii = 0; ii < curI; ii++) {
-
-              double coeff = aux_s2t_backward(ii + curI, 0);
-
-              if (s2t_dict[0][start_s_idx - 1] > 1e-300) {
-
-                marg_s2t_dict_grad_contrib[std::make_pair(0, start_s_idx - 1)] -=
-                  coeff * s2t_initial_prob[curI - 1][ii + curI] / s2t_dict[0][start_s_idx - 1];
-              }
-            }
-
-            //mid-sentence
-            for (uint jj = 1; jj < curJ; jj++) {
-              const uint s_idx = cur_source[jj];
-              const uint j_prev = jj - 1;
-
-              //real positions
-              for (uint i = 0; i < curI; i++) {
-                const uint t_idx = cur_target[i];
-
-                if (s2t_dict[t_idx][cur_slookup(jj, i)] > 1e-70) {
-                  marg_s2t_dict_grad_contrib[std::make_pair(t_idx, cur_slookup(jj, i))] -=
-                    aux_s2t_forward(i, jj) * aux_s2t_backward(i, jj) / (s2t_dict[t_idx][cur_slookup(jj, i)] * s2t_dict[t_idx][cur_slookup(jj, i)]);
-
-                  long double bw = aux_s2t_backward(i, jj);
-
-                  uint i_prev;
-                  double addon;
-
-                  for (i_prev = 0; i_prev < curI; i_prev++) {
-                    addon = bw * (aux_s2t_forward(i_prev, j_prev) + aux_s2t_forward(i_prev + curI, j_prev));
-                    if (fabs(addon) < 1e12)
-                      marg_s2t_align_grad_contrib(i, i_prev) -= addon;
-                  }
-                }
-              }
-
-              //empty words
-              for (uint i = curI; i < 2 * curI; i++) {
-
-                long double bw = aux_s2t_backward(i, jj);
-
-                if (s2t_dict[0][s_idx - 1] > 1e-70) {
-
-                  double contrib = bw * aux_s2t_forward(i, jj) / (s2t_dict[0][s_idx - 1] * s2t_dict[0][s_idx - 1]);
-
-                  if (fabs(contrib) < 1e12)
-                    marg_s2t_dict_grad_contrib[std::make_pair(0, s_idx - 1)] -= contrib;
-                }
-
-                long double align_addon = bw * (aux_s2t_forward(i, j_prev) + aux_s2t_forward(i - curI, j_prev));
-                if (fabs(align_addon) < 1e12)
-                  marg_s2t_align_grad_contrib(curI, i - curI) -= align_addon;
-              }
-            }
-
-#if 1
-            //finally, combine the two gradients to the actual gradient
-            //NOTE: at present we ignore the sentence start distribution
-            for (std::map<std::pair<AlignBaseType,AlignBaseType>,double >::const_iterator it = marg_s2t_dict_grad_contrib.begin();
-                 it != marg_s2t_dict_grad_contrib.end(); it++) {
-
-              uint k = it->first.first;
-              uint l = it->first.second;
-
-              assert(k < s2t_dict_grad.size());
-              assert(l < s2t_dict_grad[k].size());
-              assert(cur_s2t_dict_grad_contrib.find(it->first) != cur_s2t_dict_grad_contrib.end());
-
-              double addon = cur_diff * gamma * (s2t_sentence_prob * it->second - cur_s2t_dict_grad_contrib[it->first]
-                                                 * s2t_joint_marginal(i_outer, j_outer)) / s2t_denom;
-
-              //std::cerr << "addon: " << addon << " (denom = " << s2t_denom << ")" << std::endl;
-              if (fabs(addon) < 1e12)
-                s2t_dict_grad[k][l] += addon;
-            }
-#endif
-
-            //update alignment gradient
-            for (uint k = 0; k < cur_s2t_align_grad.size(); k++) {
-
-              double contrib = cur_diff * gamma *
-                               (s2t_sentence_prob * marg_s2t_align_grad_contrib.direct_access(k)
-                                - cur_s2t_align_grad_contrib.direct_access(k) * s2t_joint_marginal(i_outer, j_outer)) / s2t_denom;
-
-              if (fabs(contrib) < 1e12)
-                cur_s2t_align_grad.direct_access(k) += contrib;
-            }
-
-#if 1
-            // t2s
-
-            double t2s_denom = t2s_sentence_prob * t2s_sentence_prob;
-
-            Math2D::NamedMatrix<long double> aux_t2s_forward = t2s_forward;
-            Math2D::NamedMatrix<long double> aux_t2s_backward = t2s_backward;
-
-            std::map<std::pair<AlignBaseType,AlignBaseType>,double> marg_t2s_dict_grad_contrib;
-            Math2D::Matrix<double> marg_t2s_align_grad_contrib(curJ + 1, curJ, 0.0);
-
-            for (uint jj = 0; jj < 2 * curJ; jj++) {
-
-              aux_t2s_forward(jj, i_outer) = 0.0;
-              aux_t2s_backward(jj, i_outer) = 0.0;
-            }
-
-            //compute forward (where necessary)
-            for (uint ii = i_outer + 1; ii < curI; ii++) {
-              const uint i_prev = ii - 1;
-              const uint t_idx = cur_target[ii];
-
-              for (uint j = 0; j < curJ; j++) {
-
-                long double sum = 0.0;
-                for (uint j_prev = 0; j_prev < curJ; j_prev++)
-                  sum += cur_t2s_align_model(j, j_prev) * (aux_t2s_forward(j_prev, i_prev) + aux_t2s_forward(j_prev + curJ, i_prev));
-
-                aux_t2s_forward(j, ii) = sum * t2s_dict[cur_source[j]][cur_tlookup(ii, j)];
-                assert(aux_t2s_forward(j, ii) >= 0.0);
-              }
-
-              long double cur_emptyword_prob = t2s_dict[0][t_idx - 1];
-              assert(cur_emptyword_prob >= 0.0);
-
-              for (uint j = curJ; j < 2 * curJ; j++) {
-
-                long double sum = cur_t2s_align_model(curJ, j - curJ) * (aux_t2s_forward(j, i_prev) + aux_t2s_forward(j - curJ, i_prev));
-                aux_t2s_forward(j, ii) = sum * cur_emptyword_prob;
-
-                assert(aux_t2s_forward(j, ii) >= 0.0);
-              }
-            }
-
-            //compute backward (where necessary)
-            for (int ii = i_outer - 1; ii >= 0; ii--) {
-
-              const uint t_idx = cur_target[ii];
-              const uint i_next = ii + 1;
-
-              for (uint j = 0; j < curJ; j++) {
-
-                long double sum = 0.0;
-                for (uint j_next = 0; j_next < curJ; j_next++)
-                  sum += aux_t2s_backward(j_next, i_next) * cur_t2s_align_model(j_next, j);
-                sum += aux_t2s_backward(j + curJ, i_next) * cur_t2s_align_model(curJ, j);
-
-                aux_t2s_backward(j, ii) = sum * t2s_dict[cur_source[j]][cur_tlookup(ii, j)];
-              }
-
-              long double cur_emptyword_prob = t2s_dict[0][t_idx - 1];
-
-              for (uint j = curJ; j < 2 * curJ; j++) {
-
-                long double sum = 0.0;
-                for (uint j_next = 0; j_next < curJ; j_next++)
-                  sum += aux_t2s_backward(j_next, i_next) * cur_t2s_align_model(j_next, j - curJ);
-                sum += aux_t2s_backward(j, i_next) * cur_t2s_align_model(curJ, j - curJ);
-
-                aux_t2s_backward(j, ii) = sum * cur_emptyword_prob;
-              }
-            }
-
-            //compute marginal gradients
-            //start of sentence
-            for (uint j = 0; j < curJ; j++) {
-              uint s_idx = cur_source[j];
-
-              double coeff = aux_t2s_backward(j, 0);
-
-              if (t2s_dict[s_idx][cur_tlookup(0, j)] > 1e-300) {
-
-                double contrib = coeff * t2s_initial_prob[curJ - 1][j] / t2s_dict[s_idx][cur_tlookup(0, j)];
-
-                if (fabs(contrib) < 1e12)
-                  marg_t2s_dict_grad_contrib[std::make_pair(s_idx, cur_tlookup(0, j))] -= contrib;
-              }
-            }
-            for (uint j = 0; j < curJ; j++) {
-
-              double coeff = aux_t2s_backward(j + curJ, 0);
-
-              if (t2s_dict[0][start_t_idx - 1] > 1e-300) {
-
-                double contrib = coeff * t2s_initial_prob[curJ - 1][j + curJ] / t2s_dict[0][start_t_idx - 1];
-
-                if (fabs(contrib) < 1e12)
-                  marg_t2s_dict_grad_contrib[std::make_pair(0, start_t_idx - 1)] -= contrib;
-              }
-            }
-
-            //mid-sentence
-            for (uint i = 1; i < curI; i++) {
-              const uint t_idx = cur_target[i];
-              const uint i_prev = i - 1;
-
-              //real positions
-              for (uint j = 0; j < curJ; j++) {
-                const uint s_idx = cur_source[j];
-
-                if (t2s_dict[s_idx][cur_tlookup(i, j)] > 1e-70) {
-                  marg_t2s_dict_grad_contrib[std::make_pair(s_idx, cur_tlookup(i, j))] -=
-                    aux_t2s_forward(j, i) * aux_t2s_backward(j, i) / (t2s_dict[s_idx][cur_tlookup(i, j)] * t2s_dict[s_idx][cur_tlookup(i, j)]);
-
-                  long double bw = aux_t2s_backward(j, i);
-
-                  uint j_prev;
-                  double addon;
-
-                  for (j_prev = 0; j_prev < curJ; j_prev++) {
-                    addon = bw * (aux_t2s_forward(j_prev, i_prev) + aux_t2s_forward(j_prev + curJ, i_prev));
-                    if (fabs(addon) < 1e12)
-                      marg_t2s_align_grad_contrib(j, j_prev) -= addon;
-                  }
-                }
-              }
-
-              //empty words
-              for (uint j = curJ; j < 2 * curJ; j++) {
-
-                long double bw = aux_t2s_backward(j, i);
-
-                if (t2s_dict[0][t_idx - 1] > 1e-70) {
-
-                  double contrib = bw * aux_t2s_forward(j, i) / (t2s_dict[0][t_idx - 1] * t2s_dict[0][t_idx - 1]);
-
-                  if (fabs(contrib) < 1e12)
-                    marg_t2s_dict_grad_contrib[std::make_pair(0, t_idx - 1)] -= contrib;
-                }
-
-                long double align_addon = bw * (aux_t2s_forward(j, i_prev) + aux_t2s_forward(j - curJ, i_prev));
-                if (fabs(align_addon) < 1e12)
-                  marg_t2s_align_grad_contrib(curJ, j - curJ) -= align_addon;
-              }
-            }
-
-            //combine the gradients - NOTE: minus-sign here!!
-
-            //NOTE: at present we ignore the sentence start distribution
-
-            for (std::map<std::pair<AlignBaseType,AlignBaseType>, double>::const_iterator it = marg_t2s_dict_grad_contrib.begin();
-                 it != marg_t2s_dict_grad_contrib.end(); it++) {
-
-              uint k = it->first.first;
-              uint l = it->first.second;
-
-              double contrib = cur_diff * gamma * (t2s_sentence_prob * it->second -
-                                                   cur_t2s_dict_grad_contrib[it->first] * t2s_joint_marginal(i_outer, j_outer)) / t2s_denom;
-
-              if (fabs(contrib) < 1e12)
-                t2s_dict_grad[k][l] -= contrib;
-            }
-
-            //update alignment gradient
-            for (uint k = 0; k < cur_t2s_align_grad.size(); k++) {
-
-              double contrib = cur_diff * gamma * (t2s_sentence_prob * marg_t2s_align_grad_contrib.direct_access(k)
-                                                   - cur_t2s_align_grad_contrib.direct_access(k) * t2s_joint_marginal(i_outer, j_outer)) / t2s_denom;
-
-              if (fabs(contrib) < 1e12)
-                cur_t2s_align_grad.direct_access(k) -= contrib;
-            }
-#endif
-          }
-        }
-      }
-#endif
-    }
-
-    /**** go in neg-gradient direction ****/
-
-    double alpha = 0.5;
-
-    std::cerr << "A" << std::endl;
-
-    for (uint i = 0; i < nTargetWords; i++) {
-
-      for (uint k = 0; k < s2t_dict[i].size(); k++)
-        new_s2t_dict[i][k] = s2t_dict[i][k] - alpha * s2t_dict_grad[i][k];
-    }
-    for (uint j = 0; j < nSourceWords; j++) {
-
-      for (uint k = 0; k < t2s_dict[j].size(); k++)
-        new_t2s_dict[j][k] = t2s_dict[j][k] - alpha * t2s_dict_grad[j][k];
-    }
-
-    std::cerr << "B" << std::endl;
-
-    for (uint I = 1; I <= maxI; I++) {
-      for (uint k = 0; k < new_s2t_init_prob[I - 1].size(); k++)
-        new_s2t_init_prob[I - 1].direct_access(k) = s2t_initial_prob[I - 1].direct_access(k);
-      //- alpha * s2t_init_grad[I-1].direct_access(k);
-
-      for (uint k = 0; k < new_s2t_align_prob[I - 1].size(); k++)
-        new_s2t_align_prob[I - 1].direct_access(k) = s2t_align_model[I - 1].direct_access(k) - alpha * s2t_align_grad[I - 1].direct_access(k);
-    }
-
-    std::cerr << "C" << std::endl;
-
-    for (uint J = 1; J <= maxJ; J++) {
-      assert(new_t2s_init_prob[J - 1].size() == t2s_initial_prob[J - 1].size());
-      for (uint k = 0; k < new_t2s_init_prob[J - 1].size(); k++)
-        new_t2s_init_prob[J - 1].direct_access(k) = t2s_initial_prob[J - 1].direct_access(k);
-      //- alpha * t2s_init_grad[J-1].direct_access(k);
-
-      assert(new_t2s_align_prob[J - 1].size() == t2s_align_model[J - 1].size());
-      assert(new_t2s_align_prob[J - 1].size() == t2s_align_grad[J - 1].size());
-      for (uint k = 0; k < new_t2s_align_prob[J - 1].size(); k++)
-        new_t2s_align_prob[J - 1].direct_access(k) = t2s_align_model[J - 1].direct_access(k) - alpha * t2s_align_grad[J - 1].direct_access(k);
-    }
-
-    std::cerr << "D" << std::endl;
-
-    /**** reproject on the simplices [Michelot 1986]****/
-
-    for (uint i = 0; i < nTargetWords; i++) {
-      //std::cerr << "i: " << i << std::endl;
-
-      const uint nCurWords = new_s2t_dict[i].size();
-      assert(nCurWords == s2t_dict[i].size());
-
-      //std::cerr << "dict size: " << nCurWords << std::endl;
-      //std::cerr << "dict before reprojecting: " << new_s2t_dict[i] << std::endl;
-
-      projection_on_simplex(new_s2t_dict[i].direct_access(), nCurWords, hmm_min_dict_entry);
-    }
-    std::cerr << "D2" << std::endl;
-    for (uint j = 0; j < nSourceWords; j++) {
-      //std::cerr << "j: " << j << std::endl;
-
-      //       if (j == 0)
-      //        std::cerr << "cur_dict: " << new_t2s_dict[j] << std::endl;
-
-      const uint nCurWords = new_t2s_dict[j].size();
-      assert(nCurWords == t2s_dict[j].size());
-
-      projection_on_simplex(new_t2s_dict[j].direct_access(), nCurWords, hmm_min_dict_entry);
-    }
-
-    std::cerr << "E" << std::endl;
-
-    for (uint I = 1; I <= maxI; I++) {
-
-      if (new_s2t_init_prob[I - 1].size() > 0) {
-        projection_on_simplex(new_s2t_init_prob[I - 1].direct_access(), new_s2t_init_prob[I - 1].size());
-
-        uint xDim = new_s2t_align_prob[I - 1].xDim();
-
-        for (uint y = 0; y < new_s2t_align_prob[I - 1].yDim(); y++) {
-
-          projection_on_simplex(new_s2t_align_prob[I - 1].direct_access() + y * xDim, xDim, hmm_min_param_entry);
-        }
-      }
-    }
-
-    std::cerr << "F" << std::endl;
-
-    for (uint J = 1; J <= maxJ; J++) {
-
-      if (new_t2s_init_prob[J - 1].size() > 0) {
-        projection_on_simplex(new_t2s_init_prob[J - 1].direct_access(), new_t2s_init_prob[J - 1].size(), hmm_min_param_entry);
-
-        uint xDim = new_t2s_align_prob[J - 1].xDim();
-
-        for (uint y = 0; y < new_t2s_align_prob[J - 1].yDim(); y++) {
-          projection_on_simplex(new_t2s_align_prob[J - 1].direct_access() + y * xDim, xDim, hmm_min_param_entry);
-        }
-      }
-    }
-
-    std::cerr << "G" << std::endl;
-
-    /**** find suitable step-size ****/
-
-    double hyp_energy = symEHMM_energy(source, slookup, tlookup, target, new_s2t_align_prob, new_t2s_align_prob,
-                                       new_s2t_init_prob, new_t2s_init_prob, new_s2t_dict, new_t2s_dict, gamma);
-
-    std::cerr << "full step energy: " << hyp_energy << std::endl;
-
-    uint nInnerIter = 0;
-
-    bool decreasing = true;
-
-    double lambda = 1.0;
-    double best_lambda = 1.0;
-
-    while (hyp_energy > energy || decreasing) {
-
-      nInnerIter++;
-
-      if (hyp_energy <= 0.95 * energy)
-        break;
-
-      if (hyp_energy < 0.99 * energy && nInnerIter > 3)
-        break;
-
-      lambda *= line_reduction_factor;
-
-      double inv_lambda = 1.0 - lambda;
-
-      for (uint i = 0; i < nTargetWords; i++) {
-
-        for (uint k = 0; k < s2t_dict[i].size(); k++)
-          hyp_s2t_dict[i][k] = inv_lambda * s2t_dict[i][k] + lambda * new_s2t_dict[i][k];
-      }
-      for (uint j = 0; j < nSourceWords; j++) {
-
-        for (uint k = 0; k < t2s_dict[j].size(); k++)
-          hyp_t2s_dict[j][k] = inv_lambda * t2s_dict[j][k] + lambda * new_t2s_dict[j][k];
-      }
-
-      for (uint I = 1; I <= maxI; I++) {
-
-        for (uint k = 0; k < new_s2t_init_prob[I - 1].size(); k++)
-          hyp_s2t_init_prob[I - 1].direct_access(k) = inv_lambda * s2t_initial_prob[I - 1].direct_access(k)
-              + lambda * new_s2t_init_prob[I - 1].direct_access(k);
-
-        for (uint k = 0; k < new_s2t_align_prob[I - 1].size(); k++)
-          hyp_s2t_align_prob[I - 1].direct_access(k) = inv_lambda * s2t_align_model[I - 1].direct_access(k)
-              + lambda * new_s2t_align_prob[I - 1].direct_access(k);
-      }
-
-      for (uint J = 1; J <= maxJ; J++) {
-
-        for (uint k = 0; k < new_t2s_init_prob[J - 1].size(); k++)
-          hyp_t2s_init_prob[J - 1].direct_access(k) = inv_lambda * t2s_initial_prob[J - 1].direct_access(k)
-              + lambda * new_t2s_init_prob[J - 1].direct_access(k);
-
-        for (uint k = 0; k < new_t2s_align_prob[J - 1].size(); k++)
-          hyp_t2s_align_prob[J - 1].direct_access(k) = inv_lambda * t2s_align_model[J - 1].direct_access(k)
-              + lambda * new_t2s_align_prob[J - 1].direct_access(k);
-      }
-
-      double new_energy = symEHMM_energy(source, slookup, tlookup, target, hyp_s2t_align_prob, hyp_t2s_align_prob, hyp_s2t_init_prob,
-                                         hyp_t2s_init_prob, hyp_s2t_dict, hyp_t2s_dict, gamma);
-
-      std::cerr << "new hyp: " << new_energy << ", previous: " << hyp_energy << std::endl;
-
-      if (new_energy < hyp_energy) {
-        hyp_energy = new_energy;
-        best_lambda = lambda;
-        decreasing = true;
-      }
-      else
-        decreasing = false;
-    }
-
-    if (nInnerIter > 4) {
-      nSuccessiveReductions++;
-    }
-    else {
-      nSuccessiveReductions = 0;
-    }
-
-    if (nSuccessiveReductions > 15) {
-      line_reduction_factor *= 0.9;
-      nSuccessiveReductions = 0;
-    }
-
-    /**** update everything according to the determined step-size ******/
-
-    double inv_best_lambda = 1.0 - best_lambda;
-
-    for (uint i = 0; i < nTargetWords; i++) {
-
-      for (uint k = 0; k < s2t_dict[i].size(); k++)
-        s2t_dict[i][k] = inv_best_lambda * s2t_dict[i][k] + best_lambda * new_s2t_dict[i][k];
-    }
-    for (uint j = 0; j < nSourceWords; j++) {
-
-      for (uint k = 0; k < t2s_dict[j].size(); k++)
-        t2s_dict[j][k] = inv_best_lambda * t2s_dict[j][k] + best_lambda * new_t2s_dict[j][k];
-    }
-
-    for (uint I = 1; I <= maxI; I++) {
-
-      if (seenIs.find(I) != seenIs.end()) {
-        for (uint k = 0; k < new_s2t_init_prob[I - 1].size(); k++)
-          s2t_initial_prob[I - 1].direct_access(k) = inv_best_lambda * s2t_initial_prob[I - 1].direct_access(k)
-              + best_lambda * new_s2t_init_prob[I - 1].direct_access(k);
-
-        for (uint k = 0; k < new_s2t_align_prob[I - 1].size(); k++)
-          s2t_align_model[I - 1].direct_access(k) = inv_best_lambda * s2t_align_model[I - 1].direct_access(k)
-              + best_lambda * new_s2t_align_prob[I - 1].direct_access(k);
-      }
-    }
-
-    for (uint J = 1; J <= maxJ; J++) {
-      for (uint k = 0; k < new_t2s_init_prob[J - 1].size(); k++)
-        t2s_initial_prob[J - 1].direct_access(k) = inv_best_lambda * t2s_initial_prob[J - 1].direct_access(k)
-            + best_lambda * new_t2s_init_prob[J - 1].direct_access(k);
-
-      for (uint k = 0; k < new_t2s_align_prob[J - 1].size(); k++)
-        t2s_align_model[J - 1].direct_access(k) = inv_best_lambda * t2s_align_model[J - 1].direct_access(k)
-            + best_lambda * new_t2s_align_prob[J - 1].direct_access(k);
-    }
-
-    energy = hyp_energy;
-
-    /************* compute alignment error rate ****************/
-    if (!possible_ref_alignments.empty()) {
-
-      double sum_aer = 0.0;
-      double sum_fmeasure = 0.0;
-      double nErrors = 0.0;
-      uint nContributors = 0;
-
-      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::iterator it = possible_ref_alignments.begin();
-           it != possible_ref_alignments.end(); it++) {
-
-        uint s = it->first - 1;
-
-        if (s >= nSentences)
-          break;
-
-        std::set<std::pair<AlignBaseType,AlignBaseType> > alignment;
-
-        derive_symEHMM_alignment(source[s], slookup[s], tlookup[s], target[s], s2t_align_model, t2s_align_model,
-                                 s2t_initial_prob, t2s_initial_prob, s2t_dict, t2s_dict, alignment, 0.15);
-
-        nContributors++;
-
-        //add alignment error rate
-        sum_aer += AER(alignment, sure_ref_alignments[s + 1], possible_ref_alignments[s + 1]);
-        sum_fmeasure += f_measure(alignment, sure_ref_alignments[s + 1], possible_ref_alignments[s + 1]);
-        nErrors += nDefiniteAlignmentErrors(alignment, sure_ref_alignments[s + 1], possible_ref_alignments[s + 1]);
-      }
-
-      sum_aer *= 100.0 / nContributors;
-      sum_fmeasure /= nContributors;
-      nErrors /= nContributors;
-
-      std::cerr << "#### Sym-EHMM AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
-      std::cerr << "#### Sym-EHMM fmeasure after iteration #" << iter << ": " << sum_fmeasure << std::endl;
-      std::cerr << "#### Sym-EHMM DAE/S after iteration #" << iter << ": " << nErrors << std::endl;
-    }
-  }
 }

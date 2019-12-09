@@ -123,6 +123,23 @@ namespace Math1D {
   protected:
     std::string name_;
   };
+  
+  //NOTE: dest can be the same as src1 or src2
+  inline void go_in_neg_direction(Math1D::Vector<double>& dest, const Math1D::Vector<double>& src1, const Math1D::Vector<double>& src2, double alpha) {
+    
+    assert(dest.size() == src1.size());
+    assert(dest.size() == src2.size());
+    Makros::go_in_neg_direction(dest.direct_access(), dest.size(), src1.direct_access(), src2.direct_access(), alpha);
+  }
+
+  //NOTE: dest can be the same as src1 or src2
+  inline void assign_weighted_combination(Math1D::Vector<double>& dest, double w1, const Math1D::Vector<double>& src1, 
+                                          double w2, const Math1D::Vector<double>& src2) {
+  
+    assert(dest.size() == src1.size());
+    assert(dest.size() == src2.size());
+    Makros::assign_weighted_combination(dest.direct_access(), dest.size(), w1, src1.direct_access(), w2, src2.direct_access());
+  }
 
   /***********************************************/
   /*************** operators *********************/

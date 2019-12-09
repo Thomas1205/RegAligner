@@ -61,6 +61,8 @@ enum IBM23ParametricMode {IBM23ParByPosition, IBM23ParByDifference, IBM23Nonpar}
 
 enum MStepSolveMode {MSSolvePGD, MSSolveLBFGS, MSSolveGD};
 
+enum ProjectionMode {Simplex, PosOrthant};
+
 enum IlpMode {IlpOff, IlpComputeOnly, IlpCenter};
 
 enum FertNullModel {FertNullNondeficient, FertNullOchNey, FertNullIntra};

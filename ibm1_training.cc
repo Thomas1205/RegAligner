@@ -82,15 +82,15 @@ double ibm1_energy(const Storage1D<Math1D::Vector<uint> >& source, const LookupT
 
       const Math1D::Vector<double>& cur_dict = dict[i];
       const Math1D::Vector<float>& cur_prior = prior_weight[i];
-      
+
       const uint size = cur_dict.size();
 
       if (smoothed_l0) {
-        for (uint k = 0; k < size; k++) 
+        for (uint k = 0; k < size; k++)
           energy += cur_prior[k] * prob_penalty(cur_dict[k], l0_beta);
       }
       else {
-        for (uint k = 0; k < size; k++) 
+        for (uint k = 0; k < size; k++)
           energy += cur_prior[k] * cur_dict[k];
       }
     }
@@ -117,7 +117,7 @@ void train_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
 
   double dict_weight_sum = 0.0;
   for (uint i = 0; i < options.nTargetWords_; i++) {
-    dict_weight_sum += fabs(prior_weight[i].sum());
+    dict_weight_sum += prior_weight[i].max_abs();
   }
 
   const uint nSourceWords = options.nSourceWords_;
@@ -305,7 +305,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, c
 
   double dict_weight_sum = 0.0;
   for (uint i = 0; i < options.nTargetWords_; i++) {
-    dict_weight_sum += fabs(prior_weight[i].sum());
+    dict_weight_sum += prior_weight[i].max_abs();
   }
 
   //prepare dictionary
@@ -456,21 +456,24 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, c
 
     /**** compute lower bound ****/
 
-    double lower_bound = energy;
-    for (uint i = 0; i < options.nTargetWords_; i++) {
+    //lower bounds can only be derived for convex functions. L0 isn't convex!!!
+    if (dict_weight_sum == 0.0 || !smoothed_l0) {
+      double lower_bound = energy;
+      for (uint i = 0; i < options.nTargetWords_; i++) {
 
-      const Math1D::Vector<double>& cur_dict_grad = dict_grad[i];
+        const Math1D::Vector<double>& cur_dict_grad = dict_grad[i];
 
-      if (dict_weight_sum != 0.0) //consider slack gradient of 0
-        lower_bound += std::min(0.0, cur_dict_grad.min());
-      else
-        lower_bound += cur_dict_grad.min();
-      lower_bound -= cur_dict_grad % dict[i];
+        if (dict_weight_sum != 0.0) //consider slack gradient of 0
+          lower_bound += std::min(0.0, cur_dict_grad.min());
+        else
+          lower_bound += cur_dict_grad.min();
+        lower_bound -= cur_dict_grad % dict[i];
+      }
+
+      best_lower_bound = std::max(best_lower_bound, lower_bound);
+
+      std::cerr << "lower bound: " << lower_bound << ", best known: " << best_lower_bound << std::endl;
     }
-
-    best_lower_bound = std::max(best_lower_bound, lower_bound);
-
-    std::cerr << "lower bound: " << lower_bound << ", best known: " << best_lower_bound << std::endl;
 
     //SPG--START
 #if 0
@@ -517,9 +520,9 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, c
 
     for (uint i = 0; i < options.nTargetWords_; i++) {
 
-      //for (uint k = 0; k < dict[i].size(); k++) 
+      //for (uint k = 0; k < dict[i].size(); k++)
       //  new_dict[i][k] = dict[i][k] - real_alpha * dict_grad[i][k];
-      Makros::go_in_neg_direction(new_dict[i].direct_access(), dict[i].size(), dict[i].direct_access(), dict_grad[i].direct_access(), real_alpha);
+      Math1D::go_in_neg_direction(new_dict[i], dict[i], dict_grad[i], real_alpha);
     }
 
     if (dict_weight_sum != 0.0)
@@ -569,10 +572,9 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, c
 
         //for (uint k = 0; k < dict[i].size(); k++)
         //  hyp_dict[i][k] = neg_lambda * dict[i][k] + lambda * new_dict[i][k];
-             
-        assert(dict[i].size() == hyp_dict[i].size());       
-        Makros::assign_weighted_combination(hyp_dict[i].direct_access(), dict[i].size(), neg_lambda, dict[i].direct_access(),
-                                            lambda, new_dict[i].direct_access());
+
+        assert(dict[i].size() == hyp_dict[i].size());
+        Math1D::assign_weighted_combination(hyp_dict[i], neg_lambda, dict[i], lambda, new_dict[i]);
       }
 
       double new_energy = ibm1_energy(source, slookup, target, hyp_dict, wcooc, nSourceWords, prior_weight, smoothed_l0, l0_beta, dict_weight_sum);
@@ -615,12 +617,11 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, c
       //for (uint k = 0; k < dict[i].size(); k++)
       //  dict[i][k] = neg_best_lambda * dict[i][k] + best_lambda * new_dict[i][k];
 
-      Makros::assign_weighted_combination(dict[i].direct_access(), dict[i].size(), neg_best_lambda, dict[i].direct_access(),
-                                          best_lambda, new_dict[i].direct_access());
-
-      if (dict_weight_sum > 0.0)
-        slack_vector[i] = neg_best_lambda * slack_vector[i] + best_lambda * new_slack_vector[i];
+      Math1D::assign_weighted_combination(dict[i], neg_best_lambda, dict[i], best_lambda, new_dict[i]);
     }
+    
+    if (dict_weight_sum > 0.0)
+      Math1D::assign_weighted_combination(slack_vector, neg_best_lambda, slack_vector, best_lambda, new_slack_vector);
 
 #ifndef NDEBUG
     double check_energy = ibm1_energy(source, slookup, target, dict, wcooc, nSourceWords, prior_weight, smoothed_l0, l0_beta, dict_weight_sum);
@@ -863,7 +864,7 @@ void train_ibm1_lbfgs_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source
 
   double dict_weight_sum = 0.0;
   for (uint i = 0; i < options.nTargetWords_; i++) {
-    dict_weight_sum += fabs(prior_weight[i].sum());
+    dict_weight_sum += prior_weight[i].max_abs();
   }
 
   //prepare dictionary
@@ -1549,6 +1550,11 @@ void ibm1_viterbi_training(const Storage1D<Math1D::Vector<uint> >& source, const
   }
   dict[0].set_constant(1.0 / dict[0].size());
 
+  double dict_weight_sum = 0.0;
+  for (uint i = 0; i < options.nTargetWords_; i++) {
+    dict_weight_sum += prior_weight[i].max_abs();
+  }
+
   SingleLookupTable aux_lookup;
 
   const uint nSourceWords = options.nSourceWords_;
@@ -1853,10 +1859,12 @@ void ibm1_viterbi_training(const Storage1D<Math1D::Vector<uint> >& source, const
     //std::cerr << "number of total alignments: " << sum_sum << std::endl;
     //std::cerr.precision(10);
 
-    for (uint i = 0; i < dcount.size(); i++)
-      for (uint k = 0; k < dcount[i].size(); k++)
-        if (dcount[i][k] > 0)
-          energy += prior_weight[i][k];
+    if (dict_weight_sum > 0.0) {
+      for (uint i = 0; i < dcount.size(); i++)
+        for (uint k = 0; k < dcount[i].size(); k++)
+          if (dcount[i][k] > 0)
+            energy += prior_weight[i][k];
+    }
 
     //we need to divide as we are truly minimizing the perplexity WITHOUT division plus the l0-term
     energy /= nSentences;

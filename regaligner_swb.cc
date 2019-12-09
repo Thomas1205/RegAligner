@@ -65,7 +65,10 @@ int main(int argc, char** argv)
               << " [-postdec-thresh <double>] : threshold for posterior decoding" << std::endl
               << " [-dont-print-energy] : do not print the energy (speeds up EM for IBM-1, IBM-2 and HMM)" << std::endl
               << " [-max-lookup <uint>] : only store lookup tables up to this size to save memory. Default: 65535" << std::endl
+              << "************ Options for the IBM-1 **************************"  << std::endl
+              << " [-ibm1-method (main | em | gd | viterbi)]: special method for IBM-1, default: main=as the others" << std::endl 
               << "************ Options for IBM-2 only **************************"  << std::endl
+              << " [-ibm2-p0 <double>] : empty word prob for the IBM-2 (default 0.02)" << std::endl
               << " [-ibm2-alignment] (pos | diff | nonpar) : parametric alignment model for IBM-2, default pos" << std::endl
               << "************ Options for HMM only *****************" << std::endl
               << " [-transfer-mode (no | viterbi | posterior)] : how to init HMM from IBM-1/2, default: no" << std::endl
@@ -108,7 +111,7 @@ int main(int argc, char** argv)
     exit(0);
   }
 
-  const int nParams = 60;
+  const int nParams = 62;
   ParamDescr params[nParams] = {
     {"-s", mandInFilename, 0, ""}, {"-t", mandInFilename, 0, ""}, {"-ds", optInFilename, 0, ""}, {"-dt", optInFilename, 0, ""},
     {"-o", optOutFilename, 0, ""}, {"-oa", mandOutFilename, 0, ""},  {"-refa", optInFilename, 0, ""}, {"-invert-biling-data", flag, 0, ""},
@@ -126,7 +129,8 @@ int main(int argc, char** argv)
     {"-deficient-h25", flag, 0, ""},{"-ibm4-deficient-null", optWithValue, 1, "intra"}, {"-rare-fert-limit", optWithValue, 1, "9"},
     {"-ibm2-alignment", optWithValue, 1, "pos"}, {"-no-h23-classes", flag, 0, ""}, {"-itg-max-mid-dev",optWithValue,1,"8"},{"-itg-ext-level",optWithValue,1,"0"},
     {"-ibm-max-skip", optWithValue,1,"3"},{"-dict-iter",optWithValue,1,"45"}, {"-nondef-iter",optWithValue,1,"250"}, {"-ibm5-nonpar-distortion", flag, 0, ""},
-    {"-uniform-start-prob", flag, 0, ""}, {"-start-param-iter", optWithValue, 1, "250"}, {"-main-param-iter", optWithValue, 1, "500"}
+    {"-uniform-start-prob", flag, 0, ""}, {"-start-param-iter", optWithValue, 1, "250"}, {"-main-param-iter", optWithValue, 1, "500"},
+    {"-ibm2-p0", optWithValue, 1, "0.02"}, {"-ibm1-method", optWithValue, 1, "main"}
   };
 
   Application app(argc, argv, params, nParams);
@@ -163,11 +167,18 @@ int main(int argc, char** argv)
   }
 
   std::string method = downcase(app.getParam("-method"));
-
-  if (method != "em" && method != "gd" && method != "viterbi") {
+  if (method != "em" && method != "gd" && method != "viterbi" && method != "l-bfgs") {
     USER_ERROR << "unknown method \"" << method << "\"" << std::endl;
     exit(1);
   }
+  
+  std::string ibm1_method = downcase(app.getParam("-ibm1-method"));
+  if (ibm1_method != "main" && ibm1_method != "em" && ibm1_method != "gd" && ibm1_method != "viterbi" && ibm1_method != "l-bfgs") {
+    USER_ERROR << "unknown ibm1-method \"" << ibm1_method << "\"" << std::endl;
+    exit(1);
+  }
+  if (ibm1_method == "main")
+    ibm1_method = method;
 
   double l0_fertpen = convert<double>(app.getParam("-fertpen"));
   if (method == "viterbi")
@@ -581,6 +592,7 @@ int main(int argc, char** argv)
   ibm2_options.dict_m_step_iter_ = dict_m_step_iter;
   ibm2_options.deficient_ = app.is_set("-deficient-h25");
   ibm2_options.align_m_step_iter_ = main_m_step_iter;
+  ibm2_options.p0_ = convert<double>(app.getParam("-ibm2-p0"));
 
   HmmOptions hmm_options(nSourceWords, nTargetWords, reduced_ibm2align_model, ibm2_sclass, sure_ref_alignments, possible_ref_alignments);
   hmm_options.nIterations_ = hmm_iter;
@@ -646,16 +658,15 @@ int main(int argc, char** argv)
 
   /*** IBM-1 ***/
 
-  if (method == "em") {
+  if (ibm1_method == "em") {
 
     train_ibm1(source_sentence, slookup, target_sentence, wcooc, dict, prior_weight, ibm1_options);
   }
-  else if (method == "gd") {
+  else if (ibm1_method == "gd") {
 
     train_ibm1_gd_stepcontrol(source_sentence, slookup, target_sentence, wcooc,  dict, prior_weight, ibm1_options);
   }
   else {
-
     ibm1_viterbi_training(source_sentence, slookup, target_sentence, wcooc, dict, prior_weight, ibm1_options, xlogx_table);
   }
 
@@ -674,9 +685,8 @@ int main(int argc, char** argv)
     }
     else if (method == "gd") {
 
-      std::cerr << "WARNING: IBM-2 is not available with gradient descent" << std::endl;
-      train_reduced_ibm2(source_sentence, slookup, target_sentence, wcooc, lcooc, reduced_ibm2align_model, reduced_ibm2align_param, source_fert,
-                         dict, ibm2_sclass, ibm2_options, prior_weight);
+      train_reduced_ibm2_gd_stepcontrol(source_sentence, slookup, target_sentence, wcooc, lcooc, reduced_ibm2align_model, reduced_ibm2align_param, source_fert,
+                                        dict, ibm2_sclass, ibm2_options, prior_weight);
     }
     else {
 

@@ -46,6 +46,7 @@ public:
   IBM1TransferMode transfer_mode_;
 
   MStepSolveMode msolve_mode_;
+  ProjectionMode projection_mode_ = Simplex;
 
   const ReducedIBM2ClassAlignmentModel& ibm2_alignment_model_;
   const Math1D::Vector<WordClassType>& ibm2_sclass_;
@@ -103,19 +104,11 @@ void par2nonpar_hmm_alignment_model(const Math1D::Vector<double>& dist_params, c
                                     const double dist_grouping_param, const Math1D::Vector<double>& source_fert,
                                     HmmAlignProbType align_type, bool deficient, FullHMMAlignmentModelNoClasses& align_model, int redpar_limit);
 
-void symtrain_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const LookupTable& tlookup,
-                           const Storage1D<Math1D::Vector<uint> >& target, uint nSourceWords, uint nTargetWords,
-                           FullHMMAlignmentModel& s2t_align_model, FullHMMAlignmentModel& t2s_align_model,
-                           InitialAlignmentProbability& s2t_initial_prob, InitialAlignmentProbability& t2s_initial_prob,
-                           SingleWordDictionary& s2t_dict, SingleWordDictionary& t2s_dict, uint nIterations,
-                           double gamma, std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
-                           std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments);
-
 double ehmm_m_step_energy(const Math1D::Vector<double>& singleton_count, double grouping_count, const Math2D::Matrix<double>& span_count,
                           const Math1D::Vector<double>& dist_params, uint zero_offset, double grouping_param, int redpar_limit);
 
 void ehmm_m_step(const FullHMMAlignmentModelNoClasses& facount, Math1D::Vector<double>& dist_params, uint zero_offset,
-                 uint nIter, double& grouping_param, bool deficient, int redpar_limit);
+                 uint nIter, double& grouping_param, bool deficient, int redpar_limit, ProjectionMode projection_mode = Simplex);
 
 void ehmm_m_step_unconstrained(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& dist_params,
                                uint zero_offset, uint nIter, double& grouping_param, bool deficient, int redpar_limit);
@@ -123,6 +116,6 @@ void ehmm_m_step_unconstrained(const FullHMMAlignmentModel& facount, Math1D::Vec
 void ehmm_m_step_unconstrained_LBFGS(const FullHMMAlignmentModel& facount, Math1D::Vector<double>& dist_params, uint zero_offset, uint nIter,
                                      double& grouping_param, uint L, bool deficient, int redpar_limit);
 
-void ehmm_init_m_step(const InitialAlignmentProbability& init_acount, Math1D::Vector<double>& init_params, uint nIter);
+void ehmm_init_m_step(const InitialAlignmentProbability& init_acount, Math1D::Vector<double>& init_params, uint nIter, ProjectionMode projection_mode = Simplex);
 
 #endif
