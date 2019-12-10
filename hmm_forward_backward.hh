@@ -8,7 +8,7 @@
 #include "matrix.hh"
 #include "training_common.hh"
 
-/******************************* interace routines *****************************/
+/******************************* interface routines *****************************/
 
 //forward
 
@@ -100,6 +100,12 @@ template<typename T>
 void calculate_sehmm_forward(const Storage1D<uint>& tclass, const Math2D::Matrix<double>& dict, const Math3D::Tensor<double>& align_model,
                              const Math1D::Vector<double>& start_prob, Math2D::Matrix<T>& forward);
 
+/** this exploits the special structure of reduced parametric models.
+    Make sure that you are using such a model **/
+template<typename T>
+void calculate_sehmm_forward_with_tricks(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model, 
+                                         const Math1D::Vector<double>& start_prob, Math2D::Matrix<T>& forward, int redpar_limit);
+
 /*** forward sum routines ***/
 
 double calculate_hmm_forward_log_sum(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model, const Math1D::Vector<double>& start_prob);
@@ -113,6 +119,9 @@ double calculate_hmm_forward_log_sum_with_tricks(const Math2D::Matrix<double>& d
                                                  const Math1D::Vector<double>& start_prob, int redpar_limit);
 
 double calculate_sehmm_forward_log_sum(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model, const Math1D::Vector<double>& start_prob);
+
+double calculate_sehmm_forward_log_sum_with_tricks(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model, 
+                                                   const Math1D::Vector<double>& start_prob, int redpar_limit);
 
 double calculate_sehmm_forward_log_sum(const Storage1D<uint>& source_sentence, const Storage1D<uint>& target_sentence,
                                        const SingleLookupTable& slookup, const Storage1D<uint>& tclass,
@@ -147,6 +156,10 @@ template<typename T>
 void calculate_hmm_backward_with_tricks(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model, const Math1D::Vector<double>& start_prob,
                                         Math2D::Matrix<T>& backward, bool include_start_alignment, int redpar_limit);
 
+template<typename T>
+void calculate_sehmm_backward_with_tricks(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model, const Math1D::Vector<double>& start_prob,
+                                          Math2D::Matrix<T>& backward, bool include_start_alignment, int redpar_limit);
+
 /************ implementation **********/
 
 template<typename T>
@@ -167,7 +180,9 @@ template<typename T>
 void calculate_hmm_forward(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model, const Math1D::Vector<double>& start_prob,
                            const HmmAlignProbType align_type, bool start_empty_word, Math2D::Matrix<T>& forward, int redpar_limit)
 {
-  if (start_empty_word)
+  if (start_empty_word && align_type == HmmAlignProbReducedpar)
+    calculate_sehmm_forward_with_tricks(dict, align_model, start_prob, forward, redpar_limit);
+  else if (start_empty_word)
     calculate_sehmm_forward(dict, align_model, start_prob, forward);
   else if (align_type == HmmAlignProbReducedpar)
     calculate_hmm_forward_with_tricks(dict, align_model, start_prob, forward, redpar_limit);
@@ -307,14 +322,14 @@ void calculate_sehmm_forward(const Math2D::Matrix<double>& dict, const Math2D::M
 
   for (uint i = 0; i < I; i++) {
     const double start_align_prob = start_prob[i];
-    forward(i, 0) = start_align_prob * dict(0,i);
+    forward(i, 0) = start_align_prob * dict(0, i);
   }
 
   for (uint i = I; i < 2 * I; i++) {
     forward(i, 0) = 0.0;
   }
   //initial empty word
-  forward(2 * I, 0) = start_prob[I] * dict(0,I);
+  forward(2 * I, 0) = start_prob[I] * dict(0, I);
 
   for (uint j = 1; j < J; j++) {
     const uint j_prev = j - 1;
@@ -333,12 +348,11 @@ void calculate_sehmm_forward(const Math2D::Matrix<double>& dict, const Math2D::M
       assert(!isnan(forward(i, j)));
     }
 
-    const T cur_emptyword_prob = dict(j,I);
+    const T cur_emptyword_prob = dict(j, I);
 
     for (uint i = I; i < 2 * I; i++) {
 
-      T sum = align_model(I, i - I) * (forward(i, j_prev) + forward(i - I, j_prev));
-
+      const T sum = align_model(I, i - I) * (forward(i, j_prev) + forward(i - I, j_prev));
       forward(i, j) = sum * cur_emptyword_prob;
     }
 
@@ -510,6 +524,96 @@ void calculate_hmm_forward_with_tricks(const Math2D::Matrix<double>& dict, const
   }
 }
 
+/** this exploits the special structure of reduced parametric models.
+    Make sure that you are using such a model **/
+template<typename T>
+void calculate_sehmm_forward_with_tricks(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model, 
+                                         const Math1D::Vector<double>& start_prob, Math2D::Matrix<T>& forward, int redpar_limit) 
+{
+  
+  const int I = dict.yDim() - 1;
+  const int J = dict.xDim();
+
+  Math1D::Vector<double> long_dist_align_prob(I, 0.0);
+  for (int i = 0; i < I; i++) {
+
+    if (i + redpar_limit + 1 < I)
+      long_dist_align_prob[i] = align_model(i + redpar_limit + 1, i);
+    else if (i - redpar_limit > 0)
+      long_dist_align_prob[i] = align_model(i - redpar_limit - 1, i);
+  }
+
+  forward.resize(2 * I + 1, J);
+
+  for (uint i = 0; i < I; i++) {
+    const double start_align_prob = start_prob[i];
+    forward(i, 0) = start_align_prob * dict(0,i);
+  }
+
+  for (uint i = I; i < 2 * I; i++) {
+    forward(i, 0) = 0.0;
+  }
+  //initial empty word
+  forward(2 * I, 0) = start_prob[I] * dict(0,I);
+
+  for (uint j = 1; j < J; j++) {
+    const uint j_prev = j - 1;
+
+    T prev_distant_sum = 0.0;
+    for (int i_prev = redpar_limit + 1; i_prev < I; i_prev++)
+      prev_distant_sum += (forward(i_prev, j_prev) +   forward(i_prev + I, j_prev)) * long_dist_align_prob[i_prev];
+
+    {
+      //i=0
+      T sum = prev_distant_sum;
+
+      for (int i_prev = 0; i_prev <= std::min(I - 1, redpar_limit); i_prev++) {
+        sum += align_model(0, i_prev) * (forward(i_prev, j_prev) + forward(i_prev + I, j_prev));
+      }
+      sum += start_prob[0] * forward(2 * I, j_prev);
+
+      forward(0, j) = sum * dict(j,0);
+    }
+
+    for (int i = 1; i < I; i++) {
+
+      if (i + redpar_limit < I)
+        prev_distant_sum -= (forward(i + redpar_limit, j_prev) + forward(i + redpar_limit + I, j_prev)) * long_dist_align_prob[i + redpar_limit];
+      if (i - redpar_limit > 0)
+        prev_distant_sum += (forward(i - redpar_limit - 1, j_prev) + forward(i - redpar_limit - 1 + I, j_prev)) * long_dist_align_prob[i - redpar_limit - 1];
+
+      T sum = prev_distant_sum;
+
+      for (int i_prev = std::max(0, i - redpar_limit); i_prev <= std::min(I - 1, i + redpar_limit); i_prev++) {
+        sum += align_model(i, i_prev) * (forward(i_prev, j_prev) + forward(i_prev + I, j_prev));
+      }
+      sum += start_prob[i] * forward(2 * I, j_prev);
+
+      //stability issues may arise here:
+      if (sum <= 0.0) {
+        sum = 0.0;
+        for (int i_prev = 0; i_prev < I; i_prev++)
+          sum += align_model(i, i_prev) * (forward(i_prev, j_prev) + forward(i_prev + I, j_prev));
+        sum += start_prob[i] * forward(2 * I, j_prev);
+      }
+
+      forward(i, j) = sum * dict(j,i);
+    }
+
+    const T cur_emptyword_prob = dict(j, I);
+
+    for (uint i = I; i < 2 * I; i++) {
+
+      T sum = align_model(I, i - I) * (forward(i, j_prev) + forward(i - I, j_prev));
+
+      forward(i, j) = sum * cur_emptyword_prob;
+    }
+
+    //initial empty word
+    forward(2 * I, j) = forward(2 * I, j_prev) * start_prob[I] * cur_emptyword_prob;
+  }
+}
+
 template<typename T>
 void calculate_hmm_backward(const Storage1D<uint>& source_sentence, const Storage1D<uint>& target_sentence, const SingleLookupTable& slookup,
                             const SingleWordDictionary& dict, const Math2D::Matrix<double>& align_model, const Math1D::Vector<double>& start_prob,
@@ -529,8 +633,10 @@ template<typename T>
 void calculate_hmm_backward(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model, const Math1D::Vector<double>& start_prob,
                             const HmmAlignProbType align_type, bool start_empty_word, Math2D::Matrix<T>& backward,
                             bool include_start_alignment, int redpar_limit)
-{ 
-  if (start_empty_word)
+{
+  if (start_empty_word && align_type == HmmAlignProbReducedpar)
+    calculate_sehmm_backward_with_tricks(dict, align_model, start_prob, backward, include_start_alignment, redpar_limit);
+  else if (start_empty_word)
     calculate_sehmm_backward(dict, align_model, start_prob, backward, include_start_alignment);
   else if (align_type == HmmAlignProbReducedpar)
     calculate_hmm_backward_with_tricks(dict, align_model, start_prob, backward, include_start_alignment, redpar_limit);
@@ -698,7 +804,7 @@ void calculate_sehmm_backward(const Math2D::Matrix<double>& dict, const Math2D::
   }
 
   if (include_start_alignment) {
-    for (uint i = 0; i < I; i++) 
+    for (uint i = 0; i < I; i++)
       backward(i, 0) *= start_prob[i];
     for (uint i=I; i < 2*I; i++)
       backward(i, 0) = 0.0;
@@ -711,26 +817,20 @@ template<typename T>
 void calculate_sehmm_backward(const Storage1D<uint>& tclass, const Math2D::Matrix<double>& dict, const Math3D::Tensor<double>& align_model,
                               const Math1D::Vector<double>& start_prob, Math2D::Matrix<T>& backward, bool include_start_alignment)
 {
-  //const uint I = target.size();
-  //const uint J = source.size();
-
   const int I = dict.yDim()-1;
   const int J = dict.xDim();
 
   backward.resize(2 * I + 1, J);
 
-  //const uint end_s_idx = source[J - 1];
-
   for (uint i = 0; i < I; i++)
-    backward(i, J - 1) = dict(J - 1, i); //dict[target[i]][slookup(J - 1, i)];
+    backward(i, J - 1) = dict(J - 1, i);
   for (uint i = I; i <= 2 * I; i++)
-    backward(i, J - 1) = dict(J - 1, I); //dict[0][end_s_idx - 1];
+    backward(i, J - 1) = dict(J - 1, I);
 
   for (int j = J - 2; j >= 0; j--) {
-    //const uint s_idx = source[j];
     const uint j_next = j + 1;
 
-    const T cur_emptyword_prob = dict(j, I); //dict[0][s_idx - 1];
+    const T cur_emptyword_prob = dict(j, I);
 
     for (uint i = 0; i < I; i++) {
 
@@ -739,7 +839,7 @@ void calculate_sehmm_backward(const Storage1D<uint>& tclass, const Math2D::Matri
         sum += backward(i_next, j_next) * align_model(i_next, i, tclass[i]);
       sum += backward(i + I, j_next) * align_model(I, i, tclass[i]);
 
-      backward(i, j) = sum * dict(j, i); //dict[target[i]][slookup(j, i)];
+      backward(i, j) = sum * dict(j, i);
 
       backward(i + I, j) = sum * cur_emptyword_prob;
     }
@@ -756,8 +856,8 @@ void calculate_sehmm_backward(const Storage1D<uint>& tclass, const Math2D::Matri
   }
 
   if (include_start_alignment) {
-    
-    for (uint i = 0; i < I; i++) 
+
+    for (uint i = 0; i < I; i++)
       backward(i, 0) *= start_prob[i];
     for (uint i=I; i < 2*I; i++)
       backward(i, 0) = 0.0;
@@ -872,6 +972,100 @@ void calculate_hmm_backward_with_tricks(const Math2D::Matrix<double>& dict, cons
       const T start_align_prob = (start_prob.size() == 0) ? 1.0 / (2 * I) : start_prob[i];
       backward(i, 0) *= start_align_prob;
     }
+  }
+}
+
+template<typename T>
+void calculate_sehmm_backward_with_tricks(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model, const Math1D::Vector<double>& start_prob,
+                                          Math2D::Matrix<T>& backward, bool include_start_alignment, int redpar_limit)
+{ 
+  const int I = dict.yDim()-1;
+  const int J = dict.xDim();
+
+  Math1D::Vector<double> long_dist_align_prob(I, 0.0);
+
+  for (int i = 0; i < I; i++) {
+    if (i + redpar_limit + 1 < I)
+      long_dist_align_prob[i] = align_model(i + redpar_limit + 1, i);
+    else if (i - redpar_limit > 0)
+      long_dist_align_prob[i] = align_model(i - redpar_limit - 1, i);
+  }
+
+  backward.resize(2 * I + 1, J);
+
+  for (uint i = 0; i < I; i++)
+    backward(i, J - 1) = dict(J - 1, i);
+  for (uint i = I; i <= 2 * I; i++)
+    backward(i, J - 1) = dict(J - 1, I);
+
+  for (int j = J - 2; j >= 0; j--) {
+    const uint j_next = j + 1;
+
+    const T cur_emptyword_prob = dict(j, I);
+
+    T next_distant_sum = 0.0;
+
+    for (int i_next = redpar_limit + 1; i_next < I; i_next++)
+      next_distant_sum += backward(i_next, j_next);
+
+    {
+      // i= 0
+
+      T sum = next_distant_sum * long_dist_align_prob[0];
+      for (int i_next = 0; i_next <= std::min(I - 1, redpar_limit); i_next++) {
+        sum += backward(i_next, j_next) * align_model(i_next, 0);
+      }
+
+      sum += backward(I, j_next) * align_model(I, 0);
+
+      backward(0, j) = sum * dict(j,0);
+      backward(I, j) = sum * cur_emptyword_prob;
+    }
+
+    for (int i = 1; i < I; i++) {
+
+      if (i + redpar_limit < I)
+        next_distant_sum -= backward(i + redpar_limit, j_next);
+      if (i - redpar_limit > 0)
+        next_distant_sum += backward(i - redpar_limit - 1, j_next);
+
+      T sum = next_distant_sum * long_dist_align_prob[i];
+
+      for (int i_next = std::max(0, i - redpar_limit); i_next <= std::min(I - 1, i + redpar_limit); i_next++) {
+        sum += backward(i_next, j_next) * align_model(i_next, i);
+      }
+      sum += backward(i + I, j_next) * align_model(I, i);
+
+      //stability issues may arise here:
+      if (sum <= 0.0) {
+        sum = backward(i + I, j_next) * align_model(I, i);
+        for (int i_next = 0; i_next < I; i_next++)
+          sum += backward(i_next, j_next) * align_model(i_next, i);
+      }
+
+      backward(i, j) = sum * dict(j,i);
+      backward(i + I, j) = sum * cur_emptyword_prob;
+    }
+
+    //start empty word
+    {
+      T sum = 0.0;
+      for (uint i_next = 0; i_next < I; i_next++)
+        sum += backward(i_next, j_next) * start_prob[i_next];
+      sum += backward(2 * I, j_next) * start_prob[I];
+
+      backward(2 * I, j) = sum * cur_emptyword_prob;
+    }
+  }
+
+  if (include_start_alignment) {
+
+    for (uint i = 0; i < I; i++)
+      backward(i, 0) *= start_prob[i];
+    for (uint i=I; i < 2*I; i++)
+      backward(i, 0) = 0.0;
+
+    backward(2 * I, 0) *= start_prob[I];
   }
 }
 

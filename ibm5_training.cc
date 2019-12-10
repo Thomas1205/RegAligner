@@ -997,9 +997,7 @@ void IBM5Trainer::inter_distortion_m_step(const Math2D::Matrix<double>& single_d
   {
     //check if normalized expectations give a better starting point
 
-    double sum = 0.0;
-    for (uint d = 0; d < nParams; d++)
-      sum += single_diff_count(d, sclass);
+    const double sum = single_diff_count.row_sum(sclass);
 
     for (uint d = 0; d < nParams; d++)
       hyp_param(d, sclass) = std::max(fert_min_param_entry, single_diff_count(d, sclass) / sum);
@@ -1152,9 +1150,7 @@ void IBM5Trainer::inter_distortion_m_step_unconstrained(const Math2D::Matrix<dou
   {
     //check if normalized expectations give a better starting point
 
-    double sum = 0.0;
-    for (uint d = 0; d < nParams; d++)
-      sum += single_diff_count(d, sclass);
+    const double sum = single_diff_count.row_sum(sclass);
 
     for (uint d = 0; d < nParams; d++)
       hyp_param(d, sclass) = std::max(fert_min_param_entry, single_diff_count(d, sclass) / sum);
@@ -1466,9 +1462,7 @@ void IBM5Trainer::intra_distortion_m_step(const Math2D::Matrix<double>& single_d
   {
     //check if normalized expectations give a better starting point
 
-    double sum = 0.0;
-    for (uint j = 0; j < nParams; j++)
-      sum += single_diff_count(j, sclass);
+    const double sum = single_diff_count.row_sum(sclass);
 
     for (uint j = 0; j < nParams; j++)
       hyp_param(j, sclass) = std::max(fert_min_param_entry, single_diff_count(j, sclass) / sum);
@@ -1605,9 +1599,7 @@ void IBM5Trainer::intra_distortion_m_step_unconstrained(const Math2D::Matrix<dou
   {
     //check if normalized expectations give a better starting point
 
-    double sum = 0.0;
-    for (uint j = 0; j < nParams; j++)
-      sum += single_diff_count(j, sclass);
+    const double sum = single_diff_count.row_sum(sclass);
 
     for (uint j = 0; j < nParams; j++)
       hyp_param(j, sclass) = std::max(fert_min_param_entry, single_diff_count(j, sclass) / sum);
@@ -1973,7 +1965,7 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
       const Storage1D<uint>& cur_target = target_sentence_[s];
       const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc_, nSourceWords_, slookup_[s], aux_lookup);
 
-      Math1D::Vector < AlignBaseType >& cur_alignment = best_known_alignment_[s];
+      Math1D::Vector<AlignBaseType>& cur_alignment = best_known_alignment_[s];
 
       const uint curI = cur_target.size();
       const uint curJ = cur_source.size();
@@ -2337,7 +2329,7 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
 
             uint prev_center = MAX_UINT;
 
-            Storage1D < bool > fixed(curJ, false);
+            Storage1D<bool> fixed(curJ, false);
 
             uint nOpen = curJ;
 

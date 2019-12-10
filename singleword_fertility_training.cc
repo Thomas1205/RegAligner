@@ -372,7 +372,7 @@ void FertilityModelTrainerBase::compute_external_postdec_alignment(const Storage
 
 void FertilityModelTrainerBase::compute_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
     const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment,
-    double threshold, std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment)
+    double threshold, std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment) const
 {
   //std::cerr << "compute_postdec_alignment" << std::endl;
 
@@ -529,14 +529,13 @@ void FertilityModelTrainerBase::compute_approximate_imarginals(const Math1D::Vec
   return logl(sentence_prob);
 }
 
-
 /*virtual*/ void FertilityModelTrainerBase::release_memory()
 {
   best_known_alignment_.resize(0);
   fertility_limit_.resize(0);
 }
 
-double FertilityModelTrainerBase::AER()
+double FertilityModelTrainerBase::AER() const
 {
   double sum_aer = 0.0;
   uint nContributors = 0;
@@ -550,15 +549,17 @@ double FertilityModelTrainerBase::AER()
       break;
 
     nContributors++;
+    
     //add alignment error rate
-    sum_aer +=::AER(best_known_alignment_[s], sure_ref_alignments_[s + 1], it->second);
+    assert(sure_ref_alignments_.find(s + 1) != sure_ref_alignments_.end());
+    sum_aer +=::AER(best_known_alignment_[s], sure_ref_alignments_.find(s + 1)->second, it->second);
   }
 
   sum_aer *= 100.0 / nContributors;
   return sum_aer;
 }
 
-double FertilityModelTrainerBase::AER(const Storage1D<Math1D::Vector<AlignBaseType> >& alignments)
+double FertilityModelTrainerBase::AER(const Storage1D<Math1D::Vector<AlignBaseType> >& alignments) const
 {
   double sum_aer = 0.0;
   uint nContributors = 0;
@@ -572,15 +573,17 @@ double FertilityModelTrainerBase::AER(const Storage1D<Math1D::Vector<AlignBaseTy
       break;
 
     nContributors++;
+
     //add alignment error rate
-    sum_aer +=::AER(alignments[s], sure_ref_alignments_[s + 1], it->second);
+    assert(sure_ref_alignments_.find(s + 1) != sure_ref_alignments_.end());
+    sum_aer +=::AER(alignments[s], sure_ref_alignments_.find(s + 1)->second, it->second);
   }
 
   sum_aer *= 100.0 / nContributors;
   return sum_aer;
 }
 
-double FertilityModelTrainerBase::f_measure(double alpha)
+double FertilityModelTrainerBase::f_measure(double alpha) const
 {
   double sum_fmeasure = 0.0;
   uint nContributors = 0;
@@ -603,15 +606,16 @@ double FertilityModelTrainerBase::f_measure(double alpha)
     // std::cerr << "sure alignments: " << sure_ref_alignments_[s+1] << std::endl;
     // std::cerr << "possible alignments: " << possible_ref_alignments_[s+1] << std::endl;
     // std::cerr << "computed alignment: " << uint_alignment << std::endl;
-
-    sum_fmeasure +=::f_measure(best_known_alignment_[s], sure_ref_alignments_[s + 1], it->second, alpha);
+    
+    assert(sure_ref_alignments_.find(s + 1) != sure_ref_alignments_.end());
+    sum_fmeasure +=::f_measure(best_known_alignment_[s], sure_ref_alignments_.find(s + 1)->second, it->second, alpha);
   }
 
   sum_fmeasure /= nContributors;
   return sum_fmeasure;
 }
 
-double FertilityModelTrainerBase::f_measure(const Storage1D<Math1D::Vector<AlignBaseType> >& alignment, double alpha)
+double FertilityModelTrainerBase::f_measure(const Storage1D<Math1D::Vector<AlignBaseType> >& alignment, double alpha) const
 {
   double sum_fmeasure = 0.0;
   uint nContributors = 0;
@@ -625,16 +629,17 @@ double FertilityModelTrainerBase::f_measure(const Storage1D<Math1D::Vector<Align
       break;
 
     nContributors++;
-    //add f-measure
 
-    sum_fmeasure +=::f_measure(alignment[s], sure_ref_alignments_[s + 1], it->second, alpha);
+    //add f-measure
+    assert(sure_ref_alignments_.find(s + 1) != sure_ref_alignments_.end());
+    sum_fmeasure +=::f_measure(alignment[s], sure_ref_alignments_.find(s + 1)->second, it->second, alpha);
   }
 
   sum_fmeasure /= nContributors;
   return sum_fmeasure;
 }
 
-double FertilityModelTrainerBase::DAE_S()
+double FertilityModelTrainerBase::DAE_S() const
 {
   double sum_errors = 0.0;
   uint nContributors = 0;
@@ -648,15 +653,17 @@ double FertilityModelTrainerBase::DAE_S()
       break;
 
     nContributors++;
+    
     //add DAE/S
-    sum_errors +=::nDefiniteAlignmentErrors(best_known_alignment_[s], sure_ref_alignments_[s + 1], it->second);
+    assert(sure_ref_alignments_.find(s + 1) != sure_ref_alignments_.end());
+    sum_errors +=::nDefiniteAlignmentErrors(best_known_alignment_[s], sure_ref_alignments_.find(s + 1)->second, it->second);
   }
 
   sum_errors /= nContributors;
   return sum_errors;
 }
 
-double FertilityModelTrainerBase::DAE_S(const Storage1D<Math1D::Vector<AlignBaseType> >& alignment)
+double FertilityModelTrainerBase::DAE_S(const Storage1D<Math1D::Vector<AlignBaseType> >& alignment) const
 {
   double sum_errors = 0.0;
   uint nContributors = 0;
@@ -670,8 +677,10 @@ double FertilityModelTrainerBase::DAE_S(const Storage1D<Math1D::Vector<AlignBase
       break;
 
     nContributors++;
+    
     //add DAE/S
-    sum_errors +=::nDefiniteAlignmentErrors(alignment[s], sure_ref_alignments_[s + 1], it->second);
+    assert(sure_ref_alignments_.find(s + 1) != sure_ref_alignments_.end());
+    sum_errors +=::nDefiniteAlignmentErrors(alignment[s], sure_ref_alignments_.find(s + 1)->second, it->second);
   }
 
   sum_errors /= nContributors;
@@ -953,13 +962,13 @@ double FertilityModelTrainer::regularity_term() const
 
     const Math1D::Vector<double>& cur_dict = dict_[i];
     const Math1D::Vector<float>& cur_prior = prior_weight_[i];
-    
+
     if (smoothed_l0_) {
-      for (uint k = 0; k < cur_dict.size(); k++) 
+      for (uint k = 0; k < cur_dict.size(); k++)
         reg_term += cur_prior[k] * prob_penalty(cur_dict[k], l0_beta_);
     }
     else {
-      for (uint k = 0; k < cur_dict.size(); k++) 
+      for (uint k = 0; k < cur_dict.size(); k++)
         reg_term += cur_prior[k] * cur_dict[k];
     }
   }
@@ -1053,7 +1062,49 @@ void FertilityModelTrainer::set_hc_iteration_limit(uint new_limit)
   }
 }
 
-void FertilityModelTrainer::PostdecEval(double& aer, double& f_measure, double& daes, double threshold, double alpha)
+void FertilityModelTrainer::PostdecEval(double& aer, double& f_measure, double& daes, double threshold, double alpha) const
+{
+  aer = 0.0;
+  f_measure = 0.0;
+  daes = 0.0;
+
+  uint nContributors = 0;
+
+  SingleLookupTable aux_lookup;
+
+  uint nIter = 0;
+
+  for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::const_iterator it = possible_ref_alignments_.begin();
+       it != possible_ref_alignments_.end(); it++) {
+
+    uint s = it->first - 1;
+
+    if (s >= source_sentence_.size())
+      break;
+
+    const AlignmentStructure& cur_sure = sure_ref_alignments_.find(s + 1)->second;
+    const AlignmentStructure& cur_pos = it->second;
+
+    nContributors++;
+
+    const SingleLookupTable& cur_lookup = get_wordlookup(source_sentence_[s], target_sentence_[s], wcooc_, nSourceWords_, slookup_[s], aux_lookup);
+
+    Math1D::Vector<AlignBaseType> alignment = FertilityModelTrainer::best_known_alignment_[s];
+
+    std::set<std::pair<AlignBaseType,AlignBaseType > > postdec_alignment;
+    compute_postdec_alignment(source_sentence_[s], target_sentence_[s], cur_lookup, alignment, threshold, postdec_alignment);
+
+    aer +=::AER(postdec_alignment, cur_sure, cur_pos);
+    f_measure +=::f_measure(postdec_alignment, cur_sure, cur_pos, alpha);
+    daes +=::nDefiniteAlignmentErrors(postdec_alignment, cur_sure, cur_pos);
+  }
+
+  aer /= nContributors;
+  f_measure /= nContributors;
+  daes /= nContributors;
+}
+
+void FertilityModelTrainer::ViterbiEval(double& aer, double& f_measure, double& daes, double alpha) const 
 {
   aer = 0.0;
   f_measure = 0.0;
@@ -1075,16 +1126,14 @@ void FertilityModelTrainer::PostdecEval(double& aer, double& f_measure, double& 
 
     nContributors++;
 
-    const SingleLookupTable& cur_lookup = get_wordlookup(source_sentence_[s], target_sentence_[s], wcooc_, nSourceWords_, slookup_[s], aux_lookup);
+    const AlignmentStructure& cur_sure = sure_ref_alignments_.find(s + 1)->second;
+    const AlignmentStructure& cur_pos = it->second;
 
-    Math1D::Vector<AlignBaseType> alignment = FertilityModelTrainer::best_known_alignment_[s];
+    const Math1D::Vector<AlignBaseType>& alignment = FertilityModelTrainer::best_known_alignment_[s];
 
-    std::set<std::pair<AlignBaseType,AlignBaseType > >postdec_alignment;
-    compute_postdec_alignment(source_sentence_[s], target_sentence_[s], cur_lookup, alignment, threshold, postdec_alignment);
-
-    aer +=::AER(postdec_alignment, sure_ref_alignments_[s + 1], possible_ref_alignments_[s + 1]);
-    f_measure +=::f_measure(postdec_alignment, sure_ref_alignments_[s + 1], possible_ref_alignments_[s + 1], alpha);
-    daes +=::nDefiniteAlignmentErrors(postdec_alignment, sure_ref_alignments_[s + 1], possible_ref_alignments_[s + 1]);
+    aer +=::AER(alignment, cur_sure, cur_pos);
+    f_measure +=::f_measure(alignment, cur_sure, cur_pos, alpha);
+    daes +=::nDefiniteAlignmentErrors(alignment, cur_sure, cur_pos);
   }
 
   aer /= nContributors;
@@ -1092,8 +1141,37 @@ void FertilityModelTrainer::PostdecEval(double& aer, double& f_measure, double& 
   daes /= nContributors;
 }
 
-void FertilityModelTrainer::update_fertility_prob(const Storage1D<Math1D::Vector<double> >& ffert_count,
-    double min_prob, bool with_regularity)
+void FertilityModelTrainer::printEval(uint iter, std::string transfer, std::string method ) const {
+
+  if (method.size() > 0)
+    method += "-";
+
+  std::string model = model_name(); 
+  
+  double aer;
+  double fmeasure;
+  double daes;
+  ViterbiEval(aer, fmeasure, daes);
+  std::cerr << "#### " << model << "-AER in between " << method << "iterations #" 
+            << (iter - 1) << " and " << iter << transfer << ": " << (100.0 * aer) << std::endl;
+  std::cerr << "#### " << model << "-fmeasure in between " << method << "iterations #" 
+            << (iter - 1) << " and " << iter << transfer << ": " << fmeasure << std::endl;
+  std::cerr << "#### " << model << "-DAE/S in between " << method << "iterations #" 
+            << (iter - 1) << " and " << iter << transfer << ": " << daes << std::endl;  
+  
+  double postdec_aer;
+  double postdec_fmeasure;
+  double postdec_daes;
+  PostdecEval(postdec_aer, postdec_fmeasure, postdec_daes, 0.25);
+  std::cerr << "#### " << model << "-Postdec-AER after " << method << "iteration #" << iter << transfer << ": "
+            << (100.0 * postdec_aer) << std::endl;
+  std::cerr << "#### " << model << "-Postdec-fmeasure after " << method << "iteration #" << iter << transfer << ": "
+            << postdec_fmeasure << std::endl;
+  std::cerr << "#### " << model << "-Postdec-DAE/S after " << method << "iteration #" << iter << transfer << ": "
+            << postdec_daes << std::endl;
+}
+
+void FertilityModelTrainer::update_fertility_prob(const Storage1D<Math1D::Vector<double> >& ffert_count, double min_prob, bool with_regularity)
 {
   if (fertprob_sharing_) {
 

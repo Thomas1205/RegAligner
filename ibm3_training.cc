@@ -44,8 +44,7 @@
 
 IBM3Trainer::IBM3Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence, const LookupTable& slookup,
                          const Storage1D<Math1D::Vector<uint> >& target_sentence, const Math1D::Vector<WordClassType>& target_class,
-                         const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
-                         const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
+                         const RefAlignmentStructure& sure_ref_alignments, const RefAlignmentStructure& possible_ref_alignments,
                          SingleWordDictionary& dict, const CooccuringWordsType& wcooc,
                          const Math1D::Vector<uint>& tfert_class, uint nSourceWords, uint nTargetWords,
                          const floatSingleWordDictionary& prior_weight,
@@ -56,7 +55,7 @@ IBM3Trainer::IBM3Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence
     target_class_(target_class), distortion_prob_(MAKENAME(distortion_prob_)), min_nondef_count_(options.min_nondef_count_),
     dist_m_step_iter_(options.dist_m_step_iter_), nondef_dist_m_step_iter_(options.nondef_dist34_m_step_iter_),
     par_mode_(options.par_mode_), extra_deficiency_(extra_deficient),
-    viterbi_ilp_mode_(options.viterbi_ilp_mode_), utmost_ilp_precision_(options.utmost_ilp_precision_),
+    viterbi_ilp_mode_(options.viterbi_ilp_mode_), utmost_ilp_precision_(options.utmost_ilp_precision_),    
     nondeficient_(options.nondeficient_)
 {
 #ifndef HAS_CBC
@@ -465,7 +464,7 @@ void IBM3Trainer::nonpar2par_distortion()
 }
 
 double IBM3Trainer::par_distortion_m_step_energy(const Math1D::Vector<double>& fsingleton_count, const Math1D::Vector<double>& fspan_count,
-    const Math1D::Vector<double>& param) const
+                                                 const Math1D::Vector<double>& param) const
 {
   double energy = 0.0;
 
@@ -484,6 +483,7 @@ double IBM3Trainer::par_distortion_m_step_energy(const Math1D::Vector<double>& f
 
   return energy;
 }
+
 
 double IBM3Trainer::diffpar_distortion_m_step_energy(const Math3D::Tensor<double>& fsingleton_count, const Math3D::Tensor<double>& fspan_count,
     const Math3D::Tensor<double>& param, uint c) const
@@ -515,18 +515,17 @@ double IBM3Trainer::diffpar_distortion_m_step_energy(const Math3D::Tensor<double
   return energy;
 }
 
-void IBM3Trainer::par_distortion_m_step(const Math3D::Tensor<double>& fsingleton_count, const Math3D::Tensor<double>& fspan_count, uint i, uint c)
+void IBM3Trainer::par_distortion_m_step(const Math3D::Tensor<double>& fsingleton_count, const Math3D::Tensor<double>& fspan_count, uint i, uint c,
+                                        ProjectionMode projection_mode)
 {
   assert(fsingleton_count.xDim() == maxJ_);
   assert(fspan_count.xDim() == maxJ_);
 
   Math1D::Vector<double> single_vec(maxJ_);
-  for (uint x = 0; x < single_vec.size(); x++)
-    single_vec[x] = fsingleton_count(x, i, c);
+  fsingleton_count.get_x(i, c, single_vec);
 
   Math1D::Vector<double> span_vec(maxJ_);
-  for (uint x = 0; x < span_vec.size(); x++)
-    span_vec[x] = fspan_count(x, i, c);
+  fspan_count.get_x(i, c, span_vec);
 
   double alpha = 0.1;
 
@@ -544,23 +543,26 @@ void IBM3Trainer::par_distortion_m_step(const Math3D::Tensor<double>& fsingleton
 
   //try if normalized counts give a better starting point
   {
-    double sum = single_vec.sum();
+    const double sum = single_vec.sum();
 
     for (uint j = 0; j < maxJ_; j++)
       hyp_distortion_param[j] = std::max(fert_min_param_entry, single_vec[j] / sum);
 
     double hyp_energy = par_distortion_m_step_energy(single_vec, span_vec, hyp_distortion_param);
 
-    if (hyp_energy < energy) {
+    if (hyp_energy < energy || extra_deficiency_) {
 
       energy = hyp_energy;
       cur_param = hyp_distortion_param;
     }
   }
 
-  const uint nClasses = distortion_param_.zDim();
+  if (extra_deficiency_) {
+    distortion_param_.set_x(i, c, cur_param);
+    return;
+  }
 
-  bool norm_constraint = true;  //DON'T PUBLISH
+  const uint nClasses = distortion_param_.zDim();
 
   for (uint iter = 1; iter <= dist_m_step_iter_; iter++) {
 
@@ -595,16 +597,19 @@ void IBM3Trainer::par_distortion_m_step(const Math3D::Tensor<double>& fsingleton
     }
 
     /*** go in neg. gradient direction and reproject ***/
-    if (norm_constraint) {
+    if (projection_mode == Simplex) {
 
-      for (uint j = 0; j < maxJ_; j++)
-        new_distortion_param[j] = cur_param[j] - alpha * distortion_grad[j];
+      //for (uint j = 0; j < maxJ_; j++)
+      //  new_distortion_param[j] = cur_param[j] - alpha * distortion_grad[j];      
+      Math1D::go_in_neg_direction(new_distortion_param, cur_param, distortion_grad, alpha);
 
       projection_on_simplex(new_distortion_param.direct_access(), maxJ_, fert_min_param_entry);
     }
-    else {                      //DON'T PUBLISH!
+    else {
 
-      //orthant projection followed by renormalization (because of the scale invariance of the objective)
+      //orthant projection followed by renormalization
+      // (justified by the scale invariance of the objective)
+      // may be faster than simplex
 
       double sum = 0.0;
       for (uint j = 0; j < maxJ_; j++) {
@@ -612,8 +617,7 @@ void IBM3Trainer::par_distortion_m_step(const Math3D::Tensor<double>& fsingleton
         sum += new_distortion_param[j];
       }
 
-      for (uint j = 0; j < maxJ_; j++)
-        new_distortion_param[j] /= sum;
+      new_distortion_param *= 1.0 / sum;
     }
 
     double best_lambda = 1.0;
@@ -632,8 +636,9 @@ void IBM3Trainer::par_distortion_m_step(const Math3D::Tensor<double>& fsingleton
       lambda *= line_reduction_factor;
       double neg_lambda = 1.0 - lambda;
 
-      for (uint j = 0; j < maxJ_; j++)
-        hyp_distortion_param[j] = lambda * new_distortion_param[j] + neg_lambda * cur_param[j];
+      //for (uint j = 0; j < maxJ_; j++)
+      //  hyp_distortion_param[j] = lambda * new_distortion_param[j] + neg_lambda * cur_param[j];
+      Math1D::assign_weighted_combination(hyp_distortion_param, lambda, new_distortion_param, neg_lambda, cur_param);
 
       double hyp_energy = par_distortion_m_step_energy(single_vec, span_vec, hyp_distortion_param);
 
@@ -670,8 +675,9 @@ void IBM3Trainer::par_distortion_m_step(const Math3D::Tensor<double>& fsingleton
 
     double neg_best_lambda = 1.0 - best_lambda;
 
-    for (uint j = 0; j < maxJ_; j++)
-      cur_param[j] = best_lambda * new_distortion_param[j] + neg_best_lambda * cur_param[j];
+    //for (uint j = 0; j < maxJ_; j++)
+    //  cur_param[j] = best_lambda * new_distortion_param[j] + neg_best_lambda * cur_param[j];
+    Math1D::assign_weighted_combination(cur_param, best_lambda, new_distortion_param, neg_best_lambda, cur_param);
 
     energy = best_energy;
   }
@@ -679,8 +685,7 @@ void IBM3Trainer::par_distortion_m_step(const Math3D::Tensor<double>& fsingleton
   if (nClasses <= 5)
     std::cerr << "final m-step energy: " << energy << std::endl;
 
-  for (uint x = 0; x < maxJ_; x++)
-    distortion_param_(x, i, c) = cur_param[x];
+  distortion_param_.set_x(i, c, cur_param);
 }
 
 void IBM3Trainer::diffpar_distortion_m_step(const Math3D::Tensor<double>& fsingleton_count, const Math3D::Tensor<double>& fspan_count, uint c)
@@ -704,9 +709,7 @@ void IBM3Trainer::diffpar_distortion_m_step(const Math3D::Tensor<double>& fsingl
 
   //try if normalized counts give a better starting point
   {
-    double sum = 0.0;
-    for (uint j = 0; j < xDim; j++)
-      sum = fsingleton_count(j, 0, c);
+    double sum = fsingleton_count.sum_x(0, c);
 
     for (uint j = 0; j < xDim; j++)
       hyp_distortion_param(j, 0, c) = std::max(fert_min_param_entry, fsingleton_count(j, 0, c) / sum);
@@ -716,7 +719,7 @@ void IBM3Trainer::diffpar_distortion_m_step(const Math3D::Tensor<double>& fsingl
     if (nClasses == 1)
       std::cerr << "diffpar m-step normalized count energy : " << hyp_energy << std::endl;
 
-    if (hyp_energy < energy) {
+    if (hyp_energy < energy || extra_deficiency_) {
 
       if (nClasses == 1)
         std::cerr << "switching to normalized counts" << std::endl;
@@ -726,11 +729,17 @@ void IBM3Trainer::diffpar_distortion_m_step(const Math3D::Tensor<double>& fsingl
     }
   }
 
+  if (extra_deficiency_)
+    return;
+
+  Math1D::Vector<double> cur_param(xDim);
+  distortion_param_.get_x(0, c, cur_param);
 
   double alpha = 0.1;
   double line_reduction_factor = 0.35;
 
   for (uint iter = 1; iter <= dist_m_step_iter_; iter++) {
+    
     if (nClasses == 1 && (iter % 10) == 0)
       std::cerr << "diffpar m-step energy for iter " << iter << " : " << energy << std::endl;
 
@@ -761,7 +770,7 @@ void IBM3Trainer::diffpar_distortion_m_step(const Math3D::Tensor<double>& fsingl
 
     /*** go in negative gradient direction and reproject ***/
     for (uint k = 0; k < distortion_grad.size(); k++)
-      new_distortion_param[k] = distortion_param_(k, 0, c) - alpha * distortion_grad[k];
+      new_distortion_param[k] = cur_param[k] - alpha * distortion_grad[k];
 
     projection_on_simplex(new_distortion_param.direct_access(), distortion_grad.size(), fert_min_param_entry);
 
@@ -782,7 +791,7 @@ void IBM3Trainer::diffpar_distortion_m_step(const Math3D::Tensor<double>& fsingl
       double neg_lambda = 1.0 - lambda;
 
       for (uint k = 0; k < hyp_distortion_param.xDim(); k++)
-        hyp_distortion_param(k, 0, c) = lambda * new_distortion_param[k] + neg_lambda * distortion_param_(k, 0, c);
+        hyp_distortion_param(k, 0, c) = lambda * new_distortion_param[k] + neg_lambda * cur_param[k];
 
       double hyp_energy = diffpar_distortion_m_step_energy(fsingleton_count, fspan_count, hyp_distortion_param, c);
 
@@ -814,13 +823,15 @@ void IBM3Trainer::diffpar_distortion_m_step(const Math3D::Tensor<double>& fsingl
     if (nIter > 6)
       line_reduction_factor *= 0.9;
 
-    double neg_best_lambda = 1.0 - best_lambda;
+    const double neg_best_lambda = 1.0 - best_lambda;
 
     for (uint j = 0; j < hyp_distortion_param.xDim(); j++)
-      distortion_param_(j, 0, c) = best_lambda * new_distortion_param[j] + neg_best_lambda * distortion_param_(j, 0, c);
+      cur_param[j] = best_lambda * new_distortion_param[j] + neg_best_lambda * distortion_param_(j, 0, c);
 
     energy = best_energy;
   }
+  
+  distortion_param_.set_x(0, c, cur_param);
 }
 
 void IBM3Trainer::par_distortion_m_step_unconstrained(const Math3D::Tensor<double>& fsingleton_count, const Math3D::Tensor<double>& fspan_count,
@@ -833,12 +844,10 @@ void IBM3Trainer::par_distortion_m_step_unconstrained(const Math3D::Tensor<doubl
   assert(fspan_count.xDim() == maxJ_);
 
   Math1D::Vector<double> single_vec(maxJ_);
-  for (uint x = 0; x < single_vec.size(); x++)
-    single_vec[x] = fsingleton_count(x, i, c);
+  fsingleton_count.get_x(i, c, single_vec);
 
   Math1D::Vector<double> span_vec(maxJ_);
-  for (uint x = 0; x < span_vec.size(); x++)
-    span_vec[x] = fspan_count(x, i, c);
+  fspan_count.get_x(i, c, span_vec);
 
   double alpha = 0.1;
 
@@ -1140,8 +1149,7 @@ double IBM3Trainer::nondeficient_m_step_energy(const Math3D::Tensor<double>& sin
   double energy = 0.0;
 
   Math1D::Vector<double> cur_param(param.xDim());
-  for (uint j=0; j < param.xDim(); j++)
-    cur_param[j] = param(j, i, c);
+  param.get_x(i, c, cur_param);
 
   //part 1: singleton terms
   for (uint j = 0; j < single_pos_count.xDim(); j++) {
@@ -1197,6 +1205,38 @@ double IBM3Trainer::nondeficient_m_step_energy(const Math3D::Tensor<double>& sin
   //END_DEBUG
 
   return energy;
+}
+
+double IBM3Trainer::nondeficient_m_step_energy(const Math1D::Vector<double>& single_pos_count, const std::vector<Math1D::Vector<uchar,uchar> >& open_pos,
+                                               const std::vector<double>& sum_pos_count, const Math1D::Vector<double>& param) const 
+{                                                
+  double energy = 0.0;
+
+  //part 1: singleton terms
+  for (uint j = 0; j < single_pos_count.size(); j++) {
+    energy -= single_pos_count[j] * std::log(param[j]);
+    assert(!isnan(energy));
+  }
+
+  //part 2: normalization terms
+  for (uint k = 0; k < open_pos.size(); k++) {
+
+    const Math1D::Vector<uchar,uchar>& open_positions = open_pos[k];
+    const uchar size = open_positions.size();
+
+    assert(size > 0);
+
+    const double weight = sum_pos_count[k];
+
+    double sum = 0.0;
+    for (uint k = 0; k < size; k++) {
+      sum += param[open_positions[k]];
+    }
+
+    energy += weight * std::log(sum);
+  }
+
+  return energy;                                                 
 }
 
 //compact form
@@ -1286,25 +1326,28 @@ double IBM3Trainer::nondeficient_m_step_core(const Math3D::Tensor<double>& singl
     std::cerr << "start energy: " << energy << std::endl;
 
   Math1D::Vector<double> distortion_grad(xDim);
-  Math3D::Tensor<double> hyp_distortion_param = param;
+  Math1D::Vector<double> hyp_distortion_param(xDim);
   Math1D::Vector<double> new_distortion_param(xDim);
 
+  Math1D::Vector<double> cur_param(xDim);
+  param.get_x(i, c, cur_param);
+  
+  Math1D::Vector<double> cur_single_pos_count(xDim);
+  single_pos_count.get_x(i, c, cur_single_pos_count);
+
   //test if normalizing the passed singleton count gives a better starting point
-  double norm = 0.0;
-  for (uint j = 0; j < xDim; j++)
-    norm += single_pos_count(j, i, c);
+  const double norm = cur_single_pos_count.sum();
 
   if (norm > 1e-305) {
 
     for (uint j = 0; j < xDim; j++)
-      hyp_distortion_param(j, i, c) = std::max(fert_min_param_entry, single_pos_count(j, i, c) / norm);
+      hyp_distortion_param[j] = std::max(fert_min_param_entry, cur_single_pos_count[j] / norm);
 
-    double hyp_energy = nondeficient_m_step_energy(single_pos_count, open_pos, sum_pos_count, hyp_distortion_param, i, c);
+    double hyp_energy = nondeficient_m_step_energy(cur_single_pos_count, open_pos, sum_pos_count, hyp_distortion_param);
 
     if (hyp_energy < energy) {
 
-      for (uint j = 0; j < xDim; j++)
-        param(j, i, c) = hyp_distortion_param(j, i, c);
+      cur_param = hyp_distortion_param;
 
       if (!quiet)
         std::cerr << "switching to passed normalized singleton count ---> " << hyp_energy << std::endl;
@@ -1317,10 +1360,6 @@ double IBM3Trainer::nondeficient_m_step_core(const Math3D::Tensor<double>& singl
 
   std::clock_t tStart = std::clock();
 
-  Math1D::Vector<double> cur_param(xDim);
-  for (uint j = 0; j < xDim; j++)
-    cur_param[j] = param(j, i, c);
-
   for (uint iter = 1; iter <= nondef_dist_m_step_iter_; iter++) {
 
     if (!quiet && (iter % 50) == 0) {
@@ -1330,15 +1369,15 @@ double IBM3Trainer::nondeficient_m_step_core(const Math3D::Tensor<double>& singl
       std::cerr << "spent " << diff_seconds(tInter, tStart) << " seconds so far" << std::endl;
     }
 
-    distortion_grad.set_constant(0.0);
+    //distortion_grad.set_constant(0.0);
 
     /*** compute gradient ***/
 
     //part 1: singleton terms
     for (uint j = 0; j < xDim; j++) {
 
-      const double weight = single_pos_count(j, i, c);
-      distortion_grad[j] -= weight / cur_param[j];
+      const double weight = cur_single_pos_count[j];
+      distortion_grad[j] = -weight / cur_param[j];
     }
 
     //part 2: normalization terms
@@ -1361,8 +1400,9 @@ double IBM3Trainer::nondeficient_m_step_core(const Math3D::Tensor<double>& singl
 
     /*** go in neg. gradient direction and reproject ***/
 
-    for (uint j = 0; j < xDim; j++)
-      new_distortion_param[j] = cur_param[j] - alpha * distortion_grad[j];
+    //for (uint j = 0; j < xDim; j++)
+    //  new_distortion_param[j] = cur_param[j] - alpha * distortion_grad[j];
+    Math1D::go_in_neg_direction(new_distortion_param, cur_param, distortion_grad, alpha);
 
     projection_on_simplex(new_distortion_param.direct_access(), xDim, fert_min_param_entry);
 
@@ -1382,12 +1422,13 @@ double IBM3Trainer::nondeficient_m_step_core(const Math3D::Tensor<double>& singl
       nIter++;
 
       lambda *= line_reduction_factor;
-      double neg_lambda = 1.0 - lambda;
+      const double neg_lambda = 1.0 - lambda;
 
-      for (uint j = 0; j < xDim; j++)
-        hyp_distortion_param(j, i, c) = lambda * new_distortion_param[j] + neg_lambda * cur_param[j];
+      //for (uint j = 0; j < xDim; j++)
+      //  hyp_distortion_param[j] = lambda * new_distortion_param[j] + neg_lambda * cur_param[j];
+      Math1D::assign_weighted_combination(hyp_distortion_param, lambda, new_distortion_param, neg_lambda, cur_param); 
 
-      double hyp_energy = nondeficient_m_step_energy(single_pos_count, open_pos, sum_pos_count, hyp_distortion_param, i, c);
+      double hyp_energy = nondeficient_m_step_energy(cur_single_pos_count, open_pos, sum_pos_count, hyp_distortion_param);
 
       if (hyp_energy < best_energy) {
 
@@ -1417,14 +1458,14 @@ double IBM3Trainer::nondeficient_m_step_core(const Math3D::Tensor<double>& singl
 
     double neg_best_lambda = 1.0 - best_lambda;
 
-    for (uint j = 0; j < xDim; j++)
-      cur_param[j] = std::max(fert_min_param_entry, best_lambda * new_distortion_param[j] + neg_best_lambda * distortion_param_(j, i, c));
+    //for (uint j = 0; j < xDim; j++)
+    //  cur_param[j] = std::max(fert_min_param_entry, best_lambda * new_distortion_param[j] + neg_best_lambda * cur_param[j]);
+    Math1D::assign_weighted_combination(cur_param, best_lambda, new_distortion_param, neg_best_lambda, cur_param); 
 
     energy = best_energy;
   }
 
-  for (uint j = 0; j < xDim; j++)
-    param(j, i, c) = std::max(cur_param[j], fert_min_param_entry);
+  param.set_x(i, c, cur_param);
 
   return energy;
 }
@@ -1453,9 +1494,7 @@ double IBM3Trainer::nondeficient_diffpar_m_step(const Math3D::Tensor<double>& fs
 
     for (uint c = 0; c < zDim; c++) {
 
-      double sum = 0.0;
-      for (uint k = 0; k < xDim; k++)
-        sum += hyp_param(k, 0, c);
+      const double sum = hyp_param.sum_x(0, c);
 
       if (sum > 1-305) {
         for (uint k = 0; k < xDim; k++)
@@ -1603,9 +1642,7 @@ double IBM3Trainer::nondeficient_m_step_unconstrained_core(const Math3D::Tensor<
   Math3D::Tensor<double> hyp_distortion_param = param;
 
   //test if normalizing the passed singleton count gives a better starting point
-  double norm = 0.0;
-  for (uint j = 0; j < xDim; j++)
-    norm += single_pos_count(j, i, c);
+  const double norm = single_pos_count.sum_x(i, c);
 
   if (norm > 1e-305) {
 
@@ -1647,8 +1684,7 @@ double IBM3Trainer::nondeficient_m_step_unconstrained_core(const Math3D::Tensor<
   double scale = 1.0;
 
   Math1D::Vector<double> cur_param(xDim);
-  for (uint j=0; j < xDim; j++)
-    cur_param[j] = param(j, i, c);
+  param.get_x(i, c, cur_param);
 
   for (uint iter = 1; iter <= nondef_dist_m_step_iter_; iter++) {
 
@@ -1879,9 +1915,8 @@ double IBM3Trainer::nondeficient_m_step_unconstrained_core(const Math3D::Tensor<
       cur_param[k] = std::max(fert_min_param_entry, work_param[k] * work_param[k] / scale);
   }
 
-  for (uint j = 0; j < xDim; j++)
-    param(j, i, c) = std::max(cur_param[j], fert_min_param_entry);
-
+  param.set_x(i, c, cur_param);
+  
   return energy;
 }
 
@@ -1952,10 +1987,8 @@ double IBM3Trainer::nondeficient_m_step_with_interpolation_core(const Math3D::Te
 
   Math1D::Vector<double> cur_param(J);
   Math1D::Vector<double> cur_single_count(J);
-  for (uint j=0; j < J; j++) {
-    cur_param[j] = param(j, i, c);
-    cur_single_count[j] = single_pos_count(j, i, c);
-  }
+  param.get_x(i, c, cur_param);
+  single_pos_count.get_x(i, c, cur_single_count);
 
   Math1D::Vector<double> sum(weight.size());
   Math1D::Vector<double> new_sum(weight.size(), 0.0);
@@ -2021,8 +2054,7 @@ double IBM3Trainer::nondeficient_m_step_with_interpolation_core(const Math3D::Te
     //a) singleton terms
     for (uint j = 0; j < single_pos_count.xDim(); j++) {
 
-      double weight = single_pos_count(j, i, c);
-
+      const double weight = single_pos_count(j, i, c);
       distortion_grad[j] -= weight / cur_param[j];
     }
 
@@ -2064,7 +2096,7 @@ double IBM3Trainer::nondeficient_m_step_with_interpolation_core(const Math3D::Te
 
     for (uint k = 0; k < weight.size(); k++) {
 
-      const Math1D::Vector < uchar, uchar >& open_positions = open_pos[k];
+      const Math1D::Vector<uchar, uchar>& open_positions = open_pos[k];
 
       double cur_new_sum = 0.0;
       for (uchar l = 0; l < open_positions.size(); l++)
@@ -2123,18 +2155,19 @@ double IBM3Trainer::nondeficient_m_step_with_interpolation_core(const Math3D::Te
 
     double neg_best_lambda = 1.0 - best_lambda;
 
-    for (uint j = 0; j < J; j++)
-      cur_param[j] = best_lambda * new_distortion_param[j] + neg_best_lambda * cur_param[j];
+    //for (uint j = 0; j < J; j++)
+    //  cur_param[j] = best_lambda * new_distortion_param[j] + neg_best_lambda * cur_param[j];
+    Math1D::assign_weighted_combination(cur_param, best_lambda, new_distortion_param, neg_best_lambda, cur_param);
 
     energy = best_energy;
 
-    for (uint k = 0; k < weight.size(); k++) {
-      sum[k] = neg_best_lambda * sum[k] + best_lambda * new_sum[k];
-    }
+    //for (uint k = 0; k < weight.size(); k++) {
+    //  sum[k] = neg_best_lambda * sum[k] + best_lambda * new_sum[k];
+    //}
+    Math1D::assign_weighted_combination(sum, neg_best_lambda, sum, best_lambda, new_sum);
   }
 
-  for (uint j = 0; j < J; j++)
-    param(j, i, c) = std::max(cur_param[j], fert_min_param_entry);
+  param.set_x(i, c, cur_param);
 
   return energy;
 }
@@ -3363,6 +3396,75 @@ long double IBM3Trainer::nondeficient_hillclimbing(const Storage1D<uint>& source
   return base_prob;
 }
 
+void IBM3Trainer::compute_dist_param_gradient(const ReducedIBM3ClassDistortionModel& distort_grad, const Math3D::Tensor<double>& distort_param,
+    Math3D::Tensor<double>& distort_param_grad) const
+{
+  distort_param_grad.resize(distortion_param_.xDim(), distortion_param_.yDim(), distortion_param_.zDim());
+  distort_param_grad.set_constant(0.0);
+
+  for (uint J = 0; J < distort_grad.size(); J++) {
+
+    for (uint i = 0; i < distort_grad[J].yDim(); i++) {
+
+      for (uint c = 0; c < distort_grad[J].zDim(); c++) {
+
+        double param_sum = 0.0;
+        double product_sum = 0.0;
+
+        if (par_mode_ == IBM23ParByPosition) {
+
+          for (uint j = 0; j < distort_grad[J].xDim(); j++) {
+
+            //general coefficient: distort_grad[J](j,i) = distort_param(j,i) /  \sum_j' distort_param(j',i)
+
+            //quotient rule: u(x) = distort_param(j,i), v(x) = \sum_j' distort_param(j',i)
+            // numerator regarding distort_param(j,i): u'(x)v(x) - v'(x) u(x) = (\sum_j distort_param(j,i)) - distort_param(j,i) = v(x) - u(x)
+            // numerator regarding distort_param(j',i): u'(x)v(x) - v'(x) u(x) = -distort_param(j,i) for j'!=j
+            // hence, the numerator for all terms has a final -distort_param(j,i) component
+            // denominator: [v(x)]² = param_sum²
+
+            //gradient for this:
+            //  distort_grad[J](j,i) * (param_sum - distort_param(j,i)) / param_sum² for j
+            //  distort_grad[J](j,i) * -distort_param(j,i) / param_sum² for j'!=j
+            // both have distort_grad[J](j,i) *-distort_param(j,i) / param_sum² in common,
+            //      for j there is an additional distort_grad[J](j,i)/param_sum term
+
+            // combining all js:
+            // -summing the common component gives  - (\sum j' grad_j' * param_j') / param_sum²
+            // -for each j additionally distort_grad[J](j,i) * param_sum / param_sum² = grad_j / param_sum
+
+            param_sum += distort_param(j, i, c);
+            product_sum += distort_grad[J](j, i, c) * distort_param(j, i, c);
+          }
+
+          param_sum = std::max(fert_min_param_entry, param_sum);
+          const double combined = -product_sum / (param_sum * param_sum);
+
+          for (uint j = 0; j < distort_grad[J].xDim(); j++) {
+            distort_param_grad(j, i, c) += combined  //combined term
+                                           + (distort_grad[J](j, i, c) / param_sum);   //term for j
+          }
+        }
+        else {
+
+          for (uint j = 0; j < distort_grad[J].xDim(); j++) {
+            param_sum += distort_param(maxI_ - 1 + j - i, 0, c);
+            product_sum += distort_grad[J](j, i, c) * distort_param(maxI_ - 1 + j - i, 0, c);
+          }
+
+          param_sum = std::max(fert_min_param_entry, param_sum);
+          const double combined = -product_sum / (param_sum * param_sum);
+
+          for (uint j = 0; j < distort_grad[J].xDim(); j++) {
+            distort_param_grad(maxI_ - 1 + j - i, 0, c) += combined  //combined term
+                + (distort_grad[J](j, i, c) / param_sum);   //term for j
+          }
+        }
+      }
+    }
+  }
+}
+
 /* virtual */
 void IBM3Trainer::prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
     const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment)
@@ -3429,12 +3531,10 @@ long double IBM3Trainer::compute_external_alignment(const Storage1D<uint>& sourc
 
   uint nIter;
 
-  long double hc_prob =
-    update_alignment_by_hillclimbing(source, target, lookup, nIter, fertility, expansion_prob, swap_prob, alignment);
+  long double hc_prob = update_alignment_by_hillclimbing(source, target, lookup, nIter, fertility, expansion_prob, swap_prob, alignment);
 
   if (use_ilp)
-    return
-      expl(-compute_viterbi_alignment_ilp(source, target, lookup, alignment));
+    return expl(-compute_viterbi_alignment_ilp(source, target, lookup, alignment));
   else
     return hc_prob;
 }
@@ -3851,9 +3951,7 @@ void IBM3Trainer::update_distortion_probs(const ReducedIBM3ClassDistortionModel&
       for (uint c = 0; c < nClasses; c++) {
         for (uint i = 0; i < fpar_singleton_count.yDim(); i++) {
 
-          double sum = 0.0;
-          for (uint j = 0; j < xDim; j++)
-            sum += fpar_singleton_count(j, i, c);
+          const double sum = fpar_singleton_count.sum_x(i, c);
 
           if (sum > 1e-305) {
             for (uint j = 0; j < xDim; j++)
@@ -4026,9 +4124,7 @@ void IBM3Trainer::update_distortion_probs(const ReducedIBM3ClassDistortionModel&
         for (uint c = 0; c < nClasses; c++) {
           for (uint i = 0; i < hyp_distort_prob[J].yDim(); i++) {
 
-            double sum = 0.0;
-            for (uint j = 0; j < fdistort_count[J].xDim(); j++)
-              sum += fdistort_count[J](j, i, c);
+            const double sum = fdistort_count[J].sum_x(i, c);
 
             if (sum > 1e-305) {
               for (uint j = 0; j < hyp_distort_prob[J].xDim(); j++)
@@ -4119,9 +4215,7 @@ void IBM3Trainer::update_distortion_probs(const ReducedIBM3ClassDistortionModel&
         for (uint c = 0; c < nClasses; c++) {
           for (uint i = 0; i < distortion_prob_[J].yDim(); i++) {
 
-            double sum = 0.0;
-            for (uint j = 0; j < distortion_prob_[J].xDim(); j++)
-              sum += fdistort_count[J](j, i, c);
+            const double sum = fdistort_count[J].sum_x(i, c);
 
             if (sum > 1e-307) {
               const double inv_sum = 1.0 / sum;
@@ -4379,10 +4473,6 @@ void IBM3Trainer::train_em(uint nIter, FertilityModelTrainerBase* prev_model, co
         fzero_count += j * i_marg(j, 0);
         fnonzero_count += (curJ - 2 * j) * i_marg(j, 0);
       }
-      // update_zero_counts(cur_alignment, fertility,
-      //                         expansion_move_prob, swap_prob, best_prob,
-      //                         sentence_prob, inv_sentence_prob,
-      //                         fzero_count, fnonzero_count);
 
       //increase counts for dictionary and distortion
 
@@ -4548,8 +4638,8 @@ void IBM3Trainer::train_em(uint nIter, FertilityModelTrainerBase* prev_model, co
           }
         }
       }
-      //update fertility counts
 
+      //update fertility counts
       for (uint i = 1; i <= curI; i++) {
 
         const uint t_idx = cur_target[i - 1];
@@ -4559,18 +4649,16 @@ void IBM3Trainer::train_em(uint nIter, FertilityModelTrainerBase* prev_model, co
         for (uint c = 0; c <= std::min<ushort>(curJ, fertility_limit_[t_idx]); c++)
           cur_fert_count[c] += i_marg(c, i);
       }
-      //update_fertility_counts(cur_target, cur_alignment, fertility,
-      //                        expansion_move_prob, sentence_prob, inv_sentence_prob, ffert_count);
 
       assert(!isnan(fzero_count));
       assert(!isnan(fnonzero_count));
-    }                           //loop over sentences finished
+    }  //loop over sentences finished
 
     std::clock_t tEndLoop = std::clock();
 
     std::cerr << "loop over sentences took " << diff_seconds(tEndLoop, tStartLoop) << " seconds." << std::endl;
 
-    double reg_term = regularity_term();        //we need the reg-term before the parameter update
+    const double reg_term = regularity_term();  //we need the reg-term BEFORE the parameter update
 
     //update p_zero_ and p_nonzero_
     if (!fix_p0_) {
@@ -4602,6 +4690,7 @@ void IBM3Trainer::train_em(uint nIter, FertilityModelTrainerBase* prev_model, co
 
     //update distortion prob from counts
     update_distortion_probs(fdistort_count, fnondef_distort_count, refined_nondef_aligned_words_count);
+
     update_fertility_prob(ffert_count, fert_min_param_entry);
 
     max_perplexity += reg_term;
@@ -5257,6 +5346,7 @@ void IBM3Trainer::train_viterbi(uint nIter, const AlignmentSetConstraints& align
       }
 
       update_distortion_probs(fdistort_count, fnondef_distort_count, refined_nondef_aligned_words_count);
+      
       update_fertility_prob(ffert_count, fert_min_param_entry, false);
 
       max_perplexity = 0.0;

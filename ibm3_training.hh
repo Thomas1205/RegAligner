@@ -18,8 +18,7 @@ public:
 
   IBM3Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence, const LookupTable& slookup,
               const Storage1D<Math1D::Vector<uint> >& target_sentence, const Math1D::Vector<WordClassType>& target_class,
-              const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
-              const std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
+              const RefAlignmentStructure& sure_ref_alignments, const RefAlignmentStructure& possible_ref_alignments,
               SingleWordDictionary& dict, const CooccuringWordsType& wcooc,
               const Math1D::Vector<uint>& tfert_class, uint nSourceWords, uint nTargetWords,
               const floatSingleWordDictionary& prior_weight,
@@ -60,9 +59,6 @@ protected:
   void update_distortion_probs(const ReducedIBM3ClassDistortionModel& fdistort_count, ReducedIBM3ClassDistortionModel& fnondef_distort_count,
                                Storage1D<std::map<CompactAlignedSourceWords,CountStructure> >& refined_nondef_aligned_words_count);
 
-  void compute_alignment_via_msg_passing(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
-                                         Math1D::Vector<AlignBaseType>& alignment);
-
   void par2nonpar_distortion(ReducedIBM3ClassDistortionModel& prob);
 
   void par2nonpar_distortion(const Math3D::Tensor<double>& param, ReducedIBM3ClassDistortionModel& prob) const;
@@ -75,16 +71,22 @@ protected:
   double diffpar_distortion_m_step_energy(const Math3D::Tensor<double>& fsingleton_count, const Math3D::Tensor<double>& fspan_count,
                                           const Math3D::Tensor<double>& param, uint c) const;
 
-  void par_distortion_m_step(const Math3D::Tensor<double>& fsingleton_count, const Math3D::Tensor<double>& fspan_count, uint i, uint c);
+  void par_distortion_m_step(const Math3D::Tensor<double>& fsingleton_count, const Math3D::Tensor<double>& fspan_count, uint i, uint c,
+                             ProjectionMode projection_mode = Simplex);
 
   void diffpar_distortion_m_step(const Math3D::Tensor<double>& fsingleton_count, const Math3D::Tensor<double>& fspan_count, uint c);
 
+
   void par_distortion_m_step_unconstrained(const Math3D::Tensor<double>& fsingleton_count,
-      const Math3D::Tensor<double>& fspan_count, uint i, uint c, uint L = 5);
+                                           const Math3D::Tensor<double>& fspan_count, uint i, uint c, uint L = 5);
 
   //compact form
   double nondeficient_m_step_energy(const Math3D::Tensor<double>& single_pos_count, const std::vector<Math1D::Vector<uchar,uchar> >& open_pos,
                                     const std::vector<double>& sum_pos_count, const Math3D::Tensor<double>& param, uint i, uint c) const;
+
+  //compact form
+  double nondeficient_m_step_energy(const Math1D::Vector<double>& single_pos_count, const std::vector<Math1D::Vector<uchar,uchar> >& open_pos,
+                                    const std::vector<double>& sum_pos_count, const Math1D::Vector<double>& param) const;
 
   //compact form
   double nondeficient_diffpar_m_step_energy(const Math3D::Tensor<double>& fsingleton_count,

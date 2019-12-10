@@ -120,17 +120,17 @@ public:
 
   virtual void release_memory();
 
-  double AER();
+  double AER() const;
 
-  double AER(const Storage1D<Math1D::Vector<AlignBaseType> >& alignments);
+  double AER(const Storage1D<Math1D::Vector<AlignBaseType> >& alignments) const;
 
-  double f_measure(double alpha = 0.1);
+  double f_measure(double alpha = 0.1) const;
 
-  double f_measure(const Storage1D<Math1D::Vector<AlignBaseType> >& alignments, double alpha = 0.1);
+  double f_measure(const Storage1D<Math1D::Vector<AlignBaseType> >& alignments, double alpha = 0.1) const;
 
-  double DAE_S();
+  double DAE_S() const;
 
-  double DAE_S(const Storage1D<Math1D::Vector<AlignBaseType> >& alignments);
+  double DAE_S(const Storage1D<Math1D::Vector<AlignBaseType> >& alignments) const;
 
   void set_hmm_alignments(const HmmWrapper& hmm_wrapper);
 
@@ -148,7 +148,7 @@ protected:
 
   void compute_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
                                  Math1D::Vector<AlignBaseType>& alignment, double threshold,
-                                 std::set<std::pair<AlignBaseType,AlignBaseType > >& postdec_alignment);
+                                 std::set<std::pair<AlignBaseType,AlignBaseType > >& postdec_alignment) const;
 
   const Storage1D<Math1D::Vector<uint> >& source_sentence_;
   const LookupTable& slookup_;
@@ -203,8 +203,6 @@ public:
 
   virtual void set_rare_fertility_limit(uint new_limit, uint max_count = 2);
 
-  void PostdecEval(double& aer, double& f_measure, double& daes, double threshold = 0.25, double alpha = 0.1);
-
   const NamedStorage1D<Math1D::Vector<double> >& fertility_prob() const;
 
   void write_fertilities(std::string filename);
@@ -212,6 +210,12 @@ public:
   virtual void release_memory();
 
 protected:
+
+  void ViterbiEval(double& aer, double& f_measure, double& daes, double alpha = 0.1) const;
+
+  void PostdecEval(double& aer, double& f_measure, double& daes, double threshold = 0.25, double alpha = 0.1) const;
+
+  void printEval(uint iter, std::string transfer = "", std::string method = "") const;
 
   long double alignment_prob(uint s, const Math1D::Vector<AlignBaseType>& alignment) const;
 
