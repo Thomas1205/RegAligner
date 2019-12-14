@@ -3875,9 +3875,6 @@ void IBM3Trainer::update_distortion_probs(const ReducedIBM3ClassDistortionModel&
     Storage1D<std::map<CompactAlignedSourceWords,CountStructure> >& refined_nondef_aligned_words_count)
 {
   //std::cerr << "update_distortion_probs" << std::endl;
-
-  assert((mstep_mode_ == FertMStepCountsOnly || mstep_mode_ == FertMStepDistortSumBound));
-
   const uint nClasses = distortion_param_.zDim();
 
   if (par_mode_ != IBM23Nonpar) {

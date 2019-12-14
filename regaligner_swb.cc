@@ -62,6 +62,7 @@ int main(int argc, char** argv)
               << " [-nondef-iter <uint>] : iterations for nondeficient m-steps of IBM-3/4" << std::endl
               << " [-start-param-iter <uint>] : iterations for start m-steps (HMM and IBM-4/5)" << std::endl
               << " [-main-param-iter <uint>] : iterations for most alignment/distortion m-steps (HMM and IBM-4/5)" << std::endl
+              << " [-rare-threshold <uint>] : maximum number of occurences of a source or target word to classify as sparse, default: 3" << std::endl
               << " [-postdec-thresh <double>] : threshold for posterior decoding" << std::endl
               << " [-dont-print-energy] : do not print the energy (speeds up EM for IBM-1, IBM-2 and HMM)" << std::endl
               << " [-max-lookup <uint>] : only store lookup tables up to this size to save memory. Default: 65535" << std::endl
@@ -111,7 +112,7 @@ int main(int argc, char** argv)
     exit(0);
   }
 
-  const int nParams = 62;
+  const int nParams = 63;
   ParamDescr params[nParams] = {
     {"-s", mandInFilename, 0, ""}, {"-t", mandInFilename, 0, ""}, {"-ds", optInFilename, 0, ""}, {"-dt", optInFilename, 0, ""},
     {"-o", optOutFilename, 0, ""}, {"-oa", mandOutFilename, 0, ""},  {"-refa", optInFilename, 0, ""}, {"-invert-biling-data", flag, 0, ""},
@@ -130,7 +131,7 @@ int main(int argc, char** argv)
     {"-ibm2-alignment", optWithValue, 1, "pos"}, {"-no-h23-classes", flag, 0, ""}, {"-itg-max-mid-dev",optWithValue,1,"8"},{"-itg-ext-level",optWithValue,1,"0"},
     {"-ibm-max-skip", optWithValue,1,"3"},{"-dict-iter",optWithValue,1,"45"}, {"-nondef-iter",optWithValue,1,"250"}, {"-ibm5-nonpar-distortion", flag, 0, ""},
     {"-uniform-start-prob", flag, 0, ""}, {"-start-param-iter", optWithValue, 1, "250"}, {"-main-param-iter", optWithValue, 1, "500"},
-    {"-ibm2-p0", optWithValue, 1, "0.02"}, {"-ibm1-method", optWithValue, 1, "main"}
+    {"-ibm2-p0", optWithValue, 1, "0.02"}, {"-ibm1-method", optWithValue, 1, "main"}, {"-rare-threshold", optWithValue, 1, "3"}
   };
 
   Application app(argc, argv, params, nParams);
@@ -189,7 +190,7 @@ int main(int argc, char** argv)
 
   uint fert_limit = convert<uint>(app.getParam("-fert-limit"));
   uint rare_fert_limit = convert<uint> (app.getParam("-rare-fert-limit"));
-  uint nMaxRareOccurances = 4;  //3;
+  uint nMaxRareOccurences = 4;  //3;
 
   const uint max_lookup = convert<uint>(app.getParam("-max-lookup"));
   double postdec_thresh = convert<double>(app.getParam("-postdec-thresh"));
@@ -446,7 +447,7 @@ int main(int argc, char** argv)
         }
       }
 
-      uint cutoff = 6;
+      const uint cutoff = nMaxRareOccurences;
 
       uint nSparse = 0;
       for (uint i = 0; i < nTargetWords; i++) {
@@ -856,7 +857,7 @@ int main(int argc, char** argv)
 
   ibm3_trainer.set_fertility_limit(fert_limit);
   if (rare_fert_limit < fert_limit)
-    ibm3_trainer.set_rare_fertility_limit(rare_fert_limit, nMaxRareOccurances);
+    ibm3_trainer.set_rare_fertility_limit(rare_fert_limit, nMaxRareOccurences);
 
   if (ibm3_iter > 0) {
 
@@ -908,7 +909,7 @@ int main(int argc, char** argv)
 
   ibm4_trainer.set_fertility_limit(fert_limit);
   if (rare_fert_limit < fert_limit)
-    ibm4_trainer.set_rare_fertility_limit(rare_fert_limit, nMaxRareOccurances);
+    ibm4_trainer.set_rare_fertility_limit(rare_fert_limit, nMaxRareOccurences);
 
   if (ibm4_iter > 0) {
 
@@ -937,7 +938,7 @@ int main(int argc, char** argv)
 
   ibm5_trainer.set_fertility_limit(fert_limit);
   if (rare_fert_limit < fert_limit)
-    ibm5_trainer.set_rare_fertility_limit(rare_fert_limit, nMaxRareOccurances);
+    ibm5_trainer.set_rare_fertility_limit(rare_fert_limit, nMaxRareOccurences);
 
   if (ibm5_iter > 0) {
 
