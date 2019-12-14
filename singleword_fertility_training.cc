@@ -60,7 +60,7 @@ const NamedStorage1D<Math1D::Vector<AlignBaseType> >& FertilityModelTrainerBase:
   fertility_limit_.set_constant(new_limit);
 
   for (uint i = 1; i < nTargetWords_; i++)
-    fertility_limit_[i] = std::min < uint > (new_limit, fertility_limit_[i]);
+    fertility_limit_[i] = std::min<uint>(new_limit, fertility_limit_[i]);
 }
 
 /*virtual*/ void FertilityModelTrainerBase::set_rare_fertility_limit(uint new_limit, uint max_count)
@@ -875,15 +875,12 @@ FertilityModelTrainer::FertilityModelTrainer(const Storage1D<Math1D::Vector<uint
     const uint curJ = source_sentence[s].size();
     const uint curI = target_sentence[s].size();
 
-    if (max_fertility[0] < curJ)
-      max_fertility[0] = curJ;
+    max_fertility[0] = std::max(max_fertility[0],curJ);
 
     for (uint i = 0; i < curI; i++) {
 
       const uint t_idx = target_sentence[s][i];
-
-      if (max_fertility[t_idx] < curJ)
-        max_fertility[t_idx] = curJ;
+      max_fertility[t_idx] = std::max(max_fertility[t_idx], curJ);
     }
   }
 
@@ -911,6 +908,7 @@ FertilityModelTrainer::FertilityModelTrainer(const Storage1D<Math1D::Vector<uint
     }
   }
 
+  //TODO: skip empty word
   for (uint i = 0; i < nTargetWords; i++) {
     fertility_prob_[i].resize(max_fertility[i] + 1, 1.0 / (max_fertility[i] + 1));
   }
@@ -1193,23 +1191,34 @@ void FertilityModelTrainer::update_fertility_prob(const Storage1D<Math1D::Vector
     }
 
     for (uint i = 0; i < nTFertClasses_; i++) {
-      if (!with_regularity || l0_fertpen_ == 0.0)
-        class_count[i] *= 1.0 / class_count[i].sum();
-      else {
-        Math1D::Vector<double>& cur_class_count = class_count[i];
-        Math1D::Vector<double>& cur_prob = fertility_prob_[prob_num[i]];
-        Math1D::Vector<float> prior_weight(cur_class_count.size(), l0_fertpen_ * tfert_class_count_[i]);
-        single_dict_m_step(cur_class_count, prior_weight, cur_prob, 1.0, fert_m_step_iter_, true, l0_beta_, false);
-        cur_class_count = cur_prob;
+      
+      const double sum = class_count[i].sum();
+      
+      if (sum > 1e-305) {
+        if (!with_regularity || l0_fertpen_ == 0.0)
+          class_count[i] *= 1.0 / sum;
+        else {
+          Math1D::Vector<double>& cur_class_count = class_count[i];
+          Math1D::Vector<double>& cur_prob = fertility_prob_[prob_num[i]];
+          Math1D::Vector<float> prior_weight(cur_class_count.size(), l0_fertpen_ * tfert_class_count_[i]);
+          single_dict_m_step(cur_class_count, prior_weight, cur_prob, 1.0, fert_m_step_iter_, true, l0_beta_, false);
+          cur_class_count = cur_prob;
+        }
       }
     }
 
     for (uint i = 1; i < ffert_count.size(); i++) {
-      Math1D::Vector<double>& cur_fert_prob = fertility_prob_[i];
+           
       const Math1D::Vector<double>& cur_class_count = class_count[tfert_class_[i]];
-      for (uint f = 0; f < cur_fert_prob.size(); f++) {
-        const double real_min_prob = (f <= fertility_limit_[i]) ? min_prob : 1e-15;
-        cur_fert_prob[f] = std::max(real_min_prob, cur_class_count[f]);
+      
+      if (cur_class_count.sum() > 1e-305) {
+      
+        Math1D::Vector<double>& cur_fert_prob = fertility_prob_[i];
+      
+        for (uint f = 0; f < cur_fert_prob.size(); f++) {
+          const double real_min_prob = (f <= fertility_limit_[i]) ? min_prob : 1e-15;
+          cur_fert_prob[f] = std::max(real_min_prob, cur_class_count[f]);
+        }
       }
     }
   }
@@ -1251,6 +1260,8 @@ void FertilityModelTrainer::update_fertility_prob(const Storage1D<Math1D::Vector
 void FertilityModelTrainer::common_prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
     const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment)
 {
+  //std::cerr << "common_prepare_external_alignment" << std::endl;
+  
   const uint J = source.size();
   const uint I = target.size();
 
@@ -1266,7 +1277,7 @@ void FertilityModelTrainer::common_prepare_external_alignment(const Storage1D<ui
     fertility[aj]++;
   }
 
-  if (fertility[0] > 0 && p_zero_ < 1e-12)
+  if (fertility[0] > 0 && p_zero_ != 0.0 && p_zero_ < 1e-12)
     p_zero_ = 1e-12;
 
   make_alignment_feasible(source, target, lookup, alignment);
@@ -1274,11 +1285,14 @@ void FertilityModelTrainer::common_prepare_external_alignment(const Storage1D<ui
   /*** check if fertility tables are large enough ***/
   for (uint i = 0; i < I; i++) {
 
-    if (fertility_prob_[target[i]].size() < J + 1)
-      fertility_prob_[target[i]].resize(J + 1, 1e-15);
+    if (fertility_prob_[target[i]].size() < J + 1) {
+      //std::cerr << "before resize: " << fertility_prob_[target[i]] << std::endl;
+      fertility_prob_[target[i]].resize(J + 1, 1e-8);
+      //std::cerr << "after resize: " << fertility_prob_[target[i]] << std::endl;
+    }
 
-    if (fertility_prob_[target[i]][fertility[i + 1]] < 1e-15)
-      fertility_prob_[target[i]][fertility[i + 1]] = 1e-15;
+    if (fertility_prob_[target[i]][fertility[i + 1]] < 1e-8)
+      fertility_prob_[target[i]][fertility[i + 1]] = 1e-8;
 
     if (fertility_prob_[target[i]].sum() < 0.5)
       fertility_prob_[target[i]].set_constant(1.0 / fertility_prob_[target[i]].size());
@@ -1309,6 +1323,13 @@ void FertilityModelTrainer::common_prepare_external_alignment(const Storage1D<ui
       if (dict_[target[aj - 1]][lookup(j, aj - 1)] < 1e-20)
         dict_[target[aj - 1]][lookup(j, aj - 1)] = 1e-20;
     }
+  }
+
+  if (J/2 >= ld_fac_.size()) {
+    ld_fac_.resize(J/2+1);
+    ld_fac_[0] = 1.0;
+    for (uint c = 1; c < ld_fac_.size(); c++)
+      ld_fac_[c] = ld_fac_[c - 1] * c;
   }
 
   if (J >= choose_factor_.size() || choose_factor_[J].size() == 0) {
@@ -1347,11 +1368,12 @@ void FertilityModelTrainer::init_fertilities(FertilityModelTrainerBase* prev_mod
     const uint curI = cur_target.size();
     const uint curJ = cur_source.size();
 
-    const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc_, nSourceWords_, slookup_[s], aux_lookup);
-
     Math1D::Vector<AlignBaseType>& cur_alignment = best_known_alignment_[s];
 
     if (prev_model != 0) {
+      
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc_, nSourceWords_, slookup_[s], aux_lookup);
+    
       prev_model->compute_external_alignment(cur_source, cur_target, cur_lookup, cur_alignment);
       make_alignment_feasible(cur_source, cur_target, cur_lookup, cur_alignment);
     }
@@ -1384,7 +1406,7 @@ void FertilityModelTrainer::init_fertilities(FertilityModelTrainerBase* prev_mod
     for (uint i = 1; i < nTargetWords_; i++) {
 
       const uint max_fert = fertility_prob_[i].size();
-      const double uni_contrib = uni_weight / std::min<ushort>(max_fert, fertility_limit_[i]);
+      const double uni_contrib = uni_weight / std::min<ushort>(max_fert, fertility_limit_[i] + 1);
 
       for (uint f = 0; f < max_fert; f++) {
 
@@ -1403,19 +1425,19 @@ void FertilityModelTrainer::init_fertilities(FertilityModelTrainerBase* prev_mod
 
       const uint max_fert = cur_fert_count.size();
 
-      double fc_sum = cur_fert_count.sum();
+      const double fc_sum = cur_fert_count.sum();
 
       if (fc_sum > 1e-300) {
 
         const double inv_fc_sum = 1.0 / fc_sum;
 
-        const double uni_contrib = uni_weight / std::min < ushort > (max_fert, fertility_limit_[i]);
+        const double uni_contrib = uni_weight / std::min<ushort>(max_fert, fertility_limit_[i] + 1);
         for (uint f = 0; f < max_fert; f++) {
 
           if (f <= fertility_limit_[i])
             fertility_prob_[i][f] = uni_contrib + count_weight * inv_fc_sum * cur_fert_count[f];
           else
-            fertility_prob_[i][f] = count_weight * inv_fc_sum * cur_fert_count[f];
+            fertility_prob_[i][f] = 1e-8;
         }
       }
       else {
@@ -1423,7 +1445,7 @@ void FertilityModelTrainer::init_fertilities(FertilityModelTrainerBase* prev_mod
         for (uint f = 0; f < max_fert; f++) {
 
           if (f <= fertility_limit_[i])
-            fertility_prob_[i][f] = 1.0 / std::min < ushort > (fertility_limit_[i] + 1, max_fert);
+            fertility_prob_[i][f] = 1.0 / std::min<ushort>(fertility_limit_[i] + 1, max_fert);
           else
             fertility_prob_[i][f] = 1e-8;
         }
