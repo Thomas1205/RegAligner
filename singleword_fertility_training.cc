@@ -75,7 +75,7 @@ const NamedStorage1D<Math1D::Vector<AlignBaseType> >& FertilityModelTrainerBase:
 
   for (uint i = 1; i < nTargetWords_; i++) {
     if (count[i] <= max_count) {
-      fertility_limit_[i] = std::min<uint> (new_limit, fertility_limit_[i]);
+      fertility_limit_[i] = std::min<uint>(new_limit, fertility_limit_[i]);
     }
   }
 }
@@ -1045,6 +1045,19 @@ void FertilityModelTrainer::set_hc_iteration_limit(uint new_limit)
     for (uint c = 0; c <= fertility_limit_[i]; c++)
       fertility_prob_[i][c] = 1.0 / (fertility_limit_[i] + 1);
   }
+  
+  for (uint s = 0; s < target_sentence_.size(); s++) {
+
+    const Storage1D<uint>& cur_target = target_sentence_[s];
+    uint sum_limits = 0;
+    for (uint i = 0; i < cur_target.size(); i++)
+      sum_limits += fertility_limit_[cur_target[i]]++;
+    
+    if (sum_limits < source_sentence_[s].size()) {
+      std::cerr << "ERROR: corpus cannot be modelled with these fertility limits. Raise them and re-run!!!" << std::endl;
+      exit(1);
+    }
+  }
 }
 
 /*virtual*/ void FertilityModelTrainer::set_rare_fertility_limit(uint new_limit, uint max_count)
@@ -1071,6 +1084,19 @@ void FertilityModelTrainer::set_hc_iteration_limit(uint new_limit)
       fertility_prob_[i].set_constant(1e-8);      
       for (uint c = 0; c <= fertility_limit_[i]; c++)
         fertility_prob_[i][c] = 1.0 / (fertility_limit_[i] + 1);
+    }
+  }
+
+  for (uint s = 0; s < target_sentence_.size(); s++) {
+
+    const Storage1D<uint>& cur_target = target_sentence_[s];
+    uint sum_limits = 0;
+    for (uint i = 0; i < cur_target.size(); i++)
+      sum_limits += fertility_limit_[cur_target[i]]++;
+    
+    if (sum_limits < source_sentence_[s].size()) {
+      std::cerr << "ERROR: corpus cannot be modelled with these fertility limits. Raise them and re-run!!!" << std::endl;
+      exit(1);
     }
   }
 }
