@@ -997,7 +997,7 @@ void update_dict_from_counts(const UnnamedSingleWordDictionary& fdict_count, con
           cur_dict = hyp_dict;
       }
       if (!unconstrained_m_step)
-        single_dict_m_step(cur_count, cur_prior, cur_dict, alpha, nDictStepIter, smoothed_l0, l0_beta, false);
+        single_dict_m_step(cur_count, cur_prior, cur_dict, alpha, nDictStepIter, smoothed_l0, l0_beta, true);
       else
         single_dict_m_step_unconstrained(cur_count, cur_prior, cur_dict, nDictStepIter, smoothed_l0, l0_beta, 5);
 

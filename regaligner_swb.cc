@@ -44,7 +44,7 @@ int main(int argc, char** argv)
               << " [-invert-biling-data] : switch source and target for prior dict and gold alignments" << std::endl
               << "**************** Outputs *******************" << std::endl
               << " [-o <file>] : the determined dictionary is written to this file" << std::endl
-              << " -oa <file> : the determined alignment is written to this file"
+              << " -oa <file> : the determined alignment is written to this file" << std::endl
               << "**************** Main Options **********************" << std::endl
               << " [-method ( em | gd | viterbi )] : use EM, gradient descent or Viterbi training (default EM) " << std::endl
               << " [-dict-regularity <double>] : regularity weight for L0 or L1 regularization" << std::endl

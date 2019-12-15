@@ -2598,7 +2598,6 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
   }
   else {
 
-    assert(zero_fert <= 15);
     base_prob *= choose_factor_[curJ][zero_fert];
     update_nullpow(zero_fert, curJ - 2 * zero_fert);
     base_prob *= p_zero_pow_[zero_fert];
