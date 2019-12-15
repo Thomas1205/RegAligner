@@ -75,7 +75,7 @@ const NamedStorage1D<Math1D::Vector<AlignBaseType> >& FertilityModelTrainerBase:
 
   for (uint i = 1; i < nTargetWords_; i++) {
     if (count[i] <= max_count) {
-      fertility_limit_[i] = std::min < uint > (new_limit, fertility_limit_[i]);
+      fertility_limit_[i] = std::min<uint> (new_limit, fertility_limit_[i]);
     }
   }
 }
@@ -1033,8 +1033,15 @@ void FertilityModelTrainer::set_hc_iteration_limit(uint new_limit)
 
   for (uint i = 1; i < nTargetWords_; i++) {
     fertility_limit_[i] = std::min<uint>(new_limit, fertility_prob_[i].size() - 1);
+    fertility_limit_[i] = std::max<uint>(1, fertility_limit_[i]);
 
-    fertility_prob_[i].set_constant(0.0);
+    if (fertility_prob_[i].size() <= fertility_limit_[i])
+      fertility_prob_[i].resize_dirty(fertility_limit_[i] + 1);
+
+    //NOTE: setting the passed limit rather than the maximum possible for the training data (if it is smaller)
+    //  may be more sensible when you want to produce dev-alignments. But then the code must change
+
+    fertility_prob_[i].set_constant(1e-8);
     for (uint c = 0; c <= fertility_limit_[i]; c++)
       fertility_prob_[i][c] = 1.0 / (fertility_limit_[i] + 1);
   }
@@ -1052,8 +1059,16 @@ void FertilityModelTrainer::set_hc_iteration_limit(uint new_limit)
 
   for (uint i = 1; i < nTargetWords_; i++) {
     if (count[i] <= max_count) {
-      fertility_limit_[i] = std::min<uint> (new_limit, fertility_prob_[i].size() - 1);
-      fertility_prob_[i].set_constant(0.0);
+      fertility_limit_[i] = std::min<uint>(new_limit, fertility_prob_[i].size() - 1);
+      fertility_limit_[i] = std::max<uint>(1, fertility_limit_[i]);
+
+      if (fertility_prob_[i].size() <= fertility_limit_[i])
+       fertility_prob_[i].resize_dirty(fertility_limit_[i] + 1);
+      
+      //NOTE: setting the passed limit rather than the maximum possible for the training data (if it is smaller)
+      //  may be more sensible when you want to produce dev-alignments. But then the code must change
+
+      fertility_prob_[i].set_constant(1e-8);      
       for (uint c = 0; c <= fertility_limit_[i]; c++)
         fertility_prob_[i][c] = 1.0 / (fertility_limit_[i] + 1);
     }
@@ -1220,6 +1235,8 @@ void FertilityModelTrainer::update_fertility_prob(const Storage1D<Math1D::Vector
           cur_fert_prob[f] = std::max(real_min_prob, cur_class_count[f]);
         }
       }
+      
+      assert(!isinf(fertility_prob_[i][0]));
     }
   }
   else {
@@ -1253,6 +1270,8 @@ void FertilityModelTrainer::update_fertility_prob(const Storage1D<Math1D::Vector
       else {
         //std::cerr << "WARNING: did not update fertility count because sum was " << sum << std::endl;
       }
+      
+      assert(!isinf(fertility_prob_[i][0]));
     }
   }
 }
@@ -1277,6 +1296,19 @@ void FertilityModelTrainer::common_prepare_external_alignment(const Storage1D<ui
     fertility[aj]++;
   }
 
+  uint limit_sum;
+  do {
+    limit_sum = 0;
+    for (uint i=0; i < I; i++)
+      limit_sum += fertility_limit_[target[i]];
+  
+    if (limit_sum < J) {
+      for (uint i=0; i < I; i++)
+        fertility_limit_[target[i]]++;
+    }
+  }
+  while (limit_sum < J);
+
   if (fertility[0] > 0 && p_zero_ != 0.0 && p_zero_ < 1e-12)
     p_zero_ = 1e-12;
 
@@ -1286,9 +1318,7 @@ void FertilityModelTrainer::common_prepare_external_alignment(const Storage1D<ui
   for (uint i = 0; i < I; i++) {
 
     if (fertility_prob_[target[i]].size() < J + 1) {
-      //std::cerr << "before resize: " << fertility_prob_[target[i]] << std::endl;
       fertility_prob_[target[i]].resize(J + 1, 1e-8);
-      //std::cerr << "after resize: " << fertility_prob_[target[i]] << std::endl;
     }
 
     if (fertility_prob_[target[i]][fertility[i + 1]] < 1e-8)
@@ -1415,6 +1445,12 @@ void FertilityModelTrainer::init_fertilities(FertilityModelTrainerBase* prev_mod
         else
           fertility_prob_[i][f] = 1e-8;
       }
+      
+      //DEBUG
+      double sum = fertility_prob_[i].sum();
+      assert(sum >= 1e-8 && sum < 1.5);    
+      assert(!isinf(fertility_prob_[i][0]));
+      //END_DEBUG
     }
   }
   else {
@@ -1450,6 +1486,12 @@ void FertilityModelTrainer::init_fertilities(FertilityModelTrainerBase* prev_mod
             fertility_prob_[i][f] = 1e-8;
         }
       }
+    
+      //DEBUG
+      double sum = fertility_prob_[i].sum();
+      assert(sum >= 1e-8 && sum < 1.5);    
+      assert(!isinf(fertility_prob_[i][0]));
+      //END_DEBUG
     }
   }
 }
