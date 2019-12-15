@@ -4689,13 +4689,13 @@ void IBM3Trainer::train_em(uint nIter, FertilityModelTrainerBase* prev_model, co
 
     update_fertility_prob(ffert_count, fert_min_param_entry);
 
-    max_perplexity += reg_term;
-    approx_sum_perplexity += reg_term;
-    viterbi_max_perplexity += reg_term;
-
     max_perplexity /= source_sentence_.size();
     approx_sum_perplexity /= source_sentence_.size();
     viterbi_max_perplexity /= source_sentence_.size();
+
+    max_perplexity += reg_term;
+    approx_sum_perplexity += reg_term;
+    viterbi_max_perplexity += reg_term;
 
     std::string transfer = (prev_model != 0 && iter == 1) ? " (transfer) " : "";
 

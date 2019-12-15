@@ -6837,11 +6837,11 @@ void IBM4Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
       par2nonpar_start_prob(sentence_start_parameters_, sentence_start_prob_);
     }
 
-    max_perplexity += reg_term;
-    approx_sum_perplexity += reg_term;
-
     max_perplexity /= source_sentence_.size();
     approx_sum_perplexity /= source_sentence_.size();
+
+    max_perplexity += reg_term;
+    approx_sum_perplexity += reg_term;
 
     std::string transfer = (fert_trainer != 0 && iter == 1) ? " (transfer) " : "";
 
