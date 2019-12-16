@@ -1038,7 +1038,7 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
     }
 
     if (options.print_energy_) {
-      std::cerr << "reduced IBM 2 energy after iteration #" << iter << ": "
+      std::cerr << "ReducedIBM-2 energy after iteration #" << iter << ": "
                 << reduced_ibm2_energy(source, slookup, target, alignment_model, dict, sclass, wcooc, options.nSourceWords_,
                                        prior_weight, l0_beta, smoothed_l0, dict_weight_sum)
                 << std::endl;
@@ -1548,7 +1548,7 @@ void train_reduced_ibm2_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
     energy = hyp_energy;
 
     if (options.print_energy_)
-      std::cerr << "ReducedIBM2 energy: " << energy << std::endl;
+      std::cerr << "ReducedIBM-2 energy after gd-iteration #" << iter << ": " << energy << std::endl;
 
     /************* compute alignment error rate ****************/
     if (!options.possible_ref_alignments_.empty()) {
@@ -2085,9 +2085,9 @@ void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& sourc
       sum_fmeasure /= nContributors;
       nErrors /= nContributors;
 
-      std::cerr << "#### ReducedIBM2 Viterbi-AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
-      std::cerr << "#### ReducedIBM2 Viterbi-fmeasure after iteration #" << iter << ": " << sum_fmeasure << std::endl;
-      std::cerr << "#### ReducedIBM2 Viterbi-DAE/S after iteration #" << iter << ": " << nErrors << std::endl;
+      std::cerr << "#### ReducedIBM-2 Viterbi-AER after Viterbi-iteration #" << iter << ": " << sum_aer << " %" << std::endl;
+      std::cerr << "#### ReducedIBM-2 Viterbi-fmeasure after Viterbi-iteration #" << iter << ": " << sum_fmeasure << std::endl;
+      std::cerr << "#### ReducedIBM-2 Viterbi-DAE/S after Viterbi-iteration #" << iter << ": " << nErrors << std::endl;
     }
   }
 

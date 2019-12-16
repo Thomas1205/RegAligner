@@ -992,12 +992,7 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       prev_perplexity -= std::log(sentence_prob);
 
       if (!(sentence_prob > 0.0)) {
-        //if (true) {
         std::cerr << "sentence_prob " << sentence_prob << " for sentence pair " << s << " with I=" << curI << ", J= " << curJ << std::endl;
-
-        //DEBUG
-        //exit(1);
-        //END_DEBUG
       }
       assert(sentence_prob > 0.0);
 
@@ -1161,8 +1156,13 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       }
     }
 
-    prev_perplexity /= nSentences;
-    std::cerr << "perplexity after iteration #" << (iter - 1) << ": " << prev_perplexity << std::endl;
+    double energy = prev_perplexity / nSentences;
+    
+    if (dict_weight_sum != 0.0) {
+      energy += dict_reg_term(dict, prior_weight, options.l0_beta_);
+    }
+
+    std::cerr << "energy after iteration #" << (iter - 1) << ": " << energy << std::endl;
     std::cerr << "computing alignment and dictionary probabilities from normalized counts" << std::endl;
 
     const double sfsum = source_fert_count.sum();
@@ -1271,6 +1271,13 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       }
     }
 
+    if (options.print_energy_) {
+      std::cerr << "#### EHMM energy after iteration # " << iter << ": "
+                << extended_hmm_energy(source, slookup, target, target_class, align_model, initial_prob, dict, wcooc,
+                                       nSourceWords, prior_weight, options, dict_weight_sum)
+                << std::endl;
+    }
+
     /************* compute alignment error rate ****************/
     if (!options.possible_ref_alignments_.empty()) {
 
@@ -1341,12 +1348,6 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       sum_postdec_fmeasure /= nContributors;
       sum_postdec_daes /= nContributors;
 
-      if (options.print_energy_) {
-        std::cerr << "#### EHMM energy after iteration # " << iter << ": "
-                  << extended_hmm_energy(source, slookup, target, target_class, align_model, initial_prob, dict, wcooc,
-                                         nSourceWords, prior_weight, options, dict_weight_sum)
-                  << std::endl;
-      }
       std::cerr << "#### EHMM-SingleClass Viterbi-AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
       std::cerr << "#### EHMM-SingleClass Viterbi-fmeasure after iteration #" << iter << ": " << sum_fmeasure << std::endl;
       std::cerr << "#### EHMM-SingleClass Viterbi-DAE/S after iteration #" << iter << ": " << nErrors << std::endl;
@@ -2250,7 +2251,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
     if (options.print_energy_) {
       std::cerr << "slack-sum: " << slack_vector.sum() << std::endl;
-      std::cerr << "energy: " << energy << std::endl;
+      std::cerr << "#### EHMM energy after gd-iteration # " << iter << ": " << "energy: " << energy << std::endl;
     }
 
     /************* compute alignment error rate ****************/

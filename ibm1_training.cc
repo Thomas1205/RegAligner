@@ -1904,9 +1904,9 @@ void ibm1_viterbi_training(const Storage1D<Math1D::Vector<uint> >& source, const
       sum_fmeasure /= nContributors;
       nErrors /= nContributors;
 
-      std::cerr << "#### IBM-1 Viterbi-AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
-      std::cerr << "#### IBM-1 Viterbi-fmeasure after iteration #" << iter << ": " << sum_fmeasure << std::endl;
-      std::cerr << "#### IBM-1 Viterbi-DAE/S after iteration #" << iter << ": " << nErrors << std::endl;
+      std::cerr << "#### IBM-1 Viterbi-AER after Viterbi-iteration #" << iter << ": " << sum_aer << " %" << std::endl;
+      std::cerr << "#### IBM-1 Viterbi-fmeasure after Viterbi-iteration #" << iter << ": " << sum_fmeasure << std::endl;
+      std::cerr << "#### IBM-1 Viterbi-DAE/S after Viterbi-iteration #" << iter << ": " << nErrors << std::endl;
 
       if (nSwitches == 0 && fabs(last_energy - energy) < 1e-4) {
         std::cerr << "LOCAL MINIMUM => break." << std::endl;
@@ -1926,5 +1926,4 @@ void ibm1_viterbi_training(const Storage1D<Math1D::Vector<uint> >& source, const
     viterbi_move(source, slookup, target, k, k + (granularity - 1), dict_penalty, viterbi_alignment, dcount);
   }
 #endif
-
 }

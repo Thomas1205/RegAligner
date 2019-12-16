@@ -55,4 +55,10 @@ void ibm1_viterbi_training(const Storage1D<Math1D::Vector<uint> >& source, const
                            SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight,
                            const IBM1Options& options, const Math1D::Vector<double>& xlogx_table);
 
+void symtrain_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const LookupTable& tlookup,
+                   const Storage1D<Math1D::Vector<uint> >& target, const CooccuringWordsType& s2t_cooc, const CooccuringWordsType& t2s_cooc,
+                   uint nSourceWords, uint nTargetWords, SingleWordDictionary& s2t_dict, SingleWordDictionary& t2s_dict,
+                   uint nIterations, double gamma, std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
+                   std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments, bool diff_of_logs);
+
 #endif

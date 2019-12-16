@@ -2911,8 +2911,13 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       }
     }
 
-    prev_perplexity /= nSentences;
-    std::cerr << "perplexity after iteration #" << (iter - 1) << ": " <<  prev_perplexity << std::endl;
+    double energy = prev_perplexity / nSentences;
+    
+    if (dict_weight_sum != 0.0) {
+      energy += dict_reg_term(dict, prior_weight, options.l0_beta_);
+    }
+    
+    std::cerr << "energy after iteration #" << (iter - 1) << ": " <<  energy << std::endl;
     std::cerr << "computing alignment and dictionary probabilities from normalized counts" << std::endl;
 
     if (source_fert.size() > 0 && source_fert_count.sum() > 0.0 && !options.fix_p0_) {
@@ -3016,6 +3021,13 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
     }
 
     /************* compute alignment error rate ****************/
+    if (options.print_energy_) {
+      std::cerr << "#### EHMM energy after iteration # " << iter << ": "
+                << extended_hmm_energy(source, slookup, target, align_model, initial_prob, dict, wcooc, nSourceWords,
+                                       prior_weight, options, dict_weight_sum)
+                << std::endl;
+    }
+
     if (!options.possible_ref_alignments_.empty()) {
 
       //std::cerr << "computing error rates" << std::endl;
@@ -3088,12 +3100,6 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       sum_postdec_fmeasure /= nContributors;
       sum_postdec_daes /= nContributors;
 
-      if (options.print_energy_) {
-        std::cerr << "#### EHMM energy after iteration # " << iter << ": "
-                  << extended_hmm_energy(source, slookup, target, align_model, initial_prob, dict, wcooc, nSourceWords,
-                                         prior_weight, options, dict_weight_sum)
-                  << std::endl;
-      }
       std::cerr << "#### EHMM Viterbi-AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
       std::cerr << "---- EHMM Marginal-AER : " << sum_marg_aer << " %" << std::endl;
       std::cerr << "#### EHMM Viterbi-fmeasure after iteration #" << iter << ": " << sum_fmeasure << std::endl;
@@ -3957,7 +3963,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
     if (options.print_energy_) {
       std::cerr << "slack-sum: " << slack_vector.sum() << std::endl;
-      std::cerr << "energy: " << energy << std::endl;
+      std::cerr << "#### EHMM energy after gd-iteration # " << iter << ": " << "energy: " << energy << std::endl;
     }
 
     /************* compute alignment error rate ****************/
@@ -5338,10 +5344,10 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
       nErrors /= nContributors;
       sum_fmeasure /= nContributors;
 
-      std::cerr << "#### EHMM Viterbi-AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
+      std::cerr << "#### EHMM Viterbi-AER after Viterbi-iteration #" << iter << ": " << sum_aer << " %" << std::endl;
       std::cerr << "---- EHMM Marginal-AER : " << sum_marg_aer << " %" << std::endl;
-      std::cerr << "#### EHMM Viterbi-fmeasure after iteration #" << iter << ": " << sum_fmeasure << std::endl;
-      std::cerr << "#### EHMM Viterbi-DAE/S after iteration #" << iter << ": " << nErrors << std::endl;
+      std::cerr << "#### EHMM Viterbi-fmeasure after Viterbi-iteration #" << iter << ": " << sum_fmeasure << std::endl;
+      std::cerr << "#### EHMM Viterbi-DAE/S after Viterbi-iteration #" << iter << ": " << nErrors << std::endl;
     }
   } //end for (iter)
 }

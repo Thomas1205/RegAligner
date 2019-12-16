@@ -155,4 +155,6 @@ inline void symmetrize_swapmat(Math2D::Matrix<double>& swap_prob, const uint cur
   }
 }
 
+double dict_reg_term(const SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight, double l0_beta = -1.0);
+
 #endif
