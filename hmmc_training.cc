@@ -258,7 +258,7 @@ void init_hmm_from_prev(const Storage1D<Math1D::Vector<uint> >& source, const Lo
             for (int i1 = 0; i1 < int(curI); i1++) {
               for (int i2 = 0; i2 < int(curI); i2++) {
 
-                const double marg = prev_marg[i1 - 1] * cur_marg[i2 - 1];
+                const double marg = prev_marg[i1 + 1] * cur_marg[i2 + 1];
 
                 int diff = i2 - i1;
                 if (abs(diff) <= redpar_limit || align_type != HmmAlignProbReducedpar)
