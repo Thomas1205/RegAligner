@@ -628,7 +628,7 @@ void noncompact_ehmm_m_step(const FullHMMAlignmentModel& facount, Math1D::Vector
       if (grouping_param >= 0.0)
         hyp_grouping_param = std::max(hmm_min_param_entry, lambda * new_grouping_param + neg_lambda * grouping_param);
 
-      double new_energy = ehmm_m_step_energy(facount, hyp_dist_params, zero_offset, hyp_grouping_param, redpar_limit);
+      const double new_energy = ehmm_m_step_energy(facount, hyp_dist_params, zero_offset, hyp_grouping_param, redpar_limit);
 
       if (new_energy < best_energy) {
         best_energy = new_energy;
@@ -2807,7 +2807,9 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
         //when using a separate start empty word: cover the case where the entire sentence aligns to NULL.
         // for long sentences the probability should be negligible
 
-        cur_ficount[curI] += inv_sentence_prob * backward(2 * curI, 0);
+        const double addon = inv_sentence_prob * backward(2 * curI, 0);
+        fwcount[0][start_s_idx - 1] += addon;
+        cur_ficount[curI] += addon;
       }
 
       //mid-sentence
@@ -2822,7 +2824,7 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
         for (uint i = 0; i < curI; i++) {
           const uint t_idx = cur_target[i];
 
-          const double dict_entry = cur_dict(j,i); //dict[t_idx][cur_lookup(j, i)];
+          const double dict_entry = cur_dict(j, i); //dict[t_idx][cur_lookup(j, i)];
 
           if (dict_entry > 1e-305) {
             fwcount[t_idx][cur_lookup(j, i)] += forward(i, j) * backward(i, j) * inv_sentence_prob / dict_entry;
@@ -2962,8 +2964,8 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
     /***** compute alignment and dictionary probabilities from normalized counts ******/
 
-    //compute new dict from normalized fractional counts
-    update_dict_from_counts(fwcount, prior_weight, dict_weight_sum, options.smoothed_l0_, options.l0_beta_,
+    //compute new dict from normalized fractional counts    
+    update_dict_from_counts(fwcount, prior_weight, nSentences, dict_weight_sum, options.smoothed_l0_, options.l0_beta_,
                             options.dict_m_step_iter_, dict, hmm_min_dict_entry, options.msolve_mode_ != MSSolvePGD);
 
     //compute new nonparametric probabilities from normalized fractional counts
@@ -3012,7 +3014,7 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
               for (uint i_next = 0; i_next < I; i_next++) {
                 align_model[I - 1] (i_next, i) = std::max(hmm_min_param_entry, inv_sum * facount[I - 1](i_next, i));
-                assert(!isnan(align_model[I - 1] (i_next, i)));
+                assert(!isnan(align_model[I - 1](i_next, i)));
               }
             }
           }
@@ -3320,7 +3322,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
         }
       }
 
-      const double cur_dict_entry = cur_dict(0,curI); //dict[0][start_s_idx - 1];
+      const double cur_dict_entry = cur_dict(0, curI); //dict[0][start_s_idx - 1];
       if (cur_dict_entry > 1e-300) {
         if (start_empty_word) {
           const double coeff = inv_sentence_prob * backward(2 * curI, 0);
@@ -5154,7 +5156,7 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
     /***** compute alignment and dictionary probabilities from normalized counts ******/
 
     //compute new dict from normalized fractional counts
-    update_dict_from_counts(dcount, prior_weight, 0.0, false, 0.0, 0, dict, hmm_min_dict_entry);
+    update_dict_from_counts(dcount, prior_weight, nSentences, 0.0, false, 0.0, 0, dict, hmm_min_dict_entry);
 
     //the changes in source-fert-counts are SO FAR NOT accounted for in the ICM hyp score calculations
     // nevertheless, updating them according to the new counts cannot worsen the energy
@@ -5292,7 +5294,7 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
     std::cerr << "energy after ICM and all updates: " << (energy / nSentences) << std::endl;
 #else
     //compute new dict from normalized fractional counts
-    update_dict_from_counts(dcount, prior_weight, 0.0, false, 0.0, 0, dict, hmm_min_dict_entry);
+    update_dict_from_counts(dcount, prior_weight, nSentences, 0.0, false, 0.0, 0, dict, hmm_min_dict_entry);
 #endif
 
     /************* compute alignment error rate ****************/

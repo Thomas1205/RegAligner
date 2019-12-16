@@ -1242,7 +1242,7 @@ void FertilityModelTrainer::update_fertility_prob(const Storage1D<Math1D::Vector
           Math1D::Vector<double>& cur_class_count = class_count[i];
           Math1D::Vector<double>& cur_prob = fertility_prob_[prob_num[i]];
           Math1D::Vector<float> prior_weight(cur_class_count.size(), l0_fertpen_ * tfert_class_count_[i]);
-          single_dict_m_step(cur_class_count, prior_weight, cur_prob, 1.0, fert_m_step_iter_, true, l0_beta_, false);
+          single_dict_m_step(cur_class_count, prior_weight, source_sentence_.size(), cur_prob, 1.0, fert_m_step_iter_, true, l0_beta_, false);
           cur_class_count = cur_prob;
         }
       }
@@ -1290,7 +1290,7 @@ void FertilityModelTrainer::update_fertility_prob(const Storage1D<Math1D::Vector
         }
         else {
           Math1D::Vector<float> prior_weight(cur_count.size(), l0_fertpen_);
-          single_dict_m_step(cur_count, prior_weight, cur_fert_prob, 1.0, 250, true, l0_beta_, false);
+          single_dict_m_step(cur_count, prior_weight, source_sentence_.size(), cur_fert_prob, 1.0, 250, true, l0_beta_, false);
         }
       }
       else {

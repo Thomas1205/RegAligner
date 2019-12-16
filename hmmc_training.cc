@@ -1050,7 +1050,9 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
         //when using a separate start empty word: cover the case where the entire sentence aligns to NULL.
         // for long sentences the probability should be negligible
 
-        cur_ficount[curI] += inv_sentence_prob * backward(2 * curI, 0);
+        const double addon = inv_sentence_prob * backward(2 * curI, 0);
+        fwcount[0][start_s_idx - 1] += addon;
+        cur_ficount[curI] += addon;
       }
 
       //mid-sentence
@@ -1203,7 +1205,7 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
     //compute new dict from normalized fractional counts
 
-    update_dict_from_counts(fwcount, prior_weight, dict_weight_sum, options.smoothed_l0_, options.l0_beta_,
+    update_dict_from_counts(fwcount, prior_weight, nSentences, dict_weight_sum, options.smoothed_l0_, options.l0_beta_,
                             options.dict_m_step_iter_, dict, hmm_min_dict_entry, options.msolve_mode_ != MSSolvePGD);
 
     //compute new nonparametric probabilities from normalized fractional counts
@@ -3355,7 +3357,7 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
 
     std::cerr << nSwitches << " switches in ICM" << std::endl;
 
-    update_dict_from_counts(dcount, prior_weight, 0.0, false, 0.0, 0, dict, hmm_min_dict_entry);
+    update_dict_from_counts(dcount, prior_weight, nSentences, 0.0, false, 0.0, 0, dict, hmm_min_dict_entry);
 
     sfsum = source_fert_count.sum();
     if (sfsum > 1e-305 && !options.fix_p0_) {
@@ -3503,7 +3505,7 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
 
     std::cerr << "energy after ICM and all updates: " << (energy / nSentences) << std::endl;
 #else
-    update_dict_from_counts(dcount, prior_weight, 0.0, false, 0.0, 0, dict, hmm_min_dict_entry);
+    update_dict_from_counts(dcount, prior_weight, nSentences, 0.0, false, 0.0, 0, dict, hmm_min_dict_entry);
 #endif
 
     /************* compute alignment error rate ****************/

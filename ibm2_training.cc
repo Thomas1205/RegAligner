@@ -220,7 +220,7 @@ void train_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
       }
     }
 
-    update_dict_from_counts(fwcount, prior_weight, dict_weight_sum, smoothed_l0, l0_beta, dict_m_step_iter, dict,
+    update_dict_from_counts(fwcount, prior_weight, nSentences, dict_weight_sum, smoothed_l0, l0_beta, dict_m_step_iter, dict,
                             ibm1_min_dict_entry, MSSolvePGD);
 
     //compute new alignment model from normalized fractional counts
@@ -990,7 +990,7 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       }
     }
 
-    update_dict_from_counts(fwcount, prior_weight, dict_weight_sum, smoothed_l0, l0_beta, options.dict_m_step_iter_, dict,
+    update_dict_from_counts(fwcount, prior_weight, nSentences, dict_weight_sum, smoothed_l0, l0_beta, options.dict_m_step_iter_, dict,
                             ibm1_min_dict_entry, options.unconstrained_m_step_);
 
     //compute new alignment model from normalized fractional counts

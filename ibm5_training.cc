@@ -1869,6 +1869,8 @@ void IBM5Trainer::intra_distortion_m_step_unconstrained(const Math2D::Matrix<dou
 
 void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, const HmmWrapperWithClasses* passed_wrapper)
 {
+  const uint nSentences = source_sentence_.size();
+  
   std::cerr << "starting IBM-5 training without constraints";
   if (fert_trainer != 0)
     std::cerr << " (init from " << fert_trainer->model_name() << ") ";
@@ -1956,7 +1958,7 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
     double hillclimbtime = 0.0;
     double countcollecttime = 0.0;
 
-    for (size_t s = 0; s < source_sentence_.size(); s++) {
+    for (size_t s = 0; s < nSentences; s++) {
 
       if ((s % 10000) == 0)
         std::cerr << "sentence pair #" << s << std::endl;
@@ -2486,7 +2488,7 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
     //END_DEBUG
 
     //update dictionary
-    update_dict_from_counts(fwcount, prior_weight_, dict_weight_sum, smoothed_l0_, l0_beta_, dict_m_step_iter_, dict_, fert_min_dict_entry,
+    update_dict_from_counts(fwcount, prior_weight_, nSentences, dict_weight_sum, smoothed_l0_, l0_beta_, dict_m_step_iter_, dict_, fert_min_dict_entry,
                             msolve_mode_ != MSSolvePGD);
 
     //update fertility probabilities
@@ -3009,7 +3011,7 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
     //END_DEBUG
 
     //update dictionary
-    update_dict_from_counts(fwcount, prior_weight_, 0.0, false, 0.0, 0, dict_, fert_min_dict_entry);
+    update_dict_from_counts(fwcount, prior_weight_, nSentences, 0.0, false, 0.0, 0, dict_, fert_min_dict_entry);
 
     //update fertility probabilities
     update_fertility_prob(ffert_count, fert_min_param_entry, false);    //needed at least with fert-prob-sharing
@@ -3245,7 +3247,7 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
       update_fertility_prob(ffert_count, fert_min_param_entry, false);
 
       //update dictionary
-      update_dict_from_counts(fwcount, prior_weight_, 0.0, false, 0.0, 0, dict_, fert_min_dict_entry);
+      update_dict_from_counts(fwcount, prior_weight_, nSentences, 0.0, false, 0.0, 0, dict_, fert_min_dict_entry);
 
       //TODO: think about whether to update distortions parameters here as well (would need to update the counts)
 
@@ -3346,8 +3348,28 @@ void IBM5Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
     const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment)
 {
   const uint J = source.size();
+  const uint I = target.size();
 
   common_prepare_external_alignment(source, target, lookup, alignment);
+
+  //DEBUG
+  Math1D::Vector<uint> fertility(I + 1, 0);
+  
+  for (uint j=0; j < J; j++)
+    fertility[alignment[j]]++;
+
+  for (uint i = 1; i <= I; i++) {
+
+    assert(fertility[i] <= fertility_limit_[target[i - 1]]);
+    const double prob = fertility_prob_[target[i - 1]][fertility[i]];
+    if (! (prob > 0.0 && prob <= 1.0 ) ) {
+      std::cerr << "fertility prob distribution: " << fertility_prob_[target[i - 1]] << std::endl;
+    }
+      
+    assert(prob > 0.0 && prob <= 1.0 );
+    assert(fertility[i] <= fertility_limit_[target[i-1]]);
+  }
+  //END_DEBUG
 
   /*** check if distortion tables are large enough ***/
 

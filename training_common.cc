@@ -960,7 +960,7 @@ double prob_pen_prime(double x, double beta)
 }
 
 void update_dict_from_counts(const UnnamedSingleWordDictionary& fdict_count, const floatUnnamedSingleWordDictionary& prior_weight,
-                             double dict_weight_sum, bool smoothed_l0, double l0_beta, uint nDictStepIter, UnnamedSingleWordDictionary& dict,
+                             uint nSentences, double dict_weight_sum, bool smoothed_l0, double l0_beta, uint nDictStepIter, UnnamedSingleWordDictionary& dict,
                              double min_prob, bool unconstrained_m_step)
 {
   if (dict_weight_sum > 0.0) {
@@ -972,14 +972,18 @@ void update_dict_from_counts(const UnnamedSingleWordDictionary& fdict_count, con
       //std::cerr << "i: " << i << ", " << dict[i].size() << " entries" << std::endl;
 
       const Math1D::Vector<double>& cur_count = fdict_count[i];
+
+      const double sum = cur_count.sum();      
+      if (sum == 0.0)
+        continue;
+      
       const Math1D::Vector<float>& cur_prior = prior_weight[i];
       Math1D::Vector<double>& cur_dict = dict[i];
 
-      double cur_energy = single_dict_m_step_energy(cur_count, cur_prior, cur_dict, smoothed_l0, l0_beta);
+      double cur_energy = single_dict_m_step_energy(cur_count, cur_prior, nSentences, cur_dict, smoothed_l0, l0_beta);
 
       Math1D::Vector<double> hyp_dict = cur_count;
 
-      const double sum = cur_count.sum();
       const double prev_sum = cur_dict.sum();
 
       if (sum > 1e-305) {
@@ -990,26 +994,23 @@ void update_dict_from_counts(const UnnamedSingleWordDictionary& fdict_count, con
           hyp_dict[k] *= prev_sum * inv_sum;
         }
 
-        double hyp_energy = single_dict_m_step_energy(cur_count, cur_prior, hyp_dict, smoothed_l0, l0_beta);
+        double hyp_energy = single_dict_m_step_energy(cur_count, cur_prior, nSentences, hyp_dict, smoothed_l0, l0_beta);
 
         //NOTE: if the entries in prior_weight[i] are all the same, hyp_energy should always be small or equal to cur_energy
-        if (hyp_energy < cur_energy)
+        if (hyp_energy < cur_energy) {
           cur_dict = hyp_dict;
+          //std::cerr << "switching to energy " << hyp_energy << std::endl;
+        }
       }
             
       if (!unconstrained_m_step)
-        single_dict_m_step(cur_count, cur_prior, cur_dict, alpha, nDictStepIter, smoothed_l0, l0_beta, true);
+        single_dict_m_step(cur_count, cur_prior, nSentences, cur_dict, alpha, nDictStepIter, smoothed_l0, l0_beta, min_prob, true);
       else
-        single_dict_m_step_unconstrained(cur_count, cur_prior, cur_dict, nDictStepIter, smoothed_l0, l0_beta, 5);
+        single_dict_m_step_unconstrained(cur_count, cur_prior, nSentences, cur_dict, nDictStepIter, smoothed_l0, l0_beta, 5, min_prob);
 
       for (uint k = 0; k < cur_count.size(); k++)
         cur_dict[k] = std::max(min_prob, cur_dict[k]);
-
-      //DEBUG
-      // if (i >= 14)
-      //        exit(1);
-      //END_DEBUG
-    }
+    }    
   }
   else {
 
@@ -1040,12 +1041,21 @@ void update_dict_from_counts(const UnnamedSingleWordDictionary& fdict_count, con
   }
 }
 
-double single_dict_m_step_energy(const Math1D::Vector<double>& fdict_count, const Math1D::Vector<float>& prior_weight,
+double single_dict_m_step_energy(const Math1D::Vector<double>& fdict_count, const Math1D::Vector<float>& prior_weight, uint nSentences,
                                  const Math1D::Vector<double>& dict, bool smoothed_l0, double l0_beta)
 {
   double energy = 0.0;
 
   const uint dict_size = dict.size();
+
+  for (uint k = 0; k < dict_size; k++) {
+
+    const double cur_dict_entry = std::max(dict[k], 1e-300);
+
+    energy -= fdict_count[k] * std::log(cur_dict_entry);
+  }
+
+  energy /= nSentences;
 
   if (!smoothed_l0) {
     for (uint k = 0; k < dict_size; k++)
@@ -1056,18 +1066,11 @@ double single_dict_m_step_energy(const Math1D::Vector<double>& fdict_count, cons
       energy += prior_weight[k] * prob_penalty(dict[k], l0_beta);
   }
 
-  for (uint k = 0; k < dict_size; k++) {
-
-    const double cur_dict_entry = std::max(dict[k], 1e-300);
-
-    energy -= fdict_count[k] * std::log(cur_dict_entry);
-  }
-
   return energy;
 }
 
-void single_dict_m_step(const Math1D::Vector<double>& fdict_count, const Math1D::Vector<float>& prior_weight,
-                        Math1D::Vector<double>& dict, double alpha, uint nIter, bool smoothed_l0, double l0_beta, bool with_slack)
+void single_dict_m_step(const Math1D::Vector<double>& fdict_count, const Math1D::Vector<float>& prior_weight, uint nSentences,
+                        Math1D::Vector<double>& dict, double alpha, uint nIter, bool smoothed_l0, double l0_beta, double min_prob, bool with_slack)
 {
   //std::cerr << "hi, slack: " << with_slack << std::endl;
 
@@ -1089,13 +1092,13 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count, const Math1D:
     return;
   }
 
-  double energy = single_dict_m_step_energy(fdict_count, prior_weight, dict, smoothed_l0, l0_beta);
+  double energy = single_dict_m_step_energy(fdict_count, prior_weight, nSentences, dict, smoothed_l0, l0_beta);
 
   Math1D::Vector<double> dict_grad = dict;
   Math1D::Vector<double> hyp_dict = dict;
   Math1D::Vector<double> new_dict = dict;
 
-  double slack_entry = 1.0 - dict.sum();
+  double slack_entry = std::max(0.0, 1.0 - dict.sum());
   double new_slack_entry = slack_entry;
 
   if (!with_slack)
@@ -1103,89 +1106,24 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count, const Math1D:
 
   double line_reduction_factor = 0.5;
 
-  //NOTE: the norm constraint can only be turned off when there is no slack
-  // in orthant mode we would get a problem because the slack variable has no gradient
-  bool norm_constraint = true; //DON'T PUBLISH
-
   for (uint iter = 1; iter <= nIter; iter++) {
 
     //std::cerr << " ###iteration " << iter << ", energy: " << energy << std::endl;
 
     //set gradient to 0 and recalculate
-    if (with_slack || norm_constraint) {
-      for (uint k = 0; k < dict_size; k++) {
-        double cur_dict_entry = std::max(1e-15, dict[k]);
+    for (uint k = 0; k < dict_size; k++) {
+      double cur_dict_entry = std::max(min_prob, dict[k]);
 
-        if (!smoothed_l0)
-          dict_grad[k] = prior_weight[k] - fdict_count[k] / cur_dict_entry;
-        else
-          dict_grad[k] = prior_weight[k] * prob_pen_prime(cur_dict_entry, l0_beta) - fdict_count[k] / cur_dict_entry;
-      }
+      if (!smoothed_l0)
+        dict_grad[k] = prior_weight[k] - fdict_count[k] / (cur_dict_entry * nSentences);
+      else
+        dict_grad[k] = prior_weight[k] * prob_pen_prime(cur_dict_entry, l0_beta) - fdict_count[k] / (cur_dict_entry * nSentences);
     }
-    else {   //DON'T PUBLISH -- START
-
-      //the energy is NOT scale invariant as it does not account for renormalization
-      // => need to modify the gradient
-
-      dict_grad.set_constant(0.0);
-
-      double addon = 0.0;
-
-      double sum_subst = 0.0;
-
-      for (uint k = 0; k < dict_size; k++) {
-
-        const double cur_dict_entry = std::max(1e-15, dict[k]);
-
-        //a) regularity term
-        if (!smoothed_l0) {
-          dict_grad[k] += prior_weight[k] * (1.0 - cur_dict_entry);
-
-          const double subst = prior_weight[k] * cur_dict_entry;
-          sum_subst += subst;
-
-          // for (uint kk=0; kk < dict_size; kk++) { //NOTE: can be simplified if prior_weight has equal entries everywhere
-          //   if (kk != k)
-          //     dict_grad[kk] -= subst;
-          // }
-        }
-        else {
-          double weight = prior_weight[k] * prob_pen_prime(cur_dict_entry, l0_beta);
-
-          dict_grad[k] += weight * (1.0 - cur_dict_entry);
-
-          const double subst = weight * cur_dict_entry;
-          sum_subst += subst;
-
-          // for (uint kk=0; kk < dict_size; kk++) {
-          //   if (kk != k)
-          //     dict_grad[kk] -= subst;
-          // }
-        }
-
-        //b) entropy term
-        dict_grad[k] -= fdict_count[k] / cur_dict_entry;        //numerator
-        addon += fdict_count[k];        // denominator
-      }
-
-      for (uint k = 0; k < dict_size; k++) {
-        dict_grad[k] += addon;
-
-        double cur_dict_entry = std::max(1e-15, dict[k]);
-        double own_weight = prior_weight[k] * prob_pen_prime(cur_dict_entry, l0_beta) * cur_dict_entry;
-        double own_subst = sum_subst - own_weight;
-
-        dict_grad[k] -= own_subst;
-      }
-    }   //DON'T PUBLISH -- END
 
     //go in neg. gradient direction
     //for (uint k = 0; k < dict_size; k++) {
     //  new_dict[k] = dict[k] - alpha * dict_grad[k];
     //}
-
-    //new_dict = dict;
-    //new_dict.add_vector_multiple(dict_grad, -alpha);
 
     Math1D::go_in_neg_direction(new_dict, dict, dict_grad, alpha);
 
@@ -1193,33 +1131,9 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count, const Math1D:
 
     //reproject
     if (with_slack)
-      projection_on_simplex_with_slack(new_dict.direct_access(), new_slack_entry, new_dict.size(), 1e-15);
+      projection_on_simplex_with_slack(new_dict.direct_access(), new_slack_entry, new_dict.size(), min_prob);
     else {
-      if (norm_constraint)
-        projection_on_simplex(new_dict.direct_access(), new_dict.size(), 1e-15);
-      else {
-
-        //std::cerr << "orthant projection" << std::endl;
-
-        //orthant projection followed by renormalization
-        double sum = 0.0;
-
-        for (uint k = 0; k < dict_size; k++) {
-          new_dict[k] = std::max(1e-15, new_dict[k]);
-          sum += new_dict[k];
-        }
-
-        //std::cerr << "sum: " << sum << std::endl;
-
-        if (sum < 0.01) {
-          std::cerr << "WARNING: sum = " << sum << " in iteration " << iter << std::endl;
-        }
-
-        double inv_sum = 1.0 / sum;
-        for (uint k = 0; k < dict_size; k++) {
-          new_dict[k] = std::max(1e-15, new_dict[k] * inv_sum);
-        }
-      }
+      projection_on_simplex(new_dict.direct_access(), new_dict.size(), min_prob);
     }
 
     double best_energy = 1e300;
@@ -1243,7 +1157,7 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count, const Math1D:
       //}
       Math1D::assign_weighted_combination(hyp_dict, lambda, new_dict, neg_lambda, dict);
 
-      double hyp_energy = single_dict_m_step_energy(fdict_count, prior_weight, hyp_dict, smoothed_l0, l0_beta);
+      double hyp_energy = single_dict_m_step_energy(fdict_count, prior_weight, nSentences, hyp_dict, smoothed_l0, l0_beta);
       //std::cerr << "lambda = " << lambda << ", hyp_energy = " << hyp_energy << std::endl;
 
       if (hyp_energy < best_energy) {
@@ -1292,8 +1206,8 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count, const Math1D:
 }
 
 //use L-BFGS
-void single_dict_m_step_unconstrained(const Math1D::Vector<double>& fdict_count, const Math1D::Vector<float>& prior_weight,
-                                      Math1D::Vector<double>& dict, uint nIter, bool smoothed_l0, double l0_beta, uint L)
+void single_dict_m_step_unconstrained(const Math1D::Vector<double>& fdict_count, const Math1D::Vector<float>& prior_weight, uint nSentences,
+                                      Math1D::Vector<double>& dict, uint nIter, bool smoothed_l0, double l0_beta, uint L, double min_prob)
 {
   //NOTE: the energy is NOT scale invariant as it does not account for renormalization
   // => need to modify the gradient
@@ -1313,7 +1227,7 @@ void single_dict_m_step_unconstrained(const Math1D::Vector<double>& fdict_count,
     return;
   }
 
-  double energy = single_dict_m_step_energy(fdict_count, prior_weight, dict, smoothed_l0, l0_beta);
+  double energy = single_dict_m_step_energy(fdict_count, prior_weight, nSentences, dict, smoothed_l0, l0_beta);
 
   Math1D::Vector<double> dict_grad = dict;
   Math1D::Vector<double> dict_param(dict_size);
@@ -1364,8 +1278,7 @@ void single_dict_m_step_unconstrained(const Math1D::Vector<double>& fdict_count,
 
     for (uint k = 0; k < dict_size; k++) {
 
-      //const double cur_dict_entry = std::max(1e-15, dict[k]);
-      const double cur_dict_entry = std::max(1e-300, dict[k]);
+      const double cur_dict_entry = std::max(min_prob, dict[k]);
 
       //the correct equations demand to divide by cur_sqr_norm everywhere. we do this outside the loop
 
@@ -1393,14 +1306,14 @@ void single_dict_m_step_unconstrained(const Math1D::Vector<double>& fdict_count,
       //addon += fdict_count[k] / cur_sqr_sum; // denominator
 
       //division by cur_sqr_sum is done outside the loop
-      dict_grad[k] -= fdict_count[k] / cur_dict_entry;  //numerator
+      dict_grad[k] -= fdict_count[k] / (cur_dict_entry * nSentences);  //numerator
       addon += fdict_count[k];  // denominator
     }
 
     for (uint k = 0; k < dict_size; k++) {
       dict_grad[k] += addon;
 
-      double cur_dict_entry = std::max(1e-15, dict[k]);
+      double cur_dict_entry = std::max(min_prob, dict[k]);
       double own_weight = prior_weight[k] * prob_pen_prime(cur_dict_entry, l0_beta) * cur_dict_entry;
       double own_subst = sum_subst - own_weight;
 
@@ -1485,7 +1398,7 @@ void single_dict_m_step_unconstrained(const Math1D::Vector<double>& fdict_count,
 
       Math1D::Vector<double> alpha(L);
 
-      const int cur_first_iter = std::max < int >(start_iter, iter - L);
+      const int cur_first_iter = std::max<int>(start_iter, iter - L);
 
       //first loop in Algorithm 7.4 from [Nocedal & Wright]
       for (int prev_iter = iter - 1; prev_iter >= cur_first_iter; prev_iter--) {
@@ -1585,10 +1498,10 @@ void single_dict_m_step_unconstrained(const Math1D::Vector<double>& fdict_count,
 
       double sum = hyp_dict.sqr_norm();
       for (uint k = 0; k < dict_size; k++) {
-        hyp_dict[k] = std::max(1e-15, hyp_dict_param[k] * hyp_dict_param[k] / sum);
+        hyp_dict[k] = std::max(min_prob, hyp_dict_param[k] * hyp_dict_param[k] / sum);
       }
 
-      double hyp_energy = single_dict_m_step_energy(fdict_count, prior_weight, hyp_dict, smoothed_l0, l0_beta);
+      double hyp_energy = single_dict_m_step_energy(fdict_count, prior_weight, nSentences, hyp_dict, smoothed_l0, l0_beta);
       //std::cerr << "lambda = " << lambda << ", hyp_energy = " << hyp_energy << std::endl;
 
       if (hyp_energy < best_energy) {
@@ -1641,7 +1554,7 @@ void single_dict_m_step_unconstrained(const Math1D::Vector<double>& fdict_count,
 
       double sum = dict_param.sqr_norm();
       for (uint k = 0; k < dict_size; k++) {
-        dict[k] = std::max(1e-15, dict_param[k] * dict_param[k] / sum);
+        dict[k] = std::max(min_prob, dict_param[k] * dict_param[k] / sum);
       }
 
       cur_sqr_sum = sum;
@@ -1649,8 +1562,7 @@ void single_dict_m_step_unconstrained(const Math1D::Vector<double>& fdict_count,
       energy = best_energy;
     }
     else {
-      std::
-      cerr << "WARNING: failed to get descent, sqr gradient norm: " << param_grad.sqr_norm() << std::endl;
+      std::cerr << "WARNING: failed to get descent, sqr gradient norm: " << param_grad.sqr_norm() << std::endl;
       exit(1);
       break;
     }
@@ -1658,11 +1570,11 @@ void single_dict_m_step_unconstrained(const Math1D::Vector<double>& fdict_count,
 }
 
 //NOTE: the function to be minimized can be decomposed over the target words
-void dict_m_step(const SingleWordDictionary& fdict_count, const floatSingleWordDictionary& prior_weight,
-                 SingleWordDictionary& dict, double alpha, uint nIter, bool smoothed_l0, double l0_beta)
+void dict_m_step(const SingleWordDictionary& fdict_count, const floatSingleWordDictionary& prior_weight, uint nSentences,
+                 SingleWordDictionary& dict, double alpha, uint nIter, bool smoothed_l0, double l0_beta, double min_prob)
 {
   for (uint k = 0; k < dict.size(); k++)
-    single_dict_m_step(fdict_count[k], prior_weight[k], dict[k], alpha, nIter, smoothed_l0, l0_beta);
+    single_dict_m_step(fdict_count[k], prior_weight[k], nSentences, dict[k], alpha, nIter, smoothed_l0, l0_beta, min_prob);
 }
 
 void par2nonpar_start_prob(const Math1D::Vector<double>& sentence_start_parameters, Storage1D<Math1D::Vector<double> >& sentence_start_prob)

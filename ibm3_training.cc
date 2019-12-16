@@ -4242,6 +4242,8 @@ void IBM3Trainer::train_em(uint nIter, FertilityModelTrainerBase* prev_model, co
 {
   std::cerr << "starting IBM-3 training without constraints" << std::endl;
 
+  const uint nSentences = source_sentence_.size();
+
   double max_perplexity = 0.0;
   double approx_sum_perplexity = 0.0;
   double viterbi_max_perplexity = 0.0;
@@ -4681,7 +4683,7 @@ void IBM3Trainer::train_em(uint nIter, FertilityModelTrainerBase* prev_model, co
     //END_DEBUG
 
     //update dictionary
-    update_dict_from_counts(fwcount, prior_weight_, dict_weight_sum, smoothed_l0_, l0_beta_, dict_m_step_iter_, dict_,
+    update_dict_from_counts(fwcount, prior_weight_, nSentences, dict_weight_sum, smoothed_l0_, l0_beta_, dict_m_step_iter_, dict_,
                             fert_min_dict_entry, msolve_mode_ != MSSolvePGD);
 
     //update distortion prob from counts
@@ -5019,7 +5021,7 @@ void IBM3Trainer::train_viterbi(uint nIter, const AlignmentSetConstraints& align
     update_fertility_prob(ffert_count, fert_min_param_entry, false);
 
     //update dictionary
-    update_dict_from_counts(fwcount, prior_weight_, 0.0, false, 0.0, 0, dict_, fert_min_dict_entry);
+    update_dict_from_counts(fwcount, prior_weight_, nSentences, 0.0, false, 0.0, 0, dict_, fert_min_dict_entry);
 
     std::cerr << "new p0: " << p_zero_ << std::endl;
 
@@ -5312,7 +5314,7 @@ void IBM3Trainer::train_viterbi(uint nIter, const AlignmentSetConstraints& align
       }
 
       //update dictionary
-      update_dict_from_counts(fwcount, prior_weight_, 0.0, false, 0.0, 0, dict_, fert_min_dict_entry);
+      update_dict_from_counts(fwcount, prior_weight_, nSentences, 0.0, false, 0.0, 0, dict_, fert_min_dict_entry);
 
       //update distortion prob from counts
       Storage1D<std::map<CompactAlignedSourceWords,CountStructure> > refined_nondef_aligned_words_count(maxJ_);

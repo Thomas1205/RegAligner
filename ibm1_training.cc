@@ -218,7 +218,7 @@ void train_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
 
     /*** update dict from counts ***/
 
-    update_dict_from_counts(fcount, prior_weight, dict_weight_sum, smoothed_l0, l0_beta, options.dict_m_step_iter_, dict,
+    update_dict_from_counts(fcount, prior_weight, nSentences, dict_weight_sum, smoothed_l0, l0_beta, options.dict_m_step_iter_, dict,
                             ibm1_min_dict_entry, options.unconstrained_m_step_);
 
     if (options.print_energy_) {

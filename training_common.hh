@@ -114,21 +114,21 @@ double prob_penalty(double x, double beta);
 
 double prob_pen_prime(double x, double beta);
 
-void update_dict_from_counts(const UnnamedSingleWordDictionary& fdict_count, const floatUnnamedSingleWordDictionary& prior_weight,
+void update_dict_from_counts(const UnnamedSingleWordDictionary& fdict_count, const floatUnnamedSingleWordDictionary& prior_weight, uint nSentences,
                              double dict_weight_sum, bool smoothed_l0, double l0_beta, uint nDictStepIter, UnnamedSingleWordDictionary& dict,
                              double min_prob = 0.0, bool unconstrained_m_step = false);
 
-void dict_m_step(const SingleWordDictionary& fdict_count, const floatSingleWordDictionary& prior_weight,
-                 SingleWordDictionary& dict, double alpha, uint nIter = 100, bool smoothed_l0 = false, double l0_beta = 1.0);
+void dict_m_step(const SingleWordDictionary& fdict_count, const floatSingleWordDictionary& prior_weight, uint nSentences,
+                 SingleWordDictionary& dict, double alpha, uint nIter = 100, bool smoothed_l0 = false, double l0_beta = 1.0, double min_prob = 1e-8);
 
-void single_dict_m_step(const Math1D::Vector<double>& fdict_count, const Math1D::Vector<float>& prior_weight,
-                        Math1D::Vector<double>& dict, double alpha, uint nIter, bool smoothed_l0, double l0_beta,
+void single_dict_m_step(const Math1D::Vector<double>& fdict_count, const Math1D::Vector<float>& prior_weight, uint nSentences,
+                        Math1D::Vector<double>& dict, double alpha, uint nIter, bool smoothed_l0, double l0_beta, double min_prob,
                         bool with_slack = true);
 
-void single_dict_m_step_unconstrained(const Math1D::Vector<double>& fdict_count, const Math1D::Vector<float>& prior_weight,
-                                      Math1D::Vector<double>& dict, uint nIter, bool smoothed_l0, double l0_beta, uint L);
+void single_dict_m_step_unconstrained(const Math1D::Vector<double>& fdict_count, const Math1D::Vector<float>& prior_weight, uint nSentences,
+                                      Math1D::Vector<double>& dict, uint nIter, bool smoothed_l0, double l0_beta, uint L, double min_prob);
 
-double single_dict_m_step_energy(const Math1D::Vector<double>& fdict_count, const Math1D::Vector<float>& prior_weight,
+double single_dict_m_step_energy(const Math1D::Vector<double>& fdict_count, const Math1D::Vector<float>& prior_weight, uint nSentences,
                                  const Math1D::Vector<double>& dict, bool smoothed_l0, double l0_beta);
 
 //for IBM-4/5 (i.e. no alignments to NULL considered)
