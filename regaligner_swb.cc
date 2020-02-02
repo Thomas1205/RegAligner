@@ -964,6 +964,34 @@ int main(int argc, char** argv)
   LookupTable dev_slookup;
   if (dev_present) {
     generate_wordlookup(dev_source_sentence, dev_target_sentence, wcooc, nSourceWords, dev_slookup);
+    
+    if (app.is_set("-prior-dict")) {
+        
+      Math1D::Vector<uint> target_count(nTargetWords, 0);
+      for (uint s=0; s < target_sentence.size(); s++)
+        for (uint i=0; i < target_sentence[s].size(); i++)
+          target_count[target_sentence[s][i]]++;
+          
+      for (uint i=1; i < nTargetWords; i++) {
+          
+        if (target_count[i] == 0 && prior_weight[i].max_abs() != 0.0) {
+            
+          uint count = 0;
+          for (uint k = 0; k < prior_weight[i].size(); k++) {
+            if (prior_weight[i][k] == 0.0)
+              count++;
+          }
+          if (count > 0) {
+            for (uint k = 0; k < prior_weight[i].size(); k++) {
+              if (prior_weight[i][k] == 0.0)
+                dict[i][k] = 1.0 / count;
+              else
+                dict[i][k] = 1e-8;
+            }
+          }
+        }
+      }
+    }
   }
 
   /*** write alignments ***/

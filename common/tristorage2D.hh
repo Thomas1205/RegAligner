@@ -16,6 +16,8 @@ template<typename T, typename ST = size_t>
 class TriStorage2D : public StorageBase<T,ST> {
 public:
 
+  typedef StorageBase<T,ST> Base;
+
   //default constructor
   TriStorage2D();
 
@@ -51,7 +53,6 @@ public:
   inline const T* row_ptr(ST y) const;
 
   inline ST dim() const;
-
 
 protected:
 

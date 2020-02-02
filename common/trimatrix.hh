@@ -24,6 +24,8 @@ namespace Math2D {
   class TriMatrix : public ::TriStorage2D<T,ST> {
   public:
 
+    typedef ::TriStorage2D<T,ST> Base;
+
     typedef T ALIGNED16 T_A16;
 
     /*---- constructors -----*/
@@ -58,7 +60,7 @@ namespace Math2D {
   protected:
     //the following routines are protected to avoid adding (etc.) e.g. a symmetric matrix to a lower triangular one
     // (the implemented effect is not the expected one, in fact the correct result would be a full matrix without symmetry)
-    void add_matrix_multiple(const TriMatrix<T,ST>& toAdd, T alpha);
+    inline void add_matrix_multiple(const TriMatrix<T,ST>& toAdd, T alpha);
 
     //addition of another matrix of equal dimensions
     void operator+=(const TriMatrix<T,ST>& toAdd);
@@ -94,12 +96,13 @@ namespace Math2D {
   };
 
 
-
   //(lower or upper) triangular matrix, based on TriMatrix
   // NOTE: operator()(x,y) gives the same as operator()(y,x). If you want asymmetric behavior use TriangularMatrixAsymAccess below
   template<typename T, typename ST = size_t>
   class TriangularMatrix : public TriMatrix<T,ST> {
   public:
+
+    typedef TriMatrix<T,ST> Base;
 
     typedef T ALIGNED16 T_A16;
 
@@ -143,14 +146,12 @@ namespace Math2D {
 
     void operator-=(const TriangularMatrix<T,ST>& toSub);
 
-
   protected:
 
     bool is_lower_triangular_; //tells if lower or upper triangular matrix
 
     static const std::string triangular_matrix_name_;
   };
-
 
   //streaming
   template <typename T, typename ST>
@@ -171,6 +172,8 @@ namespace Math2D {
   template<typename T, typename ST = size_t>
   class TriangularMatrixAsymAccess : public TriangularMatrix<T,ST> {
   public:
+
+    typedef TriangularMatrix<T,ST> Base;
 
     typedef T ALIGNED16 T_A16;
 
@@ -203,6 +206,8 @@ namespace Math2D {
   class SymmetricMatrix : public TriMatrix<T,ST> {
   public:
 
+    typedef TriMatrix<T,ST> Base;
+
     typedef T ALIGNED16 T_A16;
 
     /*---- constructors -----*/
@@ -224,9 +229,6 @@ namespace Math2D {
     // - inversion/solution of linear systems via cholesky factorization
     // - determinant via cholesky factorization
 
-
-    // --- routines to access the protected members of TriMatrix
-
     void add_matrix_multiple(const SymmetricMatrix<T,ST>& toAdd, const T alpha);
 
     //addition of another matrix of equal dimensions
@@ -234,11 +236,9 @@ namespace Math2D {
 
     void operator-=(const SymmetricMatrix<T,ST>& toSub);
 
-
   protected:
     static const std::string symmetric_matrix_name_;
   };
-
 
   //streaming
   template <typename T, typename ST>
@@ -263,7 +263,6 @@ namespace Makros {
 
     std::string name() const
     {
-
       return "Math2D::TriMatrix<" + Typename<T>() + "," + Typename<ST>() + "> ";
     }
   };
@@ -274,7 +273,6 @@ namespace Makros {
 
     std::string name() const
     {
-
       return "Math2D::TriMatrix<" + Typename<T>() + "> ";
     }
   };
@@ -285,7 +283,6 @@ namespace Makros {
 
     std::string name() const
     {
-
       return "Math2D::NamedTriMatrix<" + Typename<T>() + "," + Typename<ST>() + "> ";
     }
   };
@@ -296,11 +293,9 @@ namespace Makros {
 
     std::string name() const
     {
-
       return "Math2D::NamedTriMatrix<" + Typename<T>() + "> ";
     }
   };
-
 
   template<typename T, typename ST>
   class Typename<Math2D::TriangularMatrix<T,ST> > {
@@ -308,7 +303,6 @@ namespace Makros {
 
     std::string name() const
     {
-
       return "Math2D::TriangularMatrix<" + Typename<T>() + "," + Typename<ST>() + "> ";
     }
   };
@@ -319,7 +313,6 @@ namespace Makros {
 
     std::string name() const
     {
-
       return "Math2D::TriangularMatrix<" + Typename<T>() + "> ";
     }
   };
@@ -331,7 +324,6 @@ namespace Makros {
 
     std::string name() const
     {
-
       return "Math2D::TriangularMatrixAsymAccess<" + Typename<T>() + "," + Typename<ST>() + "> ";
     }
   };
@@ -342,11 +334,9 @@ namespace Makros {
 
     std::string name() const
     {
-
       return "Math2D::TriangularMatrixAsymAccess<" + Typename<T>() + "> ";
     }
   };
-
 
   template<typename T, typename ST>
   class Typename<Math2D::SymmetricMatrix<T,ST> > {
@@ -354,7 +344,6 @@ namespace Makros {
 
     std::string name() const
     {
-
       return "Math2D::SymmetricMatrix<" + Typename<T>() + "," + Typename<ST>() + "> ";
     }
   };
@@ -365,11 +354,9 @@ namespace Makros {
 
     std::string name() const
     {
-
       return "Math2D::SymmetricMatrix<" + Typename<T>() + "> ";
     }
   };
-
 }
 
 
@@ -401,8 +388,8 @@ namespace Math2D {
   T TriMatrix<T,ST>::max() const
   {
 
-    const T_A16* data = TriStorage2D<T,ST>::data_;
-    const ST size = TriStorage2D<T,ST>::size_;
+    const T_A16* data = Base::data_;
+    const ST size = Base::size_;
 
     assertAligned16(data);
 
@@ -414,8 +401,8 @@ namespace Math2D {
   T TriMatrix<T,ST>::min() const
   {
 
-    const T_A16* data = TriStorage2D<T,ST>::data_;
-    const ST size = TriStorage2D<T,ST>::size_;
+    const T_A16* data = Base::data_;
+    const ST size = Base::size_;
 
     assertAligned16(data);
 
@@ -427,8 +414,8 @@ namespace Math2D {
   T TriMatrix<T,ST>::max_abs() const
   {
 
-    const T_A16* data = TriStorage2D<T,ST>::data_;
-    const ST size = TriStorage2D<T,ST>::size_;
+    const T_A16* data = Base::data_;
+    const ST size = Base::size_;
 
     assertAligned16(data);
 
@@ -447,8 +434,8 @@ namespace Math2D {
   void TriMatrix<T,ST>::add_constant(const T addon)
   {
 
-    const T_A16* data = TriStorage2D<T,ST>::data_;
-    const ST size = TriStorage2D<T,ST>::size_;
+    const T_A16* data = Base::data_;
+    const ST size = Base::size_;
 
     assertAligned16(data);
 
@@ -457,13 +444,13 @@ namespace Math2D {
   }
 
   template<typename T, typename ST>
-  void TriMatrix<T,ST>::add_matrix_multiple(const TriMatrix<T,ST>& toAdd, T alpha)
+  inline void TriMatrix<T,ST>::add_matrix_multiple(const TriMatrix<T,ST>& toAdd, T alpha)
   {
 
 #ifndef DONT_CHECK_VECTOR_ARITHMETIC
-    if (toAdd.dim() != TriStorage2D<T,ST>::dim_) {
+    if (toAdd.dim() != Base::dim_) {
       INTERNAL_ERROR << "    dimension mismatch ("
-                     << TriStorage2D<T,ST>::dim_ << "," << TriStorage2D<T,ST>::fim_ << ") vs. ("
+                     << Base::dim_ << "," << Base::fim_ << ") vs. ("
                      << toAdd.dim() << "," << toAdd.dim() << ")." << std::endl;
       std::cerr << "     When multiple of adding trimatrix \"" << toAdd.name() << "\" to  trimatrix \""
                 << this->name() << "\". Exiting" << std::endl;
@@ -471,10 +458,10 @@ namespace Math2D {
     }
 #endif
 
-    T_A16* attr_restrict data = TriStorage2D<T,ST>::data_;
+    T_A16* attr_restrict data = Base::data_;
     const T_A16* attr_restrict data2 = toAdd.direct_access();
 
-    const ST size = TriStorage2D<T,ST>::size_;
+    const ST size = Base::size_;
 
     assert(toAdd.size() == size);
 
@@ -482,6 +469,23 @@ namespace Math2D {
       data[i] += alpha * data2[i]; //toAdd.direct_access(i);
   }
 
+  template<>
+  inline void TriMatrix<double>::add_matrix_multiple(const TriMatrix<double>& toAdd, double alpha)
+  {
+
+#ifndef DONT_CHECK_VECTOR_ARITHMETIC
+    if (toAdd.dim() != Base::dim_) {
+      INTERNAL_ERROR << "    dimension mismatch ("
+                     << Base::dim_ << "," << Base::dim_ << ") vs. ("
+                     << toAdd.dim() << "," << toAdd.dim() << ")." << std::endl;
+      std::cerr << "     When multiple of adding trimatrix \"" << toAdd.name() << "\" to  trimatrix \""
+                << this->name() << "\". Exiting" << std::endl;
+      exit(1);
+    }
+#endif
+
+    Makros::array_add_multiple(Base::data_, Base::size_, alpha, toAdd.direct_access());
+  }
 
   //addition of another matrix of equal dimensions
   template<typename T, typename ST>
@@ -489,9 +493,9 @@ namespace Math2D {
   {
 
 #ifndef DONT_CHECK_VECTOR_ARITHMETIC
-    if (toAdd.dim() != TriStorage2D<T,ST>::dim_) {
+    if (toAdd.dim() != Base::dim_) {
       INTERNAL_ERROR << "    dimension mismatch in matrix addition(+=): ("
-                     << TriStorage2D<T,ST>::dim_ << "," << TriStorage2D<T,ST>::dim_ << ") vs. ("
+                     << Base::dim_ << "," << Base::dim_ << ") vs. ("
                      << toAdd.dim() << "," << toAdd.dim() << ")." << std::endl;
       std::cerr << "     When adding trimatrix \"" << toAdd.name() << "\" to  trimatrix \""
                 << this->name() << "\". Exiting" << std::endl;
@@ -499,10 +503,10 @@ namespace Math2D {
     }
 #endif
 
-    T_A16* attr_restrict data = TriStorage2D<T,ST>::data_;
+    T_A16* attr_restrict data = Base::data_;
     const T_A16* attr_restrict data2 = toAdd.direct_access();
 
-    const ST size = TriStorage2D<T,ST>::size_;
+    const ST size = Base::size_;
 
     for (ST i=0; i < size; i++)
       data[i] += data2[i]; //toAdd.direct_access(i);
@@ -513,9 +517,9 @@ namespace Math2D {
   {
 
 #ifndef DONT_CHECK_VECTOR_ARITHMETIC
-    if (toSub.dim() != TriStorage2D<T,ST>::dim_) {
+    if (toSub.dim() != Base::dim_) {
       INTERNAL_ERROR << "    dimension mismatch in matrix subtraction(-=): ("
-                     << TriStorage2D<T,ST>::dim_ << "," << TriStorage2D<T,ST>::dim_ << ") vs. ("
+                     << Base::dim_ << "," << Base::dim_ << ") vs. ("
                      << toSub.dim() << "," << toSub.dim() << ")." << std::endl;
       std::cerr << "     When subtracting trimatrix \"" << toSub.name() << "\" from  trimatrix \""
                 << this->name() << "\". Exiting" << std::endl;
@@ -523,10 +527,10 @@ namespace Math2D {
     }
 #endif
 
-    T_A16* attr_restrict data = TriStorage2D<T,ST>::data_;
+    T_A16* attr_restrict data = Base::data_;
     const T_A16* attr_restrict data2 = toSub.direct_access();
 
-    const ST size = TriStorage2D<T,ST>::size_;
+    const ST size = Base::size_;
 
     for (ST i=0; i < size; i++)
       data[i] -= data2[i]; //toSub.direct_access(i);
@@ -537,12 +541,12 @@ namespace Math2D {
   void TriMatrix<T,ST>::operator*=(const T scalar)
   {
 
-    T_A16* attr_restrict data = TriStorage2D<T,ST>::data_;
+    T_A16* attr_restrict data = Base::data_;
 
-    const ST size = TriStorage2D<T,ST>::size_;
+    const ST size = Base::size_;
 
     ST i;
-    for (i=0; i < TriStorage2D<T,ST>::size_; i++)
+    for (i=0; i < Base::size_; i++)
       data[i] *= scalar;
   }
 
@@ -624,8 +628,8 @@ namespace Math2D {
   T TriangularMatrix<T,ST>::sum() const
   {
 
-    const T_A16* attr_restrict data = TriStorage2D<T,ST>::data_;
-    const ST size = TriStorage2D<T,ST>::size_;
+    const T_A16* attr_restrict data = Base::data_;
+    const ST size = Base::size_;
 
     T result = (T) 0;
     for (ST i=0; i < size; i++)
@@ -639,8 +643,8 @@ namespace Math2D {
   double TriangularMatrix<T,ST>::norm() const
   {
 
-    const T_A16* attr_restrict data = TriStorage2D<T,ST>::data_;
-    const ST size = TriStorage2D<T,ST>::size_;
+    const T_A16* attr_restrict data = Base::data_;
+    const ST size = Base::size_;
 
     double result = 0.0;
     for (ST i=0; i < size; i++) {
@@ -655,8 +659,8 @@ namespace Math2D {
   double TriangularMatrix<T,ST>::sqr_norm() const
   {
 
-    const T_A16* attr_restrict data = TriStorage2D<T,ST>::data_;
-    const ST size = TriStorage2D<T,ST>::size_;
+    const T_A16* attr_restrict data = Base::data_;
+    const ST size = Base::size_;
 
     double result = 0.0;
     for (ST i=0; i < size; i++) {
@@ -672,8 +676,8 @@ namespace Math2D {
   double TriangularMatrix<T,ST>::norm_l1() const
   {
 
-    const T_A16* attr_restrict data = TriStorage2D<T,ST>::data_;
-    const ST size = TriStorage2D<T,ST>::size_;
+    const T_A16* attr_restrict data = Base::data_;
+    const ST size = Base::size_;
 
     double result = 0.0;
     for (ST i=0; i < size; i++) {
@@ -688,7 +692,7 @@ namespace Math2D {
   T TriangularMatrix<T,ST>::determinant() const
   {
 
-    const ST dim = TriStorage2D<T,ST>::dim_;
+    const ST dim = Base::dim_;
 
     T result = (T) 0;
     for (ST i=0; i < dim; i++)
@@ -885,9 +889,9 @@ namespace Math2D {
   {
 
 #ifdef SAFE_MODE
-    if (x >= TriStorage2D<T,ST>::dim_ || y >= TriStorage2D<T,ST>::dim_) {
+    if (x >= Base::dim_ || y >= Base::dim_) {
       INTERNAL_ERROR << "    access on element(" << x << "," << y
-                     << ") exceeds storage dimensions of (" << TriStorage2D<T,ST>::dim_ << "," << TriStorage2D<T,ST>::dim_ << ")" << std::endl;
+                     << ") exceeds storage dimensions of (" << Base::dim_ << "," << Base::dim_ << ")" << std::endl;
       std::cerr << "      in TriangularMatrixAsymAccess \"" << this->name() << "\" of type "
                 << Makros::Typename<T>()
                 << ". Exiting." << std::endl;
@@ -905,7 +909,7 @@ namespace Math2D {
         std::swap(x,y);
     }
 
-    return TriStorage2D<T,ST>::data_[(y*(y+1))/2+x];
+    return Base::data_[(y*(y+1))/2+x];
   }
 
   template<typename T, typename ST>
@@ -915,11 +919,11 @@ namespace Math2D {
     //essentially the same access pattern as for symmetric access, only in safe mode failure is returned
 
 #ifdef SAFE_MODE
-    if (x >= TriStorage2D<T,ST>::dim_ || y >= TriStorage2D<T,ST>::dim_
+    if (x >= Base::dim_ || y >= Base::dim_
         || (TriangularMatrix<T,ST>::is_lower_triangular_ && x > y) || (!TriangularMatrix<T,ST>::is_lower_triangular_ && x < y) ) {
       INTERNAL_ERROR << "    access on element(" << x << "," << y
-                     << ") exceeds storage dimensions of (" << TriStorage2D<T,ST>::dim_
-                     << "," << TriStorage2D<T,ST>::dim_ << ")" << std::endl;
+                     << ") exceeds storage dimensions of (" << Base::dim_
+                     << "," << Base::dim_ << ")" << std::endl;
       std::cerr << "      in "  <<   (TriangularMatrix<T,ST>::is_lower_triangular_ ? "lower" : "upper")
                 <<  " TriangularMatrixAsymAccess of type \"" << this->name() << "\" of type "
                 << Makros::Typename<T>()
@@ -931,7 +935,7 @@ namespace Math2D {
     if (x > y)
       std::swap(x,y);
 
-    return TriStorage2D<T,ST>::data_[(y*(y+1))/2+x];
+    return Base::data_[(y*(y+1))/2+x];
   }
 
 
@@ -958,9 +962,9 @@ namespace Math2D {
   T SymmetricMatrix<T,ST>::sum() const
   {
 
-    const ST dim = TriStorage2D<T,ST>::dim_;
+    const ST dim = Base::dim_;
 
-    const T_A16* attr_restrict data = TriStorage2D<T,ST>::data_;
+    const T_A16* attr_restrict data = Base::data_;
 
     T result = (T) 0;
     ST i=0;

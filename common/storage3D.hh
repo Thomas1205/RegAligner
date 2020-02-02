@@ -110,6 +110,8 @@ public:
     resize_dirty(dims.xDim_, dims.yDim_, dims.zDim_);
   }
 
+  void swap(Storage3D<T,ST>& toSwap);
+
 protected:
   ST xDim_;
   ST yDim_;
@@ -500,6 +502,16 @@ void Storage3D<T,ST>::resize_dirty(ST newxDim, ST newyDim, ST newzDim)
 
     Base::data_ = new T[Base::size_];
   }
+}
+
+template<typename T, typename ST>
+void Storage3D<T,ST>::swap(Storage3D<T,ST>& toSwap) {
+
+  std::swap(Base::data_, toSwap.data_);
+  std::swap(Base::size_, toSwap.size_);
+  std::swap(xDim_, toSwap.xDim_);
+  std::swap(yDim_, toSwap.yDim_);
+  std::swap(zDim_, toSwap.zDim_);
 }
 
 /***********************/

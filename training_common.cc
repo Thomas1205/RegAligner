@@ -4,6 +4,7 @@
 #include "projection.hh"
 #include "storage_util.hh"
 #include "storage_stl_interface.hh"
+#include "tree_set.hh"
 
 #include <vector>
 #include <set>
@@ -68,14 +69,13 @@ void find_cooccuring_words(const Storage1D<Math1D::Vector<uint> >& source, const
                            const Storage1D<Math1D::Vector<uint> >& additional_source, const Storage1D<Math1D::Vector<uint> >& additional_target,
                            uint nSourceWords, uint nTargetWords, CooccuringWordsType& cooc)
 {
-  NamedStorage1D<std::set<uint> >coocset(nTargetWords, MAKENAME(coocset));
-  // for (uint j=0; j < nSourceWords-1; j++)
-  //   coocset[0].insert(j);
-
   const uint nSentences = source.size();
   assert(nSentences == target.size());
-
   cooc.resize_dirty(nTargetWords);
+  
+#if 0
+  //this is terribly inefficient (regarding time)!
+  NamedStorage1D<TreeSet<uint> > coocset(nTargetWords, MAKENAME(coocset));
 
   for (uint s = 0; s < nSentences; s++) {
 
@@ -88,50 +88,19 @@ void find_cooccuring_words(const Storage1D<Math1D::Vector<uint> >& source, const
     const Storage1D<uint>& cur_source = source[s];
     const Storage1D<uint>& cur_target = target[s];
 
-    // Math1D::Vector<uint> s_prev_occ(curJ,MAX_UINT);
-    // std::map<uint,uint> s_first_occ;
-    // for (uint j=0; j < curJ; j++) {
-
-    //   uint sidx = cur_source[j];
-    //   assert(sidx > 0);
-
-    //   std::map<uint,uint>::iterator it = s_first_occ.find(sidx);
-
-    //   if (it != s_first_occ.end())
-    //     s_prev_occ[j] = it->second;
-    //   else
-    //     s_first_occ[sidx] = j;
-    // }
-
-    std::set<uint> source_set;
-    for (uint j = 0; j < curJ; j++) {
+    TreeSet<uint> source_set;
+    for (uint j = 0; j < curJ; j++) 
       source_set.insert(cur_source[j]);
-    }
-
-    //iterating over a vector is faster than iterating over a set -> copy
-    std::vector<uint> source_words;
-    for (std::set<uint>::iterator it = source_set.begin(); it != source_set.end(); it++)
-      source_words.push_back(*it);
+    const std::vector<uint>& unsorted = source_set.unsorted_data();
+    const uint len = unsorted.size();
 
     for (uint i = 0; i < curI; i++) {
-      uint t_idx = cur_target[i];
+      const uint t_idx = cur_target[i];
       assert(t_idx < nTargetWords);
+      TreeSet<uint>& cur_set = coocset[t_idx];
 
-      std::set<uint>& cur_set = coocset[t_idx];
-
-      const uint nWords = source_words.size();
-      for (uint k = 0; k < nWords; k++)
-        cur_set.insert(source_words[k]);
-
-      // for (uint j=0; j < curJ; j++) {
-
-      //   if (s_prev_occ[j] == MAX_UINT) {
-      //     uint s_idx = cur_source[j];
-      //     assert(s_idx < nSourceWords);
-
-      //     cur_set.insert(s_idx);
-      //   }
-      // }
+      for (uint k = 1; k < len; k++)
+        cur_set.insert(unsorted[k]);
     }
   }
 
@@ -150,13 +119,13 @@ void find_cooccuring_words(const Storage1D<Math1D::Vector<uint> >& source, const
     const Storage1D<uint>& cur_target = additional_target[s];
 
     for (uint i = 0; i < nCurTargetWords; i++) {
-      uint t_idx = cur_target[i];
+      const uint t_idx = cur_target[i];
       assert(t_idx < nTargetWords);
 
-      std::set < uint >& cur_set = coocset[t_idx];
+      TreeSet<uint>& cur_set = coocset[t_idx];
 
       for (uint j = 0; j < nCurSourceWords; j++) {
-        uint s_idx = cur_source[j];
+        const uint s_idx = cur_source[j];
         assert(s_idx < nSourceWords);
 
         cur_set.insert(s_idx);
@@ -165,18 +134,109 @@ void find_cooccuring_words(const Storage1D<Math1D::Vector<uint> >& source, const
   }
 
   for (uint i = 0; i < nTargetWords; i++) {
+    coocset[i].get_sorted_data(cooc[i]);  
+    coocset[i].clear();
+  }
+  
+#else  
+  NamedStorage1D<std::set<uint> > coocset(nTargetWords, MAKENAME(coocset));
+  // for (uint j=0; j < nSourceWords-1; j++)
+  //   coocset[0].insert(j);
 
+  for (uint s = 0; s < nSentences; s++) {
+
+    if ((s % 10000) == 0)
+      std::cerr << "sentence pair number " << s << std::endl;
+
+    const uint curJ = source[s].size();
+    const uint curI = target[s].size();
+
+    const Storage1D<uint>& cur_source = source[s];
+    const Storage1D<uint>& cur_target = target[s];
+
+#if 0
+    //this, too, is only slower
+    TreeSet<uint> source_set;
+    for (uint j = 0; j < curJ; j++) 
+      source_set.insert(cur_source[j]);
+
+    const std::vector<uint>& unsorted = source_set.unsorted_data();
+    const uint len = unsorted.size();
+    
+    for (uint i = 0; i < curI; i++) {
+      const uint t_idx = cur_target[i];
+      assert(t_idx < nTargetWords);
+
+      std::set<uint>& cur_set = coocset[t_idx];
+      for (uint k = 1; k < len; k++)
+        cur_set.insert(unsorted[k]);
+    }    
+#else
+    std::set<uint> source_set;
+    for (uint j = 0; j < curJ; j++) 
+      source_set.insert(cur_source[j]);
+
+    //iterating over a vector is faster than iterating over a set -> copy
+    std::vector<uint> source_words;
+    source_words.reserve(source_set.size());
+    for (std::set<uint>::const_iterator it = source_set.begin(); it != source_set.end(); it++)
+      source_words.push_back(*it);
+    
+    const uint nWords = source_words.size();
+    for (uint i = 0; i < curI; i++) {
+      const uint t_idx = cur_target[i];
+      assert(t_idx < nTargetWords);
+
+      std::set<uint>& cur_set = coocset[t_idx];
+      for (uint k = 0; k < nWords; k++)
+        cur_set.insert(source_words[k]);
+    }
+#endif
+  }
+
+  const uint nAddSentences = additional_source.size();
+  assert(nAddSentences == additional_target.size());
+
+  for (uint s = 0; s < nAddSentences; s++) {
+
+    if ((s % 10000) == 0)
+      std::cerr << "sentence pair number " << s << std::endl;
+
+    const uint nCurSourceWords = additional_source[s].size();
+    const uint nCurTargetWords = additional_target[s].size();
+
+    const Storage1D<uint>& cur_source = additional_source[s];
+    const Storage1D<uint>& cur_target = additional_target[s];
+
+    for (uint i = 0; i < nCurTargetWords; i++) {
+      const uint t_idx = cur_target[i];
+      assert(t_idx < nTargetWords);
+
+      std::set<uint>& cur_set = coocset[t_idx];
+
+      for (uint j = 0; j < nCurSourceWords; j++) {
+        const uint s_idx = cur_source[j];
+        assert(s_idx < nSourceWords);
+
+        cur_set.insert(s_idx);
+      }
+    }
+  }
+
+  for (uint i = 0; i < nTargetWords; i++) 
+  {
     const uint size = coocset[i].size();
     cooc[i].resize_dirty(size);
     assign(cooc[i], coocset[i]);
     coocset[i].clear();
   }
+#endif
 
   uint max_cooc = 0;
   double sum_cooc = 0.0;
   for (uint i = 1; i < nTargetWords; i++) {
     sum_cooc += cooc[i].size();
-    max_cooc = std::max < uint > (max_cooc, cooc[i].size());
+    max_cooc = std::max<uint>(max_cooc, cooc[i].size());
   }
 
   std::cerr << "average number of cooccuring words: " << (sum_cooc / (nTargetWords - 1)) << ", maximum: " << max_cooc << std::endl;
@@ -220,7 +280,7 @@ bool read_cooccuring_words_structure(std::string filename, uint nSourceWords, ui
     }
   }
 
-  delete[]cline;
+  delete[] cline;
   delete in;
 
   if (temp_cooc.size() != nTargetWords) {
@@ -1058,8 +1118,14 @@ double single_dict_m_step_energy(const Math1D::Vector<double>& fdict_count, cons
   energy /= nSentences;
 
   if (!smoothed_l0) {
-    for (uint k = 0; k < dict_size; k++)
-      energy += prior_weight[k] * dict[k];
+    
+    const ALIGNED16 float* pdata = prior_weight.direct_access();
+    const ALIGNED16 double* ddata = dict.direct_access();
+      
+    energy += std::inner_product(pdata,pdata+prior_weight.size(),ddata, 0.0);
+    
+    //for (uint k = 0; k < dict_size; k++)
+    //  energy += prior_weight[k] * dict[k];
   }
   else {
     for (uint k = 0; k < dict_size; k++)
@@ -2068,13 +2134,21 @@ double dict_reg_term(const SingleWordDictionary& dict, const floatSingleWordDict
     const Math1D::Vector<double>& cur_dict = dict[i];
     const Math1D::Vector<float>& cur_prior = prior_weight[i];
 
+    assert(cur_dict.size() == cur_prior.size());
+
     if (smoothed_l0) {
       for (uint k = 0; k < cur_dict.size(); k++)
         reg_term += cur_prior[k] * prob_penalty(cur_dict[k], l0_beta);
     }
     else {
-      for (uint k = 0; k < cur_dict.size(); k++)
-        reg_term += cur_prior[k] * cur_dict[k];
+      
+      const ALIGNED16 float* pdata = cur_prior.direct_access();
+      const ALIGNED16 double* ddata = cur_dict.direct_access();
+      
+      reg_term += std::inner_product(pdata,pdata+cur_prior.size(),ddata, 0.0);
+      
+      //for (uint k = 0; k < cur_dict.size(); k++)
+      //  reg_term += cur_prior[k] * cur_dict[k];
     }
   }
 

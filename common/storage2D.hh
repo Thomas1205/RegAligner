@@ -88,6 +88,8 @@ public:
 
   inline std::pair<ST,ST> dims() const;
 
+  void swap(Storage2D<T,ST>& toSwap);
+
 protected:
 
   ST xDim_;
@@ -470,6 +472,15 @@ void Storage2D<T,ST>::resize_dirty(ST newxDim, ST newyDim)
 
     Base::data_ = new T[Base::size_];
   }
+}
+
+template<typename T, typename ST>
+void Storage2D<T,ST>::swap(Storage2D<T,ST>& toSwap) 
+{
+  std::swap(Base::data_, toSwap.data_);
+  std::swap(Base::size_, toSwap.size_);
+  std::swap(xDim_, toSwap.xDim_);
+  std::swap(yDim_, toSwap.yDim_);
 }
 
 /***** implementation of NamedStorage2D ********/

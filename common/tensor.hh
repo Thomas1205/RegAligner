@@ -371,6 +371,7 @@ namespace Math3D {
       const T temp = data[i];
       result += temp*temp;
     }
+
     return sqrt(result);
   }
 

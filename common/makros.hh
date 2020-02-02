@@ -35,7 +35,7 @@ using std::isinf;
 #define ref_attr_restrict __restrict
 //pointers returned by new are guaranteed to have an address that is divisible by 16 if the type is a basic one
 //it is convenient to give the compiler this hint so that he need not handle unaligned cases
-#define ALIGNED16 __attribute__ ((aligned (16)))
+#define ALIGNED16 __attribute__ ((aligned(16)))
 #define assertAligned16(p) assert( ((size_t)p) % 16 == 0);
 
 #include <execinfo.h>
@@ -75,6 +75,8 @@ inline void print_trace (void) {}
 typedef unsigned int uint;
 typedef unsigned short ushort;
 typedef unsigned char uchar;
+typedef long long int Int64;
+typedef unsigned long long int UInt64;
 typedef double ALIGNED16 double_A16;
 typedef float ALIGNED16 float_A16;
 
@@ -89,8 +91,16 @@ typedef float ALIGNED16 float_A16;
 #define MAX_FLOAT  std::numeric_limits<float>::max()
 #define HIGH_FLOAT (0.1f*MAX_FLOAT)
 #define EPS_FLOAT  std::numeric_limits<float>::epsilon()
+#define MAX_INT std::numeric_limits<int>::max()
 #define MAX_UINT std::numeric_limits<uint>::max()
+#define MIN_LONG std::numeric_limits<long long>::min()
+#define MAX_LONG std::numeric_limits<long long>::max()
+#define MAX_ULONG std::numeric_limits<unsigned long long>::max()
 #define MAX_USHORT std::numeric_limits<ushort>::max()
+
+#ifndef NAN
+#define NAN sqrt(-1.0)
+#endif
 
 enum NormType {L1,L2,L0_5};
 
@@ -128,6 +138,27 @@ namespace Makros {
   inline long double log(long double arg)
   {
     return logl(arg);
+  }
+
+  template<typename T>
+  inline T sqrt(T arg) {
+    return T(::sqrt(double(arg)));
+  }
+  
+  //specializations:
+  template<>
+  inline float sqrt(float arg) {
+    return sqrtf(arg);
+  }
+
+  template<>
+  inline double sqrt(double arg) {
+    return ::sqrt(arg);
+  }
+
+  template<>
+  inline long double sqrt(long double arg) {
+    return sqrtl(arg);
   }
 
   template<typename T>
@@ -204,13 +235,17 @@ namespace Makros {
     return arg;
   }
 
-#ifndef _32BIT_OS
   template<>
-  inline size_t abs(size_t arg)
+  inline UInt64 abs(UInt64 arg)
   {
     return arg;
   }
-#endif
+
+  template<>
+  inline Int64 abs(Int64 arg) 
+  {
+    return llabs(arg);
+  }
 
   template<>
   inline float abs(float arg)
@@ -289,7 +324,25 @@ namespace Makros {
   inline void unified_assign(long double* attr_restrict dest, const long double* attr_restrict source, size_t size) 
   {
     memcpy(dest, source, size * sizeof(long double));
-  }  
+  }    
+
+  inline size_t highest_bit(size_t val) 
+  {  
+    assert(val > 0);
+    size_t ret = 0;
+#ifndef USE_ASM
+    val >>= 1;
+    while (val > 0) {
+      ret++;
+      val >>= 1;
+    }
+#else
+    __asm__ volatile ("bsr %%rcx, %%rbx \n\t" //bit scan reverse
+                      : [ret] "+b"(ret) : [val] "c" (val) : "cc" );
+#endif  
+
+    return ret;
+  }
 }
 
 template<typename T>
@@ -496,15 +549,15 @@ namespace Makros {
       max_val = std::max(max_val,cur_datum);
     }
 #else
-    //movups is part of SSE2
+    //movaps is part of SSE2
 
     float tmp[4] = {MIN_FLOAT,MIN_FLOAT,MIN_FLOAT,MIN_FLOAT};
     const float* fptr;
 
-    asm __volatile__ ("movups %[tmp], %%xmm6" : : [tmp] "m" (tmp[0]) : "xmm6");
+    asm __volatile__ ("movaps %[tmp], %%xmm6" : : [tmp] "m" (tmp[0]) : "xmm6");
     for (i=0; (i+4) <= nData; i += 4) {
       fptr = data+i;
-      asm __volatile__ ("movups %[fptr], %%xmm7\n\t"
+      asm __volatile__ ("movaps %[fptr], %%xmm7\n\t"
                         "maxps %%xmm7, %%xmm6" : : [fptr] "m" (fptr[0]) : "xmm6", "xmm7");
 
     }
@@ -535,15 +588,15 @@ namespace Makros {
       min_val = std::min(min_val,cur_datum);
     }
 #else
-    //movups is part of SSE2
+    //movaps is part of SSE2
 
     float tmp[4] = {MAX_FLOAT,MAX_FLOAT,MAX_FLOAT,MAX_FLOAT};
     const float* fptr;
 
-    asm __volatile__ ("movups %[tmp], %%xmm6" : : [tmp] "m" (tmp[0]) : "xmm6");
+    asm __volatile__ ("movaps %[tmp], %%xmm6" : : [tmp] "m" (tmp[0]) : "xmm6");
     for (i=0; (i+4) <= nData; i += 4) {
       fptr = data+i;
-      asm __volatile__ ("movups %[fptr], %%xmm7 \n\t"
+      asm __volatile__ ("movaps %[fptr], %%xmm7 \n\t"
                         "minps %%xmm7, %%xmm6 \n\t" : : [fptr] "m" (fptr[0]) : "xmm6","xmm7");
     }
     asm __volatile__ ("movups %%xmm6, %[tmp]" : [tmp] "=m" (tmp[0]) :  : "xmm6");
@@ -566,6 +619,8 @@ namespace Makros {
     max_val = MIN_FLOAT;
     arg_max = MAX_UINT;
 
+    assertAligned16(data);
+
 #if !defined(USE_SSE) || USE_SSE < 4
 
     if (nData > 0) {
@@ -584,7 +639,7 @@ namespace Makros {
     // }
 #elif USE_SSE >= 5
 
-    //use AVX
+    //use AVX - align16 is no good, need align32 for aligned moves
     
     float val = MIN_FLOAT;
     const uint one = 1;
@@ -600,6 +655,8 @@ namespace Makros {
     
     for (i=0; (i+8) <= nData; i += 8) {
       fptr = data+i;
+  
+      assertAligned16(fptr);
 
       asm __volatile__ ("vmovups %[fptr], %%ymm7 \n\t"
                         "vcmpnleps %%ymm6, %%ymm7, %%ymm0 \n\t" 
@@ -655,7 +712,7 @@ namespace Makros {
     for (i=0; (i+4) <= nData; i += 4) {
       fptr = data+i;
 
-      asm __volatile__ ("movups %[fptr], %%xmm7 \n\t"
+      asm __volatile__ ("movaps %[fptr], %%xmm7 \n\t"
                         "movaps %%xmm7, %%xmm0 \n\t"
                         "cmpnleps %%xmm6, %%xmm0 \n\t"
                         "blendvps %%xmm7, %%xmm6 \n\t"
@@ -691,6 +748,8 @@ namespace Makros {
     max_val = MIN_DOUBLE;
     arg_max = MAX_UINT;
 
+    assertAligned16(data);
+
 #if !defined(USE_SSE) || USE_SSE < 4
 //#if 1
     if (nData > 0) {
@@ -709,7 +768,8 @@ namespace Makros {
     // }
 #elif USE_SSE >= 5
 
-    //use AVX
+    //use AVX  - align16 is no good, need align32 for aligned moves
+    
     assert(sizeof(size_t) == 8);
     
     double val = MIN_DOUBLE;
@@ -788,7 +848,7 @@ namespace Makros {
       dptr = data+i;
 
 
-      asm __volatile__ ("movupd %[dptr], %%xmm7 \n\t"
+      asm __volatile__ ("movapd %[dptr], %%xmm7 \n\t"
                         "movapd %%xmm7, %%xmm0 \n\t"
                         "cmpnlepd %%xmm6, %%xmm0 \n\t"
                         "blendvpd %%xmm7, %%xmm6 \n\t"
@@ -831,6 +891,8 @@ namespace Makros {
     min_val = MAX_FLOAT;
     arg_min = MAX_UINT;
 
+    assertAligned16(data);
+
 #if !defined(USE_SSE) || USE_SSE < 4
 
     if (nData > 0) {
@@ -849,7 +911,7 @@ namespace Makros {
     // }
 #elif USE_SSE >= 5
 
-    //use AVX
+    //use AVX  - align16 is no good, need align32 for aligned moves
     
     float val = MAX_FLOAT;
     const uint one = 1;
@@ -925,7 +987,7 @@ namespace Makros {
     for (i=0; (i+4) <= nData; i += 4) {
       fptr = data+i;
 
-      asm __volatile__ ("movups %[fptr], %%xmm7 \n\t"
+      asm __volatile__ ("movaps %[fptr], %%xmm7 \n\t"
                         "movaps %%xmm7, %%xmm0 \n\t"
                         "cmpltps %%xmm6, %%xmm0 \n\t"
                         "blendvps %%xmm7, %%xmm6 \n\t"
@@ -967,6 +1029,8 @@ namespace Makros {
     min_val = MAX_DOUBLE;
     arg_min = MAX_UINT;
 
+    assertAligned16(data);
+
 #if !defined(USE_SSE) || USE_SSE < 4
 
     if (nData > 0) {
@@ -985,7 +1049,8 @@ namespace Makros {
     // }
 #elif USE_SSE >= 5
 
-    //use AVX
+    //use AVX  - align16 is no good, need align32 for aligned moves
+    
     assert(sizeof(size_t) == 8);
     
     double val = MAX_DOUBLE;
@@ -1014,8 +1079,8 @@ namespace Makros {
     double tmp[4];
     size_t itemp[4];
     
-    asm __volatile__ ("vmovups %%ymm6, %[tmp] \n\t"
-                      "vmovups %%ymm5, %[itemp]"
+    asm __volatile__ ("vmovupd %%ymm6, %[tmp] \n\t"
+                      "vmovupd %%ymm5, %[itemp]"
                       : [tmp] "=m" (tmp[0]), [itemp] "=m" (itemp[0]) : : );
 
     double cur_val;
@@ -1060,7 +1125,7 @@ namespace Makros {
     for (i=0; (i+2) <= nData; i += 2) {
       dptr = data+i;
 
-      asm __volatile__ ("movupd %[dptr], %%xmm7 \n\t"
+      asm __volatile__ ("movapd %[dptr], %%xmm7 \n\t"
                         "movapd %%xmm7, %%xmm0 \n\t"
                         "cmpltpd %%xmm6, %%xmm0 \n\t"
                         "blendvpd %%xmm7, %%xmm6 \n\t"
@@ -1101,12 +1166,17 @@ namespace Makros {
 
   inline void mul_array(float_A16* data, const size_t nData, const float constant)
   {
+    assertAligned16(data);
+    
     size_t i;
 #if !defined(USE_SSE) || USE_SSE < 2
-    for (i=0; i < nData; i++) { //g++ uses single sse mul rather than packed
+    for (i=0; i < nData; i++) { //g++ uses packed avx mul, but after checking alignment
       data[i] *= constant;
     }
 #elif USE_SSE >= 5
+
+    // AVX  - align16 is no good, need align32 for aligned moves
+
     asm __volatile__ ("vbroadcastss %[tmp], %%ymm7 \n\t"
                       : : [tmp] "m" (constant) : "ymm7");
 
@@ -1128,13 +1198,13 @@ namespace Makros {
     float* fptr;
     for (i=0; i < 4; i++)
       temp[i] = constant;
-    asm volatile ("movups %[temp], %%xmm7" : : [temp] "m" (temp[0]) : "xmm7" );
+    asm volatile ("movaps %[temp], %%xmm7" : : [temp] "m" (temp[0]) : "xmm7" );
 
     for (i=0; i+4 <= nData; i+=4) {
       fptr = data + i;
-      asm volatile ("movups %[fptr], %%xmm6 \n\t"
+      asm volatile ("movaps %[fptr], %%xmm6 \n\t"
                     "mulps %%xmm7, %%xmm6 \n\t"
-                    "movups %%xmm6, %[fptr] \n\t"
+                    "movaps %%xmm6, %[fptr] \n\t"
                     : [fptr] "+m" (fptr[0]) : : "xmm6");
     }
 
@@ -1152,6 +1222,8 @@ namespace Makros {
       data[i] *= constant;
     }
 #elif USE_SSE >= 5
+
+    // AVX  - align16 is no good, need align32 for aligned moves
 
     asm __volatile__ ("vbroadcastsd %[tmp], %%ymm7 \n\t"
                       : : [tmp] "m" (constant) : "ymm7");
@@ -1180,7 +1252,7 @@ namespace Makros {
     for (i=0; i+2 <= nData; i+=2) {
       dptr = data + i;
 
-      asm volatile ("movupd %[dptr], %%xmm6 \n\t"
+      asm volatile ("movapd %[dptr], %%xmm6 \n\t"
                     "mulpd %%xmm7, %%xmm6 \n\t"
                     "movupd %%xmm6, %[dptr] \n\t"
                     : [dptr] "+m" (dptr[0]) : : "xmm6");
@@ -1196,12 +1268,16 @@ namespace Makros {
   inline void array_subtract_multiple(double_A16* attr_restrict data, const size_t nData, double factor,
                                       const double_A16* attr_restrict data2)
   {
+    assertAligned16(data);
+    
     size_t i;
 #if !defined(USE_SSE) || USE_SSE < 2
     for (i=0; i < nData; i++)
       data[i] -= factor*data2[i];
 #elif USE_SSE >= 5
-    //use AVX
+
+    // AVX  - align16 is no good, need align32 for aligned moves
+
     asm __volatile__ ("vbroadcastsd %[tmp], %%ymm7 \n\t"
                       : : [tmp] "m" (factor) : "ymm7");
                       
@@ -1233,11 +1309,11 @@ namespace Makros {
       cdptr = data2+i;
       dptr = data+i;
 
-      asm volatile ("movupd %[cdptr], %%xmm6 \n\t"
+      asm volatile ("movapd %[cdptr], %%xmm6 \n\t"
                     "mulpd %%xmm7, %%xmm6 \n\t"
-                    "movupd %[dptr], %%xmm5 \n\t"
+                    "movapd %[dptr], %%xmm5 \n\t"
                     "subpd %%xmm6, %%xmm5 \n\t"
-                    "movupd %%xmm5, %[dptr] \n\t"
+                    "movapd %%xmm5, %[dptr] \n\t"
                     : [dptr] "+m" (dptr[0]) : [cdptr] "m" (cdptr[0]) : "xmm5", "xmm6");
     }
 
@@ -1256,11 +1332,14 @@ namespace Makros {
   inline void go_in_neg_direction(double_A16* attr_restrict dest, const size_t nData, const double_A16* attr_restrict src1,
                                   const double_A16* attr_restrict src2, double alpha)
   {
+    assertAligned16(dest);
+    
 #if !defined(USE_SSE) || USE_SSE < 5
     for (size_t i=0; i < nData; i++)
       dest[i] = src1[i] - alpha * src2[i];
 #else
-    //use AVX
+
+    // AVX  - align16 is no good, need align32 for aligned moves
   
     asm __volatile__ ("vbroadcastsd %[w1], %%ymm0 \n\t" //ymm0 = w1
                       : : [w1] "m" (alpha) : "ymm0");
@@ -1273,6 +1352,8 @@ namespace Makros {
       dest_ptr = dest + i;
       s1_ptr = src1 + i;
       s2_ptr = src2 + i;
+
+      //TODO: check for usage of VFMSUBPD
 
       asm volatile ("vmovupd %[s2_ptr], %%ymm3 \n\t"
                     "vmulpd %%ymm0, %%ymm3, %%ymm3 \n\t" //destination goes last
@@ -1309,6 +1390,8 @@ namespace Makros {
       dest_ptr = dest + i;
       s1_ptr = src1 + i;
       s2_ptr = src2 + i;
+      
+      //TODO: check for usage of VFMADDPD
       
       asm volatile ("vmovupd %[s1_ptr], %%ymm2 \n\t"
                     "vmulpd %%ymm0, %%ymm2, %%ymm2 \n\t" //destination goes last
