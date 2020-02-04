@@ -202,6 +202,8 @@ public:
   
   void shrink(ST size);
   
+  void shrink_by(ST reduction);
+  
   void reserve(ST size);
 
   //will not free memory
@@ -868,6 +870,13 @@ void FlexibleStorage1D<T,ST>::shrink(ST size)
 {
   assert(size <= size_);
   size_ = size;
+}
+
+template<typename T, typename ST>
+void FlexibleStorage1D<T,ST>::shrink_by(ST reduction)
+{
+  assert(reduction <= size_);
+  size_ -= reduction;
 }
 
 template<typename T, typename ST>

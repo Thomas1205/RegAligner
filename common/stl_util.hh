@@ -47,6 +47,22 @@ inline void vec_erase(std::vector<T>& vec, T toErase);
 template <typename T>
 inline void vec_replace(std::vector<T>& vec, T toErase, T toInsert);
 
+template <typename T>
+inline void vec_replace_maintainsort(std::vector<T>& vec, T toErase, T toInsert);
+
+//binary search, returns MAX_UINT if key is not found, otherwise the position in the vector
+template<typename T>
+size_t binsearch(const std::vector<T>& vec, T key);
+
+template<typename T>
+size_t binsearch_insertpos(const std::vector<T>& vec, T key);
+
+//binary search in a vector with (key,value) pairs, sorted by key-values w.r.t. the operator <
+//returns MAX_UINT if key is not found, otherwise the position in the vector
+template<typename TK, typename TV>
+size_t binsearch_keyvalue(const std::vector<std::pair<TK,TV> >& vec, TK key);
+
+
 template<typename T1, typename T2>
 class ComparePairByFirst {
 public:
@@ -62,10 +78,6 @@ public:
 };
 
 
-//binary search in a vector with (key,value) pairs, sorted by key-values w.r.t. the operator <
-//returns MAX_UINT if key is not found, otherwise the position in the vector
-template<typename TK, typename TV>
-size_t binsearch_keyvalue(const std::vector<std::pair<TK,TV> >& vec, TK key);
 
 
 namespace Makros {
@@ -212,6 +224,42 @@ inline void vec_replace(std::vector<T>& vec, T toErase, T toInsert)
   *(vec_find(vec,toErase)) = toInsert;
 }
 
+template <typename T>
+inline void vec_replace_maintainsort(std::vector<T>& vec, T toErase, T toInsert)
+{
+  const size_t size = vec.size();
+  size_t i = 0;
+  for (; i < size; i++) {
+    if (vec[i] == toErase) {
+      
+      if (i > 0 && toInsert < vec[i-1]) {
+   			size_t npos = i-1;
+        while (npos > 0 && toInsert < vec[npos-1])
+          npos--;
+
+        for (size_t k = i; k > npos; k--)
+          vec[k] = vec[k-1];
+        vec[npos] = toInsert;
+      }
+      else if (i+1 < size && vec[i+1] < toInsert) {
+   			size_t npos = i+1;
+        while (npos < size && vec[npos+1] < toInsert)
+          npos++;
+
+        for (size_t k = i; k < npos; k++)
+          vec[k] = vec[k-1];
+        vec[npos] = toInsert;			
+      }
+      else
+        vec[i] = toInsert;
+      
+      break;
+    }
+  }
+  
+  assert(i < size);
+}
+
 template<typename T1, typename T2>
 bool ComparePairByFirst<T1,T2>::operator()(const std::pair<T1,T2>& p1, const std::pair<T1,T2>& p2)
 {
@@ -230,11 +278,75 @@ bool ComparePairBySecond<T1,T2>::operator()(const std::pair<T1,T2>& p1, const st
   return p1.second < p2.second;
 }
 
+//binary search, returns MAX_UINT if key is not found, otherwise the position in the vector
+template<typename T>
+size_t binsearch(const std::vector<T>& vec, T key)
+{
+  const size_t size = vec.size();
+  if (size == 0 || key < vec[0] || key > vec[size-1])
+    return MAX_UINT;
+
+  size_t lower = 0;
+  size_t upper = size-1;
+  if (vec[lower] == key)
+    return lower;
+  if (vec[upper] == key)
+    return upper;
+
+  while (lower+1 < upper) {
+    assert(vec[lower] < key);
+    assert(vec[upper] > key);
+
+    size_t middle = (lower+upper)/2;
+    assert(middle > lower && middle < upper);
+    if (vec[middle] == key)
+      return middle;
+    else if (vec[middle] < key)
+      lower = middle;
+    else
+      upper = middle;
+  }
+
+  return MAX_UINT;
+}
+
+template<typename T>
+size_t binsearch_insertpos(const std::vector<T>& vec, T key)
+{
+  const size_t size = vec.size();
+  if (size == 0 || key <= vec[0])
+    return 0;
+
+  if (key > vec[size-1])
+    return size;
+  
+  size_t lower = 0;
+  size_t upper = size-1;
+  if (vec[upper] == key)
+    return upper;
+
+  while (lower+1 < upper) {
+    assert(vec[lower] < key);
+    assert(vec[upper] > key);
+
+    size_t middle = (lower+upper)/2;
+    assert(middle > lower && middle < upper);
+    if (vec[middle] == key)
+      return middle;
+    else if (vec[middle] < key)
+      lower = middle;
+    else
+      upper = middle;
+  }
+
+  assert(lower+1 == upper);
+  return upper;  
+}
 
 template<typename TK, typename TV>
 size_t binsearch_keyvalue(const std::vector<std::pair<TK,TV> >& vec, TK key)
 {
-  size_t size = vec.size();
+  const size_t size = vec.size();
   if (size == 0 || key < vec[0].first || key > vec[size-1].first)
     return MAX_UINT;
 

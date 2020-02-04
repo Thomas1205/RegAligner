@@ -1407,6 +1407,69 @@ namespace Makros {
 #endif
   }  
 
+  //binary search, returns MAX_UINT if key is not found, otherwise the position in the vector
+  template<typename T>
+  size_t binsearch(const T* data, T key, const size_t nData)
+  {
+    if (nData == 0 || key < data[0] || key > data[nData-1])
+      return MAX_UINT;
+
+    size_t lower = 0;
+    size_t upper = nData-1;
+    if (data[lower] == key)
+      return lower;
+    if (data[upper] == key)
+      return upper;
+
+    while (lower+1 < upper) {
+      assert(data[lower] < key);
+      assert(data[upper] > key);
+
+      size_t middle = (lower+upper)/2;
+      assert(middle > lower && middle < upper);
+      if (data[middle] == key)
+        return middle;
+      else if (data[middle] < key)
+        lower = middle;
+      else
+        upper = middle;
+    }
+
+    return MAX_UINT;
+  }
+
+  template<typename T>
+  size_t binsearch_insertpos(const T* data, T key, const size_t nData)
+  {
+    if (nData == 0 || key <= data[0])
+      return 0;
+
+    if (key > data[nData-1])
+      return nData;
+  
+    size_t lower = 0;
+    size_t upper = nData-1;
+    if (data[upper] == key)
+      return upper;
+
+    while (lower+1 < upper) {
+      assert(data[lower] < key);
+      assert(data[upper] > key);
+
+      size_t middle = (lower+upper) >> 1;  // (lower+upper)/2;
+      assert(middle > lower && middle < upper);
+      if (data[middle] == key)
+        return middle;
+      else if (data[middle] < key)
+        lower = middle;
+      else
+        upper = middle;
+    }
+
+    assert(lower+1 == upper);
+    return upper;  
+  }
+
   template<typename T1, typename T2>
   class first_lower {
   public:

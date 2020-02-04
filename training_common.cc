@@ -5,6 +5,7 @@
 #include "storage_util.hh"
 #include "storage_stl_interface.hh"
 #include "tree_set.hh"
+#include "sorted_set.hh"
 
 #include <vector>
 #include <set>
@@ -137,6 +138,70 @@ void find_cooccuring_words(const Storage1D<Math1D::Vector<uint> >& source, const
     coocset[i].get_sorted_data(cooc[i]);  
     coocset[i].clear();
   }
+#elif 1
+
+  NamedStorage1D<SortedSet<uint> > coocset(nTargetWords, MAKENAME(coocset));
+
+  for (uint s = 0; s < nSentences; s++) {
+
+    if ((s % 10000) == 0)
+      std::cerr << "sentence pair number " << s << std::endl;
+
+    const uint curJ = source[s].size();
+    const uint curI = target[s].size();
+
+    const Storage1D<uint>& cur_source = source[s];
+    const Storage1D<uint>& cur_target = target[s];
+
+    SortedSet<uint> source_set;
+    for (uint j = 0; j < curJ; j++) 
+      source_set.insert(cur_source[j]);
+    const std::vector<uint>& unsorted = source_set.sorted_data();
+    const uint len = unsorted.size();
+
+    for (uint i = 0; i < curI; i++) {
+      const uint t_idx = cur_target[i];
+      assert(t_idx < nTargetWords);
+      SortedSet<uint>& cur_set = coocset[t_idx];
+
+      for (uint k = 0; k < len; k++)
+        cur_set.insert(unsorted[k]);
+    }
+  }
+
+  const uint nAddSentences = additional_source.size();
+  assert(nAddSentences == additional_target.size());
+
+  for (uint s = 0; s < nAddSentences; s++) {
+
+    if ((s % 10000) == 0)
+      std::cerr << "sentence pair number " << s << std::endl;
+
+    const uint nCurSourceWords = additional_source[s].size();
+    const uint nCurTargetWords = additional_target[s].size();
+
+    const Storage1D<uint>& cur_source = additional_source[s];
+    const Storage1D<uint>& cur_target = additional_target[s];
+
+    for (uint i = 0; i < nCurTargetWords; i++) {
+      const uint t_idx = cur_target[i];
+      assert(t_idx < nTargetWords);
+
+      SortedSet<uint>& cur_set = coocset[t_idx];
+
+      for (uint j = 0; j < nCurSourceWords; j++) {
+        const uint s_idx = cur_source[j];
+        assert(s_idx < nSourceWords);
+
+        cur_set.insert(s_idx);
+      }
+    }
+  }
+
+  for (uint i = 0; i < nTargetWords; i++) {
+    assign(cooc[i],coocset[i].sorted_data());  
+    coocset[i].clear();
+  }
   
 #else  
   NamedStorage1D<std::set<uint> > coocset(nTargetWords, MAKENAME(coocset));
@@ -155,12 +220,12 @@ void find_cooccuring_words(const Storage1D<Math1D::Vector<uint> >& source, const
     const Storage1D<uint>& cur_target = target[s];
 
 #if 0
-    //this, too, is only slower
-    TreeSet<uint> source_set;
+    SortedSet<uint> source_set;
+    source_set.reserve(curJ);
     for (uint j = 0; j < curJ; j++) 
       source_set.insert(cur_source[j]);
 
-    const std::vector<uint>& unsorted = source_set.unsorted_data();
+    const std::vector<uint>& unsorted = source_set.sorted_data();
     const uint len = unsorted.size();
     
     for (uint i = 0; i < curI; i++) {
@@ -168,7 +233,7 @@ void find_cooccuring_words(const Storage1D<Math1D::Vector<uint> >& source, const
       assert(t_idx < nTargetWords);
 
       std::set<uint>& cur_set = coocset[t_idx];
-      for (uint k = 1; k < len; k++)
+      for (uint k = 0; k < len; k++)
         cur_set.insert(unsorted[k]);
     }    
 #else
@@ -792,10 +857,9 @@ void generate_wordlookup(const Storage1D<Math1D::Vector<uint> >& source, const S
 
     SingleLookupTable& cur_lookup = slookup[s];
 
-    if (J * I <= max_size) {
-
+    if (J * I <= max_size) 
       cur_lookup.resize_dirty(J, I);
-    }
+
     //NOTE: even if we don't store the lookup table, we still check for consistency at this point
 
     Math1D::Vector<uint> s_prev_occ(J, MAX_UINT);
@@ -850,12 +914,10 @@ void generate_wordlookup(const Storage1D<Math1D::Vector<uint> >& source, const S
         else {
 
           const uint* start = cur_cooc.direct_access();
-          const uint* end = cur_cooc.direct_access() + cur_size;
 
           for (uint j = 0; j < J; j++) {
 
             const uint sidx = cur_source[j];
-
             const uint prev_occ = s_prev_occ[j];
 
             if (prev_occ != MAX_UINT) {
@@ -863,16 +925,14 @@ void generate_wordlookup(const Storage1D<Math1D::Vector<uint> >& source, const S
                 cur_lookup(j, i) = cur_lookup(prev_occ, i);
             }
             else {
-
-              const uint* ptr = std::lower_bound(start, end, sidx);
-
-              if (ptr == end || (*ptr) != sidx) {
+              
+              const uint idx = Makros::binsearch(start, sidx, cur_size);
+              if (idx >= cur_size) {
                 INTERNAL_ERROR << " word not found. Exiting." << std::endl;
                 exit(1);
               }
 
               if (cur_lookup.size() > 0) {
-                const uint idx = ptr - start;
                 assert(idx < cooc[tidx].size());
                 cur_lookup(j, i) = idx;
               }
@@ -932,7 +992,7 @@ const SingleLookupTable& get_wordlookup(const Storage1D<uint>& source, const Sto
       double ratio = double (cur_size) / double (nSourceWords);
 
       const uint* start = cur_cooc.direct_access();
-      const uint* end = cur_cooc.direct_access() + cur_size;
+      //const uint* end = cur_cooc.direct_access() + cur_size;
 
       if (cur_size == nSourceWords - 1) {
 
@@ -954,51 +1014,30 @@ const SingleLookupTable& get_wordlookup(const Storage1D<uint>& source, const Sto
 
             const uint sidx = source[j];
 
-            const uint* ptr;
-
-#if 1
+            uint idx = 0;
             //const uint guess_idx = sidx-1;
             const uint guess_idx = floor((sidx - 1) * ratio);
 
             if (guess_idx < cur_size) {
-              //if (false) {
 
               const uint* guess = start + guess_idx;
-
               const uint p = *(guess);
-              if (p == sidx) {
-                aux(j, i) = guess_idx;
-                continue;
-              }
+              if (p == sidx)
+                idx = guess_idx;
               else if (p < sidx)
-                ptr = std::lower_bound(guess, end, sidx);
+                idx = Makros::binsearch(guess+1, sidx, cur_size-guess_idx-1); //std::lower_bound(guess, end, sidx);
               else
-                ptr = std::lower_bound(start, guess, sidx);
+                idx = Makros::binsearch(start, sidx, guess_idx); //std::lower_bound(start, guess, sidx);
             }
             else
-              ptr = std::lower_bound(start, end, sidx);
-#else
-            //experimental result: slower
-            uint p = *last;
-            if (p == sidx)
-              ptr = last;
-            else if (p < sidx)
-              ptr = std::lower_bound(last, end, sidx);
-            else
-              ptr = std::lower_bound(start, last, sidx);
-
-            last = ptr;
-#endif
+              idx = Makros::binsearch(start, sidx, cur_size); //std::lower_bound(start, end, sidx);
 
 #ifdef SAFE_MODE
-            if (ptr == end || (*ptr) != sidx) {
+            if (idx >= cur_size) {
               INTERNAL_ERROR << " word not found. Exiting." << std::endl;
               exit(1);
             }
 #endif
-
-            const uint idx = ptr - start;
-            assert(idx < cur_size);
             aux(j, i) = idx;
           }
         }
