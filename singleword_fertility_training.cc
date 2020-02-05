@@ -415,14 +415,14 @@ void FertilityModelTrainerBase::compute_approximate_jmarginals(const Math1D::Vec
     for (uint jj = 0; jj < curJ; jj++)
       addon -= swap_move_prob(j, jj);
 
-    j_marg(aj, j) += addon / sentence_prob;
+    j_marg(aj, j) += std::max<double>(0.0, addon / sentence_prob);
 
     for (uint i = 0; i <= curI; i++)
       j_marg(i, j) += expansion_move_prob(j, i) / sentence_prob;
 
     for (uint jj = j + 1; jj < curJ; jj++) {
 
-      const double sprob = swap_move_prob(j, jj);
+      const long double sprob = swap_move_prob(j, jj);
 
       if (sprob > 0.0) {
 
