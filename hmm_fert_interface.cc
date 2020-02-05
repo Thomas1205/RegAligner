@@ -154,6 +154,8 @@ long double HmmFertInterface::update_alignment_by_hillclimbing(const Storage1D<u
   long double best_prob = compute_ehmm_viterbi_alignment(source, lookup, target, tclass, dict_, hmm_wrapper_.align_model_[curI - 1],
                                                          hmm_wrapper_.initial_prob_[curI - 1], alignment, hmm_wrapper_.hmm_options_);
 
+  assert(best_prob > 0.0);
+
   bool changed = make_alignment_feasible(source, target, lookup, alignment);
   if (changed) {
 
@@ -161,6 +163,7 @@ long double HmmFertInterface::update_alignment_by_hillclimbing(const Storage1D<u
 
     best_prob = hmm_alignment_prob(source, lookup, target, tclass, dict_, hmm_wrapper_.align_model_,
                                    hmm_wrapper_.initial_prob_, internal_hyp_alignment, true);
+    assert(best_prob > 0.0);
   }
 
   //need this after make_alignment_feasible

@@ -1060,7 +1060,7 @@ void FertilityModelTrainer::set_hc_iteration_limit(uint new_limit)
     const Storage1D<uint>& cur_target = target_sentence_[s];
     uint sum_limits = 0;
     for (uint i = 0; i < cur_target.size(); i++)
-      sum_limits += fertility_limit_[cur_target[i]]++;
+      sum_limits += fertility_limit_[cur_target[i]];
     
     if (sum_limits < source_sentence_[s].size()) {
       std::cerr << "ERROR: corpus cannot be modelled with these fertility limits. Raise them and re-run!!!" << std::endl;
@@ -1101,7 +1101,7 @@ void FertilityModelTrainer::set_hc_iteration_limit(uint new_limit)
     const Storage1D<uint>& cur_target = target_sentence_[s];
     uint sum_limits = 0;
     for (uint i = 0; i < cur_target.size(); i++)
-      sum_limits += fertility_limit_[cur_target[i]]++;
+      sum_limits += fertility_limit_[cur_target[i]];
     
     if (sum_limits < source_sentence_[s].size()) {
       std::cerr << "ERROR: corpus cannot be modelled with these fertility limits. Raise them and re-run!!!" << std::endl;
