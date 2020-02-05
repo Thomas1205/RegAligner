@@ -72,11 +72,11 @@ int main(int argc, char** argv)
               << " [-ibm2-p0 <double>] : empty word prob for the IBM-2 (default 0.02)" << std::endl
               << " [-ibm2-alignment] (pos | diff | nonpar) : parametric alignment model for IBM-2, default pos" << std::endl
               << "************ Options for HMM only *****************" << std::endl
-              << " [-transfer-mode (no | viterbi | posterior)] : how to init HMM from IBM-1/2, default: no" << std::endl
               << " [-hmm-type (fullpar | redpar | nonpar | nonpar2)] : default redpar as in [Vogel&Ney]" << std::endl
               << " [-hmm-init-type (par | nonpar | fix | fix2)] : default par" << std::endl
               << " [-hmm-start-empty-word] : HMM with extra empty word " << std::endl
               << "************ Options affecting a mixed set of models ****************"
+              << " [-transfer-mode (no | viterbi | posterior)] : how to init HMM and IBM-2 from previous, default: no" << std::endl
               << " [-deficient-h25] : introduce deficiency for IBM-2, HMM and IBM-5 by not dividing by the param sum" << std::endl
               << " [-no-h23-classes] : don't use word classes for HMM" << std::endl
               << "************ Options affecting several (or all) fertility based models ***************" << std::endl
@@ -800,6 +800,8 @@ int main(int argc, char** argv)
                                  possible_ref_alignments, dict, wcooc, nSourceWords, nTargetWords, fert_limit);
 
   hmm_interface.set_fertility_limit(fert_limit);
+  if (rare_fert_limit < fert_limit)
+    hmm_interface.set_rare_fertility_limit(rare_fert_limit, nMaxRareOccurences);
 
   const HmmWrapperWithClasses* passed_wrapper = (hillclimb_mode == HillclimbingReuse) ? 0 : &hmmc_wrapper;
 
@@ -852,8 +854,6 @@ int main(int argc, char** argv)
   IBM3Trainer ibm3_trainer(source_sentence, slookup, target_sentence, i3_tclass, sure_ref_alignments, possible_ref_alignments,
                            dict, wcooc, tfert_class, nSourceWords, nTargetWords, prior_weight, log_table, xlogx_table,
                            fert_options, app.is_set("-ibm3-extra-deficient"));
-
-  hmm_interface.set_fertility_limit(fert_limit);
 
   ibm3_trainer.set_fertility_limit(fert_limit);
   if (rare_fert_limit < fert_limit)

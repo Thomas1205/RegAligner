@@ -26,8 +26,7 @@ FertilityModelTrainerBase::FertilityModelTrainerBase(const Storage1D<Math1D::Vec
     SingleWordDictionary& dict, const CooccuringWordsType& wcooc, uint nSourceWords, uint nTargetWords,
     uint fertility_limit)
   :source_sentence_(source_sentence), slookup_(slookup), target_sentence_(target_sentence),
-   wcooc_(wcooc), dict_(dict), nSourceWords_(nSourceWords),
-   nTargetWords_(nTargetWords),
+   wcooc_(wcooc), dict_(dict), nSourceWords_(nSourceWords), nTargetWords_(nTargetWords),
    best_known_alignment_(MAKENAME(best_known_alignment_)),
    sure_ref_alignments_(sure_ref_alignments), possible_ref_alignments_(possible_ref_alignments)
 {
@@ -75,7 +74,7 @@ const NamedStorage1D<Math1D::Vector<AlignBaseType> >& FertilityModelTrainerBase:
 
   for (uint i = 1; i < nTargetWords_; i++) {
     if (count[i] <= max_count) {
-      fertility_limit_[i] = std::min<uint>(new_limit, fertility_limit_[i]);
+      fertility_limit_[i] = std::min<uint> (new_limit, fertility_limit_[i]);
     }
   }
 }
@@ -435,11 +434,14 @@ void FertilityModelTrainerBase::compute_approximate_jmarginals(const Math1D::Vec
     }
   }
 
+#ifndef NDEBUG    
   for (uint j = 0; j < curJ; j++) {
     const double check_sum = j_marg.row_sum(j);
-    //assert(check_sum >= 0.99 && check_sum < 1.01);
-    assert(check_sum < 1.01); //for HMM, can sum to less than 0.99
+    if (!(check_sum >= 0.99 && check_sum < 1.01))
+      std::cerr << "check_sum: " << check_sum << std::endl;
+    assert(check_sum >= 0.99 && check_sum < 1.01);
   }
+#endif    
 }
 
 void FertilityModelTrainerBase::compute_approximate_imarginals(const Math1D::Vector<AlignBaseType>& alignment,
@@ -489,9 +491,14 @@ void FertilityModelTrainerBase::compute_approximate_imarginals(const Math1D::Vec
     if (cur_fert + 1 <= curJ)
       i_marg(cur_fert + 1, i) += expansion_move_prob.row_sum(i) / sentence_prob;
 
+#ifndef NDEBUG
     const double check_sum = i_marg.row_sum(i);
-    //assert(check_sum >= 0.99 && check_sum < 1.01);
-    assert(check_sum < 1.01); //for HMM, can sum to less than 0.99
+    if (!(check_sum >= 0.99 && check_sum < 1.01)) {
+      std::cerr << "check_sum: " << check_sum << std::endl;
+      std::cerr << "fertilities: " << fertility << ", i: " << i << std::endl;
+    }
+    assert(check_sum >= 0.99 && check_sum < 1.01);
+#endif    
   }
 }
 
@@ -1088,7 +1095,7 @@ void FertilityModelTrainer::set_hc_iteration_limit(uint new_limit)
         fertility_prob_[i][c] = 1.0 / (fertility_limit_[i] + 1);
     }
   }
-
+  
   for (uint s = 0; s < target_sentence_.size(); s++) {
 
     const Storage1D<uint>& cur_target = target_sentence_[s];

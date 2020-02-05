@@ -146,24 +146,15 @@ long double HmmFertInterface::update_alignment_by_hillclimbing(const Storage1D<u
   for (uint i = 0; i < curI; i++)
     tclass[i] = hmm_wrapper_.target_class_[target[i]];
 
-  //note: here the index 0 will represent alignments to 0. we will have to convert to the proper representations
-  // when calling routines below
-  long double best_prob;
-  assert(hmm_wrapper_.initial_prob_.size() > 0);
-  best_prob = compute_ehmm_viterbi_alignment(source, lookup, target, tclass, dict_, hmm_wrapper_.align_model_[curI - 1],
-              hmm_wrapper_.initial_prob_[curI - 1], alignment, hmm_wrapper_.hmm_options_);
-
-  fertility.resize(curI + 1);
-  fertility.set_constant(0);
-
-  for (uint j = 0; j < curJ; j++) {
-    fertility[alignment[j]]++;
-  }
-
-  bool changed = make_alignment_feasible(source, target, lookup, alignment);
-
   Math1D::Vector<AlignBaseType> internal_hyp_alignment(curJ);
 
+  //note: here the index 0 will represent alignments to 0. we will have to convert to the proper representations
+  // when calling routines below
+  assert(hmm_wrapper_.initial_prob_.size() > 0);
+  long double best_prob = compute_ehmm_viterbi_alignment(source, lookup, target, tclass, dict_, hmm_wrapper_.align_model_[curI - 1],
+                                                         hmm_wrapper_.initial_prob_[curI - 1], alignment, hmm_wrapper_.hmm_options_);
+
+  bool changed = make_alignment_feasible(source, target, lookup, alignment);
   if (changed) {
 
     external2internal_hmm_alignment(alignment, curI, hmm_wrapper_.hmm_options_, internal_hyp_alignment);
@@ -171,6 +162,15 @@ long double HmmFertInterface::update_alignment_by_hillclimbing(const Storage1D<u
     best_prob = hmm_alignment_prob(source, lookup, target, tclass, dict_, hmm_wrapper_.align_model_,
                                    hmm_wrapper_.initial_prob_, internal_hyp_alignment, true);
   }
+
+  //need this after make_alignment_feasible
+  fertility.resize(curI + 1);
+  fertility.set_constant(0);
+
+  for (uint j = 0; j < curJ; j++) {
+    fertility[alignment[j]]++;
+  }
+
   //NOTE: lots of room for speed-ups here -> switch to incremental calculation!
 
   swap_prob.resize(curJ, curJ);
@@ -234,8 +234,8 @@ long double HmmFertInterface::update_alignment_by_hillclimbing(const Storage1D<u
         //now convert to internal mode
         external2internal_hmm_alignment(hyp_alignment, curI, hmm_wrapper_.hmm_options_, internal_hyp_alignment);
 
-        double cur_swap_prob = hmm_alignment_prob(source, lookup, target, tclass, dict_, hmm_wrapper_.align_model_, hmm_wrapper_.initial_prob_,
-                               internal_hyp_alignment, true);
+        long double cur_swap_prob = hmm_alignment_prob(source, lookup, target, tclass, dict_, hmm_wrapper_.align_model_, hmm_wrapper_.initial_prob_,
+                                                       internal_hyp_alignment, true);
 
         swap_prob(j1, j2) = cur_swap_prob;
         swap_prob(j2, j1) = cur_swap_prob;
