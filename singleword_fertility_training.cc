@@ -437,7 +437,8 @@ void FertilityModelTrainerBase::compute_approximate_jmarginals(const Math1D::Vec
 
   for (uint j = 0; j < curJ; j++) {
     const double check_sum = j_marg.row_sum(j);
-    assert(check_sum >= 0.99 && check_sum < 1.01);
+    //assert(check_sum >= 0.99 && check_sum < 1.01);
+    assert(check_sum < 1.01); //for HMM, can sum to less than 0.99
   }
 }
 
@@ -489,7 +490,8 @@ void FertilityModelTrainerBase::compute_approximate_imarginals(const Math1D::Vec
       i_marg(cur_fert + 1, i) += expansion_move_prob.row_sum(i) / sentence_prob;
 
     const double check_sum = i_marg.row_sum(i);
-    assert(check_sum >= 0.99 && check_sum < 1.01);
+    //assert(check_sum >= 0.99 && check_sum < 1.01);
+    assert(check_sum < 1.01); //for HMM, can sum to less than 0.99
   }
 }
 

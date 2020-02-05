@@ -130,11 +130,11 @@ bool SortedSet<T>::replace(T out, T in)
 		}			
 		else if (pos+1 < size && data_[pos+1] < in) {
 			size_t npos = pos+1;
-			while (npos < size && data_[npos+1] < in)
+			while (npos+1 < size && data_[npos+1] < in)
 				npos++;
 
 			for (size_t k = pos; k < npos; k++)
-				data_[k] = data_[k-1];
+				data_[k] = data_[k+1];
 			data_[npos] = in;			
 		}
 		else

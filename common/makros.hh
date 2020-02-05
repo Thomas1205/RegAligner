@@ -561,7 +561,7 @@ namespace Makros {
                         "maxps %%xmm7, %%xmm6" : : [fptr] "m" (fptr[0]) : "xmm6", "xmm7");
 
     }
-    asm __volatile__ ("movups %%xmm6, %[tmp]" : [tmp] "=m" (tmp[0]) : : );
+    asm __volatile__ ("movups %%xmm6, %[tmp]" : [tmp] "=m" (tmp[0]) : : "memory");
     for (i=0; i < 4; i++)
       max_val = std::max(max_val,tmp[i]);
 
@@ -597,9 +597,9 @@ namespace Makros {
     for (i=0; (i+4) <= nData; i += 4) {
       fptr = data+i;
       asm __volatile__ ("movaps %[fptr], %%xmm7 \n\t"
-                        "minps %%xmm7, %%xmm6 \n\t" : : [fptr] "m" (fptr[0]) : "xmm6","xmm7");
+                        "minps %%xmm7, %%xmm6 \n\t" : : [fptr] "m" (fptr[0]) : "xmm6", "xmm7");
     }
-    asm __volatile__ ("movups %%xmm6, %[tmp]" : [tmp] "=m" (tmp[0]) :  : "xmm6");
+    asm __volatile__ ("movups %%xmm6, %[tmp]" : [tmp] "=m" (tmp[0]) :  : "memory");
     for (i=0; i < 4; i++)
       min_val = std::min(min_val,tmp[i]);
 
@@ -671,7 +671,7 @@ namespace Makros {
     
     asm __volatile__ ("vmovups %%ymm6, %[tmp] \n\t"
                       "vmovups %%ymm5, %[itemp]"
-                      : [tmp] "=m" (tmp[0]), [itemp] "=m" (itemp[0]) : : );
+                      : [tmp] "=m" (tmp[0]), [itemp] "=m" (itemp[0]) : : "memory");
 
     float cur_val;
     for (i=0; i < 8; i++) {
@@ -723,7 +723,7 @@ namespace Makros {
 
     asm __volatile__ ("movups %%xmm6, %[tmp] \n\t"
                       "movups %%xmm5, %[itemp]"
-                      : [tmp] "=m" (tmp[0]), [itemp] "=m" (itemp[0]) : : );
+                      : [tmp] "=m" (tmp[0]), [itemp] "=m" (itemp[0]) : : "memory");
 
     for (i=0; i < 4; i++) {
       cur_val = tmp[i];
@@ -801,7 +801,7 @@ namespace Makros {
     
     asm __volatile__ ("vmovups %%ymm6, %[tmp] \n\t"
                       "vmovups %%ymm5, %[itemp]"
-                      : [tmp] "=m" (tmp[0]), [itemp] "=m" (itemp[0]) : : );
+                      : [tmp] "=m" (tmp[0]), [itemp] "=m" (itemp[0]) : : "memory");
 
     double cur_val;
                       
@@ -859,7 +859,7 @@ namespace Makros {
 
     asm __volatile__ ("movupd %%xmm6, %[tmp] \n\t"
                       "movupd %%xmm5, %[itemp] \n\t"
-                      : [tmp] "=m" (tmp[0]), [itemp] "=m" (itemp[0]) : : "xmm5", "xmm6");
+                      : [tmp] "=m" (tmp[0]), [itemp] "=m" (itemp[0]) : : "memory");
 
     assert(itemp[0] == 0);
     assert(itemp[2] == 0);
@@ -884,7 +884,6 @@ namespace Makros {
     }
 #endif
   }
-
 
   inline void find_min_and_argmin(const float_A16* data, const size_t nData, float& min_val, size_t& arg_min)
   {
@@ -941,7 +940,7 @@ namespace Makros {
     
     asm __volatile__ ("vmovups %%ymm6, %[tmp] \n\t"
                       "vmovups %%ymm5, %[itemp]"
-                      : [tmp] "=m" (tmp[0]), [itemp] "=m" (itemp[0]) : : );
+                      : [tmp] "=m" (tmp[0]), [itemp] "=m" (itemp[0]) : : "memory");
 
     float cur_val;
 
@@ -998,7 +997,7 @@ namespace Makros {
 
     asm __volatile__ ("movups %%xmm6, %[tmp] \n\t"
                       "movups %%xmm5, %[itemp] \n\t"
-                      : [tmp] "=m" (tmp[0]), [itemp] "=m" (itemp[0]) : : "xmm5", "xmm6");
+                      : [tmp] "=m" (tmp[0]), [itemp] "=m" (itemp[0]) : : "memory");
 
     //std::cerr << "intermediate minval: " << min_val << std::endl;
 
@@ -1081,7 +1080,7 @@ namespace Makros {
     
     asm __volatile__ ("vmovupd %%ymm6, %[tmp] \n\t"
                       "vmovupd %%ymm5, %[itemp]"
-                      : [tmp] "=m" (tmp[0]), [itemp] "=m" (itemp[0]) : : );
+                      : [tmp] "=m" (tmp[0]), [itemp] "=m" (itemp[0]) : : "memory");
 
     double cur_val;
 
@@ -1136,7 +1135,7 @@ namespace Makros {
 
     asm __volatile__ ("movupd %%xmm6, %[tmp] \n\t"
                       "movupd %%xmm5, %[itemp] \n\t"
-                      : [tmp] "=m" (tmp[0]), [itemp] "=m" (itemp[0]) : : "xmm5", "xmm6");
+                      : [tmp] "=m" (tmp[0]), [itemp] "=m" (itemp[0]) : : "memory");
 
     assert(itemp[0] == 0);
     assert(itemp[2] == 0);
@@ -1187,7 +1186,7 @@ namespace Makros {
       asm volatile ("vmovups %[fptr], %%ymm6 \n\t"
                     "vmulps %%ymm7, %%ymm6, %%ymm6 \n\t"
                     "vmovups %%ymm6, %[fptr] \n\t"
-                    : [fptr] "+m" (fptr[0]) : : "ymm6");
+                    : [fptr] "+m" (fptr[0]) : : "ymm6", "memory");
     }
 
     for (i= nData - (nData % 8); i < nData; i++) {
@@ -1205,7 +1204,7 @@ namespace Makros {
       asm volatile ("movaps %[fptr], %%xmm6 \n\t"
                     "mulps %%xmm7, %%xmm6 \n\t"
                     "movaps %%xmm6, %[fptr] \n\t"
-                    : [fptr] "+m" (fptr[0]) : : "xmm6");
+                    : [fptr] "+m" (fptr[0]) : : "xmm6", "memory");
     }
 
     for (i= nData - (nData % 4); i < nData; i++) {
@@ -1236,7 +1235,7 @@ namespace Makros {
       asm volatile ("vmovupd %[dptr], %%ymm6 \n\t"
                     "vmulpd %%ymm7, %%ymm6, %%ymm6 \n\t"
                     "vmovupd %%ymm6, %[dptr] \n\t"
-                    : [dptr] "+m" (dptr[0]) : : "ymm6");
+                    : [dptr] "+m" (dptr[0]) : : "ymm6", "memory");
     }
 
     for (i= nData - (nData % 4); i < nData; i++) 
@@ -1255,7 +1254,7 @@ namespace Makros {
       asm volatile ("movapd %[dptr], %%xmm6 \n\t"
                     "mulpd %%xmm7, %%xmm6 \n\t"
                     "movupd %%xmm6, %[dptr] \n\t"
-                    : [dptr] "+m" (dptr[0]) : : "xmm6");
+                    : [dptr] "+m" (dptr[0]) : : "xmm6", "memory");
     }
 
     for (i= nData - (nData % 2); i < nData; i++) 
@@ -1288,12 +1287,14 @@ namespace Makros {
       cdptr = data2+i;
       dptr = data+i;
 
+      //TODO: check for usage of VFNADD
+
       asm volatile ("vmovupd %[cdptr], %%ymm6 \n\t"
                     "vmulpd %%ymm7, %%ymm6, %%ymm6 \n\t" //destination goes last
                     "vmovupd %[dptr], %%ymm5 \n\t"
                     "vsubpd %%ymm6, %%ymm5, %%ymm5 \n\t" //destination goes last
                     "vmovupd %%ymm5, %[dptr] \n\t"
-                    : [dptr] "+m" (dptr[0]) : [cdptr] "m" (cdptr[0]) : "ymm5", "ymm6");
+                    : [dptr] "+m" (dptr[0]) : [cdptr] "m" (cdptr[0]) : "ymm5", "ymm6", "memory");
     }
 
     for (i= nData - (nData % 4); i < nData; i++)
@@ -1314,7 +1315,7 @@ namespace Makros {
                     "movapd %[dptr], %%xmm5 \n\t"
                     "subpd %%xmm6, %%xmm5 \n\t"
                     "movapd %%xmm5, %[dptr] \n\t"
-                    : [dptr] "+m" (dptr[0]) : [cdptr] "m" (cdptr[0]) : "xmm5", "xmm6");
+                    : [dptr] "+m" (dptr[0]) : [cdptr] "m" (cdptr[0]) : "xmm5", "xmm6", "memory");
     }
 
     for (i= nData - (nData % 2); i < nData; i++)
@@ -1353,14 +1354,17 @@ namespace Makros {
       s1_ptr = src1 + i;
       s2_ptr = src2 + i;
 
-      //TODO: check for usage of VFMSUBPD
-
       asm volatile ("vmovupd %[s2_ptr], %%ymm3 \n\t"
+#if 0      
                     "vmulpd %%ymm0, %%ymm3, %%ymm3 \n\t" //destination goes last
                     "vmovupd %[s1_ptr], %%ymm2 \n\t"
                     "vsubpd %%ymm3, %%ymm2, %%ymm2 \n\t" //destination goes last
+#else
+                    "vmovupd %[s1_ptr], %%ymm2 \n\t"
+                    "vfnmadd231pd %%ymm0, %%ymm3, %%ymm2 \n\t" //destination goes last
+#endif  
                     "vmovupd %%ymm2, %[dest]"
-                    : [dest] "+m" (dest_ptr[0]) : [s1_ptr] "m" (s1_ptr[0]), [s2_ptr] "m" (s2_ptr[0]) : "ymm2", "ymm3");      
+                    : [dest] "+m" (dest_ptr[0]) : [s1_ptr] "m" (s1_ptr[0]), [s2_ptr] "m" (s2_ptr[0]) : "ymm2", "ymm3", "memory");      
     }    
  
     for (i= nData - (nData % 4); i < nData; i++) 
@@ -1390,16 +1394,18 @@ namespace Makros {
       dest_ptr = dest + i;
       s1_ptr = src1 + i;
       s2_ptr = src2 + i;
-      
-      //TODO: check for usage of VFMADDPD
-      
+            
       asm volatile ("vmovupd %[s1_ptr], %%ymm2 \n\t"
                     "vmulpd %%ymm0, %%ymm2, %%ymm2 \n\t" //destination goes last
                     "vmovupd %[s2_ptr], %%ymm3 \n\t"
+#if 0
                     "vmulpd %%ymm1, %%ymm3, %%ymm3 \n\t" //destination goes last
                     "vaddpd %%ymm3, %%ymm2, %%ymm2 \n\t" //destination goes last
+#else
+                    "vfmadd231pd %%ymm3, %%ymm1, %%ymm2 \n\t" //destination goes last
+#endif  
                     "vmovupd %%ymm2, %[dest]"
-                    : [dest] "+m" (dest_ptr[0]) : [s1_ptr] "m" (s1_ptr[0]), [s2_ptr] "m" (s2_ptr[0]) : "ymm2", "ymm3");
+                    : [dest] "+m" (dest_ptr[0]) : [s1_ptr] "m" (s1_ptr[0]), [s2_ptr] "m" (s2_ptr[0]) : "ymm2", "ymm3", "memory");
     }
     
     for (i= nData - (nData % 4); i < nData; i++) 

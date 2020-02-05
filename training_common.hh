@@ -142,14 +142,14 @@ void start_prob_m_step_unconstrained(const Math1D::Vector<double>& singleton_cou
                                      Math1D::Vector<double>& sentence_start_parameters, uint nIter = 400, uint L = 5);
 
 
-inline void symmetrize_swapmat(Math2D::Matrix<double>& swap_prob, const uint curJ)
+template<typename T>
+inline void symmetrize_swapmat(Math2D::Matrix<T>& swap_prob, const uint curJ)
 {
   for (uint j1 = 0; j1 < curJ; j1++) {
 
     swap_prob(j1, j1) = 0.0;
 
     for (uint j2 = j1 + 1; j2 < curJ; j2++) {
-
       swap_prob(j2, j1) = swap_prob(j1, j2);
     }
   }

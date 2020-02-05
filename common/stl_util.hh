@@ -243,21 +243,23 @@ inline void vec_replace_maintainsort(std::vector<T>& vec, T toErase, T toInsert)
       }
       else if (i+1 < size && vec[i+1] < toInsert) {
    			size_t npos = i+1;
-        while (npos < size && vec[npos+1] < toInsert)
+        while (npos+1 < size && vec[npos+1] < toInsert)
           npos++;
 
         for (size_t k = i; k < npos; k++)
-          vec[k] = vec[k-1];
+          vec[k] = vec[k+1];
         vec[npos] = toInsert;			
       }
-      else
+      else {
         vec[i] = toInsert;
+      }
       
       break;
     }
   }
   
   assert(i < size);
+  //assert(is_sorted(vec.data(), size));
 }
 
 template<typename T1, typename T2>
