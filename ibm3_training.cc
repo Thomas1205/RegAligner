@@ -2264,7 +2264,7 @@ long double IBM3Trainer::alignment_prob(const Storage1D<uint>& source, const Sto
   prob *= p_zero_pow_[zero_fert];
   prob *= p_nonzero_pow_[curJ - 2 * zero_fert];
 
-  if (empty_word_model_ == FertNullOchNey)
+  if (empty_word_model_ != FertNullNondeficient)
     prob *= och_ney_factor_[curJ][zero_fert];
 
   return prob;
@@ -2603,7 +2603,7 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
     base_prob *= p_zero_pow_[zero_fert];
     base_prob *= p_nonzero_pow_[curJ - 2 * zero_fert];
 
-    if (empty_word_model_ == FertNullOchNey)
+    if (empty_word_model_ != FertNullOchNey)
       base_prob *= och_ney_factor_[curJ][zero_fert];
   }
 
@@ -2711,7 +2711,7 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
         assert(ratio >= 0.975 && ratio <= 1.05);
 #endif
 
-        if (empty_word_model_ == FertNullOchNey) {
+        if (empty_word_model_ != FertNullNondeficient) {
           fert_increase_factor[0] *= (zero_fert + 1) / ((long double)curJ);
         }
       }
@@ -2738,7 +2738,7 @@ long double IBM3Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       assert(ratio >= 0.975 && ratio <= 1.05);
 #endif
 
-      if (empty_word_model_ == FertNullOchNey) {
+      if (empty_word_model_ != FertNullNondeficient) {
         fert_decrease_factor[0] *= curJ / ((long double)zero_fert);
       }
     }
