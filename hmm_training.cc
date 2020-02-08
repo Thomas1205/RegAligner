@@ -25,7 +25,7 @@ HmmOptions::HmmOptions(uint nSourceWords, uint nTargetWords, const ReducedIBM2Cl
                        RefAlignmentStructure& possible_ref_alignments):
   nIterations_(5), init_type_(HmmInitPar), align_type_(HmmAlignProbReducedpar), redpar_limit_(5), start_empty_word_(false), smoothed_l0_(false),
   deficient_(false), fix_p0_(false), l0_beta_(1.0), print_energy_(true), nSourceWords_(nSourceWords), nTargetWords_(nTargetWords),
-  init_m_step_iter_(1000), align_m_step_iter_(1000), dict_m_step_iter_(45), transfer_mode_(IBM1TransferNo), msolve_mode_(MSSolvePGD),
+  init_m_step_iter_(1000), align_m_step_iter_(1000), dict_m_step_iter_(45), transfer_mode_(TransferNo), msolve_mode_(MSSolvePGD),
   ibm2_alignment_model_(ibm2_alignment_model), ibm2_sclass_(ibm2_sclass), sure_ref_alignments_(sure_ref_alignments),
   possible_ref_alignments_(possible_ref_alignments)
 {
@@ -2360,8 +2360,8 @@ void par2nonpar_hmm_alignment_model(const Math1D::Vector<double>& dist_params, c
 void init_hmm_from_prev(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const Storage1D<Math1D::Vector<uint> >& target,
                         const SingleWordDictionary& dict, const CooccuringWordsType& wcooc, FullHMMAlignmentModel& align_model,
                         Math1D::Vector<double>& dist_params, double& dist_grouping_param, Math1D::Vector<double>& source_fert,
-                        InitialAlignmentProbability& initial_prob, Math1D::Vector < double >& init_params, const HmmOptions& options,
-                        IBM1TransferMode transfer_mode = IBM1TransferViterbi)
+                        InitialAlignmentProbability& initial_prob, Math1D::Vector<double>& init_params, const HmmOptions& options,
+                        TransferMode transfer_mode = TransferViterbi)
 {
   dist_grouping_param = -1.0;
 
@@ -2397,7 +2397,7 @@ void init_hmm_from_prev(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
   uint zero_offset = maxI - 1;
 
-  dist_params.resize(2 * maxI - 1, 1.0 / (2 * maxI - 1));       //even for nonpar, we will use this as initialization
+  dist_params.resize(2 * maxI - 1, 1.0 / (2 * maxI - 1)); //even for nonpar, we will use this as initialization
 
   if (align_type == HmmAlignProbReducedpar) {
 
@@ -2470,7 +2470,7 @@ void init_hmm_from_prev(const Storage1D<Math1D::Vector<uint> >& source, const Lo
     assert(fabs(initial_prob[I - 1].sum() - 1.0) < 1e-5);
   }
 
-  if (transfer_mode != IBM1TransferNo) {
+  if (transfer_mode != TransferNo) {
 
     const double ibm1_p0 = options.ibm1_p0_;
 
@@ -2487,7 +2487,7 @@ void init_hmm_from_prev(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       const uint curJ = cur_source.size();
       const uint curI = cur_target.size();
 
-      if (transfer_mode == IBM1TransferViterbi) {
+      if (transfer_mode == TransferViterbi) {
 
         Storage1D<AlignBaseType> viterbi_alignment(curJ, 0);
 
@@ -2515,7 +2515,7 @@ void init_hmm_from_prev(const Storage1D<Math1D::Vector<uint> >& source, const Lo
         }
       }
       else {
-        assert(transfer_mode == IBM1TransferPosterior);
+        assert(transfer_mode == TransferPosterior);
 
         if (options.ibm2_alignment_model_.size() > curI && options.ibm2_alignment_model_[curI].size() > 0) {
 
@@ -2914,11 +2914,11 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
     }
 
     double energy = prev_perplexity / nSentences;
-    
+
     if (dict_weight_sum != 0.0) {
       energy += dict_reg_term(dict, prior_weight, options.l0_beta_);
     }
-    
+
     std::cerr << "energy after iteration #" << (iter - 1) << ": " <<  energy << std::endl;
     std::cerr << "computing alignment and dictionary probabilities from normalized counts" << std::endl;
 
@@ -2964,7 +2964,7 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
     /***** compute alignment and dictionary probabilities from normalized counts ******/
 
-    //compute new dict from normalized fractional counts    
+    //compute new dict from normalized fractional counts
     update_dict_from_counts(fwcount, prior_weight, nSentences, dict_weight_sum, options.smoothed_l0_, options.l0_beta_,
                             options.dict_m_step_iter_, dict, hmm_min_dict_entry, options.msolve_mode_ != MSSolvePGD);
 
@@ -3693,7 +3693,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
         else if (init_type != HmmInitFix && init_type == HmmInitFix2) {
           //for (uint k = 0; k < initial_prob[I - 1].size(); k++)
           //  new_init_prob[I - 1][k] = initial_prob[I - 1][k] - alpha * init_grad[I - 1][k];
-          
+
           if (new_init_prob[I - 1].size() > 0)
             Math1D::go_in_neg_direction(new_init_prob[I - 1], initial_prob[I - 1], init_grad[I -1], alpha);
         }
@@ -3701,7 +3701,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
         if (align_type == HmmAlignProbNonpar || align_type == HmmAlignProbNonpar2) {
           //for (uint k = 0; k < align_model[I - 1].size(); k++)
           //  new_align_prob[I - 1].direct_access(k) = align_model[I - 1].direct_access(k) - alpha * align_grad[I - 1].direct_access(k);
-          
+
           if (align_model[I - 1].size() > 0)
             Math2D::go_in_neg_direction(new_align_prob[I - 1], align_model[I - 1], align_grad[I - 1], alpha);
         }
@@ -3821,9 +3821,9 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
         for (uint I = 1; I <= maxI; I++) {
 
-          //for (uint k = 0; k < initial_prob[I - 1].size(); k++) 
+          //for (uint k = 0; k < initial_prob[I - 1].size(); k++)
           //  hyp_init_prob[I - 1][k] = lambda * new_init_prob[I - 1][k] + neg_lambda * initial_prob[I - 1][k];
-        
+
           if (hyp_init_prob[I - 1].size() > 0)
             Math1D::assign_weighted_combination(hyp_init_prob[I - 1], lambda, new_init_prob[I - 1], neg_lambda, initial_prob[I - 1]);
         }
@@ -3852,7 +3852,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
           //for (uint k = 0; k < hyp_align_prob[I - 1].size(); k++)
           //  hyp_align_prob[I - 1].direct_access(k) = lambda * new_align_prob[I - 1].direct_access(k)
           //      + neg_lambda * align_model[I - 1].direct_access(k);
-                
+
           if (hyp_align_prob[I - 1].size() > 0)
             Math2D::assign_weighted_combination(hyp_align_prob[I - 1], lambda, new_align_prob[I - 1], neg_lambda, align_model[I - 1]);
         }
@@ -3931,10 +3931,10 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
     else if (init_type == HmmInitNonpar) {
       for (uint I = 1; I <= maxI; I++) {
 
-        //for (uint k = 0; k < initial_prob[I - 1].size(); k++) 
+        //for (uint k = 0; k < initial_prob[I - 1].size(); k++)
         //  initial_prob[I - 1][k] = best_lambda * new_init_prob[I - 1][k] + neg_best_lambda * initial_prob[I - 1][k];
-        
-        if (initial_prob[I - 1].size() > 0) 
+
+        if (initial_prob[I - 1].size() > 0)
           Math1D::assign_weighted_combination(initial_prob[I - 1], best_lambda, new_init_prob[I - 1], neg_best_lambda, initial_prob[I - 1]);
       }
     }
@@ -3957,7 +3957,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
         //for (uint k = 0; k < align_model[I - 1].size(); k++)
         //  align_model[I - 1].direct_access(k) = best_lambda * new_align_prob[I - 1].direct_access(k)
         //                                        + neg_best_lambda * align_model[I - 1].direct_access(k);
-                                                
+
         if (align_model[I - 1].size() > 0)
           Math2D::assign_weighted_combination(align_model[I - 1], best_lambda, new_align_prob[I - 1], neg_best_lambda, align_model[I - 1]);
       }

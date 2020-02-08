@@ -54,6 +54,11 @@ IBM4Trainer::IBM4Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence
   const uint nDisplacements = 2 * maxJ_ - 1;
   displacement_offset_ = maxJ_ - 1;
 
+  if (nondeficient_) {
+    empty_word_model_ = FertNullNondeficient;  
+    reduce_deficiency_ = false;
+  }
+
   inter_distortion_cache_.resize(maxJ_ + 1);
 
   uint max_source_class = 0;

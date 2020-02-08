@@ -62,6 +62,10 @@ IBM3Trainer::IBM3Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence
   viterbi_ilp_mode_ = IlpOff;
 #endif
 
+  if (nondeficient_) {
+    empty_word_model_ = FertNullNondeficient;  
+  }
+
   uint nClasses = target_class_.max()+1;
 
   distortion_prob_.resize(maxJ_);

@@ -67,7 +67,7 @@ int main(int argc, char** argv)
               << " [-dont-print-energy] : do not print the energy (speeds up EM for IBM-1, IBM-2 and HMM)" << std::endl
               << " [-max-lookup <uint>] : only store lookup tables up to this size to save memory. Default: 65535" << std::endl
               << "************ Options for the IBM-1 **************************"  << std::endl
-              << " [-ibm1-method (main | em | gd | viterbi)]: special method for IBM-1, default: main=as the others" << std::endl 
+              << " [-ibm1-method (main | em | gd | viterbi)]: special method for IBM-1, default: main=as the others" << std::endl
               << "************ Options for IBM-2 only **************************"  << std::endl
               << " [-ibm2-p0 <double>] : empty word prob for the IBM-2 (default 0.02)" << std::endl
               << " [-ibm2-alignment] (pos | diff | nonpar) : parametric alignment model for IBM-2, default pos" << std::endl
@@ -75,6 +75,7 @@ int main(int argc, char** argv)
               << " [-hmm-type (fullpar | redpar | nonpar | nonpar2)] : default redpar as in [Vogel&Ney]" << std::endl
               << " [-hmm-init-type (par | nonpar | fix | fix2)] : default par" << std::endl
               << " [-hmm-start-empty-word] : HMM with extra empty word " << std::endl
+              << " [-hmm-p0 <double>] : fix HMM p0" << std::endl
               << "************ Options affecting a mixed set of models ****************"
               << " [-transfer-mode (no | viterbi | posterior)] : how to init HMM and IBM-2 from previous, default: no" << std::endl
               << " [-deficient-h25] : introduce deficiency for IBM-2, HMM and IBM-5 by not dividing by the param sum" << std::endl
@@ -112,7 +113,7 @@ int main(int argc, char** argv)
     exit(0);
   }
 
-  const int nParams = 63;
+  const int nParams = 64;
   ParamDescr params[nParams] = {
     {"-s", mandInFilename, 0, ""}, {"-t", mandInFilename, 0, ""}, {"-ds", optInFilename, 0, ""}, {"-dt", optInFilename, 0, ""},
     {"-o", optOutFilename, 0, ""}, {"-oa", mandOutFilename, 0, ""},  {"-refa", optInFilename, 0, ""}, {"-invert-biling-data", flag, 0, ""},
@@ -131,7 +132,8 @@ int main(int argc, char** argv)
     {"-ibm2-alignment", optWithValue, 1, "pos"}, {"-no-h23-classes", flag, 0, ""}, {"-itg-max-mid-dev",optWithValue,1,"8"},{"-itg-ext-level",optWithValue,1,"0"},
     {"-ibm-max-skip", optWithValue,1,"3"},{"-dict-iter",optWithValue,1,"45"}, {"-nondef-iter",optWithValue,1,"250"}, {"-ibm5-nonpar-distortion", flag, 0, ""},
     {"-uniform-start-prob", flag, 0, ""}, {"-start-param-iter", optWithValue, 1, "250"}, {"-main-param-iter", optWithValue, 1, "500"},
-    {"-ibm2-p0", optWithValue, 1, "0.02"}, {"-ibm1-method", optWithValue, 1, "main"}, {"-rare-threshold", optWithValue, 1, "3"}
+    {"-ibm2-p0", optWithValue, 1, "0.02"}, {"-ibm1-method", optWithValue, 1, "main"}, {"-rare-threshold", optWithValue, 1, "3"},
+    {"-hmm-p0",optWithValue,0,""}
   };
 
   Application app(argc, argv, params, nParams);
@@ -172,7 +174,7 @@ int main(int argc, char** argv)
     USER_ERROR << "unknown method \"" << method << "\"" << std::endl;
     exit(1);
   }
-  
+
   std::string ibm1_method = downcase(app.getParam("-ibm1-method"));
   if (ibm1_method != "main" && ibm1_method != "em" && ibm1_method != "gd" && ibm1_method != "viterbi" && ibm1_method != "l-bfgs") {
     USER_ERROR << "unknown ibm1-method \"" << ibm1_method << "\"" << std::endl;
@@ -609,6 +611,32 @@ int main(int argc, char** argv)
   hmm_options.init_m_step_iter_ = start_m_step_iter;
   hmm_options.align_m_step_iter_ = main_m_step_iter;
 
+  if (app.is_set("-hmm-p0")) {
+    double p0 = convert<double>(app.getParam("-hmm-p0"));
+    if (p0 >= 0.0 && p0 < 1.0) {
+      source_fert[0] = p0;
+      source_fert[1] = 1.0 - p0;
+      hmm_options.fix_p0_ = true;
+    }
+  }
+
+  std::string ibm1_transfer_mode = downcase(app.getParam("-transfer-mode"));
+  if (ibm1_transfer_mode != "no" && ibm1_transfer_mode != "viterbi" && ibm1_transfer_mode != "posterior") {
+    std::cerr << "WARNING: unknown mode \"" << ibm1_transfer_mode
+              << "\" for transfer from IBM-1 to HMM. Selecting \"no\"" << std::endl;
+    ibm1_transfer_mode = "no";
+  }
+
+  hmm_options.transfer_mode_ = TransferNo;
+  if (ibm1_transfer_mode == "posterior") {
+    ibm2_options.transfer_mode_ = TransferPosterior;
+    hmm_options.transfer_mode_ = TransferPosterior;
+  }
+  else if (ibm1_transfer_mode == "viterbi") {
+    ibm2_options.transfer_mode_ = TransferViterbi;
+    hmm_options.transfer_mode_ = TransferViterbi;
+  }
+
   FertModelOptions fert_options;
   fert_options.l0_fertpen_ = l0_fertpen;
   fert_options.cept_start_mode_ = ibm4_cept_mode;
@@ -697,19 +725,6 @@ int main(int argc, char** argv)
   }
 
   /*** HMM ***/
-
-  std::string ibm1_transfer_mode = downcase(app.getParam("-transfer-mode"));
-  if (ibm1_transfer_mode != "no" && ibm1_transfer_mode != "viterbi" && ibm1_transfer_mode != "posterior") {
-    std::cerr << "WARNING: unknown mode \"" << ibm1_transfer_mode
-              << "\" for transfer from IBM-1 to HMM. Selecting \"no\"" << std::endl;
-    ibm1_transfer_mode = "no";
-  }
-
-  hmm_options.transfer_mode_ = IBM1TransferNo;
-  if (ibm1_transfer_mode == "posterior")
-    hmm_options.transfer_mode_ = IBM1TransferPosterior;
-  else if (ibm1_transfer_mode == "viterbi")
-    hmm_options.transfer_mode_ = IBM1TransferViterbi;
 
   if (method == "em") {
 
@@ -856,8 +871,9 @@ int main(int argc, char** argv)
                            fert_options, app.is_set("-ibm3-extra-deficient"));
 
   ibm3_trainer.set_fertility_limit(fert_limit);
-  if (rare_fert_limit < fert_limit)
+  if (rare_fert_limit < fert_limit) {
     ibm3_trainer.set_rare_fertility_limit(rare_fert_limit, nMaxRareOccurences);
+  }
 
   if (ibm3_iter > 0) {
 
@@ -964,18 +980,18 @@ int main(int argc, char** argv)
   LookupTable dev_slookup;
   if (dev_present) {
     generate_wordlookup(dev_source_sentence, dev_target_sentence, wcooc, nSourceWords, dev_slookup);
-    
+
     if (app.is_set("-prior-dict")) {
-        
+
       Math1D::Vector<uint> target_count(nTargetWords, 0);
       for (uint s=0; s < target_sentence.size(); s++)
         for (uint i=0; i < target_sentence[s].size(); i++)
           target_count[target_sentence[s][i]]++;
-          
+
       for (uint i=1; i < nTargetWords; i++) {
-          
+
         if (target_count[i] == 0 && prior_weight[i].max_abs() != 0.0) {
-            
+
           uint count = 0;
           for (uint k = 0; k < prior_weight[i].size(); k++) {
             if (prior_weight[i][k] == 0.0)

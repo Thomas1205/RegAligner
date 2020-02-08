@@ -77,17 +77,22 @@ double ibm2_energy(const Storage1D<Math1D::Vector<uint> >& source, const LookupT
   double energy = 0.0;
 
   if (dict_weight_sum != 0.0) {
-    for (uint i = 0; i < dict.size(); i++) {
 
-      const uint size = dict[i].size();
+    assert(!smoothed_l0 || l0_beta > 0.0);
 
-      for (uint k = 0; k < size; k++) {
-        if (smoothed_l0)
-          energy += prior_weight[i][k] * prob_penalty(dict[i][k], l0_beta);
-        else
-          energy += prior_weight[i][k] * dict[i][k];
-      }
-    }
+    energy = dict_reg_term(dict, prior_weight, l0_beta);
+
+    // for (uint i = 0; i < dict.size(); i++) {
+
+    // const uint size = dict[i].size();
+
+    // for (uint k = 0; k < size; k++) {
+    // if (smoothed_l0)
+    // energy += prior_weight[i][k] * prob_penalty(dict[i][k], l0_beta);
+    // else
+    // energy += prior_weight[i][k] * dict[i][k];
+    // }
+    // }
   }
 
   energy += ibm2_perplexity(source, slookup, target, align_model, dict, wcooc, nSourceWords);
@@ -773,6 +778,126 @@ void reducedibm2_diffpar_m_step(Math3D::Tensor<double>& align_param, const Reduc
   }
 }
 
+void init_from_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const Storage1D<Math1D::Vector<uint> >& target,
+                    const SingleWordDictionary& dict, const CooccuringWordsType& wcooc, const Math1D::Vector<WordClassType>& sclass,
+                    ReducedIBM2ClassAlignmentModel& alignment_model, Math3D::Tensor<double>& align_param, Math1D::Vector<double>& source_fert, 
+                    const IBM2Options& options, uint offset, TransferMode transfer_mode = TransferViterbi)
+{
+  if (transfer_mode == TransferNo)  
+    return;
+    
+  const double ibm1_p0 = options.ibm1_p0_;
+
+  SingleLookupTable aux_lookup;
+    
+  align_param.set_constant(0.0);
+  for (uint I = 0; I < alignment_model.size(); I++)
+    alignment_model[I].set_constant(0.0);
+  
+  for (uint s=0; s < source.size(); s++) {
+  
+    const Math1D::Vector<uint>& cur_source = source[s];
+    const Math1D::Vector<uint>& cur_target = target[s];
+    const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, options.nSourceWords_, slookup[s], aux_lookup);
+
+    const uint curJ = cur_source.size();
+    const uint curI = cur_target.size();
+
+    Math3D::Tensor<double>& cur_align_model = alignment_model[curI];
+
+    if (transfer_mode == TransferViterbi) {
+        
+      Storage1D<AlignBaseType> viterbi_alignment(curJ, 0);
+
+      if (ibm1_p0 >= 0.0 && ibm1_p0 < 1.0)
+        compute_ibm1p0_viterbi_alignment(cur_source, cur_lookup, cur_target, dict, ibm1_p0, viterbi_alignment);
+      else
+        compute_ibm1_viterbi_alignment(cur_source, cur_lookup, cur_target, dict, viterbi_alignment);
+        
+      for (uint j = 0; j < curJ; j++) {  
+      
+        const uint c = (j == 0) ? 0 : sclass[cur_source[j - 1]];
+        cur_align_model(viterbi_alignment[j], j, c) += 1.0;
+      }
+    }
+    else {
+        
+      double w0 = 1.0;
+      double w1 = 1.0;
+
+      if (ibm1_p0 >= 0.0 && ibm1_p0 < 1.0) {
+        w0 = ibm1_p0;
+        w1 = (1.0 - ibm1_p0) / curI;
+      }
+
+      for (uint j = 0; j < curJ; j++) {
+
+        const uint c = (j == 0) ? 0 : sclass[cur_source[j - 1]];
+
+        double sum = w0 * dict[0][cur_source[j] - 1];
+        for (uint i = 0; i < curI; i++)
+          sum += w1 * dict[cur_target[i]][cur_lookup(j, i)];
+
+        cur_align_model(0, j, c) += w0 * dict[0][cur_source[j] - 1] / sum;
+        for (uint i = 0; i < curI; i++) {      
+          cur_align_model(i+1, j, c) += w1 * dict[cur_target[i]][cur_lookup(j, i)] / sum;
+        }
+      }
+    }
+  }
+
+  const IBM23ParametricMode par_mode = options.ibm2_mode_;
+
+  for (uint I = 0; I < alignment_model.size(); I++) 
+  {
+    if (par_mode == IBM23Nonpar) 
+    {
+      if (alignment_model[I].size() > 0) 
+      {
+        for (uint c = 0; c < alignment_model[I].zDim(); c++) {
+          for (uint j = 0; j < alignment_model[I].yDim(); j++) {
+            const double sum = alignment_model[I].sum_x(j, c);
+            if (sum > 0.0) {
+              for (uint i = 0; i < alignment_model[I].xDim(); i++)
+                alignment_model[I](i, j, c) /= sum;
+            }
+            else {
+              for (uint i = 0; i < alignment_model[I].xDim(); i++)
+                alignment_model[I](i, j, c) = 1.0 / alignment_model[I].xDim();
+            }
+          }
+        }            
+      }
+    }
+    else 
+    {
+      for (uint c = 0; c < alignment_model[I].zDim(); c++) {
+        for (uint j = 0; j < alignment_model[I].yDim(); j++) {
+          for (uint i = 0; i < alignment_model[I].xDim(); i++) {
+            if (par_mode == IBM23ParByPosition)
+              align_param(i, j, c) += alignment_model[I](i, j, c);
+            else
+              align_param(offset + j - i, 0, c) += alignment_model[I](i, j, c);
+          }
+        }
+      }
+    }    
+  }
+  
+  if (par_mode != IBM23Nonpar) {
+      
+    for (uint c = 0; c < align_param.zDim(); c++) {
+      for (uint j = 0; j < align_param.yDim(); j++) {
+        const double sum = align_param.sum_x(j, c);
+        for (uint i = 0; i < align_param.xDim(); i++)
+          align_param(i, j, c) /= sum;
+      }
+    }      
+    
+    par2nonpar_reduced_ibm2alignment_model(align_param, source_fert, alignment_model, par_mode, offset);
+  }
+}
+
 double reduced_ibm2_perplexity(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup,
                                const Storage1D<Math1D::Vector<uint> >& target, const ReducedIBM2ClassAlignmentModel& align_model,
                                const SingleWordDictionary& dict, const Math1D::Vector<WordClassType>& sclass,
@@ -910,6 +1035,9 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
   SingleLookupTable aux_lookup;
 
   //TODO: estimate first alignment model from IBM1 dictionary
+  if (options.transfer_mode_ != TransferNo) {
+    std::cerr << "implementing transfer mode is TODO!" << std::endl;
+  }
 
   SingleWordDictionary fwcount(options.nTargetWords_, MAKENAME(fwcount));
   for (uint i = 0; i < options.nTargetWords_; i++) {
@@ -1186,6 +1314,9 @@ void train_reduced_ibm2_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
   SingleLookupTable aux_lookup;
 
   //TODO: estimate first alignment model from IBM1 dictionary
+  if (options.transfer_mode_ != TransferNo) {
+    std::cerr << "implementing transfer mode is TODO!" << std::endl;
+  }
 
   SingleWordDictionary wgrad(options.nTargetWords_, MAKENAME(wgrad));
   SingleWordDictionary new_dict(options.nTargetWords_, MAKENAME(new_dict));
@@ -1305,7 +1436,7 @@ void train_reduced_ibm2_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
     if (par_mode != IBM23Nonpar) {
       for (uint I = 0; I < lcooc.size(); I++) {
-        
+
         if (par_mode == IBM23ParByPosition) {
 
           for (uint c = 0; c < agrad[I].zDim(); c++) {
@@ -1316,16 +1447,16 @@ void train_reduced_ibm2_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
                   align_param_grad(i - 1, j, c) += agrad[I](i, j, c);
               }
               else {
-                
+
                 // for detals on the quotient rule see IBM3Trainer::compute_dist_param_gradient
 
                 double param_sum = 0.0;
                 double product_sum = 0.0;
-                
+
                 for (uint i = 1; i < agrad[I].xDim(); i++) {
                   param_sum += align_param(i - 1, j, c);
                   product_sum += agrad[I](i, j, c) * align_param(i - 1, j, c);
-                }                
+                }
 
                 param_sum = std::max(ibm2_min_align_param, param_sum);
                 const double combined = -product_sum / (param_sum * param_sum);
@@ -1333,7 +1464,7 @@ void train_reduced_ibm2_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
                 for (uint i = 1; i < agrad[I].xDim(); i++) {
                   align_param_grad(i - 1, j, c) += combined  //combined term
                                                    + (agrad[I](i, j, c) / param_sum);   //term for j
-                }                               
+                }
               }
             }
           }
@@ -1357,21 +1488,21 @@ void train_reduced_ibm2_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
                 for (uint i = 1; i < agrad[I].xDim(); i++) {
                   param_sum += align_param(offset + j - (i - 1), 0, c);
                   product_sum += agrad[I](i, j, c) * align_param(offset + j - (i - 1), 0, c);
-                }                
-               
+                }
+
                 param_sum = std::max(ibm2_min_align_param, param_sum);
                 const double combined = -product_sum / (param_sum * param_sum);
 
                 for (uint i = 1; i < agrad[I].xDim(); i++) {
                   align_param_grad(offset + j - (i - 1), 0, c) += combined  //combined term
-                                                                  + (agrad[I](i, j, c) / param_sum);   //term for j
-                }                                               
+                      + (agrad[I](i, j, c) / param_sum);   //term for j
+                }
               }
             }
           }
         }
       }
-      
+
       align_param_grad *= source_fert[1];
     }
 
@@ -1422,19 +1553,19 @@ void train_reduced_ibm2_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
             new_alignment_model[I].get_x(y, c, temp);
             projection_on_simplex(temp.direct_access(), temp.size(), ibm2_min_align_param);
             new_alignment_model[I].set_x(y, c, temp);
-            
+
             assert(!isnan(temp.sum()));
           }
         }
       }
     }
     else {
-      
+
       Math1D::Vector<double> temp(new_align_param.xDim());
-      
+
       for (uint c = 0; c < new_align_param.zDim(); c++) {
         for (uint y = 0; y < new_align_param.yDim(); y++) {
-        
+
           new_align_param.get_x(y, c, temp);
           projection_on_simplex(temp.direct_access(), temp.size(), ibm2_min_align_param);
           new_align_param.set_x(y, c, temp);

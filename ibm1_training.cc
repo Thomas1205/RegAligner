@@ -78,22 +78,27 @@ double ibm1_energy(const Storage1D<Math1D::Vector<uint> >& source, const LookupT
   double energy = 0.0;
 
   if (dict_weight_sum != 0.0) {
-    for (uint i = 0; i < dict.size(); i++) {
 
-      const Math1D::Vector<double>& cur_dict = dict[i];
-      const Math1D::Vector<float>& cur_prior = prior_weight[i];
+    assert(!smoothed_l0 || l0_beta > 0.0);
 
-      const uint size = cur_dict.size();
+    energy = dict_reg_term(dict, prior_weight, l0_beta);
 
-      if (smoothed_l0) {
-        for (uint k = 0; k < size; k++)
-          energy += cur_prior[k] * prob_penalty(cur_dict[k], l0_beta);
-      }
-      else {
-        for (uint k = 0; k < size; k++)
-          energy += cur_prior[k] * cur_dict[k];
-      }
-    }
+    // for (uint i = 0; i < dict.size(); i++) {
+
+    // const Math1D::Vector<double>& cur_dict = dict[i];
+    // const Math1D::Vector<float>& cur_prior = prior_weight[i];
+
+    // const uint size = cur_dict.size();
+
+    // if (smoothed_l0) {
+    // for (uint k = 0; k < size; k++)
+    // energy += cur_prior[k] * prob_penalty(cur_dict[k], l0_beta);
+    // }
+    // else {
+    // for (uint k = 0; k < size; k++)
+    // energy += cur_prior[k] * cur_dict[k];
+    // }
+    // }
   }
 
   energy += ibm1_perplexity(source, slookup, target, dict, wcooc, nSourceWords);
@@ -619,7 +624,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, c
 
       Math1D::assign_weighted_combination(dict[i], neg_best_lambda, dict[i], best_lambda, new_dict[i]);
     }
-    
+
     if (dict_weight_sum > 0.0)
       Math1D::assign_weighted_combination(slack_vector, neg_best_lambda, slack_vector, best_lambda, new_slack_vector);
 
@@ -1926,4 +1931,498 @@ void ibm1_viterbi_training(const Storage1D<Math1D::Vector<uint> >& source, const
     viterbi_move(source, slookup, target, k, k + (granularity - 1), dict_penalty, viterbi_alignment, dcount);
   }
 #endif
+
+}
+
+void derive_symibm1_alignment(const Storage1D<uint>& cur_source, const SingleLookupTable& cur_slookup,
+                              const SingleLookupTable& cur_tlookup, const Storage1D<uint>& cur_target,
+                              SingleWordDictionary& s2t_dict, SingleWordDictionary& t2s_dict,
+                              std::set<std::pair<AlignBaseType,AlignBaseType> >& alignment, double threshold = 0.1)
+{
+
+  alignment.clear();
+
+  const uint curJ = cur_source.size();
+  const uint curI = cur_target.size();
+
+  Math2D::Matrix<double> marginal(curI, curJ, 0.0);
+
+  /*** 1.) s|t ***/
+  for (uint j = 0; j < curJ; j++) {
+
+    const uint s_idx = cur_source[j];
+
+    double sum = s2t_dict[0][s_idx - 1];
+
+    for (uint i = 0; i < curI; i++)
+      sum += s2t_dict[cur_target[i]][cur_slookup(j, i)];
+
+    if (sum > 1e-305) {
+      double inv_sum = 1.0 / sum;
+      for (uint i = 0; i < curI; i++)
+        marginal(i, j) += 0.5 * inv_sum * s2t_dict[cur_target[i]][cur_slookup(j, i)];
+    }
+  }
+
+  /*** 2.) t|s ***/
+  for (uint i = 0; i < curI; i++) {
+
+    const uint t_idx = cur_target[i];
+
+    double sum = t2s_dict[0][t_idx - 1];
+    for (uint j = 0; j < curJ; j++)
+      sum += t2s_dict[cur_source[j]][cur_tlookup(i, j)];
+
+    if (sum > 1e-305) {
+
+      double inv_sum = 1.0 / sum;
+      for (uint j = 0; j < curJ; j++)
+        marginal(i, j) += 0.5 * inv_sum * t2s_dict[cur_source[j]][cur_tlookup(i, j)];
+    }
+  }
+
+  for (uint j = 0; j < curJ; j++)
+    for (uint i = 0; i < curI; i++)
+      if (marginal(i, j) >= threshold)
+        alignment.insert(std::make_pair(j + 1, i + 1));
+}
+
+double symibm1_energy(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const LookupTable& tlookup,
+                      const Storage1D<Math1D::Vector<uint> >& target, SingleWordDictionary& s2t_dict, SingleWordDictionary& t2s_dict,
+                      double gamma, bool diff_of_logs)
+{
+
+  //objective function:
+  // log-perplexity(s|t) + log-perplexity(t|s) + \gamma/2 * sum_{sentences} (marginal-diff)^2
+
+  double energy = 0.0;
+
+  const size_t nSentences = source.size();
+
+  for (size_t s = 0; s < nSentences; s++) {
+
+    const Storage1D<uint>& cur_source = source[s];
+    const Storage1D<uint>& cur_target = target[s];
+
+    const uint curJ = cur_source.size();
+    const uint curI = cur_target.size();
+    const SingleLookupTable& cur_slookup = slookup[s];
+    const SingleLookupTable& cur_tlookup = tlookup[s];
+
+    energy += curJ * std::log(curI);
+    energy += curI * std::log(curJ);
+
+    Math2D::Matrix < double >marginal_diff(curI, curJ, 0.0);
+
+    /*** 1.) s|t ***/
+    for (uint j = 0; j < curJ; j++) {
+
+      const uint s_idx = cur_source[j];
+
+      double sum = s2t_dict[0][s_idx - 1];
+
+      for (uint i = 0; i < curI; i++)
+        sum += s2t_dict[cur_target[i]][cur_slookup(j, i)];
+
+      if (sum > 1e-305) {
+        double inv_sum = 1.0 / sum;
+        for (uint i = 0; i < curI; i++) {
+          double marginal =
+            inv_sum * s2t_dict[cur_target[i]][cur_slookup(j, i)];
+          if (diff_of_logs)
+            marginal_diff(i, j) += std::log(1.0 + marginal);
+          else
+            marginal_diff(i, j) += marginal;
+        }
+      }
+
+      energy -= std::log(sum);
+    }
+
+    /*** 2.) t|s ***/
+    for (uint i = 0; i < curI; i++) {
+
+      const uint t_idx = cur_target[i];
+
+      double sum = t2s_dict[0][t_idx - 1];
+      for (uint j = 0; j < curJ; j++)
+        sum += t2s_dict[cur_source[j]][cur_tlookup(i, j)];
+
+      if (sum > 1e-305) {
+
+        double inv_sum = 1.0 / sum;
+        for (uint j = 0; j < curJ; j++) {
+          double marginal =
+            inv_sum * t2s_dict[cur_source[j]][cur_tlookup(i, j)];
+          if (diff_of_logs)
+            marginal_diff(i, j) -= std::log(1.0 + marginal);
+          else
+            marginal_diff(i, j) -= marginal;
+        }
+      }
+
+      energy -= std::log(sum);
+    }
+
+    /**** marginal term *****/
+    for (uint i = 0; i < curI; i++) {
+      for (uint j = 0; j < curJ; j++) {
+
+        energy += 0.5 * gamma * marginal_diff(i, j) * marginal_diff(i, j);
+      }
+    }
+  }
+
+  return energy / nSentences;
+
+}
+
+void symtrain_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const LookupTable& tlookup,
+                   const Storage1D<Math1D::Vector<uint> >& target, const CooccuringWordsType& s2t_cooc,
+                   const CooccuringWordsType& t2s_cooc, uint nSourceWords, uint nTargetWords,
+                   SingleWordDictionary& s2t_dict, SingleWordDictionary& t2s_dict, uint nIter, double gamma,
+                   std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
+                   std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
+                   bool diff_of_logs)
+{
+
+  //objective function:
+  // log-perplexity(s|t) + log-perplexity(t|s) + \lambda/2 * sum_{sentences} (marginal-diff)^2
+
+  assert(s2t_cooc.size() == nTargetWords);
+  assert(t2s_cooc.size() == nSourceWords);
+
+  const size_t nSentences = source.size();
+  assert(nSentences == target.size());
+
+  //prepare s2t dictionary
+  if (s2t_dict.size() == 0) {
+    s2t_dict.resize_dirty(nTargetWords);
+    for (uint i = 0; i < nTargetWords; i++) {
+
+      const uint size = s2t_cooc[i].size();
+      s2t_dict[i].resize_dirty(size);
+      s2t_dict[i].set_constant(1.0 / ((double)size));
+    }
+    s2t_dict[0].set_constant(1.0 / s2t_dict[0].size());
+  }
+  //prepare t2s dictionary
+  if (t2s_dict.size() == 0) {
+    t2s_dict.resize_dirty(nSourceWords);
+    for (uint j = 0; j < nSourceWords; j++) {
+
+      const uint size = t2s_cooc[j].size();
+      t2s_dict[j].resize_dirty(size);
+      t2s_dict[j].set_constant(1.0 / ((double)size));
+    }
+    t2s_dict[0].set_constant(1.0 / t2s_dict[0].size());
+  }
+
+  double energy =
+    symibm1_energy(source, slookup, tlookup, target, s2t_dict, t2s_dict,
+                   gamma, diff_of_logs);
+  std::cerr << "initial energy: " << energy << std::endl;
+
+  SingleWordDictionary new_s2t_dict(nTargetWords, MAKENAME(new_s2t_dict));
+  SingleWordDictionary hyp_s2t_dict(nTargetWords, MAKENAME(hyp_s2t_dict));
+  SingleWordDictionary new_t2s_dict(nTargetWords, MAKENAME(new_t2s_dict));
+  SingleWordDictionary hyp_t2s_dict(nTargetWords, MAKENAME(hyp_t2s_dict));
+
+  for (uint i = 0; i < nTargetWords; i++) {
+
+    const uint size = s2t_cooc[i].size();
+    new_s2t_dict[i].resize_dirty(size);
+    hyp_s2t_dict[i].resize_dirty(size);
+  }
+  for (uint j = 0; j < nSourceWords; j++) {
+
+    const uint size = t2s_cooc[j].size();
+    new_t2s_dict[j].resize_dirty(size);
+    hyp_t2s_dict[j].resize_dirty(size);
+  }
+
+  double alpha = 0.5;           //0.1; //0.1; // 0.0001;
+
+  double line_reduction_factor = 0.5;
+
+  uint nSuccessiveReductions = 0;
+
+  for (uint iter = 1; iter <= nIter; iter++) {
+
+    std::cerr << "*************** sym-1 iteration #" << iter << " ************" << std::endl;
+
+    /*** clear gradients ***/
+    SingleWordDictionary s2t_dict_grad(nTargetWords, MAKENAME(s2t_dict_grad));
+    SingleWordDictionary t2s_dict_grad(nSourceWords, MAKENAME(t2s_dict_grad));
+
+    for (uint i = 0; i < nTargetWords; i++) {
+
+      const uint size = s2t_cooc[i].size();
+      s2t_dict_grad[i].resize_dirty(size);
+      s2t_dict_grad[i].set_constant(0.0);
+    }
+    for (uint j = 0; j < nSourceWords; j++) {
+
+      const uint size = t2s_cooc[j].size();
+      t2s_dict_grad[j].resize_dirty(size);
+      t2s_dict_grad[j].set_constant(0.0);
+    }
+
+    for (size_t s = 0; s < nSentences; s++) {
+
+      //std::cerr << "s: " << s << std::endl;
+
+      const Storage1D<uint>& cur_source = source[s];
+      const Storage1D<uint>& cur_target = target[s];
+
+      const uint curJ = cur_source.size();
+      const uint curI = cur_target.size();
+      const SingleLookupTable& cur_slookup = slookup[s];
+      const SingleLookupTable& cur_tlookup = tlookup[s];
+
+      Math2D::Matrix<double> marginal_diff(curI, curJ, 0.0);
+      Math2D::Matrix<double> s2t_marginal(curI, curJ, 0.0);
+      Math2D::Matrix<double> t2s_marginal(curI, curJ, 0.0);
+
+      Math1D::Vector<double> i_sum(curI, 0.0);
+      Math1D::Vector<double> j_sum(curJ, 0.0);
+
+      //std::cerr << "A" << std::endl;
+
+      /*** 1.) s|t ***/
+      for (uint j = 0; j < curJ; j++) {
+
+        const uint s_idx = cur_source[j];
+
+        double sum = s2t_dict[0][s_idx - 1];
+
+        for (uint i = 0; i < curI; i++)
+          sum += s2t_dict[cur_target[i]][cur_slookup(j, i)];
+
+        j_sum[j] = sum;
+
+        if (sum > 1e-305) {
+          double inv_sum = 1.0 / sum;
+
+          double cur_grad = -1.0 * inv_sum;
+
+          s2t_dict_grad[0][s_idx - 1] += cur_grad;
+          for (uint i = 0; i < curI; i++) {
+            s2t_dict_grad[cur_target[i]][cur_slookup(j, i)] += cur_grad;
+
+            double marginal = s2t_dict[cur_target[i]][cur_slookup(j, i)] * inv_sum;
+
+            s2t_marginal(i, j) = marginal;
+            if (diff_of_logs)
+              marginal_diff(i, j) += std::log(1.0 + marginal);
+            else
+              marginal_diff(i, j) += marginal;
+          }
+        }
+      }
+
+      //std::cerr << "B" << std::endl;
+
+      /*** 2.) t|s ***/
+      for (uint i = 0; i < curI; i++) {
+
+        const uint t_idx = cur_target[i];
+
+        double sum = t2s_dict[0][t_idx - 1];
+        for (uint j = 0; j < curJ; j++)
+          sum += t2s_dict[cur_source[j]][cur_tlookup(i, j)];
+
+        i_sum[i] = sum;
+
+        if (sum > 1e-305) {
+
+          double inv_sum = 1.0 / sum;
+
+          double cur_grad = -1.0 * inv_sum;
+          t2s_dict_grad[0][t_idx - 1] += cur_grad;
+          for (uint j = 0; j < curJ; j++) {
+            t2s_dict_grad[cur_source[j]][cur_tlookup(i, j)] += cur_grad;
+
+            double marginal =
+              t2s_dict[cur_source[j]][cur_tlookup(i, j)] * inv_sum;
+            t2s_marginal(i, j) = marginal;
+
+            if (diff_of_logs)
+              marginal_diff(i, j) -= std::log(1.0 + marginal);
+            else
+              marginal_diff(i, j) -= marginal;
+          }
+        }
+      }
+
+      //std::cerr << "C" << std::endl;
+
+      /**** marginal term *****/
+      for (uint i = 0; i < curI; i++) {
+        for (uint j = 0; j < curJ; j++) {
+
+          if (j_sum[j] > 1e-100) {
+            if (diff_of_logs)
+              s2t_dict_grad[cur_target[i]][cur_slookup(j, i)] +=
+                gamma * marginal_diff(i, j) * (j_sum[j] - s2t_dict[cur_target[i]][cur_slookup(j, i)])
+                / (j_sum[j] * j_sum[j] * (1.0 + s2t_marginal(i, j)));
+            else
+              s2t_dict_grad[cur_target[i]][cur_slookup(j, i)] +=
+                gamma * marginal_diff(i, j) * (j_sum[j] - s2t_dict[cur_target[i]][cur_slookup(j, i)]) / (j_sum[j] * j_sum[j]);
+          }
+          if (i_sum[i] > 1e-100) {
+            if (diff_of_logs)
+              t2s_dict_grad[cur_source[j]][cur_tlookup(i, j)] -=
+                gamma * marginal_diff(i, j) * (i_sum[i] - t2s_dict[cur_source[j]][cur_tlookup(i, j)])
+                / (i_sum[i] * i_sum[i] * (1.0 + t2s_marginal(i, j)));
+            else
+              t2s_dict_grad[cur_source[j]][cur_tlookup(i, j)] -=
+                gamma * marginal_diff(i, j) * (i_sum[i] - t2s_dict[cur_source[j]][cur_tlookup(i, j)]) / (i_sum[i] * i_sum[i]);
+          }
+        }
+      }
+    }
+
+    /***** go in neg-gradient direction *****/
+    for (uint i = 0; i < nTargetWords; i++) {
+
+      for (uint k = 0; k < s2t_dict[i].size(); k++)
+        new_s2t_dict[i][k] = s2t_dict[i][k] - alpha * s2t_dict_grad[i][k];
+    }
+    for (uint j = 0; j < nSourceWords; j++) {
+
+      for (uint k = 0; k < t2s_dict[j].size(); k++)
+        new_t2s_dict[j][k] = t2s_dict[j][k] - alpha * t2s_dict_grad[j][k];
+    }
+
+    /**** reproject on the simplices [Michelot 1986]****/
+
+    for (uint i = 0; i < nTargetWords; i++) {
+
+      const uint nCurWords = new_s2t_dict[i].size();
+
+      projection_on_simplex(new_s2t_dict[i].direct_access(), nCurWords, ibm1_min_dict_entry);
+    }
+    for (uint j = 0; j < nSourceWords; j++) {
+
+      const uint nCurWords = new_t2s_dict[j].size();
+
+      projection_on_simplex(new_t2s_dict[j].direct_access(), nCurWords, ibm1_min_dict_entry);
+    }
+
+    /***** search for stepsize *****/
+
+    double hyp_energy = symibm1_energy(source, slookup, tlookup, target, new_s2t_dict, new_t2s_dict, gamma, diff_of_logs);
+
+    uint nInnerIter = 0;
+
+    bool decreasing = true;
+
+    double lambda = 1.0;
+    double best_lambda = 1.0;
+
+    while (hyp_energy > energy || decreasing) {
+
+      nInnerIter++;
+
+      if (hyp_energy <= 0.95 * energy)
+        break;
+
+      if (hyp_energy < 0.99 * energy && nInnerIter > 3)
+        break;
+
+      lambda *= line_reduction_factor;
+
+      double inv_lambda = 1.0 - lambda;
+
+      for (uint i = 0; i < nTargetWords; i++) {
+
+        for (uint k = 0; k < s2t_dict[i].size(); k++)
+          hyp_s2t_dict[i][k] = inv_lambda * s2t_dict[i][k] + lambda * new_s2t_dict[i][k];
+      }
+      for (uint j = 0; j < nSourceWords; j++) {
+
+        for (uint k = 0; k < t2s_dict[j].size(); k++)
+          hyp_t2s_dict[j][k] = inv_lambda * t2s_dict[j][k] + lambda * new_t2s_dict[j][k];
+      }
+
+      double new_energy = symibm1_energy(source, slookup, tlookup, target, hyp_s2t_dict, hyp_t2s_dict, gamma, diff_of_logs);
+
+      std::cerr << "new hyp: " << new_energy << ", previous: " << hyp_energy << std::endl;
+
+      if (new_energy < hyp_energy) {
+        hyp_energy = new_energy;
+        best_lambda = lambda;
+        decreasing = true;
+      }
+      else
+        decreasing = false;
+    }
+
+    if (nInnerIter > 4) {
+      nSuccessiveReductions++;
+    }
+    else {
+      nSuccessiveReductions = 0;
+    }
+
+    if (nSuccessiveReductions > 15) {
+      line_reduction_factor *= 0.9;
+      nSuccessiveReductions = 0;
+    }
+
+    /**** update the dictionaries according to the determined step-size ******/
+
+    double inv_best_lambda = 1.0 - best_lambda;
+
+    for (uint i = 0; i < nTargetWords; i++) {
+
+      for (uint k = 0; k < s2t_dict[i].size(); k++)
+        s2t_dict[i][k] = inv_best_lambda * s2t_dict[i][k] + best_lambda * new_s2t_dict[i][k];
+    }
+    for (uint j = 0; j < nSourceWords; j++) {
+
+      for (uint k = 0; k < t2s_dict[j].size(); k++)
+        t2s_dict[j][k] = inv_best_lambda * t2s_dict[j][k] + best_lambda * new_t2s_dict[j][k];
+    }
+
+    energy = hyp_energy;
+
+    /************* compute alignment error rate ****************/
+    if (!possible_ref_alignments.empty()) {
+
+      double sum_aer = 0.0;
+      double sum_fmeasure = 0.0;
+      double nErrors = 0.0;
+      uint nContributors = 0;
+
+      for (std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >::iterator it = possible_ref_alignments.begin();
+           it != possible_ref_alignments.end(); it++) {
+
+        uint s = it->first - 1;
+
+        if (s >= nSentences)
+          break;
+
+        std::set<std::pair<AlignBaseType,AlignBaseType> > alignment;
+
+        derive_symibm1_alignment(source[s], slookup[s], tlookup[s], target[s], s2t_dict, t2s_dict, alignment, 0.15);
+
+        nContributors++;
+
+        //add alignment error rate
+        sum_aer += AER(alignment, sure_ref_alignments[s + 1], possible_ref_alignments[s + 1]);
+        sum_fmeasure += f_measure(alignment, sure_ref_alignments[s + 1], possible_ref_alignments[s + 1]);
+        nErrors += nDefiniteAlignmentErrors(alignment, sure_ref_alignments[s + 1], possible_ref_alignments[s + 1]);
+      }
+
+      sum_aer *= 100.0 / nContributors;
+      sum_fmeasure /= nContributors;
+      nErrors /= nContributors;
+
+      std::cerr << "#### Sym-IBM1 AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
+      std::cerr << "#### Sym-IBM1 fmeasure after iteration #" << iter << ": " << sum_fmeasure << std::endl;
+      std::cerr << "#### Sym-IBM1 DAE/S after iteration #" << iter << ": " << nErrors << std::endl;
+    }
+  }
 }
