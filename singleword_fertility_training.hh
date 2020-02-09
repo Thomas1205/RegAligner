@@ -54,6 +54,7 @@ struct FertModelOptions {
   bool reduce_deficiency_ = false;
   bool uniform_intra_prob_ = false;
   bool ibm5_nonpar_distortion_ = true;
+  bool nondef_norm_m_step_ = false;
 };
 
 /*abstract*/ class FertilityModelTrainerBase {

@@ -4033,8 +4033,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
       sum_postdec_daes /= nContributors;
 
       std::cerr << "#### EHMM Viterbi-AER after gd-iteration #" << iter << ": " << sum_aer << " %" << std::endl;
-      if (!start_empty_word)
-        std::cerr << "---- EHMM Marginal-AER : " << sum_marg_aer << " %" << std::endl;
+      std::cerr << "---- EHMM Marginal-AER : " << sum_marg_aer << " %" << std::endl;
       std::cerr << "#### EHMM Viterbi-fmeasure after gd-iteration #" << iter << ": " << sum_fmeasure << std::endl;
       std::cerr << "#### EHMM Viterbi-DAE/S after gd-iteration #" << iter << ": " << nErrors << std::endl;
 

@@ -194,6 +194,7 @@ protected:
   uint nTargetClasses_;
 
   bool nondeficient_;
+  bool nondef_norm_m_step_ = false;
 
   //if there are many word classes, inter distortion tables are only kept for J<=storage_limit_ and some very frequent ones
   const ushort storage_limit_;

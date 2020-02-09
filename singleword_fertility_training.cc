@@ -848,7 +848,7 @@ FertilityModelTrainer::FertilityModelTrainer(const Storage1D<Math1D::Vector<uint
   : FertilityModelTrainerBase(source_sentence, slookup, target_sentence, sure_ref_alignments,
                               possible_ref_alignments, dict, wcooc, nSourceWords, nTargetWords,
                               fertility_limit), iter_offs_(0), empty_word_model_(options.empty_word_model_),
-    smoothed_l0_(options.l0_beta_ != 0.0), l0_beta_(options.l0_beta_), l0_fertpen_(options.l0_fertpen_), no_factorial_(no_factorial),
+    smoothed_l0_(options.l0_beta_ > 0.0), l0_beta_(options.l0_beta_), l0_fertpen_(options.l0_fertpen_), no_factorial_(no_factorial),
     nMaxHCIter_(options.nMaxHCIter_), dict_m_step_iter_(options.dict_m_step_iter_), msolve_mode_(options.msolve_mode_),
     hillclimb_mode_(options.hillclimb_mode_), prior_weight_(prior_weight), fertility_prob_(nTargetWords, MAKENAME(fertility_prob_)),
     tfert_class_(tfert_class), log_table_(log_table), xlogx_table_(xlogx_table), p_zero_pow_(maxJ_ / 2 + 1, -1.0), p_nonzero_pow_(maxJ_ + 1, -1.0)

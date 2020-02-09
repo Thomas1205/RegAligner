@@ -199,6 +199,7 @@ protected:
   bool utmost_ilp_precision_;
 
   bool nondeficient_;
+  bool nondef_norm_m_step_ = false;
 };
 
 void add_nondef_count_compact(const Storage1D<std::vector<uchar> >& aligned_source_words, uint i, uint c, uint J, uint maxJ,
