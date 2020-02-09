@@ -3162,7 +3162,7 @@ void IBM4Trainer::nondeficient_intra_m_step(const IBM4WithinCeptModel& singleton
 
     if ((iter % 50) == 0) {
       if (nTargetClasses_ <= 4)
-        std::cerr << "L-BFGS intra energy after iter #" << iter << ": " << energy << std::endl;
+        std::cerr << "intra energy after iter #" << iter << ": " << energy << std::endl;
 
       if (save_energy - energy < 0.15)
         break;
@@ -3330,7 +3330,7 @@ void IBM4Trainer::nondeficient_intra_m_step_unconstrained(const IBM4WithinCeptMo
 
     if ((iter % 50) == 0) {
       if (nTargetClasses_ <= 4)
-        std::cerr << "intra energy after iter #" << iter << ": " << energy << std::endl;
+        std::cerr << "L_BFGS intra energy after iter #" << iter << ": " << energy << std::endl;
     }
     // a) calculate gradient w.r.t. the probabilities, not the parameters
 
