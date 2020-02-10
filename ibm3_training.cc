@@ -3513,7 +3513,7 @@ void IBM3Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
 
 /*virtual */
 long double IBM3Trainer::compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-    const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment)
+    const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment, AlignmentSetConstraints* constraints)
 {
   prepare_external_alignment(source, target, lookup, alignment);
 

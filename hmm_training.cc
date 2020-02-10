@@ -3034,11 +3034,15 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
       //std::cerr << "computing error rates" << std::endl;
 
-      double sum_aer = 0.0;
-      double sum_marg_aer = 0.0;
-      double sum_fmeasure = 0.0;
-      double nErrors = 0.0;
       uint nContributors = 0;
+
+      double sum_aer = 0.0;
+      double sum_fmeasure = 0.0;
+      double sum_daes = 0.0;
+
+      double sum_marg_aer = 0.0;
+      double sum_marg_fmeasure = 0.0;
+      double sum_marg_daes = 0.0;
 
       double sum_postdec_aer = 0.0;
       double sum_postdec_fmeasure = 0.0;
@@ -3075,7 +3079,7 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
         //add alignment error rate
         sum_aer += AER(viterbi_alignment, cur_sure, cur_possible);
         sum_fmeasure += f_measure(viterbi_alignment, cur_sure, cur_possible);
-        nErrors += nDefiniteAlignmentErrors(viterbi_alignment, cur_sure, cur_possible);
+        sum_daes += nDefiniteAlignmentErrors(viterbi_alignment, cur_sure, cur_possible);
 
         Storage1D<AlignBaseType> marg_alignment;
         compute_ehmm_optmarginal_alignment(source[s], cur_lookup, target[s], dict, align_model[curI - 1],
@@ -3083,7 +3087,9 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
         //std::cerr << "marg_alignment: " << marg_alignment << std::endl;
 
-        sum_marg_aer += AER(marg_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_marg_aer += AER(marg_alignment, cur_sure, cur_possible);
+        sum_marg_fmeasure += f_measure(marg_alignment, cur_sure, cur_possible);
+        sum_marg_daes += nDefiniteAlignmentErrors(marg_alignment, cur_sure, cur_possible);
 
         std::set<std::pair<AlignBaseType,AlignBaseType> > postdec_alignment;
         compute_ehmm_postdec_alignment(source[s], cur_lookup, target[s], dict, align_model[curI - 1],
@@ -3095,17 +3101,23 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       }
 
       sum_aer *= 100.0 / nContributors;
-      sum_marg_aer *= 100.0 / nContributors;
-      nErrors /= nContributors;
+      sum_daes /= nContributors;
       sum_fmeasure /= nContributors;
+      
+      sum_marg_aer *= 100.0 / nContributors;
+      sum_marg_fmeasure /= nContributors;
+      sum_marg_daes /= nContributors;
+
       sum_postdec_aer *= 100.0 / nContributors;
       sum_postdec_fmeasure /= nContributors;
       sum_postdec_daes /= nContributors;
 
       std::cerr << "#### EHMM Viterbi-AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
-      std::cerr << "---- EHMM Marginal-AER : " << sum_marg_aer << " %" << std::endl;
       std::cerr << "#### EHMM Viterbi-fmeasure after iteration #" << iter << ": " << sum_fmeasure << std::endl;
-      std::cerr << "#### EHMM Viterbi-DAE/S after iteration #" << iter << ": " << nErrors << std::endl;
+      std::cerr << "#### EHMM Viterbi-DAE/S after iteration #" << iter << ": " << sum_daes << std::endl;
+      std::cerr << "---- EHMM OptMarg-AER : " << sum_marg_aer << " %" << std::endl;
+      std::cerr << "---- EHMM OptMarg-fmeasure : " << sum_marg_fmeasure << " %" << std::endl;
+      std::cerr << "---- EHMM OptMarg-DAE/S : " << sum_marg_daes << " %" << std::endl;
       std::cerr << "#### EHMM Postdec-AER after iteration #" << iter << ": " << sum_postdec_aer << " %" << std::endl;
       std::cerr << "#### EHMM Postdec-fmeasure after iteration #" << iter << ": " << sum_postdec_fmeasure << std::endl;
       std::cerr << "#### EHMM Postdec-DAE/S after iteration #" << iter << ": " << sum_postdec_daes << std::endl;
@@ -3971,11 +3983,15 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
     /************* compute alignment error rate ****************/
     if (!options.possible_ref_alignments_.empty()) {
 
+      uint nContributors = 0;
+
       double sum_aer = 0.0;
       double sum_fmeasure = 0.0;
+      double sum_daes = 0.0;
+
       double sum_marg_aer = 0.0;
-      double nErrors = 0.0;
-      uint nContributors = 0;
+      double sum_marg_fmeasure = 0.0;
+      double sum_marg_daes = 0.0;
 
       double sum_postdec_aer = 0.0;
       double sum_postdec_fmeasure = 0.0;
@@ -4006,13 +4022,15 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
         //add alignment error rate
         sum_aer += AER(viterbi_alignment, cur_sure, cur_possible);
         sum_fmeasure += f_measure(viterbi_alignment, cur_sure, cur_possible);
-        nErrors += nDefiniteAlignmentErrors(viterbi_alignment, cur_sure, cur_possible);
+        sum_daes += nDefiniteAlignmentErrors(viterbi_alignment, cur_sure, cur_possible);
 
-        Storage1D < AlignBaseType > marg_alignment;
+        Storage1D<AlignBaseType> marg_alignment;
         compute_ehmm_optmarginal_alignment(source[s], cur_lookup, target[s], dict, align_model[curI - 1],
                                            initial_prob[curI - 1], start_empty_word, marg_alignment);
 
-        sum_marg_aer += AER(marg_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
+        sum_marg_aer += AER(marg_alignment, cur_sure, cur_possible);
+        sum_marg_fmeasure += f_measure(marg_alignment, cur_sure, cur_possible);
+        sum_marg_daes += nDefiniteAlignmentErrors(marg_alignment, cur_sure, cur_possible);
 
         std::set<std::pair<AlignBaseType,AlignBaseType> > postdec_alignment;
         compute_ehmm_postdec_alignment(source[s], cur_lookup, target[s], dict, align_model[curI - 1],
@@ -4024,18 +4042,24 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
       }
 
       sum_aer *= 100.0 / nContributors;
-      sum_marg_aer *= 100.0 / nContributors;
-      nErrors /= nContributors;
+      sum_daes /= nContributors;
       sum_fmeasure /= nContributors;
+
+      sum_marg_aer *= 100.0 / nContributors;
+      sum_marg_fmeasure /= nContributors;
+      sum_marg_daes /= nContributors;
 
       sum_postdec_aer *= 100.0 / nContributors;
       sum_postdec_fmeasure /= nContributors;
       sum_postdec_daes /= nContributors;
 
-      std::cerr << "#### EHMM Viterbi-AER after gd-iteration #" << iter << ": " << sum_aer << " %" << std::endl;
-      std::cerr << "---- EHMM Marginal-AER : " << sum_marg_aer << " %" << std::endl;
+      std::cerr << "#### EHMM Viterbi-AER after gd-iteration #" << iter << ": " << sum_aer << " %" << std::endl;      
       std::cerr << "#### EHMM Viterbi-fmeasure after gd-iteration #" << iter << ": " << sum_fmeasure << std::endl;
-      std::cerr << "#### EHMM Viterbi-DAE/S after gd-iteration #" << iter << ": " << nErrors << std::endl;
+      std::cerr << "#### EHMM Viterbi-DAE/S after gd-iteration #" << iter << ": " << sum_daes << std::endl;
+
+      std::cerr << "---- EHMM OptMarg-AER : " << sum_marg_aer << " %" << std::endl;
+      std::cerr << "---- EHMM OptMarg-fmeasure : " << sum_marg_fmeasure << " %" << std::endl;
+      std::cerr << "---- EHMM OptMarg-DAE/S : " << sum_marg_daes << " %" << std::endl;
 
       std::cerr << "#### EHMM Postdec-AER after gd-iteration #" << iter << ": " << sum_postdec_aer << " %" << std::endl;
       std::cerr << "#### EHMM Postdec-fmeasure after gd-iteration #" << iter << ": " << sum_postdec_fmeasure << std::endl;
@@ -5300,7 +5324,6 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
     if (!options.possible_ref_alignments_.empty()) {
 
       double sum_aer = 0.0;
-      double sum_marg_aer = 0.0;
       double sum_fmeasure = 0.0;
       double nErrors = 0.0;
       uint nContributors = 0;
@@ -5331,22 +5354,13 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
         sum_aer += AER(viterbi_alignment, cur_sure, cur_possible);
         sum_fmeasure += f_measure(viterbi_alignment, cur_sure, cur_possible);
         nErrors += nDefiniteAlignmentErrors(viterbi_alignment, cur_sure, cur_possible);
-
-        Storage1D<AlignBaseType> marg_alignment;
-
-        compute_ehmm_optmarginal_alignment(source[s], cur_lookup, target[s], dict, align_model[curI - 1],
-                                           initial_prob[curI - 1], start_empty_word, marg_alignment);
-
-        sum_marg_aer += AER(marg_alignment, options.sure_ref_alignments_[s + 1], options.possible_ref_alignments_[s + 1]);
       }
 
       sum_aer *= 100.0 / nContributors;
-      sum_marg_aer *= 100.0 / nContributors;
       nErrors /= nContributors;
       sum_fmeasure /= nContributors;
 
       std::cerr << "#### EHMM Viterbi-AER after Viterbi-iteration #" << iter << ": " << sum_aer << " %" << std::endl;
-      std::cerr << "---- EHMM Marginal-AER : " << sum_marg_aer << " %" << std::endl;
       std::cerr << "#### EHMM Viterbi-fmeasure after Viterbi-iteration #" << iter << ": " << sum_fmeasure << std::endl;
       std::cerr << "#### EHMM Viterbi-DAE/S after Viterbi-iteration #" << iter << ": " << nErrors << std::endl;
     }

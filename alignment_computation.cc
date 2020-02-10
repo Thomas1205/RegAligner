@@ -1537,7 +1537,75 @@ void compute_ehmm_optmarginal_alignment(const Storage1D<uint>& source_sentence, 
     else
       optmarginal_alignment[j] = 0;
   }
+}
 
+void compute_ehmm_optmarginal_alignment(const Storage1D<uint>& source_sentence, const SingleLookupTable& slookup,
+                                        const Storage1D<uint>& target_sentence, const Storage1D<uint>& tclass, const SingleWordDictionary& dict,
+                                        const Math3D::Tensor<double>& align_prob, const Math1D::Vector<double>& initial_prob,
+                                        bool start_empty_word, Storage1D<AlignBaseType>& optmarginal_alignment)
+{
+  const uint J = source_sentence.size();
+  const uint I = target_sentence.size();
+
+  optmarginal_alignment.resize_dirty(J);
+
+  uint nLabels = (start_empty_word) ? 2 * I + 1 : 2 * I;
+  
+  Math2D::NamedMatrix<long double> forward(nLabels, J, MAKENAME(forward));
+  Math2D::NamedMatrix<long double> backward(nLabels, J, MAKENAME(backward));
+
+  calculate_hmm_forward(source_sentence, target_sentence, slookup, tclass,  dict, align_prob, initial_prob,
+                        HmmAlignProbFullpar, start_empty_word, forward, 10000);
+
+  calculate_hmm_backward(source_sentence, target_sentence, slookup, tclass, dict, align_prob, initial_prob,
+                         HmmAlignProbFullpar, start_empty_word, backward, false, 10000);
+
+  for (uint j = 0; j < J; j++) {
+
+    const uint s_idx = source_sentence[j];
+
+    long double max_marginal = 0.0;
+    AlignBaseType arg_max = I + 2;
+
+    for (uint i = 0; i < I; i++) {
+
+      const uint t_idx = target_sentence[i];
+
+      long double hyp_marginal = 0.0;
+
+      if (dict[t_idx][slookup(j, i)] > 0.0) {
+        hyp_marginal = forward(i, j) * backward(i, j) / dict[t_idx][slookup(j, i)];
+      }
+
+      if (hyp_marginal > max_marginal) {
+
+        max_marginal = hyp_marginal;
+        arg_max = i;
+      }
+    }
+
+    for (uint i = I; i < nLabels; i++) {
+
+      long double hyp_marginal = 0.0;
+
+      if (dict[0][s_idx - 1] > 0.0) {
+        hyp_marginal = forward(i, j) * backward(i, j) / dict[0][s_idx - 1];
+      }
+
+      if (hyp_marginal > max_marginal) {
+
+        max_marginal = hyp_marginal;
+        arg_max = i;
+      }
+    }
+
+    assert(arg_max <= 2 * I + 1);
+
+    if (arg_max < I)
+      optmarginal_alignment[j] = arg_max + 1;
+    else
+      optmarginal_alignment[j] = 0;
+  }  
 }
 
 void compute_ehmm_postdec_alignment(const Storage1D<uint>& source_sentence, const SingleLookupTable& slookup, const Storage1D<uint>& target_sentence,

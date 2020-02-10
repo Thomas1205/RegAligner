@@ -21,23 +21,23 @@ public:
   HmmInitProbType init_type_;
   HmmAlignProbType align_type_;
 
-  uint redpar_limit_;
-  bool start_empty_word_;
-  bool smoothed_l0_;
-  bool deficient_;
-  bool fix_p0_;
-  double l0_beta_;
+  uint redpar_limit_ = 5;
+  bool start_empty_word_ = false;
+  bool smoothed_l0_ = true;
+  bool deficient_ = false;
+  bool fix_p0_ = false;
+  double l0_beta_ = -0.1;
 
   double ibm1_p0_ = -1.0;
 
-  bool print_energy_;
+  bool print_energy_ = true;
 
   uint nSourceWords_;
   uint nTargetWords_;
 
-  uint init_m_step_iter_;
-  uint align_m_step_iter_;
-  uint dict_m_step_iter_;
+  uint init_m_step_iter_ = 100;
+  uint align_m_step_iter_ = 250;
+  uint dict_m_step_iter_ = 45;
 
   TransferMode transfer_mode_ = TransferNo;
 

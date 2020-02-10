@@ -44,7 +44,7 @@ public:
       Math1D::Vector<AlignBaseType>& alignment) const;
 
   virtual long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-      const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment);
+      const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment, AlignmentSetConstraints* constraints = 0);
 
 protected:
 

@@ -87,6 +87,11 @@ void compute_ehmm_optmarginal_alignment(const Storage1D<uint>& source_sentence, 
                                         const Math2D::Matrix<double>& align_prob, const Math1D::Vector<double>& initial_prob,
                                         bool start_empty_word, Storage1D<AlignBaseType>& optmarginal_alignment);
 
+void compute_ehmm_optmarginal_alignment(const Storage1D<uint>& source_sentence, const SingleLookupTable& slookup,
+                                        const Storage1D<uint>& target_sentence, const Storage1D<uint>& tclass, const SingleWordDictionary& dict,
+                                        const Math3D::Tensor<double>& align_prob, const Math1D::Vector<double>& initial_prob,
+                                        bool start_empty_word, Storage1D<AlignBaseType>& optmarginal_alignment);
+
 void compute_ehmm_postdec_alignment(const Storage1D<uint>& source_sentence, const SingleLookupTable& slookup,
                                     const Storage1D<uint>& target_sentence, const SingleWordDictionary& dict,
                                     const Math2D::Matrix<double>& align_prob, const Math1D::Vector<double>& initial_prob,
