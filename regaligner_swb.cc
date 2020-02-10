@@ -72,10 +72,10 @@ int main(int argc, char** argv)
               << " [-ibm2-p0 <double>] : empty word prob for the IBM-2 (default 0.02)" << std::endl
               << " [-ibm2-alignment] (pos | diff | nonpar) : parametric alignment model for IBM-2, default pos" << std::endl
               << "************ Options for HMM only *****************" << std::endl
-              << " [-hmm-type (fullpar | redpar | nonpar | nonpar2)] : default redpar as in [Vogel&Ney]" << std::endl
+              << " [-hmm-p0 <double>] : fix HMM p0" << std::endl
+              << " [-hmm-alignment (fullpar | redpar | nonpar | nonpar2)] : default redpar as in [Vogel,Ney,Tillmann]" << std::endl
               << " [-hmm-init-type (par | nonpar | fix | fix2)] : default par" << std::endl
               << " [-hmm-start-empty-word] : HMM with extra empty word " << std::endl
-              << " [-hmm-p0 <double>] : fix HMM p0" << std::endl
               << "************ Options affecting a mixed set of models ****************"
               << " [-transfer-mode (no | viterbi | posterior)] : how to init HMM and IBM-2 from previous, default: no" << std::endl
               << " [-deficient-h25] : introduce deficiency for IBM-2, HMM and IBM-5 by not dividing by the param sum" << std::endl
@@ -88,6 +88,9 @@ int main(int argc, char** argv)
               << " [-nondeficient] : train nondeficient variants of IBM-3/4" << std::endl
               << " [-fert-limit <uint>] : fertility limit for IBM-3/4/5, default: 9" << std::endl
               << " [-rare-fert-limit <uint>] : fertility limit for rare words and IBM-3/4, default: 9" << std::endl
+              << " [-ibm45-mode (first | center | last | uniform)] : (default first), center for IBM-4/5 as in [Brown et al.]." << std::endl
+              << "             Defines the dependence of IBM4/5 on the previous cept" << std::endl
+              << " [-ibm45-intra-dist-mode (source | target)] : with default source: intra word class dependency for IBM-4/5 as in [Brown et al.]" << std::endl
               << " [-uniform-start-prob] : use uniform start prob for IBM-4/5 as in GIZA++" << std::endl
               << "************ Options for IBM-3 only *****************" << std::endl
               << " [-ibm3-distortion] (pos | diff | nonpar)] : parametric distortion model for IBM-3, default pos" << std::endl
@@ -99,16 +102,14 @@ int main(int argc, char** argv)
               << " [-ilp-mode (off | compute | center)] : compute Viterbi alignments via ILP" << std::endl
               << " [-utmost-ilp-precision] : go for highly exact ILP (slower)" << std::endl
               << "************ Options for IBM-4 only *****************" << std::endl
-              << " [-ibm4-mode (first | center | last)] : (default first), center as in [Brown et al.]. Defines the dependence of IBM4/5 on the previous cept" << std::endl
               << " [-ibm4-inter-dist-mode (previous | current)] : with default previous:  word class dependency as in [Brown et al.]" << std::endl
-              << " [-ibm4-intra-dist-mode (source | target)] : with default source: word class dependency as in [Brown et al.]" << std::endl
               << " [-ibm4-reduce-deficiency] : renormalize probabilities for IBM-4 to stay inside the sentence" << std::endl
               << " [-ibm4-deficient-null (intra | uniform)] : default intra, uniform as in [Och & Ney]" << std::endl
               << "************ Options for IBM-5 only *****************" << std::endl
               << " [-ibm5-nonpar-distortion] : nonparametric distortion for IBM-5" << std::endl
               << std::endl << std::endl;
 
-    std::cerr << "this program estimates p(s|t)" << std::endl;;
+    std::cerr << "this program estimates p(s|t). Parameters in []-brackets are optional." << std::endl;;
 
     exit(0);
   }
@@ -121,12 +122,12 @@ int main(int argc, char** argv)
     {"-prior-dict", optInFilename, 0, ""}, {"-hmm-iter", optWithValue, 1, "5"}, {"-method", optWithValue, 1, "em"}, {"-ibm1-iter", optWithValue, 1, "5"},
     {"-ibm2-iter", optWithValue, 1, "0"}, {"-ibm3-iter", optWithValue, 1, "5"}, {"-ibm4-iter", optWithValue, 1, "5"}, {"-ibm5-iter", optWithValue, 1, "0"},
     {"-fertpen", optWithValue, 1, "0.0"}, {"-constraint-mode", optWithValue, 1, "unconstrained"},  {"-l0-beta", optWithValue, 1, "-1.0"},
-    {"-ibm4-mode", optWithValue, 1, "first"}, {"-fert-limit", optWithValue, 1, "9"}, {"-postdec-thresh", optWithValue, 1, "-1.0"},
-    {"-hmm-type", optWithValue, 1, "redpar"}, {"-p0", optWithValue, 1, "-1.0"}, {"-org-empty-word", flag, 0, ""}, {"-ibm3-distortion", optWithValue, 1, "pos"},
+    {"-ibm45-mode", optWithValue, 1, "first"}, {"-fert-limit", optWithValue, 1, "9"}, {"-postdec-thresh", optWithValue, 1, "-1.0"},
+    {"-hmm-alignment", optWithValue, 1, "redpar"}, {"-p0", optWithValue, 1, "-1.0"}, {"-org-empty-word", flag, 0, ""}, {"-ibm3-distortion", optWithValue, 1, "pos"},
     {"-hmm-init-type", optWithValue, 1, "par"}, {"-dont-print-energy", flag, 0, ""}, {"-transfer-mode", optWithValue, 1, "no"},
     {"-dict-struct", optWithValue, 0, ""}, {"-ibm4-reduce-deficiency", flag, 0, ""}, {"-count-collection", flag, 0, ""},
     {"-sclasses", optInFilename, 0, ""}, {"-tclasses", optInFilename, 0, ""}, {"-tfert-classes", optInFilename, 0, ""}, {"-max-lookup", optWithValue, 1, "65535"},
-    {"-ibm4-inter-dist-mode", optWithValue, 1, "previous"}, {"-ibm4-intra-dist-mode", optWithValue, 1, "source"}, {"-nondeficient", flag, 0, ""},
+    {"-ibm4-inter-dist-mode", optWithValue, 1, "previous"}, {"-ibm45-intra-dist-mode", optWithValue, 1, "source"}, {"-nondeficient", flag, 0, ""},
     {"-ilp-mode", optWithValue, 1, "off"}, {"-utmost-ilp-precision", flag, 0, ""}, {"-hmm-start-empty-word", flag, 0, ""}, {"-ibm3-extra-deficient", flag, 0, ""},
     {"-deficient-h25", flag, 0, ""},{"-ibm4-deficient-null", optWithValue, 1, "intra"}, {"-rare-fert-limit", optWithValue, 1, "9"},
     {"-ibm2-alignment", optWithValue, 1, "pos"}, {"-no-h23-classes", flag, 0, ""}, {"-itg-max-mid-dev",optWithValue,1,"8"},{"-itg-ext-level",optWithValue,1,"0"},
@@ -333,7 +334,7 @@ int main(int argc, char** argv)
   if (method == "viterbi")
     dict_regularity *= source_sentence.size();
 
-  std::string hmm_string = downcase(app.getParam("-hmm-type"));
+  std::string hmm_string = downcase(app.getParam("-hmm-alignment"));
   if (hmm_string != "redpar" && hmm_string != "fullpar"
       && hmm_string != "nonpar" && hmm_string != "nonpar2") {
     std::cerr << "WARNING: \"" << hmm_string << "\" is not a valid hmm type. Selecting redpar." << std::endl;
@@ -528,7 +529,7 @@ int main(int argc, char** argv)
   }
 
   IBM4CeptStartMode ibm4_cept_mode = IBM4FIRST;
-  std::string ibm4_mode = downcase(app.getParam("-ibm4-mode"));
+  std::string ibm4_mode = downcase(app.getParam("-ibm45-mode"));
   if (ibm4_mode == "first")
     ibm4_cept_mode = IBM4FIRST;
   else if (ibm4_mode == "center")
@@ -541,7 +542,7 @@ int main(int argc, char** argv)
   }
 
   std::string ibm4_inter_dist_string = downcase(app.getParam("-ibm4-inter-dist-mode"));
-  std::string ibm4_intra_dist_string = downcase(app.getParam("-ibm4-intra-dist-mode"));
+  std::string ibm4_intra_dist_string = downcase(app.getParam("-ibm45-intra-dist-mode"));
 
   IBM4InterDistMode ibm4_inter_dist_mode = IBM4InterDistModePrevious;
   IBM4IntraDistMode ibm4_intra_dist_mode = IBM4IntraDistModeSource;
@@ -652,6 +653,7 @@ int main(int argc, char** argv)
   fert_options.nondeficient_ = app.is_set("-nondeficient");
   fert_options.reduce_deficiency_ = app.is_set("-ibm4-reduce-deficiency");
   fert_options.ibm5_nonpar_distortion_ = app.is_set("-ibm5-nonpar-distortion");
+  fert_options.ibm3_extra_deficient_ = app.is_set("-ibm3-extra-deficient");
   fert_options.empty_word_model_ = empty_word_model;
   fert_options.dict_m_step_iter_ = dict_m_step_iter;
   fert_options.nondef_dist34_m_step_iter_ = convert<uint>(app.getParam("-nondef-iter"));
@@ -868,7 +870,7 @@ int main(int argc, char** argv)
 
   IBM3Trainer ibm3_trainer(source_sentence, slookup, target_sentence, i3_tclass, sure_ref_alignments, possible_ref_alignments,
                            dict, wcooc, tfert_class, nSourceWords, nTargetWords, prior_weight, log_table, xlogx_table,
-                           fert_options, app.is_set("-ibm3-extra-deficient"));
+                           fert_options);
 
   ibm3_trainer.set_fertility_limit(fert_limit);
   if (rare_fert_limit < fert_limit) {

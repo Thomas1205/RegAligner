@@ -49,12 +49,12 @@ IBM3Trainer::IBM3Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence
                          const Math1D::Vector<uint>& tfert_class, uint nSourceWords, uint nTargetWords,
                          const floatSingleWordDictionary& prior_weight,
                          const Math1D::Vector<double>& log_table, const Math1D::Vector<double>& xlogx_table,
-                         const FertModelOptions& options, bool extra_deficient)
+                         const FertModelOptions& options)
   : FertilityModelTrainer(source_sentence, slookup, target_sentence, dict, wcooc, tfert_class, nSourceWords, nTargetWords, prior_weight,
                           sure_ref_alignments, possible_ref_alignments, log_table, xlogx_table, options, false),
     target_class_(target_class), distortion_prob_(MAKENAME(distortion_prob_)), min_nondef_count_(options.min_nondef_count_),
     dist_m_step_iter_(options.dist_m_step_iter_), nondef_dist_m_step_iter_(options.nondef_dist34_m_step_iter_),
-    par_mode_(options.par_mode_), extra_deficiency_(extra_deficient),
+    par_mode_(options.par_mode_), extra_deficiency_(options.ibm3_extra_deficient_),
     viterbi_ilp_mode_(options.viterbi_ilp_mode_), utmost_ilp_precision_(options.utmost_ilp_precision_),    
     nondeficient_(options.nondeficient_)
 {

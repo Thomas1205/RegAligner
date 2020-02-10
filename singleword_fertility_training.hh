@@ -11,6 +11,7 @@
 
 #include "hmmc_training.hh"
 #include "combinatoric.hh"
+#include "swb_alignment_constraints.hh"
 
 #include <map>
 #include <set>
@@ -55,6 +56,7 @@ struct FertModelOptions {
   bool uniform_intra_prob_ = false;
   bool ibm5_nonpar_distortion_ = true;
   bool nondef_norm_m_step_ = false;
+  bool ibm3_extra_deficient_ = false;
 };
 
 /*abstract*/ class FertilityModelTrainerBase {
@@ -89,8 +91,8 @@ public:
       uint& nIter, Math1D::Vector<uint>& fertility, Math2D::Matrix<long double>& expansion_prob, Math2D::Matrix<long double >& swap_prob,
       Math1D::Vector<AlignBaseType>& alignment) const = 0;
 
-  virtual long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-      const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment);
+  virtual long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup, 
+                                                 Math1D::Vector<AlignBaseType>& alignment, AlignmentSetConstraints* constraints = 0);
 
   // <code> start_alignment </code> is used as initialization for hillclimbing and later modified
   // the extracted alignment is written to <code> postdec_alignment </code>
@@ -108,7 +110,7 @@ public:
                                       Math2D::Matrix<double>& i_marg) const;
 
   virtual void compute_approximate_jmarginals(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
-      Math1D::Vector<AlignBaseType>& alignment, Math2D::Matrix<double>& j_marg, bool& converged) const
+                                              Math1D::Vector<AlignBaseType>& alignment, Math2D::Matrix<double>& j_marg, bool& converged) const
   {
     Math2D::Matrix<double> i_marg;
     compute_approximate_marginals(source, target, lookup, alignment, j_marg, i_marg, 1.0, converged);
@@ -116,8 +118,8 @@ public:
 
   //compute marginals needed for the IBM-3//returns the logarithm of the (approximated) normalization constant
   virtual double compute_approximate_marginals(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
-      Math1D::Vector<AlignBaseType>& alignment, Math2D::Matrix<double>& j_marg,
-      Math2D::Matrix<double >& i_marg, double hc_mass, bool& converged) const;
+                                               Math1D::Vector<AlignBaseType>& alignment, Math2D::Matrix<double>& j_marg,
+                                               Math2D::Matrix<double >& i_marg, double hc_mass, bool& converged) const;
 
   virtual void release_memory();
 
@@ -214,11 +216,15 @@ protected:
 
   void ViterbiEval(double& aer, double& f_measure, double& daes, double alpha = 0.1) const;
 
-  void PostdecEval(double& aer, double& f_measure, double& daes, double threshold = 0.25, double alpha = 0.1) const;
+  void OptMargEval(double& aer, double& f_measure, double& daes, double alpha = 0.1) const;
 
+  void PostdecEval(double& aer, double& f_measure, double& daes, double threshold = 0.25, double alpha = 0.1) const;
+  
   void printEval(uint iter, std::string transfer = "", std::string method = "") const;
 
   long double alignment_prob(uint s, const Math1D::Vector<AlignBaseType>& alignment) const;
+  
+  bool limits_possible() const;
 
   virtual long double alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
                                      const Math1D::Vector<AlignBaseType>& alignment) const = 0;
@@ -226,6 +232,9 @@ protected:
   double regularity_term() const;
 
   double exact_l0_reg_term(const Storage1D<Math1D::Vector<double> >& fwcount, const Storage1D<Math1D::Vector<double> >& ffert_count) const;
+
+  void compute_optmarg_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
+                                 const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment) const;
 
   void update_fertility_prob(const Storage1D<Math1D::Vector<double> >& ffert_count, double min_prob = 1e-8, bool with_regularity = true);
 

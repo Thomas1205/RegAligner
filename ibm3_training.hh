@@ -23,7 +23,7 @@ public:
               const Math1D::Vector<uint>& tfert_class, uint nSourceWords, uint nTargetWords,
               const floatSingleWordDictionary& prior_weight,
               const Math1D::Vector<double>& log_table, const Math1D::Vector<double>& xlogx_table,
-              const FertModelOptions& options, bool extra_deficient);
+              const FertModelOptions& options);
 
   virtual std::string model_name() const;
 
