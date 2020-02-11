@@ -1158,8 +1158,8 @@ double single_dict_m_step_energy(const Math1D::Vector<double>& fdict_count, cons
 
   if (!smoothed_l0) {
     
-    const ALIGNED16 float* pdata = prior_weight.direct_access();
-    const ALIGNED16 double* ddata = dict.direct_access();
+    const float_A16* pdata = prior_weight.direct_access();
+    const double_A16* ddata = dict.direct_access();
       
     energy += std::inner_product(pdata,pdata+prior_weight.size(),ddata, 0.0);
     
@@ -1190,7 +1190,7 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count, const Math1D:
 
     if (sum > 1e-305) {
       for (uint k = 0; k < dict_size; k++) {
-        dict[k] = fdict_count[k] / sum;
+        dict[k] = std::max(min_prob, fdict_count[k] / sum);
       }
     }
 
