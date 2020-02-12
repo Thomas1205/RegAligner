@@ -850,21 +850,21 @@ void init_from_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const Lookup
 
   for (uint I = 0; I < alignment_model.size(); I++) 
   {
+    if (alignment_model[I].size() == 0) 
+      continue;
+    
     if (par_mode == IBM23Nonpar) 
     {
-      if (alignment_model[I].size() > 0) 
-      {
-        for (uint c = 0; c < alignment_model[I].zDim(); c++) {
-          for (uint j = 0; j < alignment_model[I].yDim(); j++) {
-            const double sum = alignment_model[I].sum_x(j, c);
-            if (sum > 0.0) {
-              for (uint i = 0; i < alignment_model[I].xDim(); i++)
-                alignment_model[I](i, j, c) /= sum;
-            }
-            else {
-              for (uint i = 0; i < alignment_model[I].xDim(); i++)
-                alignment_model[I](i, j, c) = 1.0 / alignment_model[I].xDim();
-            }
+      for (uint c = 0; c < alignment_model[I].zDim(); c++) {
+        for (uint j = 0; j < alignment_model[I].yDim(); j++) {
+          const double sum = alignment_model[I].sum_x(j, c);
+          if (sum > 0.0) {
+            for (uint i = 0; i < alignment_model[I].xDim(); i++)
+              alignment_model[I](i, j, c) = std::max(ibm2_min_align_param, alignment_model[I](i, j, c) / sum);
+          }
+          else {
+            for (uint i = 0; i < alignment_model[I].xDim(); i++)
+              alignment_model[I](i, j, c) = 1.0 / alignment_model[I].xDim();
           }
         }            
       }
@@ -873,11 +873,11 @@ void init_from_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const Lookup
     {
       for (uint c = 0; c < alignment_model[I].zDim(); c++) {
         for (uint j = 0; j < alignment_model[I].yDim(); j++) {
-          for (uint i = 0; i < alignment_model[I].xDim(); i++) {
+          for (uint i = 1; i < alignment_model[I].xDim(); i++) { //0 is empty word
             if (par_mode == IBM23ParByPosition)
-              align_param(i, j, c) += alignment_model[I](i, j, c);
+              align_param(i-1, j, c) += alignment_model[I](i, j, c);
             else
-              align_param(offset + j - i, 0, c) += alignment_model[I](i, j, c);
+              align_param(offset + j - (i - 1), 0, c) += alignment_model[I](i, j, c);
           }
         }
       }
@@ -885,12 +885,12 @@ void init_from_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const Lookup
   }
   
   if (par_mode != IBM23Nonpar) {
-      
+            
     for (uint c = 0; c < align_param.zDim(); c++) {
       for (uint j = 0; j < align_param.yDim(); j++) {
         const double sum = align_param.sum_x(j, c);
         for (uint i = 0; i < align_param.xDim(); i++)
-          align_param(i, j, c) /= sum;
+          align_param(i, j, c) = std::max(ibm2_min_align_param, align_param(i, j, c) / sum);
       }
     }      
     
@@ -1162,6 +1162,11 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       else {
         for (uint c = 0; c < nClasses; c++)
           reducedibm2_diffpar_m_step(align_param, facount, maxI - 1, c, options.align_m_step_iter_, options.deficient_);
+      }
+
+      const double sfert_sum = source_fert_count.sum();
+      if (sfert_sum > 0.0) {
+        //not currently activated
       }
 
       par2nonpar_reduced_ibm2alignment_model(align_param, source_fert, alignment_model, par_mode, maxI - 1);

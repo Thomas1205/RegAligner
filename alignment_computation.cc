@@ -441,7 +441,7 @@ long double compute_ehmm_viterbi_alignment(const Math2D::Matrix<double>& dict, c
   // }
   // }
 
-  if (arg_max == MAX_UINT) {
+  if (arg_max >= MAX_UINT) {
 
     std::cerr << "error: no maximizer for J= " << J << ", I= " << I << std::endl;
     std::cerr << "end-score: " << cur_score << std::endl;
@@ -451,10 +451,9 @@ long double compute_ehmm_viterbi_alignment(const Math2D::Matrix<double>& dict, c
     // for (uint i=0; i < I; i++) {
     //   std::cerr << "dict for target word #" << i << dict[target_sentence[i]] << std::endl;
     // }
-    exit(1);
   }
 
-  assert(arg_max != MAX_UINT);
+  assert(arg_max < MAX_UINT);
   //std::cerr << "traceback" << std::endl;
 
   if (internal_mode)
@@ -666,7 +665,7 @@ long double compute_ehmm_viterbi_alignment_with_tricks(const Math2D::Matrix<doub
   // }
   // }
 
-  if (arg_max == MAX_UINT) {
+  if (arg_max >= MAX_UINT) {
 
     std::cerr << "error: no maximizer for J= " << J << ", I= " << I << std::endl;
     std::cerr << "end-score: " << cur_score << std::endl;
@@ -676,10 +675,9 @@ long double compute_ehmm_viterbi_alignment_with_tricks(const Math2D::Matrix<doub
     // for (uint i=0; i < I; i++) {
     //   std::cerr << "dict for target word #" << i << dict[target_sentence[i]] << std::endl;
     // }
-    exit(1);
   }
 
-  assert(arg_max != MAX_UINT);
+  assert(arg_max < MAX_UINT);
   //std::cerr << "traceback" << std::endl;
 
   if (internal_mode)
@@ -836,7 +834,7 @@ long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& tclass, const 
   // }
   // }
 
-  if (arg_max == MAX_UINT) {
+  if (arg_max >= MAX_UINT) {
 
     std::cerr << "error: no maximizer for J= " << J << ", I= " << I << std::endl;
     std::cerr << "end-score: " << cur_score << std::endl;
@@ -846,10 +844,9 @@ long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& tclass, const 
     // for (uint i=0; i < I; i++) {
     //   std::cerr << "dict for target word #" << i << dict[target_sentence[i]] << std::endl;
     // }
-    exit(1);
   }
 
-  assert(arg_max != MAX_UINT);
+  assert(arg_max < MAX_UINT);
   //std::cerr << "traceback" << std::endl;
 
   if (internal_mode)
@@ -1021,7 +1018,7 @@ long double compute_sehmm_viterbi_alignment(const Math2D::Matrix<double>& dict, 
   // }
   // }
 
-  if (arg_max == MAX_UINT) {
+  if (arg_max >= MAX_UINT) {
 
     std::cerr << "error: no maximizer for J= " << J << ", I= " << I << std::endl;
     std::cerr << "end-score: " << cur_score << std::endl;
@@ -1034,7 +1031,7 @@ long double compute_sehmm_viterbi_alignment(const Math2D::Matrix<double>& dict, 
     exit(1);
   }
 
-  assert(arg_max != MAX_UINT);
+  assert(arg_max < MAX_UINT);
   //std::cerr << "traceback" << std::endl;
 
   if (internal_mode)
@@ -1227,7 +1224,7 @@ long double compute_sehmm_viterbi_alignment_with_tricks(const Math2D::Matrix<dou
 
   Makros::find_max_and_argmax(cur_score.direct_access(), cur_score.size(), max_score, arg_max);
 
-  if (arg_max == MAX_UINT) {
+  if (arg_max >= MAX_UINT) {
 
     std::cerr << "error: no maximizer for J= " << J << ", I= " << I << std::endl;
     std::cerr << "end-score: " << cur_score << std::endl;
@@ -1237,10 +1234,9 @@ long double compute_sehmm_viterbi_alignment_with_tricks(const Math2D::Matrix<dou
     // for (uint i=0; i < I; i++) {
     //   std::cerr << "dict for target word #" << i << dict[target_sentence[i]] << std::endl;
     // }
-    exit(1);
   }
 
-  assert(arg_max != MAX_UINT);
+  assert(arg_max < MAX_UINT);
   //std::cerr << "traceback" << std::endl;
 
   if (internal_mode)
@@ -1422,7 +1418,7 @@ long double compute_sehmm_viterbi_alignment(const Storage1D<uint>& tclass, const
   // }
   // }
 
-  if (arg_max == MAX_UINT) {
+  if (arg_max >= MAX_UINT) {
 
     std::cerr << "error: no maximizer for J= " << J << ", I= " << I << std::endl;
     std::cerr << "end-score: " << cur_score << std::endl;
@@ -1432,10 +1428,9 @@ long double compute_sehmm_viterbi_alignment(const Storage1D<uint>& tclass, const
     // for (uint i=0; i < I; i++) {
     //   std::cerr << "dict for target word #" << i << dict[target_sentence[i]] << std::endl;
     // }
-    exit(1);
   }
 
-  assert(arg_max != MAX_UINT);
+  assert(arg_max < MAX_UINT);
   //std::cerr << "traceback" << std::endl;
 
   if (internal_mode)

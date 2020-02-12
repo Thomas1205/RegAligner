@@ -336,8 +336,7 @@ void init_hmm_from_prev(const Storage1D<Math1D::Vector<uint> >& source, const Lo
   HmmAlignProbType align_mode = align_type;
   if (align_mode == HmmAlignProbNonpar || align_mode == HmmAlignProbNonpar2)
     align_mode = HmmAlignProbFullpar;
-  par2nonpar_hmm_alignment_model(dist_params, zero_offset, dist_grouping_param,
-                                 source_fert, align_mode, options.deficient_,
+  par2nonpar_hmm_alignment_model(dist_params, zero_offset, dist_grouping_param, source_fert, align_mode, options.deficient_,
                                  redpar_limit, align_model);
 
   if (init_type != HmmInitNonpar)
@@ -844,28 +843,29 @@ void par2nonpar_hmm_alignment_model(const Math2D::Matrix<double>& dist_params, c
             non_zero_sum += dist_grouping_param[c];
           }
 
-          assert(non_zero_sum > 1e-305);
-          const double inv_sum = (deficient) ? 1.0 : 1.0 / non_zero_sum;
+          if (non_zero_sum > 1e-305) {
+            const double inv_sum = (deficient) ? 1.0 : 1.0 / non_zero_sum;
 
-          for (int ii = 0; ii < (int)I; ii++) {
-            if (align_type == HmmAlignProbReducedpar && abs(ii - i) > redpar_limit) {
-              assert(!isnan(grouping_norm));
-              assert(grouping_norm > 0.0);
-              cur_align_model(ii, i, c) = std::max(hmm_min_param_entry, source_fert[1] * inv_sum * dist_grouping_param[c] / grouping_norm);
+            for (int ii = 0; ii < (int)I; ii++) {
+              if (align_type == HmmAlignProbReducedpar && abs(ii - i) > redpar_limit) {
+                assert(!isnan(grouping_norm));
+                assert(grouping_norm > 0.0);
+                cur_align_model(ii, i, c) = std::max(hmm_min_param_entry, source_fert[1] * inv_sum * dist_grouping_param[c] / grouping_norm);
+              }
+              else {
+                assert(dist_params(zero_offset + ii - i, c) >= 0);
+                cur_align_model(ii, i, c) = std::max(hmm_min_param_entry, source_fert[1] * inv_sum * dist_params(zero_offset + ii - i, c));
+              }
+              assert(!isnan(cur_align_model(ii, i, c)));
+              assert(cur_align_model(ii, i, c) >= 0.0);
             }
-            else {
-              assert(dist_params(zero_offset + ii - i, c) >= 0);
-              cur_align_model(ii, i, c) = std::max(hmm_min_param_entry, source_fert[1] * inv_sum * dist_params(zero_offset + ii - i, c));
-            }
-            assert(!isnan(cur_align_model(ii, i, c)));
-            assert(cur_align_model(ii, i, c) >= 0.0);
+            cur_align_model(I, i, c) = source_fert[0];
+            assert(!isnan(align_model[I - 1](I, i, c)));
+            assert(align_model[I - 1](I, i, c) >= 0.0);
+
+            const double sum = cur_align_model.sum_x(i, c);
+            assert(sum >= 0.99 && sum <= 1.01);
           }
-          cur_align_model(I, i, c) = source_fert[0];
-          assert(!isnan(align_model[I - 1](I, i, c)));
-          assert(align_model[I - 1](I, i, c) >= 0.0);
-
-          const double sum = cur_align_model.sum_x(i, c);
-          assert(sum >= 0.99 && sum <= 1.01);
         }
       }
     }
@@ -3555,9 +3555,8 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
       //std::cerr << "computing error rates" << std::endl;
 
       double sum_aer = 0.0;
-      double sum_marg_aer = 0.0;
       double sum_fmeasure = 0.0;
-      double nErrors = 0.0;
+      double sum_daes = 0.0;
       uint nContributors = 0;
 
       for (RefAlignmentStructure::const_iterator it = options.possible_ref_alignments_.begin();
@@ -3595,17 +3594,16 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
         //add alignment error rate
         sum_aer += AER(viterbi_alignment, cur_sure, cur_possible);
         sum_fmeasure += f_measure(viterbi_alignment, cur_sure, cur_possible);
-        nErrors += nDefiniteAlignmentErrors(viterbi_alignment, cur_sure, cur_possible);
+        sum_daes += nDefiniteAlignmentErrors(viterbi_alignment, cur_sure, cur_possible);
       }
 
       sum_aer *= 100.0 / nContributors;
-      sum_marg_aer *= 100.0 / nContributors;
-      nErrors /= nContributors;
+      sum_daes /= nContributors;
       sum_fmeasure /= nContributors;
 
       std::cerr << "#### EHMM-SingleClass Viterbi-AER after Viterbi-iteration #" << iter << ": " << sum_aer << " %" << std::endl;
       std::cerr << "#### EHMM-SingleClass Viterbi-fmeasure after Viterbi-iteration #" << iter << ": " << sum_fmeasure << std::endl;
-      std::cerr << "#### EHMM-SingleClass Viterbi-DAE/S after Viterbi-iteration #" << iter << ": " << nErrors << std::endl;
+      std::cerr << "#### EHMM-SingleClass Viterbi-DAE/S after Viterbi-iteration #" << iter << ": " << sum_daes << std::endl;
     }
   }
 }
