@@ -2,16 +2,16 @@
 /*** written by Thomas Schoenemann as a private person without employment, March 2015 ***/
 /*** if you desire the checked version, make sure your compiler defines the option SAFE_MODE on the command line ***/
 
+#ifndef TRIMATRIX2D_HH
+#define TRIMATRIX2D_HH
+
 #include <cmath>
 #include <cassert>
 
 #include "tristorage2D.hh"
 #include "vector.hh"
 #include "matrix.hh" //since we want to implement assigning a triangular matrix to a full one
-
-#ifndef TRIMATRIX2D_HH
-#define TRIMATRIX2D_HH
-
+#include "routines.hh"
 
 namespace Math2D {
 
@@ -29,11 +29,11 @@ namespace Math2D {
     typedef T ALIGNED16 T_A16;
 
     /*---- constructors -----*/
-    TriMatrix();
+    explicit TriMatrix();
 
-    TriMatrix(ST dim);
+    explicit TriMatrix(ST dim);
 
-    TriMatrix(ST dim, const T default_value);
+    explicit TriMatrix(ST dim, const T default_value);
 
     /*---- destructor ----*/
     ~TriMatrix();
@@ -107,11 +107,11 @@ namespace Math2D {
     typedef T ALIGNED16 T_A16;
 
     /*---- constructors -----*/
-    TriangularMatrix(bool lower_triangular=true);
+    explicit TriangularMatrix(bool lower_triangular=true);
 
-    TriangularMatrix(ST dim, bool lower_triangular);
+    explicit TriangularMatrix(ST dim, bool lower_triangular);
 
-    TriangularMatrix(ST dim, const T default_value, bool lower_triangular);
+    explicit TriangularMatrix(ST dim, const T default_value, bool lower_triangular);
 
     /*---- destructor ----*/
     ~TriangularMatrix();
@@ -146,6 +146,10 @@ namespace Math2D {
 
     void operator-=(const TriangularMatrix<T,ST>& toSub);
 
+    void elem_mul(const TriangularMatrix<T,ST>& v);
+    
+    void elem_div(const TriangularMatrix<T,ST>& v);
+
   protected:
 
     bool is_lower_triangular_; //tells if lower or upper triangular matrix
@@ -178,11 +182,11 @@ namespace Math2D {
     typedef T ALIGNED16 T_A16;
 
     /*---- constructors -----*/
-    TriangularMatrixAsymAccess(bool lower_triangular=true);
+    explicit TriangularMatrixAsymAccess(bool lower_triangular=true);
 
-    TriangularMatrixAsymAccess(ST dim, bool lower_triangular);
+    explicit TriangularMatrixAsymAccess(ST dim, bool lower_triangular);
 
-    TriangularMatrixAsymAccess(ST dim, const T default_value, bool lower_triangular);
+    explicit TriangularMatrixAsymAccess(ST dim, const T default_value, bool lower_triangular);
 
     /*---- destructor ----*/
     ~TriangularMatrixAsymAccess();
@@ -211,11 +215,11 @@ namespace Math2D {
     typedef T ALIGNED16 T_A16;
 
     /*---- constructors -----*/
-    SymmetricMatrix();
+    explicit SymmetricMatrix();
 
-    SymmetricMatrix(ST dim);
+    explicit SymmetricMatrix(ST dim);
 
-    SymmetricMatrix(ST dim, const T default_value);
+    explicit SymmetricMatrix(ST dim, const T default_value);
 
     /*---- destructor ----*/
     ~SymmetricMatrix();
@@ -235,6 +239,10 @@ namespace Math2D {
     void operator+=(const SymmetricMatrix<T,ST>& toAdd);
 
     void operator-=(const SymmetricMatrix<T,ST>& toSub);
+
+    void elem_mul(const SymmetricMatrix<T,ST>& v);
+    
+    void elem_div(const SymmetricMatrix<T,ST>& v);
 
   protected:
     static const std::string symmetric_matrix_name_;
@@ -484,7 +492,7 @@ namespace Math2D {
     }
 #endif
 
-    Makros::array_add_multiple(Base::data_, Base::size_, alpha, toAdd.direct_access());
+    Routines::array_add_multiple(Base::data_, Base::size_, alpha, toAdd.direct_access());
   }
 
   //addition of another matrix of equal dimensions
@@ -552,7 +560,6 @@ namespace Math2D {
 
 
   /****** implementation of NamedTriMatrix and related stand-alone operators ******/
-
 
   template<typename T, typename ST> NamedTriMatrix<T,ST>::NamedTriMatrix() {}
 
@@ -801,7 +808,6 @@ namespace Math2D {
   template<typename T, typename ST>
   Math1D::Vector<T,ST> operator*(const TriangularMatrix<T,ST>& m, const Math1D::Vector<T,ST>& vec)
   {
-
     const ST dim = m.dim();
 
     Math1D::Vector<T,ST> result(dim);
@@ -830,6 +836,21 @@ namespace Math2D {
     return result;
   }
 
+  template<typename T, typename ST>
+  void TriangularMatrix<T,ST>::elem_mul(const TriangularMatrix<T,ST>& v)
+  {
+    assert(Base::size_ == v.size());
+    for (ST i = 0; i < Base::size_; i++)
+      Base::data_[i] *= v.direct_access(i);
+  }
+    
+  template<typename T, typename ST>
+  void TriangularMatrix<T,ST>::elem_div(const TriangularMatrix<T,ST>& v)
+  {
+    assert(Base::size_ == v.size());
+    for (ST i = 0; i < Base::size_; i++)
+      Base::data_[i] /= v.direct_access(i);    
+  }
 
   template<typename T, typename ST>
   void assign(Matrix<T,ST>& dest, const TriangularMatrix<T,ST>& src)
@@ -999,7 +1020,21 @@ namespace Math2D {
     TriMatrix<T,ST>::operator-=(toSub);
   }
 
-
+  template<typename T, typename ST>
+  void SymmetricMatrix<T,ST>::elem_mul(const SymmetricMatrix<T,ST>& v)
+  {
+    assert(Base::size_ == v.size());
+    for (ST i = 0; i < Base::size_; i++)
+      Base::data_[i] *= v.direct_access(i);
+  }
+    
+  template<typename T, typename ST>
+  void SymmetricMatrix<T,ST>::elem_div(const SymmetricMatrix<T,ST>& v)
+  {
+    assert(Base::size_ == v.size());
+    for (ST i = 0; i < Base::size_; i++)
+      Base::data_[i] /= v.direct_access(i);    
+  }
 
   //streaming
   template <typename T, typename ST>

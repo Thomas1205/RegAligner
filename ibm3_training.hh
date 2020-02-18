@@ -8,7 +8,6 @@
 #include "singleword_fertility_training.hh"
 #include "hmm_fert_interface.hh"
 #include "trimatrix.hh"
-#include "swb_alignment_constraints.hh"
 
 class CompactAlignedSourceWords;
 class CountStructure;
@@ -46,6 +45,7 @@ public:
   virtual long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
       const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment, AlignmentSetConstraints* constraints = 0);
 
+
 protected:
 
   double compute_approximate_marginals(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
@@ -78,7 +78,7 @@ protected:
 
 
   void par_distortion_m_step_unconstrained(const Math3D::Tensor<double>& fsingleton_count,
-                                           const Math3D::Tensor<double>& fspan_count, uint i, uint c, uint L = 5);
+      const Math3D::Tensor<double>& fspan_count, uint i, uint c, uint L = 5);
 
   //compact form
   double nondeficient_m_step_energy(const Math3D::Tensor<double>& single_pos_count, const std::vector<Math1D::Vector<uchar,uchar> >& open_pos,
@@ -198,7 +198,7 @@ protected:
   IlpMode viterbi_ilp_mode_;
   bool utmost_ilp_precision_;
 
-  bool nondeficient_;
+  bool nondeficient_ = false;
   bool nondef_norm_m_step_ = false;
 };
 

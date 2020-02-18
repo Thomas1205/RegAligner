@@ -3,12 +3,28 @@
 #ifndef STORAGE_UTIL_HH
 #define STORAGE_UTIL_HH
 
-
-#include "storage1D.hh"
 #include "vector.hh"
+#include "flexible_storage1D.hh"
 #include "matrix.hh"
 #include "tensor.hh"
 #include "sorting.hh"
+#include "routines.hh"
+
+template<typename T, typename ST>
+inline void set_idfunc(Storage1D<T, ST>& vec) {
+  const ST size = vec.size();
+  ST i;
+  for (i = 0; i < size; i++)
+    vec[i] = (T) i;
+}
+
+template<typename T, typename ST>
+inline void set_idfunc(FlexibleStorage1D<T, ST>& vec) {
+  const ST size = vec.size();
+  ST i;
+  for (i = 0; i < size; i++)
+    vec[i] = (T) i;
+}
 
 template<typename T>
 inline void negate(Math1D::Vector<T>& vec)
@@ -65,4 +81,76 @@ inline bool contains(const Storage1D<T,ST>& stor, T element)
 
   return (std::find(stor.direct_access(),end,element) != end);
 }
+
+template <typename T, typename ST>
+inline void vec_replace_maintainsort(FlexibleStorage1D<T,ST>& vec, const T toErase, const T toInsert)
+{
+  const size_t size = vec.size();
+  size_t i = 0;
+  for (; i < size; i++) {
+    if (vec[i] == toErase) {
+
+      if (i > 0 && toInsert < vec[i-1]) {
+        size_t npos = i-1;
+        while (npos > 0 && toInsert < vec[npos-1])
+          npos--;
+
+        for (size_t k = i; k > npos; k--)
+          vec[k] = vec[k-1];
+        vec[npos] = toInsert;
+      }
+      else if (i+1 < size && vec[i+1] < toInsert) {
+        size_t npos = i+1;
+        while (npos+1 < size && vec[npos+1] < toInsert)
+          npos++;
+
+        for (size_t k = i; k < npos; k++)
+          vec[k] = vec[k+1];
+        vec[npos] = toInsert;
+      }
+      else {
+        vec[i] = toInsert;
+      }
+
+      break;
+    }
+  }
+
+  assert(i < size);
+  //assert(is_sorted(vec.data(), size));
+}
+
+template <typename T, typename ST>
+inline void large_vec_replace_maintainsort(FlexibleStorage1D<T,ST>& vec, const T toErase, const T toInsert)
+{
+  const size_t size = vec.size();
+  size_t i = Routines::binsearch(vec.direct_access(), toErase, vec.size());
+  assert(i < size);
+  
+  if (i > 0 && toInsert < vec[i-1]) {
+    size_t npos = i-1;
+    while (npos > 0 && toInsert < vec[npos-1])
+      npos--;
+
+    Routines::upshift_array(vec.direct_access(), i, 1, npos);
+    //for (size_t k = i; k > npos; k--)
+    //  vec[k] = vec[k-1];
+    vec[npos] = toInsert;
+  }
+  else if (i+1 < size && vec[i+1] < toInsert) {
+    size_t npos = i+1;
+    while (npos+1 < size && vec[npos+1] < toInsert)
+      npos++;
+
+    Routines::downshift_array(vec.direct_access(), i, npos, 1);
+    //for (size_t k = i; k < npos; k++)
+    // vec[k] = vec[k+1];
+    vec[npos] = toInsert;
+  }
+  else {
+    vec[i] = toInsert;
+  }
+  //assert(is_sorted(vec.data(), size));
+}
+
 #endif

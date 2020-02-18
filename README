@@ -33,7 +33,6 @@ Chiang ACL 2012], which uses L0-norms together with EM.
 At the same time, it is an adequate replacement for GIZA++ as the models IBM 1-5 and HMM are implemented. 
 
 There are a few restrictions:
-- The IBM-2 will probably extended (estimation of p0).
 - pegging is not implemented (and usually too slow, anyway)
 - smoothing (e.g. for HMMs) is not implemented
 - we do not implement Model 6
@@ -55,6 +54,10 @@ On the other hand, there are some additional features:
 BUILDING REGALIGNER
 
 A sample Makefile has been provided, but you will most likely have to modify it. 
+
+C++ STANDARD
+
+since version 1.3 RegAligner uses C++-11. The amount of non-C++-03 code will increase.
 
 DEPENDENCIES
 

@@ -3,7 +3,7 @@
 #ifndef PROJECTION_HH
 #define PROJECTION_HH
 
-#include "storage1D.hh"
+#include "vector.hh"
 
 //DEBUG
 #include "timing.hh"
@@ -90,10 +90,15 @@ inline void projection_on_simplex(T* data, const uint nData)
 template <typename T>
 inline void projection_on_simplex(T* data, const uint nData, T minval)
 {
-
   projection_on_simplex(data, nData);
   for (uint k=0; k < nData; k++)
     data[k] = std::max(minval,data[k]);
+}
+
+template <typename T>
+inline void projection_on_simplex(Math1D::Vector<T>& data, T minval)
+{
+  projection_on_simplex(data.direct_access(), data.size(), minval);
 }
 
 template<typename T>
@@ -164,6 +169,11 @@ inline void projection_on_simplex_with_slack(T* data, T& slack, uint nData, T mi
     data[i] = std::max(data[i],minval);
 }
 
+template <typename T>
+inline void projection_on_simplex_with_slack(Math1D::Vector<T>& data, T& slack, T minval)
+{
+  projection_on_simplex_with_slack(data.direct_access(), slack, data.size(), minval);
+}
 
 template <typename T>
 inline void fast_projection_on_simplex(T* data, const uint nData)

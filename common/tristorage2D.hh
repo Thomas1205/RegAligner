@@ -19,11 +19,11 @@ public:
   typedef StorageBase<T,ST> Base;
 
   //default constructor
-  TriStorage2D();
+  explicit TriStorage2D();
 
-  TriStorage2D(ST dim);
+  explicit TriStorage2D(ST dim);
 
-  TriStorage2D(ST dim, T default_value);
+  explicit TriStorage2D(ST dim, T default_value);
 
   //copy constructor
   TriStorage2D(const TriStorage2D<T,ST>& toCopy);
@@ -49,7 +49,7 @@ public:
   void operator=(const TriStorage2D<T,ST>& toCopy);
 
   inline T* row_ptr(ST y);
-  
+
   inline const T* row_ptr(ST y) const;
 
   inline ST dim() const;
@@ -142,22 +142,18 @@ template<typename T, typename ST>
 /*static*/ const std::string TriStorage2D<T,ST>::tristor2D_name_ = "unnamed TriStorage2D";
 
 //constructors
-template<typename T, typename ST> 
-TriStorage2D<T,ST>::TriStorage2D() : StorageBase<T,ST>(), dim_(0) {}
+template<typename T, typename ST> TriStorage2D<T,ST>::TriStorage2D() : StorageBase<T,ST>(), dim_(0) {}
 
-template<typename T, typename ST> 
-TriStorage2D<T,ST>::TriStorage2D(ST dim) : StorageBase<T,ST>(dim*(dim+1) / 2), dim_(dim)
+template<typename T, typename ST> TriStorage2D<T,ST>::TriStorage2D(ST dim) : StorageBase<T,ST>(dim*(dim+1) / 2), dim_(dim)
 {
 }
 
-template<typename T, typename ST> 
-TriStorage2D<T,ST>::TriStorage2D(ST dim, T default_value) : StorageBase<T,ST>(dim*(dim+1) / 2, default_value), dim_(dim)
+template<typename T, typename ST> TriStorage2D<T,ST>::TriStorage2D(ST dim, T default_value) : StorageBase<T,ST>(dim*(dim+1) / 2, default_value), dim_(dim)
 {
 }
 
 //copy constructor
-template<typename T, typename ST> 
-TriStorage2D<T,ST>::TriStorage2D(const TriStorage2D<T,ST>& toCopy)
+template<typename T, typename ST> TriStorage2D<T,ST>::TriStorage2D(const TriStorage2D<T,ST>& toCopy)
 {
   dim_ = toCopy.dim();
   StorageBase<T,ST>::size_ = toCopy.size();
@@ -175,8 +171,7 @@ TriStorage2D<T,ST>::TriStorage2D(const TriStorage2D<T,ST>& toCopy)
 }
 
 //destructor
-template <typename T, typename ST> 
-TriStorage2D<T,ST>::~TriStorage2D()
+template <typename T, typename ST> TriStorage2D<T,ST>::~TriStorage2D()
 {
 }
 
@@ -210,14 +205,14 @@ template <typename T, typename ST>
 }
 
 template<typename T, typename ST>
-inline T* TriStorage2D<T,ST>::row_ptr(ST y) 
+inline T* TriStorage2D<T,ST>::row_ptr(ST y)
 {
   assert(y < dim_);
-  return StorageBase<T,ST>::data_ + (y*(y+1))/2;  
+  return StorageBase<T,ST>::data_ + (y*(y+1))/2;
 }
-  
+
 template<typename T, typename ST>
-inline const T* TriStorage2D<T,ST>::row_ptr(ST y) const 
+inline const T* TriStorage2D<T,ST>::row_ptr(ST y) const
 {
   assert(y < dim_);
   return StorageBase<T,ST>::data_ + (y*(y+1))/2;
@@ -314,7 +309,7 @@ void TriStorage2D<T,ST>::resize(ST newDim, const T fill_value)
     //fill new values
     if (new_size > StorageBase<T,ST>::size_)
       std::fill_n(new_data+StorageBase<T,ST>::size_,new_size-StorageBase<T,ST>::size_,fill_value);
-    
+
     // for (ST i=std::min(size_,new_size); i < new_size; i++)
     //   new_data[i] = fill_value;
 
@@ -374,17 +369,13 @@ bool operator!=(const TriStorage2D<T,ST>& v1, const TriStorage2D<T,ST>& v2)
 
 /***** implementation of NamedTriStorage2D ********/
 
-template<typename T, typename ST> 
-NamedTriStorage2D<T,ST>::NamedTriStorage2D() {}
+template<typename T, typename ST> NamedTriStorage2D<T,ST>::NamedTriStorage2D() {}
 
-template<typename T, typename ST> 
-NamedTriStorage2D<T,ST>::NamedTriStorage2D(std::string name) : name_(name) {}
+template<typename T, typename ST> NamedTriStorage2D<T,ST>::NamedTriStorage2D(std::string name) : name_(name) {}
 
-template<typename T, typename ST> 
-NamedTriStorage2D<T,ST>::NamedTriStorage2D(ST dim, std::string name) : TriStorage2D<T,ST>(dim), name_(name) {}
+template<typename T, typename ST> NamedTriStorage2D<T,ST>::NamedTriStorage2D(ST dim, std::string name) : TriStorage2D<T,ST>(dim), name_(name) {}
 
-template<typename T, typename ST> 
-NamedTriStorage2D<T,ST>::NamedTriStorage2D(ST dim, T default_value, std::string name) : TriStorage2D<T,ST>(dim,default_value), name_(name) {}
+template<typename T, typename ST> NamedTriStorage2D<T,ST>::NamedTriStorage2D(ST dim, T default_value, std::string name) : TriStorage2D<T,ST>(dim,default_value), name_(name) {}
 
 template<typename T, typename ST>
 /*virtual*/ const std::string& NamedTriStorage2D<T,ST>::name() const

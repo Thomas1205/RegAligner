@@ -180,9 +180,9 @@ protected:
   IBM4InterDistMode inter_dist_mode_;
   IBM4IntraDistMode intra_dist_mode_;
 
-  bool use_sentence_start_prob_;
-  bool reduce_deficiency_;
-  bool uniform_intra_prob_;
+  bool use_sentence_start_prob_ = true;
+  bool reduce_deficiency_ = false;
+  bool uniform_intra_prob_ = false;
 
   double min_nondef_count_ = 1e-6;
 
@@ -193,7 +193,7 @@ protected:
   uint nSourceClasses_;
   uint nTargetClasses_;
 
-  bool nondeficient_;
+  bool nondeficient_ = false;
   bool nondef_norm_m_step_ = false;
 
   //if there are many word classes, inter distortion tables are only kept for J<=storage_limit_ and some very frequent ones

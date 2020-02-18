@@ -318,7 +318,7 @@ double calculate_hmm_forward_log_sum_with_tricks(const Math2D::Matrix<double>& d
 
     if (i + redpar_limit + 1 < I)
       long_dist_align_prob[i] = align_model(i + redpar_limit + 1, i);
-    else if (i - 6 >= 0)
+    else if (i - redpar_limit > 0)
       long_dist_align_prob[i] = align_model(i - redpar_limit - 1, i);
   }
 
@@ -421,8 +421,8 @@ double calculate_hmm_forward_log_sum_with_tricks(const Math2D::Matrix<double>& d
   return log_sum + std::log(forward[cur_idx].sum());
 }
 
-double calculate_sehmm_forward_log_sum_with_tricks(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model, 
-                                                   const Math1D::Vector<double>& start_prob, int redpar_limit) 
+double calculate_sehmm_forward_log_sum_with_tricks(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model,
+    const Math1D::Vector<double>& start_prob, int redpar_limit)
 {
   const int I = dict.yDim()-1;
   const int J = dict.xDim();
@@ -432,7 +432,7 @@ double calculate_sehmm_forward_log_sum_with_tricks(const Math2D::Matrix<double>&
 
     if (i + redpar_limit + 1 < I)
       long_dist_align_prob[i] = align_model(i + redpar_limit + 1, i);
-    else if (i - 6 >= 0)
+    else if (i - redpar_limit > 0)
       long_dist_align_prob[i] = align_model(i - redpar_limit - 1, i);
   }
 
@@ -524,7 +524,7 @@ double calculate_sehmm_forward_log_sum_with_tricks(const Math2D::Matrix<double>&
 
     //initial empty word
     cur_forward[2 * I] = prev_forward[2 * I] * start_prob[I] * cur_emptyword_prob;
-  
+
     scale = cur_forward.max();
     log_sum += std::log(scale);
 
@@ -537,7 +537,7 @@ double calculate_sehmm_forward_log_sum_with_tricks(const Math2D::Matrix<double>&
 double calculate_sehmm_forward_log_sum(const Storage1D<uint>& source, const Storage1D<uint>& target,
                                        const SingleLookupTable& slookup, const Storage1D<uint>& tclass,
                                        const SingleWordDictionary& dict, const Math3D::Tensor<double>& align_model,
-                                       const Math1D::Vector<double>& start_prob) 
+                                       const Math1D::Vector<double>& start_prob)
 {
   const uint I = target.size();
   const uint J = source.size();
@@ -548,7 +548,7 @@ double calculate_sehmm_forward_log_sum(const Storage1D<uint>& source, const Stor
 
   assert(start_prob.size() == I+1);
 
-    /*** init ***/
+  /*** init ***/
   const uint start_s_idx = source[0];
   for (uint i = 0; i < I; i++) {
     const double start_align_prob = start_prob[i];
@@ -578,16 +578,16 @@ double calculate_sehmm_forward_log_sum(const Storage1D<uint>& source, const Stor
     const uint s_idx = source[j];
 
     for (uint i = 0; i < I; i++) {
-      
+
       double sum = 0.0;
 
       for (uint i_prev = 0; i_prev < I; i_prev++)
         sum += align_model(i, i_prev, tclass[i_prev]) * (prev_forward[i_prev] + prev_forward[i_prev + I]);
       sum += prev_forward[2 * I] * start_prob[i];
-      
+
       cur_forward[i] = sum * dict[target[i]][slookup(j, i)];
     }
-    
+
     const double cur_emptyword_prob = dict[0][s_idx - 1];
 
     for (uint i = I; i < 2 * I; i++) {
@@ -597,15 +597,15 @@ double calculate_sehmm_forward_log_sum(const Storage1D<uint>& source, const Stor
     }
 
     //initial empty word
-    cur_forward[2 * I] = prev_forward[2 * I] * start_prob[I] * cur_emptyword_prob;  
-    
+    cur_forward[2 * I] = prev_forward[2 * I] * start_prob[I] * cur_emptyword_prob;
+
     double scale = cur_forward.max();
     log_sum += std::log(scale);
 
-    cur_forward *= 1.0 / scale;    
+    cur_forward *= 1.0 / scale;
   }
-  
-  return log_sum + std::log(forward[cur_idx].sum());  
+
+  return log_sum + std::log(forward[cur_idx].sum());
 }
 
 void calculate_scaled_hmm_backward(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& slookup,

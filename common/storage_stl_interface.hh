@@ -7,6 +7,7 @@
 #include <map>
 #include <set>
 #include "storage1D.hh"
+#include "flexible_storage1D.hh"
 #include "storage2D.hh"
 #include "storage3D.hh"
 
@@ -57,12 +58,12 @@ void assign(Storage1D<T1,ST>& target, const std::vector<T2>& source)
 }
 
 template<typename T1, typename T2, typename ST>
-void assign(FlexibleStorage1D<T1,ST>& target, const std::vector<T2>& source) 
+void assign(FlexibleStorage1D<T1,ST>& target, const std::vector<T2>& source)
 {
   target.clear();
   if (target.reserved_size() < source.size())
     target.reserve(source.size());
-  
+
   for (size_t i=0; i < source.size(); i++)
     target.append(source[i]);
 }

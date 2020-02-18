@@ -38,8 +38,8 @@ HmmFertInterface::HmmFertInterface(const HmmWrapperWithClasses& wrapper, const S
 }
 
 /*virtual*/
-long double HmmFertInterface::compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-    const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment)
+long double HmmFertInterface::compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
+    Math1D::Vector<AlignBaseType>& alignment, AlignmentSetConstraints* constraints)
 {
   const uint curI = target.size();
 
@@ -47,25 +47,21 @@ long double HmmFertInterface::compute_external_alignment(const Storage1D<uint>& 
       || hmm_wrapper_.align_model_[curI - 1].xDim() == 0)
     prepare_external_alignment(source, target, lookup, alignment);
 
-  Storage1D < uint > tclass(curI);
+  Storage1D<uint> tclass(curI);
   for (uint i = 0; i < curI; i++)
     tclass[i] = hmm_wrapper_.target_class_[target[i]];
 
-  long double prob = 0.0;
-
   assert(hmm_wrapper_.initial_prob_.size() > 0);
 
-  prob = compute_ehmm_viterbi_alignment(source, lookup, target, tclass, dict_,
-                                        hmm_wrapper_.align_model_[curI - 1], hmm_wrapper_.initial_prob_[curI - 1],
-                                        alignment, hmm_wrapper_.hmm_options_);
+  long double prob = compute_ehmm_viterbi_alignment(source, lookup, target, tclass, dict_, hmm_wrapper_.align_model_[curI - 1], hmm_wrapper_.initial_prob_[curI - 1],
+                     alignment, hmm_wrapper_.hmm_options_);
 
   return prob;
 }
 
 /*virtual*/
-void HmmFertInterface::compute_approximate_jmarginals(const Storage1D<uint>& source, const Storage1D<uint>& target,
-    const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment,
-    Math2D::Matrix<double>& j_marg, bool& converged) const
+void HmmFertInterface::compute_approximate_jmarginals(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
+    Math1D::Vector<AlignBaseType>& alignment, Math2D::Matrix<double>& j_marg, bool& converged) const
 {
   converged = true;
 
@@ -134,13 +130,14 @@ void HmmFertInterface::compute_approximate_jmarginals(const Storage1D<uint>& sou
 }
 
 /*virtual*/
-long double HmmFertInterface::update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target,
-    const SingleLookupTable& lookup, uint& nIter, Math1D::Vector<uint>& fertility, Math2D::Matrix<long double>& expansion_prob,
+long double HmmFertInterface::update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
+    uint& nIter, Math1D::Vector<uint>& fertility, Math2D::Matrix<long double>& expansion_prob,
     Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment) const
 {
-
   const uint curJ = source.size();
   const uint curI = target.size();
+
+  //std::cerr << "J: " << curJ << ", I: " << curI << std::endl;
 
   Storage1D<uint> tclass(curI);
   for (uint i = 0; i < curI; i++)
@@ -152,8 +149,7 @@ long double HmmFertInterface::update_alignment_by_hillclimbing(const Storage1D<u
   // when calling routines below
   assert(hmm_wrapper_.initial_prob_.size() > 0);
   long double best_prob = compute_ehmm_viterbi_alignment(source, lookup, target, tclass, dict_, hmm_wrapper_.align_model_[curI - 1],
-                                                         hmm_wrapper_.initial_prob_[curI - 1], alignment, hmm_wrapper_.hmm_options_);
-
+                          hmm_wrapper_.initial_prob_[curI - 1], alignment, hmm_wrapper_.hmm_options_);
   assert(best_prob > 0.0);
 
   bool changed = make_alignment_feasible(source, target, lookup, alignment);
@@ -238,7 +234,7 @@ long double HmmFertInterface::update_alignment_by_hillclimbing(const Storage1D<u
         external2internal_hmm_alignment(hyp_alignment, curI, hmm_wrapper_.hmm_options_, internal_hyp_alignment);
 
         long double cur_swap_prob = hmm_alignment_prob(source, lookup, target, tclass, dict_, hmm_wrapper_.align_model_, hmm_wrapper_.initial_prob_,
-                                                       internal_hyp_alignment, true);
+                                    internal_hyp_alignment, true);
 
         swap_prob(j1, j2) = cur_swap_prob;
         swap_prob(j2, j1) = cur_swap_prob;
@@ -255,6 +251,5 @@ long double HmmFertInterface::update_alignment_by_hillclimbing(const Storage1D<u
 /*virtual*/ void HmmFertInterface::prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
     const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment)
 {
-
   //this is just an interface class. we would need the parameters to do this properly
 }

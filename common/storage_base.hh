@@ -6,6 +6,7 @@
 
 #include "makros.hh"
 
+//operators == and != need to be defined on T
 template<typename T, typename ST=size_t>
 class StorageBase {
 public:
@@ -16,7 +17,7 @@ public:
 
   StorageBase(ST size, const T default_value);
 
-	~StorageBase();
+  ~StorageBase();
 
   virtual const std::string& name() const;
 
@@ -32,80 +33,92 @@ public:
 
   inline void set_constant(const T constant);
 
+  inline bool is_constant() const;
+
 protected:
 
   //pointer must go first so that following variables can be grouped for optimal alignment
   T* data_; //if `T is a basic type this is 16-byte aligned as returned by new
   ST size_;
-	static const std::string stor_base_name_;
+  static const std::string stor_base_name_;
 };
 
 /*************************** implementation ****************************/
 
-template<typename T, typename ST>
-StorageBase<T,ST>::StorageBase() : data_(0), size_(0)
+template<typename T, typename ST> StorageBase<T,ST>::StorageBase() : data_(0), size_(0)
 {
 }
 
-template<typename T, typename ST>
-StorageBase<T,ST>::StorageBase(ST size) : size_(size)
+template<typename T, typename ST> StorageBase<T,ST>::StorageBase(ST size) : size_(size)
 {
-	data_ = new T[size];
+  data_ = new T[size];
+}
+
+template<typename T, typename ST> StorageBase<T,ST>::StorageBase(ST size, const T default_value) : size_(size)
+{
+  data_ = new T[size];
+  std::fill_n(data_,size_,default_value);
+}
+
+template<typename T, typename ST> StorageBase<T,ST>::~StorageBase()
+{
+  delete[] data_;
 }
 
 template<typename T, typename ST>
-StorageBase<T,ST>::StorageBase(ST size, const T default_value) : size_(size)
+/*virtual*/ const std::string& StorageBase<T,ST>::name() const
 {
-	data_ = new T[size];
-	std::fill_n(data_,size_,default_value);
-}
-
-template<typename T, typename ST>
-StorageBase<T,ST>::~StorageBase() 
-{
-	delete[] data_;
-}	
-
-template<typename T, typename ST>
-/*virtual*/ const std::string& StorageBase<T,ST>::name() const 
-{
-	return stor_base_name_;
+  return stor_base_name_;
 }
 
 template<typename T, typename ST>
 inline ST StorageBase<T,ST>::size() const
 {
-	return size_;
+  return size_;
 }
 
 template<typename T, typename ST>
 inline T* attr_restrict StorageBase<T,ST>::direct_access()
 {
-	return data_;
+  return data_;
 }
 
 template<typename T, typename ST>
 inline const T* attr_restrict StorageBase<T,ST>::direct_access() const
 {
-	return data_;
+  return data_;
 }
 
 template<typename T, typename ST>
 inline T& ref_attr_restrict StorageBase<T,ST>::direct_access(ST i)
 {
-	return data_[i];
+  return data_[i];
 }
 
 template<typename T, typename ST>
 inline const T& ref_attr_restrict StorageBase<T,ST>::direct_access(ST i) const
 {
-	return data_[i];
+  return data_[i];
 }
 
 template<typename T, typename ST>
 inline void StorageBase<T,ST>::set_constant(const T constant)
 {
-	std::fill_n(data_,size_,constant);
+  std::fill_n(data_,size_,constant);
+}
+
+template<typename T, typename ST>
+inline bool StorageBase<T,ST>::is_constant() const
+{
+  if (size_ <= 1)
+    return true;
+  
+  const T val = data_[0];
+  for (ST i = 1; i < size_; i++) {
+    if (val != data_[i])
+      return false;
+  }
+  return true;
 }
 
 template<typename T,typename ST>

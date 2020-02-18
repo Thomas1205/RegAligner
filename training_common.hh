@@ -123,12 +123,15 @@ void dict_m_step(const SingleWordDictionary& fdict_count, const floatSingleWordD
 
 void single_dict_m_step(const Math1D::Vector<double>& fdict_count, const Math1D::Vector<float>& prior_weight, uint nSentences,
                         Math1D::Vector<double>& dict, double alpha, uint nIter, bool smoothed_l0, double l0_beta, double min_prob,
-                        bool with_slack = true);
+                        bool with_slack = true, bool const_prior = false);
 
 void single_dict_m_step_unconstrained(const Math1D::Vector<double>& fdict_count, const Math1D::Vector<float>& prior_weight, uint nSentences,
-                                      Math1D::Vector<double>& dict, uint nIter, bool smoothed_l0, double l0_beta, uint L, double min_prob);
+                                      Math1D::Vector<double>& dict, uint nIter, bool smoothed_l0, double l0_beta, uint L, double min_prob, bool const_prior = false);
 
 double single_dict_m_step_energy(const Math1D::Vector<double>& fdict_count, const Math1D::Vector<float>& prior_weight, uint nSentences,
+                                 const Math1D::Vector<double>& dict, bool smoothed_l0, double l0_beta);
+
+double single_dict_m_step_energy(const Math1D::Vector<double>& fdict_count, float prior_weight, uint nSentences,
                                  const Math1D::Vector<double>& dict, bool smoothed_l0, double l0_beta);
 
 //for IBM-4/5 (i.e. no alignments to NULL considered)

@@ -91,8 +91,8 @@ public:
       uint& nIter, Math1D::Vector<uint>& fertility, Math2D::Matrix<long double>& expansion_prob, Math2D::Matrix<long double >& swap_prob,
       Math1D::Vector<AlignBaseType>& alignment) const = 0;
 
-  virtual long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup, 
-                                                 Math1D::Vector<AlignBaseType>& alignment, AlignmentSetConstraints* constraints = 0);
+  virtual long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
+      Math1D::Vector<AlignBaseType>& alignment, AlignmentSetConstraints* constraints = 0);
 
   // <code> start_alignment </code> is used as initialization for hillclimbing and later modified
   // the extracted alignment is written to <code> postdec_alignment </code>
@@ -110,7 +110,7 @@ public:
                                       Math2D::Matrix<double>& i_marg) const;
 
   virtual void compute_approximate_jmarginals(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
-                                              Math1D::Vector<AlignBaseType>& alignment, Math2D::Matrix<double>& j_marg, bool& converged) const
+      Math1D::Vector<AlignBaseType>& alignment, Math2D::Matrix<double>& j_marg, bool& converged) const
   {
     Math2D::Matrix<double> i_marg;
     compute_approximate_marginals(source, target, lookup, alignment, j_marg, i_marg, 1.0, converged);
@@ -118,8 +118,8 @@ public:
 
   //compute marginals needed for the IBM-3//returns the logarithm of the (approximated) normalization constant
   virtual double compute_approximate_marginals(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
-                                               Math1D::Vector<AlignBaseType>& alignment, Math2D::Matrix<double>& j_marg,
-                                               Math2D::Matrix<double >& i_marg, double hc_mass, bool& converged) const;
+      Math1D::Vector<AlignBaseType>& alignment, Math2D::Matrix<double>& j_marg,
+      Math2D::Matrix<double >& i_marg, double hc_mass, bool& converged) const;
 
   virtual void release_memory();
 
@@ -182,8 +182,7 @@ public:
                         const CooccuringWordsType& wcooc, const Math1D::Vector<uint>& tfert_class,
                         uint nSourceWords, uint nTargetWords, const floatSingleWordDictionary& prior_weight,
                         FertNullModel empty_word_model, bool smoothed_l0, double l0_beta, double l0_fertpen, bool no_factorial,
-                        const RefAlignmentStructure& sure_ref_alignments,
-                        const RefAlignmentStructure& possible_ref_alignments,
+                        const RefAlignmentStructure& sure_ref_alignments, const RefAlignmentStructure& possible_ref_alignments,
                         const Math1D::Vector<double>& log_table, const Math1D::Vector<double>& xlogx_table, uint fertility_limit = 10000,
                         MStepSolveMode msolve_mode = MSSolvePGD, HillclimbingMode hillclimb_mode = HillclimbingReuse);
 
@@ -191,8 +190,7 @@ public:
                         const Storage1D<Math1D::Vector<uint> >& target_sentence, SingleWordDictionary& dict,
                         const CooccuringWordsType& wcooc, const Math1D::Vector<uint>& tfert_class,
                         uint nSourceWords, uint nTargetWords, const floatSingleWordDictionary& prior_weight,
-                        const RefAlignmentStructure& sure_ref_alignments,
-                        const RefAlignmentStructure& possible_ref_alignments,
+                        const RefAlignmentStructure& sure_ref_alignments, const RefAlignmentStructure& possible_ref_alignments,
                         const Math1D::Vector<double>& log_table, const Math1D::Vector<double>& xlogx_table,
                         const FertModelOptions& options, bool no_factorial, uint fertility_limit = 10000);
 
@@ -219,11 +217,11 @@ protected:
   void OptMargEval(double& aer, double& f_measure, double& daes, double alpha = 0.1) const;
 
   void PostdecEval(double& aer, double& f_measure, double& daes, double threshold = 0.25, double alpha = 0.1) const;
-  
+
   void printEval(uint iter, std::string transfer = "", std::string method = "") const;
 
   long double alignment_prob(uint s, const Math1D::Vector<AlignBaseType>& alignment) const;
-  
+
   bool limits_possible() const;
 
   virtual long double alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,

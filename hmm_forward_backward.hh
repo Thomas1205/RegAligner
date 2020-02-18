@@ -103,8 +103,8 @@ void calculate_sehmm_forward(const Storage1D<uint>& tclass, const Math2D::Matrix
 /** this exploits the special structure of reduced parametric models.
     Make sure that you are using such a model **/
 template<typename T>
-void calculate_sehmm_forward_with_tricks(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model, 
-                                         const Math1D::Vector<double>& start_prob, Math2D::Matrix<T>& forward, int redpar_limit);
+void calculate_sehmm_forward_with_tricks(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model,
+    const Math1D::Vector<double>& start_prob, Math2D::Matrix<T>& forward, int redpar_limit);
 
 /*** forward sum routines ***/
 
@@ -116,12 +116,12 @@ double calculate_hmm_forward_log_sum(const Storage1D<uint>& source_sentence, con
                                      const Math1D::Vector<double>& start_prob);
 
 double calculate_hmm_forward_log_sum_with_tricks(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model,
-                                                 const Math1D::Vector<double>& start_prob, int redpar_limit);
+    const Math1D::Vector<double>& start_prob, int redpar_limit);
 
 double calculate_sehmm_forward_log_sum(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model, const Math1D::Vector<double>& start_prob);
 
-double calculate_sehmm_forward_log_sum_with_tricks(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model, 
-                                                   const Math1D::Vector<double>& start_prob, int redpar_limit);
+double calculate_sehmm_forward_log_sum_with_tricks(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model,
+    const Math1D::Vector<double>& start_prob, int redpar_limit);
 
 double calculate_sehmm_forward_log_sum(const Storage1D<uint>& source_sentence, const Storage1D<uint>& target_sentence,
                                        const SingleLookupTable& slookup, const Storage1D<uint>& tclass,
@@ -158,7 +158,7 @@ void calculate_hmm_backward_with_tricks(const Math2D::Matrix<double>& dict, cons
 
 template<typename T>
 void calculate_sehmm_backward_with_tricks(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model, const Math1D::Vector<double>& start_prob,
-                                          Math2D::Matrix<T>& backward, bool include_start_alignment, int redpar_limit);
+    Math2D::Matrix<T>& backward, bool include_start_alignment, int redpar_limit);
 
 /************ implementation **********/
 
@@ -527,10 +527,10 @@ void calculate_hmm_forward_with_tricks(const Math2D::Matrix<double>& dict, const
 /** this exploits the special structure of reduced parametric models.
     Make sure that you are using such a model **/
 template<typename T>
-void calculate_sehmm_forward_with_tricks(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model, 
-                                         const Math1D::Vector<double>& start_prob, Math2D::Matrix<T>& forward, int redpar_limit) 
+void calculate_sehmm_forward_with_tricks(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model,
+    const Math1D::Vector<double>& start_prob, Math2D::Matrix<T>& forward, int redpar_limit)
 {
-  
+
   const int I = dict.yDim() - 1;
   const int J = dict.xDim();
 
@@ -977,8 +977,8 @@ void calculate_hmm_backward_with_tricks(const Math2D::Matrix<double>& dict, cons
 
 template<typename T>
 void calculate_sehmm_backward_with_tricks(const Math2D::Matrix<double>& dict, const Math2D::Matrix<double>& align_model, const Math1D::Vector<double>& start_prob,
-                                          Math2D::Matrix<T>& backward, bool include_start_alignment, int redpar_limit)
-{ 
+    Math2D::Matrix<T>& backward, bool include_start_alignment, int redpar_limit)
+{
   const int I = dict.yDim()-1;
   const int J = dict.xDim();
 

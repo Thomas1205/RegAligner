@@ -6,6 +6,7 @@
 #include "makros.hh"
 #include "storage1D.hh"
 #include "sorting.hh"
+#include "routines.hh"
 #include <numeric>
 
 namespace Math1D {
@@ -23,11 +24,11 @@ namespace Math1D {
 
     typedef T ALIGNED16 T_A16;
 
-    Vector();
+    explicit Vector();
 
-    Vector(ST size);
+    explicit Vector(ST size);
 
-    Vector(ST size, const T default_value);
+    explicit Vector(ST size, const T default_value);
 
     Vector(const Vector<T,ST>& toCopy);
 
@@ -52,7 +53,7 @@ namespace Math1D {
 
     inline T sum() const;
 
-    inline T range_sum(ST start, ST end) const;    
+    inline T range_sum(ST start, ST end) const;
 
     /*** maximal element ***/
     T max() const;
@@ -90,6 +91,10 @@ namespace Math1D {
 
     void operator*=(const T constant);
 
+    void elem_mul(const Vector<T,ST>& v);
+    
+    void elem_div(const Vector<T,ST>& v);
+
     virtual const std::string& name() const;
 
   protected:
@@ -102,9 +107,9 @@ namespace Math1D {
   template<typename T,typename ST = size_t>
   class NamedVector : public Vector<T,ST> {
   public:
-  
+
     typedef Vector<T,ST> Base;
-  
+
     NamedVector();
 
     NamedVector(std::string name);
@@ -128,22 +133,22 @@ namespace Math1D {
   protected:
     std::string name_;
   };
-  
+
   //NOTE: dest can be the same as src1 or src2
-  inline void go_in_neg_direction(Math1D::Vector<double>& dest, const Math1D::Vector<double>& src1, const Math1D::Vector<double>& src2, double alpha) {
-    
+  inline void go_in_neg_direction(Math1D::Vector<double>& dest, const Math1D::Vector<double>& src1, const Math1D::Vector<double>& src2, double alpha)
+  {
     assert(dest.size() == src1.size());
     assert(dest.size() == src2.size());
-    Makros::go_in_neg_direction(dest.direct_access(), dest.size(), src1.direct_access(), src2.direct_access(), alpha);
+    Routines::go_in_neg_direction(dest.direct_access(), dest.size(), src1.direct_access(), src2.direct_access(), alpha);
   }
 
   //NOTE: dest can be the same as src1 or src2
-  inline void assign_weighted_combination(Math1D::Vector<double>& dest, double w1, const Math1D::Vector<double>& src1, 
-                                          double w2, const Math1D::Vector<double>& src2) {
-  
+  inline void assign_weighted_combination(Math1D::Vector<double>& dest, double w1, const Math1D::Vector<double>& src1,
+                                          double w2, const Math1D::Vector<double>& src2)
+  {
     assert(dest.size() == src1.size());
     assert(dest.size() == src2.size());
-    Makros::assign_weighted_combination(dest.direct_access(), dest.size(), w1, src1.direct_access(), w2, src2.direct_access());
+    Routines::assign_weighted_combination(dest.direct_access(), dest.size(), w1, src1.direct_access(), w2, src2.direct_access());
   }
 
   /***********************************************/
@@ -218,16 +223,20 @@ namespace Math1D {
   template<typename T,typename ST>
   /*static*/ const std::string Vector<T,ST>::vector_name_ = "unnamed vector";
 
-  template<typename T,typename ST> Vector<T,ST>::Vector() : Storage1D<T,ST>() {}
+  template<typename T,typename ST> 
+  Vector<T,ST>::Vector() : Storage1D<T,ST>() {}
 
-  template<typename T,typename ST> Vector<T,ST>::Vector(ST size) : Storage1D<T,ST>(size) {}
+  template<typename T,typename ST> 
+  Vector<T,ST>::Vector(ST size) : Storage1D<T,ST>(size) {}
 
-  template<typename T,typename ST> Vector<T,ST>::Vector(ST size, const T default_value) : Storage1D<T,ST>(size)
+  template<typename T,typename ST> 
+  Vector<T,ST>::Vector(ST size, const T default_value) : Storage1D<T,ST>(size)
   {
     set_constant(default_value);
   }
 
-  template<typename T,typename ST> Vector<T,ST>::Vector(const Vector<T,ST>& toCopy) : Storage1D<T,ST>(static_cast<const Storage1D<T,ST>&>(toCopy)) {}
+  template<typename T,typename ST> 
+  Vector<T,ST>::Vector(const Vector<T,ST>& toCopy) : Storage1D<T,ST>(static_cast<const Storage1D<T,ST>&>(toCopy)) {}
 
   template<typename T,typename ST> Vector<T,ST>::~Vector() {}
 
@@ -378,10 +387,10 @@ namespace Math1D {
   }
 
   template<typename T,typename ST>
-  inline void Vector<T,ST>::ensure_min(T lower_limit) 
-  {  
+  inline void Vector<T,ST>::ensure_min(T lower_limit)
+  {
     const ST size = Base::size_;
-    for (ST i=0; i < size; i++) 
+    for (ST i=0; i < size; i++)
       Base::data_[i] = std::max(lower_limit,Base::data_[i]);
   }
 
@@ -465,9 +474,10 @@ namespace Math1D {
     for (ST i=0; i < size; i++)
       data[i] += addon;
   }
-  
+
   template<typename T,typename ST>
-  bool Vector<T,ST>::is_sorted() const {
+  bool Vector<T,ST>::is_sorted() const
+  {
     return ::is_sorted(Base::data_, Base::size_);
   }
 
@@ -515,8 +525,8 @@ namespace Math1D {
       exit(0);
     }
 #endif
-  
-    Makros::array_add_multiple(Base::data_, size, alpha, v.direct_access());
+
+    Routines::array_add_multiple(Base::data_, size, alpha, v.direct_access());
   }
 
 
@@ -601,6 +611,21 @@ namespace Math1D {
     return Vector<T,ST>::vector_name_;
   }
 
+  template<typename T,typename ST>
+  void Vector<T,ST>::elem_mul(const Vector<T,ST>& v)
+  {
+    assert(Base::size_ == v.size());
+    for (ST i = 0; i < Base::size_; i++)
+      Base::data_[i] *= v.direct_access(i);
+  }
+    
+  template<typename T,typename ST>
+  void Vector<T,ST>::elem_div(const Vector<T,ST>& v)
+  {
+    assert(Base::size_ == v.size());
+    for (ST i = 0; i < Base::size_; i++)
+      Base::data_[i] /= v.direct_access(i);    
+  }
 
   /************** implementation of NamedVector **********/
 
@@ -739,16 +764,9 @@ namespace Math1D {
     assertAligned16(data2);
 
     //g++ uses packed fused multiply-add, but ignores the alignment information
-    return std::inner_product(data1,data1+size,data2, (T) 0);
-
-    // T result = (T) 0;
-    // ST i;
-    // for (i=0; i < size; i++)
-    //   result += data1[i] * data2[i]; //v1.direct_access(i)*v2.direct_access(i);
-
-    // return result;
+    return Routines::dotprod(data1,data2,size);
+    //return std::inner_product(data1,data1+size,data2, (T) 0);
   }
-
 
   template<typename T,typename ST>
   std::ostream& operator<<(std::ostream& s, const Vector<T,ST>& v)

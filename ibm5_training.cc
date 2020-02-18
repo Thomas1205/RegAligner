@@ -152,6 +152,8 @@ void IBM5Trainer::par2nonpar_intra_distortion()
 
   Math1D::NamedVector<uint> fertility(curI + 1, 0, MAKENAME(fertility));
   Storage1D<std::vector<ushort> > aligned_source_words(curI + 1);
+  for (uint i = 0; i <= curI; i++)
+    aligned_source_words[i].reserve(10);
 
   for (uint j = 0; j < curJ; j++) {
     const uint aj = alignment[j];
@@ -618,6 +620,8 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
   const uint curJ = source.size();
 
   Storage1D<std::vector<ushort> > aligned_source_words(curI + 1);
+  for (uint i = 0; i <= curI; i++)
+    aligned_source_words[i].reserve(10);
 
   fertility.set_constant(0);
 
@@ -770,8 +774,9 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
         if (new_dict_prob < 1e-8)
           expansion_prob(j, cand_aj) = 0.0;
         else {
-          hyp_aligned_source_words[cand_aj].push_back(j);
-          vec_sort(hyp_aligned_source_words[cand_aj]);
+          //hyp_aligned_source_words[cand_aj].push_back(j);
+          //vec_sort(hyp_aligned_source_words[cand_aj]);
+          sorted_vec_insert<ushort>(hyp_aligned_source_words[cand_aj], j);
 
           long double incremental_prob = incremental_prob_common;
           incremental_prob *= distortion_prob(source, target, hyp_aligned_source_words) * new_dict_prob;
@@ -843,10 +848,13 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
         }
         else {
 
-          vec_replace(hyp_aligned_source_words[aj2], (ushort) j2, (ushort) j1);
-          vec_replace(hyp_aligned_source_words[aj1], (ushort) j1, (ushort) j2);
-          vec_sort(hyp_aligned_source_words[aj1]);
-          vec_sort(hyp_aligned_source_words[aj2]);
+          //vec_replace(hyp_aligned_source_words[aj2], (ushort) j2, (ushort) j1);
+          //vec_replace(hyp_aligned_source_words[aj1], (ushort) j1, (ushort) j2);
+          //vec_sort(hyp_aligned_source_words[aj1]);
+          //vec_sort(hyp_aligned_source_words[aj2]);
+
+          vec_replace_maintainsort<ushort>(hyp_aligned_source_words[aj2], j2, j1);
+          vec_replace_maintainsort<ushort>(hyp_aligned_source_words[aj1], j1, j2);
 
           long double incremental_prob = base_prob_common * distortion_prob(source, target, hyp_aligned_source_words);
           incremental_prob *= dict(j2,aj1);
@@ -904,9 +912,10 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
         empty_word_decrease_const = 0.0;
       }
 
-      vec_erase(aligned_source_words[cur_aj], (ushort) best_move_j);
-      aligned_source_words[best_move_aj].push_back(best_move_j);
-      vec_sort(aligned_source_words[best_move_aj]);
+      vec_erase<ushort>(aligned_source_words[cur_aj], best_move_j);
+      //aligned_source_words[best_move_aj].push_back(best_move_j);
+      //vec_sort(aligned_source_words[best_move_aj]);
+      sorted_vec_insert<ushort>(aligned_source_words[best_move_aj], best_move_j);
 
       hyp_aligned_source_words[cur_aj] = aligned_source_words[cur_aj];
       hyp_aligned_source_words[best_move_aj] = aligned_source_words[best_move_aj];
@@ -926,11 +935,13 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       alignment[best_swap_j1] = cur_aj2;
       alignment[best_swap_j2] = cur_aj1;
 
-      vec_replace<ushort>(aligned_source_words[cur_aj2], best_swap_j2, best_swap_j1);
-      vec_replace<ushort>(aligned_source_words[cur_aj1], best_swap_j1, best_swap_j2);
+      //vec_replace<ushort>(aligned_source_words[cur_aj2], best_swap_j2, best_swap_j1);
+      //vec_replace<ushort>(aligned_source_words[cur_aj1], best_swap_j1, best_swap_j2);
+      //vec_sort(aligned_source_words[cur_aj1]);
+      //vec_sort(aligned_source_words[cur_aj2]);
 
-      vec_sort(aligned_source_words[cur_aj1]);
-      vec_sort(aligned_source_words[cur_aj2]);
+      vec_replace_maintainsort<ushort>(aligned_source_words[cur_aj2], best_swap_j2, best_swap_j1);
+      vec_replace_maintainsort<ushort>(aligned_source_words[cur_aj1], best_swap_j1, best_swap_j2);
 
       hyp_aligned_source_words[cur_aj1] = aligned_source_words[cur_aj1];
       hyp_aligned_source_words[cur_aj2] = aligned_source_words[cur_aj2];
@@ -941,15 +952,7 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
   }
 
   //symmetrize swap_prob
-  for (uint j1 = 0; j1 < curJ; j1++) {
-
-    swap_prob(j1, j1) = 0.0;
-
-    for (uint j2 = j1 + 1; j2 < curJ; j2++) {
-
-      swap_prob(j2, j1) = swap_prob(j1, j2);
-    }
-  }
+  symmetrize_swapmat(swap_prob, curJ);
 
   return base_prob;
 }
@@ -1067,7 +1070,7 @@ void IBM5Trainer::inter_distortion_m_step(const Math2D::Matrix<double>& single_d
       new_param[j] = inter_distortion_param_(j, sclass) - alpha * gradient[j];
 
     /*** 3. reproject ***/
-    projection_on_simplex(new_param.direct_access(), new_param.size(), fert_min_param_entry);
+    projection_on_simplex(new_param, fert_min_param_entry);
 
     /*** 4. find appropriate step size ***/
     double best_lambda = 1.0;
@@ -1517,7 +1520,7 @@ void IBM5Trainer::intra_distortion_m_step(const Math2D::Matrix<double>& single_d
       new_param[j] = intra_distortion_param_(j, sclass) - alpha * gradient[j];
 
     /*** 3. reproject ***/
-    projection_on_simplex(new_param.direct_access(), new_param.size(), fert_min_param_entry);
+    projection_on_simplex(new_param, fert_min_param_entry);
 
     /*** 4. find appropriate step size ***/
     double best_lambda = 1.0;
@@ -1870,7 +1873,7 @@ void IBM5Trainer::intra_distortion_m_step_unconstrained(const Math2D::Matrix<dou
 void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, const HmmWrapperWithClasses* passed_wrapper)
 {
   const uint nSentences = source_sentence_.size();
-  
+
   std::cerr << "starting IBM-5 training without constraints";
   if (fert_trainer != 0)
     std::cerr << " (init from " << fert_trainer->model_name() << ") ";
@@ -2180,8 +2183,9 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
 
             const double increment = expansion_move_prob(j, aj) * inv_sentence_prob;
 
-            hyp_aligned_source_words[aj].push_back(j);
-            vec_sort(hyp_aligned_source_words[aj]);
+            //hyp_aligned_source_words[aj].push_back(j);
+            //vec_sort(hyp_aligned_source_words[aj]);
+            sorted_vec_insert<ushort>(hyp_aligned_source_words[aj], j);
 
             uint prev_center = MAX_UINT;
 
@@ -2321,11 +2325,13 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
 
             const uint aj2 = best_known_alignment_[s][j2];
 
-            vec_replace<ushort>(hyp_aligned_source_words[aj2], j2, j1);
-            vec_replace<ushort>(hyp_aligned_source_words[aj1], j1, j2);
+            //vec_replace<ushort>(hyp_aligned_source_words[aj2], j2, j1);
+            //vec_replace<ushort>(hyp_aligned_source_words[aj1], j1, j2);
+            //vec_sort(hyp_aligned_source_words[aj1]);
+            //vec_sort(hyp_aligned_source_words[aj2]);
 
-            vec_sort(hyp_aligned_source_words[aj1]);
-            vec_sort(hyp_aligned_source_words[aj2]);
+            vec_replace_maintainsort<ushort>(hyp_aligned_source_words[aj2], j2, j1);
+            vec_replace_maintainsort<ushort>(hyp_aligned_source_words[aj1], j1, j2);
 
             const double increment = swap_move_prob(j1, j2) * inv_sentence_prob;
 
@@ -2584,30 +2590,10 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
               << " and " << iter << transfer << ": " << max_perplexity << std::endl;
     std::cerr << "IBM-5 approx-sum-perplex-energy in between iterations #" << (iter - 1)
               << " and " << iter << transfer << ": " << approx_sum_perplexity << std::endl;
-
-    if (possible_ref_alignments_.size() > 0) {
-
-      std::cerr << "#### IBM-5-AER in between iterations #" << (iter - 1) << " and "
-                << iter << transfer << ": " << FertilityModelTrainerBase::AER() << std::endl;
-      std::cerr << "#### IBM-5-fmeasure in between iterations #" << (iter - 1)
-                << " and " << iter << transfer << ": " << FertilityModelTrainerBase::f_measure() << std::endl;
-      std::cerr << "#### IBM-5-DAE/S in between iterations #" << (iter - 1) << " and "
-                << iter << transfer << ": " << FertilityModelTrainerBase::DAE_S() << std::endl;
-
-      double postdec_aer;
-      double postdec_fmeasure;
-      double postdec_daes;
-      PostdecEval(postdec_aer, postdec_fmeasure, postdec_daes, 0.25);
-      std::cerr << "#### IBM-5-Postdec-AER in between iterations #" << (iter - 1)
-                << " and " << iter << transfer << ": " << postdec_aer << std::endl;
-      std::cerr << "#### IBM-5-Postdec-fmeasure in between iterations #" << (iter - 1)
-                << " and " << iter << transfer << ": " << postdec_fmeasure << std::endl;
-      std::cerr << "#### IBM-5-Postdec-DAE/S in between iterations #" << (iter - 1)
-                << " and " << iter << transfer << ": " << postdec_daes << std::endl;
-    }
-
     std::cerr << (((double)sum_iter) / source_sentence_.size())
               << " average hillclimbing iterations per sentence pair" << std::endl;
+
+    printEval(iter, transfer, "EM");
   }
 
   if (nonpar_distortion_) {
@@ -3166,9 +3152,10 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
               const uint new_target_word = (i == 0) ? 0 : cur_target[i - 1];
               const Math1D::Vector<double>& hyp_fert_count = ffert_count[new_target_word];
 
-              vec_erase(cur_hyp_aligned_source_words, (ushort) j);
-              hyp_aligned_source_words[i].push_back(j);
-              vec_sort(hyp_aligned_source_words[i]);
+              vec_erase<ushort>(cur_hyp_aligned_source_words, j);
+              //hyp_aligned_source_words[i].push_back(j);
+              //vec_sort(hyp_aligned_source_words[i]);
+              sorted_vec_insert<ushort>(hyp_aligned_source_words[i], j);
 
               //std::cerr << "cur_word: " << cur_word << std::endl;
               //std::cerr << "new_word: " << new_target_word << std::endl;
@@ -3193,9 +3180,10 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
                 new_aj = i;
               }
               //rollback
-              vec_erase(hyp_aligned_source_words[i], (ushort) j);
-              cur_hyp_aligned_source_words.push_back(j);
-              vec_sort(hyp_aligned_source_words[cur_aj]);
+              vec_erase<ushort>(hyp_aligned_source_words[i], j);
+              //cur_hyp_aligned_source_words.push_back(j);
+              //vec_sort(cur_hyp_aligned_source_words);
+              sorted_vec_insert<ushort>(cur_hyp_aligned_source_words, j);
             }
           }
 
@@ -3224,9 +3212,10 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
               fzero_count++;
             }
 
-            vec_erase(cur_hyp_aligned_source_words, (ushort) j);
-            hyp_aligned_source_words[new_aj].push_back(j);
-            vec_sort(hyp_aligned_source_words[new_aj]);
+            vec_erase<ushort>(cur_hyp_aligned_source_words, j);
+            //hyp_aligned_source_words[new_aj].push_back(j);
+            //vec_sort(hyp_aligned_source_words[new_aj]);
+            sorted_vec_insert<ushort>(hyp_aligned_source_words[new_aj], j);
 
             cur_neglog_distort_prob = -logl(distortion_prob(cur_source, cur_target, hyp_aligned_source_words));
           }
@@ -3354,7 +3343,7 @@ void IBM5Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
 
   //DEBUG
   Math1D::Vector<uint> fertility(I + 1, 0);
-  
+
   for (uint j=0; j < J; j++)
     fertility[alignment[j]]++;
 
@@ -3365,7 +3354,7 @@ void IBM5Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
     if (! (prob > 0.0 && prob <= 1.0 ) ) {
       std::cerr << "fertility prob distribution: " << fertility_prob_[target[i - 1]] << std::endl;
     }
-      
+
     assert(prob > 0.0 && prob <= 1.0 );
     assert(fertility[i] <= fertility_limit_[target[i-1]]);
   }

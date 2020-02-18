@@ -5,6 +5,7 @@
 
 #include "alignment_computation.hh"
 #include "hmm_forward_backward.hh"
+#include "routines.hh"
 
 void compute_ibm1_viterbi_alignment(const Storage1D<uint>& source_sentence, const SingleLookupTable& slookup, const Storage1D<uint>& target_sentence,
                                     const SingleWordDictionary& dict, Storage1D<AlignBaseType>& viterbi_alignment)
@@ -431,7 +432,7 @@ long double compute_ehmm_viterbi_alignment(const Math2D::Matrix<double>& dict, c
   double max_score = 0.0;
   size_t arg_max = MAX_UINT;
 
-  Makros::find_max_and_argmax(cur_score.direct_access(), cur_score.size(), max_score, arg_max);
+  Routines::find_max_and_argmax(cur_score.direct_access(), cur_score.size(), max_score, arg_max);
 
   // for (uint i = 0; i < 2 * I; i++) {
   // if (cur_score[i] > max_score) {
@@ -655,7 +656,7 @@ long double compute_ehmm_viterbi_alignment_with_tricks(const Math2D::Matrix<doub
   double max_score = 0.0;
   size_t arg_max = MAX_UINT;
 
-  Makros::find_max_and_argmax(cur_score.direct_access(), cur_score.size(), max_score, arg_max);
+  Routines::find_max_and_argmax(cur_score.direct_access(), cur_score.size(), max_score, arg_max);
 
   // for (uint i = 0; i < 2 * I; i++) {
   // if (cur_score[i] > max_score) {
@@ -675,6 +676,13 @@ long double compute_ehmm_viterbi_alignment_with_tricks(const Math2D::Matrix<doub
     // for (uint i=0; i < I; i++) {
     //   std::cerr << "dict for target word #" << i << dict[target_sentence[i]] << std::endl;
     // }
+    
+    double cm = 0.0;
+    size_t cam = MAX_UINT;
+    Routines::find_max_and_argmax(cur_score.direct_access(), cur_score.size(), cm, cam);
+    
+    std::cerr << "old gives: " << cm << ", " << cam << std::endl;
+    std::cerr << "new gives: " << max_score << ", " << arg_max << std::endl;
   }
 
   assert(arg_max < MAX_UINT);
@@ -824,7 +832,7 @@ long double compute_ehmm_viterbi_alignment(const Storage1D<uint>& tclass, const 
   double max_score = 0.0;
   size_t arg_max = MAX_UINT;
 
-  Makros::find_max_and_argmax(cur_score.direct_access(), cur_score.size(), max_score, arg_max);
+  Routines::find_max_and_argmax(cur_score.direct_access(), cur_score.size(), max_score, arg_max);
 
   // for (uint i = 0; i < 2 * I; i++) {
   // if (cur_score[i] > max_score) {
@@ -1008,7 +1016,7 @@ long double compute_sehmm_viterbi_alignment(const Math2D::Matrix<double>& dict, 
   double max_score = 0.0;
   size_t arg_max = MAX_UINT;
 
-  Makros::find_max_and_argmax(cur_score.direct_access(), cur_score.size(), max_score, arg_max);
+  Routines::find_max_and_argmax(cur_score.direct_access(), cur_score.size(), max_score, arg_max);
 
   // for (uint i = 0; i <= 2 * I; i++) {
   // if (cur_score[i] > max_score) {
@@ -1222,7 +1230,7 @@ long double compute_sehmm_viterbi_alignment_with_tricks(const Math2D::Matrix<dou
   double max_score = 0.0;
   size_t arg_max = MAX_UINT;
 
-  Makros::find_max_and_argmax(cur_score.direct_access(), cur_score.size(), max_score, arg_max);
+  Routines::find_max_and_argmax(cur_score.direct_access(), cur_score.size(), max_score, arg_max);
 
   if (arg_max >= MAX_UINT) {
 
@@ -1408,7 +1416,7 @@ long double compute_sehmm_viterbi_alignment(const Storage1D<uint>& tclass, const
   double max_score = 0.0;
   size_t arg_max = MAX_UINT;
 
-  Makros::find_max_and_argmax(cur_score.direct_access(), cur_score.size(), max_score, arg_max);
+  Routines::find_max_and_argmax(cur_score.direct_access(), cur_score.size(), max_score, arg_max);
 
   // for (uint i = 0; i <= 2 * I; i++) {
   // if (cur_score[i] > max_score) {
