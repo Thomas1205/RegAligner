@@ -1243,12 +1243,31 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count, const Math1D:
   double energy = (const_prior) ? single_dict_m_step_energy(fdict_count, prior_weight[0], nSentences, dict, smoothed_l0, l0_beta)
                   : single_dict_m_step_energy(fdict_count, prior_weight, nSentences, dict, smoothed_l0, l0_beta);
 
+ 
+
   if (prior_weight.min() >= 0.0)
     assert(energy >= 0.0);
 
   Math1D::Vector<double> dict_grad(dict_size);
   Math1D::Vector<double> hyp_dict(dict_size);
   Math1D::Vector<double> new_dict(dict_size);
+
+ //test if normalized counts give a better starting point
+  {
+	double fac = dict.sum() / fdict_count.sum();
+    for (uint k = 0; k < dict_size; k++)
+      hyp_dict[k] = std::max(min_prob, fac * fdict_count[k]);
+	  
+    //std::cerr << "fac: " << fac << ", hyp dict: " << hyp_dict << std::endl; 
+    
+    double hyp_energy = (const_prior) ? single_dict_m_step_energy(fdict_count, prior_weight[0], nSentences, hyp_dict, smoothed_l0, l0_beta)
+					: single_dict_m_step_energy(fdict_count, prior_weight, nSentences, hyp_dict, smoothed_l0, l0_beta);	
+					
+    if (hyp_energy < energy) {
+	  dict = hyp_dict;
+	  energy = hyp_energy;
+	}
+  }
 
   double slack_entry = std::max(0.0, 1.0 - dict.sum());
   double new_slack_entry = slack_entry;
@@ -1405,6 +1424,23 @@ void single_dict_m_step_unconstrained(const Math1D::Vector<double>& fdict_count,
   for (uint k = 0; k < L; k++) {
     grad_diff[k].resize(dict_size);
     step[k].resize(dict_size);
+  }
+
+  //test if normalized counts give a better starting point
+  {
+	double fac = dict.sum() / fdict_count.sum();
+    for (uint k = 0; k < dict_size; k++)
+      hyp_dict[k] = std::max(min_prob, fac * fdict_count[k]);
+	  
+    //std::cerr << "fac: " << fac << ", hyp dict: " << hyp_dict << std::endl; 
+    
+    double hyp_energy = (const_prior) ? single_dict_m_step_energy(fdict_count, prior_weight[0], nSentences, hyp_dict, smoothed_l0, l0_beta)
+					: single_dict_m_step_energy(fdict_count, prior_weight, nSentences, hyp_dict, smoothed_l0, l0_beta);	
+					
+    if (hyp_energy < energy) {
+	  dict = hyp_dict;
+	  energy = hyp_energy;
+	}
   }
 
   for (uint k = 0; k < dict_size; k++)
