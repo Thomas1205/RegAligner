@@ -120,6 +120,8 @@ void init_hmm_from_prev(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       for (int k = -redpar_limit; k <= redpar_limit; k++)
         dist_params(zero_offset + k, c) = val;
   }
+  else
+	 dist_grouping_param.set_constant(-1.0);
 
   if (source_fert.size() == 0 || !options.fix_p0_) {
     source_fert.resize(2);        //even for nonpar, we will use this as initialization
@@ -325,7 +327,7 @@ void init_hmm_from_prev(const Storage1D<Math1D::Vector<uint> >& source, const Lo
           dist_grouping_param[c] *= 1.0 / sum;
 
           for (int k = -redpar_limit; k <= redpar_limit; k++)
-            dist_params(zero_offset + k, c) = 0.75 * dist_params(maxI + k, c) + 0.25 * 0.8 / (2 * redpar_limit + 1);
+            dist_params(zero_offset + k, c) = 0.75 * dist_params(zero_offset + k, c) + 0.25 * 0.8 / (2 * redpar_limit + 1);
 
           dist_grouping_param[c] = 0.75 * dist_grouping_param[c] + 0.25 * 0.2;
         }
@@ -882,7 +884,8 @@ void par2nonpar_hmm_alignment_model(const Math2D::Matrix<double>& dist_params, c
             assert(align_model[I - 1](I, i, c) >= 0.0);
 
             const double sum = cur_align_model.sum_x(i, c);
-            assert(sum >= 0.99 && sum <= 1.01);
+			if (!deficient)
+              assert(sum >= 0.99 && sum <= 1.01);
           }
         }
       }
