@@ -12,74 +12,74 @@
 #include <algorithm>
 
 template<typename T>
-T vec_sum(const std::vector<T>& vec);
+T vec_sum(const std::vector<T>& vec) noexcept;
 
 template<typename T>
-T set_sum(const std::set<T>& s);
+T set_sum(const std::set<T>& s) noexcept;
 
 template<typename T>
-T vec_min(const std::vector<T>& vec);
+T vec_min(const std::vector<T>& vec) noexcept;
 
 template<typename T>
-T vec_max(const std::vector<T>& vec);
+T vec_max(const std::vector<T>& vec) noexcept;
 
 template<typename T>
-inline typename std::vector<T>::iterator vec_find(std::vector<T>& vec, T element);
+inline typename std::vector<T>::iterator vec_find(std::vector<T>& vec, T element) noexcept;
 
 template<typename T>
-inline typename std::vector<T>::const_iterator vec_find(const std::vector<T>& vec, T element);
+inline typename std::vector<T>::const_iterator vec_find(const std::vector<T>& vec, T element) noexcept;
 
 template<typename T>
-inline bool contains(const std::set<T>& s, T element);
+inline bool contains(const std::set<T>& s, T element) noexcept;
 
 template<typename T>
-inline bool contains(const std::vector<T>& v, T element);
+inline bool contains(const std::vector<T>& v, T element) noexcept;
 
 template<typename T>
-inline void vec_sort(std::vector<T>& vec);
+inline void vec_sort(std::vector<T>& vec) noexcept;
 
 template<typename T>
-inline void vec_bubble_sort(std::vector<T>& vec);
+inline void vec_bubble_sort(std::vector<T>& vec) noexcept;
 
 template<typename T>
-inline void vec_erase(std::vector<T>& vec, T toErase);
+inline void vec_erase(std::vector<T>& vec, T toErase) noexcept;
 
 template<typename T>
-inline void vec_replace(std::vector<T>& vec, T toErase, T toInsert);
+inline void vec_replace(std::vector<T>& vec, T toErase, T toInsert) noexcept;
 
 template<typename T>
-inline void vec_replace_maintainsort(std::vector<T>& vec, const T toErase, const T toInsert);
+inline void vec_replace_maintainsort(std::vector<T>& vec, const T toErase, const T toInsert) noexcept;
 
 template<typename T>
-inline void vec_replacepos_maintainsort(std::vector<T>& vec, const size_t replace_pos, const T toInsert);
+inline void vec_replacepos_maintainsort(std::vector<T>& vec, const size_t replace_pos, const T toInsert) noexcept;
 
 template<typename T>
-inline void sorted_vec_insert(std::vector<T>& vec, const T toInsert);
+inline void sorted_vec_insert(std::vector<T>& vec, const T toInsert) noexcept;
 
 //binary search, returns MAX_UINT if key is not found, otherwise the position in the vector
-template<typename T>
-size_t binsearch(const std::vector<T>& vec, const T key);
+template<typename T, typename Less = std::less<T>, typename Equal = std::equal_to<T>, typename Vec = std::vector<T> >
+size_t binsearch(const Vec& vec, const T key) noexcept;
 
-template<typename T>
-size_t binsearch_insertpos(const std::vector<T>& vec, const T key);
+template<typename T, typename Less = std::less<T>, typename Equal = std::equal_to<T>, typename Vec = std::vector<T> >
+size_t binsearch_insertpos(const Vec& vec, const T key) noexcept;
 
 //binary search in a vector with (key,value) pairs, sorted by key-values w.r.t. the operator <
 //returns MAX_UINT if key is not found, otherwise the position in the vector
 template<typename TK, typename TV>
-size_t binsearch_keyvalue(const std::vector<std::pair<TK,TV> >& vec, const TK key);
+size_t binsearch_keyvalue(const std::vector<std::pair<TK,TV> >& vec, const TK key) noexcept;
 
 template<typename T1, typename T2>
 class ComparePairByFirst {
 public:
 
-  bool operator()(const std::pair<T1,T2>& p1, const std::pair<T1,T2>& p2);
+  bool operator()(const std::pair<T1,T2>& p1, const std::pair<T1,T2>& p2) noexcept;
 };
 
 template<typename T1, typename T2>
 class ComparePairBySecond {
 public:
 
-  bool operator()(const std::pair<T1,T2>& p1, const std::pair<T1,T2>& p2);
+  bool operator()(const std::pair<T1,T2>& p1, const std::pair<T1,T2>& p2) noexcept;
 };
 
 namespace Makros {
@@ -129,7 +129,7 @@ namespace Makros {
 /*********** implementation *********/
 
 template<typename T>
-T vec_sum(const std::vector<T>& vec)
+T vec_sum(const std::vector<T>& vec) noexcept
 {
   return std::accumulate(vec.begin(),vec.end(),T());
 
@@ -142,7 +142,7 @@ T vec_sum(const std::vector<T>& vec)
 }
 
 template<typename T>
-T set_sum(const std::set<T>& s)
+T set_sum(const std::set<T>& s) noexcept
 {
   return std::accumulate(s.begin(),s.end(),T());
 
@@ -155,7 +155,7 @@ T set_sum(const std::set<T>& s)
 }
 
 template<typename T>
-T vec_min(const std::vector<T>& vec)
+T vec_min(const std::vector<T>& vec) noexcept
 {
   assert(vec.size() > 0);
 
@@ -163,7 +163,7 @@ T vec_min(const std::vector<T>& vec)
 }
 
 template<typename T>
-T vec_max(const std::vector<T>& vec)
+T vec_max(const std::vector<T>& vec) noexcept
 {
   assert(vec.size() > 0);
 
@@ -171,43 +171,43 @@ T vec_max(const std::vector<T>& vec)
 }
 
 template<typename T>
-inline typename std::vector<T>::const_iterator vec_find(const std::vector<T>& vec, T element)
+inline typename std::vector<T>::const_iterator vec_find(const std::vector<T>& vec, T element) noexcept
 {
   return std::find(vec.begin(),vec.end(),element);
 }
 
 template<typename T>
-inline typename std::vector<T>::iterator vec_find(std::vector<T>& vec, T element)
+inline typename std::vector<T>::iterator vec_find(std::vector<T>& vec, T element) noexcept
 {
   return std::find(vec.begin(),vec.end(),element);
 }
 
 template<typename T>
-inline bool contains(const std::set<T>& s, T element)
+inline bool contains(const std::set<T>& s, T element) noexcept
 {
   return s.find(element) != s.end();
 }
 
 template<typename T>
-inline bool contains(const std::vector<T>& v, T element)
+inline bool contains(const std::vector<T>& v, T element) noexcept
 {
   return std::find(v.begin(),v.end(),element) != v.end();
 }
 
 template<typename T>
-inline void vec_sort(std::vector<T>& vec)
+inline void vec_sort(std::vector<T>& vec) noexcept
 {
   std::sort(vec.begin(),vec.end());
 }
 
 template<typename T>
-inline void vec_bubble_sort(std::vector<T>& vec)
+inline void vec_bubble_sort(std::vector<T>& vec) noexcept
 {
   bubble_sort(vec.data(), vec.size());
 }
 
 template<typename T>
-inline void vec_erase(std::vector<T>& vec, T toErase)
+inline void vec_erase(std::vector<T>& vec, T toErase) noexcept
 {
 #ifdef SAFE_MODE
   assert(vec_find(vec,toErase) != vec.end());
@@ -216,7 +216,7 @@ inline void vec_erase(std::vector<T>& vec, T toErase)
 }
 
 template<typename T>
-inline void vec_replace(std::vector<T>& vec, T toErase, T toInsert)
+inline void vec_replace(std::vector<T>& vec, T toErase, T toInsert) noexcept
 {
 #ifdef SAFE_MODE
   assert(vec_find(vec,toErase) != vec.end());
@@ -225,7 +225,7 @@ inline void vec_replace(std::vector<T>& vec, T toErase, T toInsert)
 }
 
 template<typename T>
-inline void vec_replace_maintainsort(std::vector<T>& vec, const T toErase, const T toInsert)
+inline void vec_replace_maintainsort(std::vector<T>& vec, const T toErase, const T toInsert) noexcept
 {
   const size_t size = vec.size();
   size_t i = 0;
@@ -263,7 +263,7 @@ inline void vec_replace_maintainsort(std::vector<T>& vec, const T toErase, const
 }
 
 template<typename T>
-inline void vec_replacepos_maintainsort(std::vector<T>& vec, const size_t replace_pos, const T toInsert)
+inline void vec_replacepos_maintainsort(std::vector<T>& vec, const size_t replace_pos, const T toInsert) noexcept
 {
   const size_t size = vec.size();
   assert(replace_pos < size);
@@ -288,11 +288,11 @@ inline void vec_replacepos_maintainsort(std::vector<T>& vec, const size_t replac
   }
   else {
     vec[replace_pos] = toInsert;
-  }  
+  }
 }
 
 template<typename T>
-inline void sorted_vec_insert(std::vector<T>& vec, const T toInsert)
+inline void sorted_vec_insert(std::vector<T>& vec, const T toInsert) noexcept
 {
   //standard find may be faster for short vectors
   uint inspos = binsearch_insertpos(vec, toInsert);
@@ -300,7 +300,7 @@ inline void sorted_vec_insert(std::vector<T>& vec, const T toInsert)
 }
 
 template<typename T1, typename T2>
-bool ComparePairByFirst<T1,T2>::operator()(const std::pair<T1,T2>& p1, const std::pair<T1,T2>& p2)
+bool ComparePairByFirst<T1,T2>::operator()(const std::pair<T1,T2>& p1, const std::pair<T1,T2>& p2) noexcept
 {
   if (p1.first == p2.first)
     return (p1.second < p2.second);
@@ -309,7 +309,7 @@ bool ComparePairByFirst<T1,T2>::operator()(const std::pair<T1,T2>& p1, const std
 }
 
 template<typename T1, typename T2>
-bool ComparePairBySecond<T1,T2>::operator()(const std::pair<T1,T2>& p1, const std::pair<T1,T2>& p2)
+bool ComparePairBySecond<T1,T2>::operator()(const std::pair<T1,T2>& p1, const std::pair<T1,T2>& p2) noexcept
 {
   if (p1.second == p2.second)
     return (p1.first < p2.first);
@@ -318,29 +318,31 @@ bool ComparePairBySecond<T1,T2>::operator()(const std::pair<T1,T2>& p1, const st
 }
 
 //binary search, returns MAX_UINT if key is not found, otherwise the position in the vector
-template<typename T>
-size_t binsearch(const std::vector<T>& vec, const T key)
+template<typename T, typename Less = std::less<T>, typename Equal = std::equal_to<T>, typename Vec = std::vector<T> >
+size_t binsearch(const Vec& vec, const T key) noexcept
 {
   const size_t size = vec.size();
-  if (size == 0 || key < vec[0] || key > vec[size-1])
+  static const Less less;
+  static const Equal equal;
+  if (size == 0 || less(key,vec[0]) || less(vec[size-1],key))
     return MAX_UINT;
 
   size_t lower = 0;
   size_t upper = size-1;
-  if (vec[lower] == key)
+  if (equal(vec[lower],key))
     return lower;
-  if (vec[upper] == key)
+  if (equal(vec[upper],key))
     return upper;
 
   while (lower+1 < upper) {
-    assert(vec[lower] < key);
-    assert(vec[upper] > key);
+    assert(less(vec[lower],key));
+    assert(less(key,vec[upper]));
 
     const size_t middle = (lower+upper) >> 1;  // (lower+upper)/2;
-    assert(middle > lower && middle < upper);
-    if (vec[middle] == key)
+    assert(less(lower,middle) && less(middle,upper));
+    if (equal(vec[middle],key))
       return middle;
-    else if (vec[middle] < key)
+    else if (less(vec[middle],key))
       lower = middle;
     else
       upper = middle;
@@ -349,30 +351,32 @@ size_t binsearch(const std::vector<T>& vec, const T key)
   return MAX_UINT;
 }
 
-template<typename T>
-size_t binsearch_insertpos(const std::vector<T>& vec, const T key)
+template<typename T, typename Less = std::less<T>, typename Equal = std::equal_to<T>, typename Vec = std::vector<T> >
+size_t binsearch_insertpos(const Vec& vec, const T key) noexcept
 {
   const size_t size = vec.size();
-  if (size == 0 || key <= vec[0])
+  static const Less less;
+  static const Equal equal; 
+  if (size == 0 || !less(vec[0],key))
     return 0;
 
-  if (key > vec[size-1])
+  if (less(vec[size-1],key))
     return size;
 
   size_t lower = 0;
   size_t upper = size-1;
-  if (vec[upper] == key)
+  if (equal(vec[upper],key))
     return upper;
 
   while (lower+1 < upper) {
-    assert(vec[lower] < key);
-    assert(vec[upper] > key);
+    assert(less(vec[lower],key));
+    assert(less(key,vec[upper]));
 
     const size_t middle = (lower+upper) >> 1;  // (lower+upper)/2;
     assert(middle > lower && middle < upper);
-    if (vec[middle] == key)
+    if (equal(vec[middle],key))
       return middle;
-    else if (vec[middle] < key)
+    else if (less(vec[middle],key))
       lower = middle;
     else
       upper = middle;
@@ -383,7 +387,7 @@ size_t binsearch_insertpos(const std::vector<T>& vec, const T key)
 }
 
 template<typename TK, typename TV>
-size_t binsearch_keyvalue(const std::vector<std::pair<TK,TV> >& vec, const TK key)
+size_t binsearch_keyvalue(const std::vector<std::pair<TK,TV> >& vec, const TK key) noexcept
 {
   const size_t size = vec.size();
   if (size == 0 || key < vec[0].first || key > vec[size-1].first)

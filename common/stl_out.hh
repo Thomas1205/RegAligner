@@ -4,20 +4,24 @@
 #define STL_OUT_HH
 
 #include <map>
+#include <unordered_map>
 #include <vector>
 #include <set>
 #include <iostream>
 
 /*************** declarations ******************/
 
-template <typename T>
+template<typename T>
 std::ostream& operator<<(std::ostream& os, const std::vector<T>& vec);
 
 template<typename T>
 std::ostream& operator<<(std::ostream& os, const std::set<T>& s);
 
-template<typename TK, typename TE>
-std::ostream& operator<<(std::ostream& os, const std::map<TK,TE>& m);
+template<typename TK, typename TV>
+std::ostream& operator<<(std::ostream& os, const std::map<TK,TV>& m);
+
+template<typename TK, typename TV, typename H>
+std::ostream& operator<<(std::ostream& os, const std::map<TK,TV,H>& m);
 
 template<typename T1, typename T2>
 std::ostream& operator<<(std::ostream& os, const std::pair<T1,T2>& p);
@@ -25,10 +29,9 @@ std::ostream& operator<<(std::ostream& os, const std::pair<T1,T2>& p);
 
 /*************** implementation ****************/
 
-template <typename T>
+template<typename T>
 std::ostream& operator<<(std::ostream& os, const std::vector<T>& vec)
 {
-
   os << "[ ";
   for (size_t i = 0; i < vec.size(); i++) {
     os << vec[i];
@@ -43,7 +46,6 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& vec)
 template<typename T>
 std::ostream& operator<<(std::ostream& os, const std::set<T>& s)
 {
-
   os << "{ ";
   for (typename std::set<T>::const_iterator it=s.begin(); it != s.end(); ) {
     os << (*it);
@@ -56,14 +58,28 @@ std::ostream& operator<<(std::ostream& os, const std::set<T>& s)
   return os;
 }
 
-template<typename TK, typename TE>
-std::ostream& operator<<(std::ostream& os, const std::map<TK,TE>& m)
+template<typename TK, typename TV>
+std::ostream& operator<<(std::ostream& os, const std::map<TK,TV>& m)
 {
-
   os << "[ ";
-  for (typename std::map<TK,TE>::const_iterator it=m.begin(); it != m.end(); ) {
+  for (typename std::map<TK,TV>::const_iterator it=m.begin(); it != m.end(); ) {
     os << it->first << "->" << it->second;
-    it++;
+    ++it;
+    if (it != m.end())
+      os << ", ";
+  }
+  os << " ]";
+
+  return os;
+}
+
+template<typename TK, typename TV, typename H>
+std::ostream& operator<<(std::ostream& os, const std::unordered_map<TK,TV,H>& m)
+{
+  os << "[ ";
+  for (typename std::unordered_map<TK,TV>::const_iterator it=m.begin(); it != m.end(); ) {
+    os << it->first << "->" << it->second;
+    ++it;
     if (it != m.end())
       os << ", ";
   }
@@ -75,7 +91,6 @@ std::ostream& operator<<(std::ostream& os, const std::map<TK,TE>& m)
 template<typename T1, typename T2>
 std::ostream& operator<<(std::ostream& os, const std::pair<T1,T2>& p)
 {
-
   os << "(" << p.first << "," << p.second << ")";
 
   return os;

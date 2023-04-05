@@ -13,6 +13,8 @@ template<typename T>
 class TreeSet {
 public:
 
+  using PassType = typename std::conditional<std::is_fundamental<T>::value || std::is_pointer<T>::value, const T, const T&>::type;
+
   TreeSet()
   {
     data_.push_back(T()); //so far we do not use the first element
@@ -23,36 +25,60 @@ public:
     data_ = s.data_;
   }
 
+  TreeSet(TreeSet<T>&& s)
+  {
+    data_ = s.data_;
+  }
+
+  TreeSet(const std::initializer_list<T>& init)
+  {
+    data_.reserve(init.size()+1);
+    data_.push_back(T()); //so far we do not use the first element
+    for (typename std::initializer_list<T>::const_iterator it = init.begin(); it != init.end(); it++)
+      insert(*it);
+  }
+
   void swap(TreeSet<T>& other);
 
   size_t size() const;
 
   size_t capacity() const;
 
-  bool contains(const T val) const;
+  bool contains(PassType val) const;
 
-  size_t element_num(const T val) const;
+  size_t element_num(PassType val) const;
 
   T min() const;
 
   T max() const;
 
   //returns true if val is new
-  bool insert(const T val);
+  bool insert(PassType val);
 
-  void insert_new(const T val);
+  //returns true if val is new
+  bool move_insert(T&& val);
+
+  void insert_new(PassType val);
+
+  void move_insert_new(T&& val);
 
   //for compatibility with the other sets (use in templates etc.)
-  inline void insert_largest(const T val)
+  inline void insert_largest(PassType val)
   {
     insert_new(val);
   }
 
+  //for compatibility with the other sets (use in templates etc.)
+  inline void move_insert_largest(T&& val)
+  {
+    move_insert_new(val);
+  }
+
   //returns true if val was in the tree
-  bool erase(const T val);
+  bool erase(PassType val);
 
   //returns true if out was in the tree
-  bool replace(const T out, const T in);
+  bool replace(PassType out, PassType in);
 
   void clear();
 
@@ -68,7 +94,7 @@ public:
   std::vector<T> get_sorted_head(const size_t nElements) const;
 
   //if val is found: all data >= val, otherwise empty vector
-  std::vector<T> get_sorted_data_from_val(const T val) const;
+  std::vector<T> get_sorted_data_from_val(PassType val) const;
 
   //future work may include:
   // - reverse sorted retrieval
@@ -82,8 +108,11 @@ protected:
   std::vector<T> data_;
 };
 
-template <typename T>
-std::ostream& operator<<(std::ostream& os, const TreeSet<T>& vec);
+template<typename T>
+std::ostream& operator<<(std::ostream& os, const TreeSet<T>& set);
+
+template<typename T>
+bool operator==(const TreeSet<T>& set1, const TreeSet<T>& set2);
 
 /************** implementation ***********/
 
@@ -118,7 +147,7 @@ void TreeSet<T>::reserve(size_t size)
 }
 
 template<typename T>
-bool TreeSet<T>::contains(const T val) const
+bool TreeSet<T>::contains(PassType val) const
 {
   const size_t size = data_.size();
   size_t i = 1;
@@ -173,7 +202,7 @@ T TreeSet<T>::max() const
 }
 
 template<typename T>
-size_t TreeSet<T>::element_num(const T val) const
+size_t TreeSet<T>::element_num(PassType val) const
 {
   //std::cerr << "element_num(" << val << ")" << std::endl;
   //std::cerr << "data: " << data_ << std::endl;
@@ -351,7 +380,21 @@ void TreeSet<T>::correct_leaf(size_t i)
 
 //returns true if val is new
 template<typename T>
-bool TreeSet<T>::insert(const T val)
+bool TreeSet<T>::insert(PassType val)
+{
+  if (contains(val))
+    return false;
+
+  data_.push_back(val);
+  if (data_.size() > 2)
+    correct_leaf(data_.size()-1);
+
+  return true;
+}
+
+//returns true if val is new
+template<typename T>
+bool TreeSet<T>::move_insert(T&& val)
 {
   if (contains(val))
     return false;
@@ -364,7 +407,7 @@ bool TreeSet<T>::insert(const T val)
 }
 
 template<typename T>
-void TreeSet<T>::insert_new(const T val)
+void TreeSet<T>::insert_new(PassType val)
 {
   assert(!contains(val));
 
@@ -373,10 +416,19 @@ void TreeSet<T>::insert_new(const T val)
     correct_leaf(data_.size()-1);
 }
 
+template<typename T>
+void TreeSet<T>::move_insert_new(T&& val)
+{
+  assert(!contains(val));
+
+  data_.push_back(val);
+  if (data_.size() > 2)
+    correct_leaf(data_.size()-1);
+}
 
 //returns true if val was in the tree
 template<typename T>
-bool TreeSet<T>::erase(const T val)
+bool TreeSet<T>::erase(PassType val)
 {
   //std::cerr << "erase (" << val << ")" << std::endl;
   //std::cerr << "data: " << data_ << std::endl;
@@ -459,7 +511,7 @@ bool TreeSet<T>::erase(const T val)
 }
 
 template<typename T>
-bool TreeSet<T>::replace(const T out, const T in)
+bool TreeSet<T>::replace(PassType out, PassType in)
 {
   assert(!contains(in));
   assert(out != in);
@@ -684,7 +736,7 @@ std::vector<T> TreeSet<T>::get_sorted_head(size_t nElements) const
 }
 
 template <typename T>
-std::vector<T> TreeSet<T>::get_sorted_data_from_val(T val) const
+std::vector<T> TreeSet<T>::get_sorted_data_from_val(PassType val) const
 {
   const size_t size = data_.size();
   std::vector<T> result;
@@ -787,7 +839,7 @@ std::vector<T> TreeSet<T>::get_sorted_data_from_val(T val) const
   return result;
 }
 
-template <typename T>
+template<typename T>
 std::ostream& operator<<(std::ostream& os, const TreeSet<T>& treeset)
 {
   const std::vector<T>& data = treeset.unsorted_data();
@@ -839,6 +891,12 @@ std::ostream& operator<<(std::ostream& os, const TreeSet<T>& treeset)
   os << " }";
 
   return os;
+}
+
+template<typename T>
+bool operator==(const TreeSet<T>& set1, const TreeSet<T>& set2)
+{
+  return (set1.unsorted_data() == set2.unsorted_data());
 }
 
 #endif

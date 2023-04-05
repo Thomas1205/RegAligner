@@ -17,9 +17,10 @@ namespace Math3D {
   class Tensor : public Storage3D<T,ST> {
   public:
 
-    typedef Storage3D<T,ST> Base;
+    using Base = Storage3D<T,ST>;
 
-    typedef T ALIGNED16 T_A16;
+    //according to https://gcc.gnu.org/onlinedocs/gcc-7.2.0/gcc/Common-Type-Attributes.html#Common-Type-Attributes , alignment has to be expressed like this:
+    typedef T T_A16 ALIGNED16;
 
     explicit Tensor();
 
@@ -31,76 +32,88 @@ namespace Math3D {
 
     explicit Tensor(const Dim3D<ST> dims, T default_value);
 
+    //copy constructor
+    Tensor(const Tensor<T,ST>& toCopy) = default;
+
+    //move constructor
+    Tensor(Tensor<T,ST>&& toTake) = default;
+
     ~Tensor();
 
     virtual const std::string& name() const;
 
     //note: with g++-4.8.5 it is a lot faster to used set_constant(0.0)
-    void set_zeros();
+    void set_zeros() noexcept;
 
-    inline void add_const(T addon);
+    inline void add_const(T addon) noexcept;
 
-    inline void add_tensor_multiple(const Tensor<T,ST>& toAdd, const T alpha);
+    inline void add_tensor_multiple(const Tensor<T,ST>& toAdd, const T alpha) noexcept;
 
-    inline double norm() const;
+    inline double norm() const noexcept;
 
-    inline double sqr_norm() const;
+    inline double sqr_norm() const noexcept;
 
-    inline double norm(ST x, ST y) const;
+    inline double norm(ST x, ST y) const noexcept;
 
-    inline double sqr_norm(ST x, ST y) const;
+    inline double sqr_norm(ST x, ST y) const noexcept;
 
     /**** summing ****/
 
-    inline T sum(ST x, ST y) const;
+    inline T sum(ST x, ST y) const noexcept;
 
-    inline T sum_x(ST y, ST z) const;
+    inline T sum_x(ST y, ST z) const noexcept;
 
-    inline T sum_y(ST x, ST z) const;
+    inline T sum_y(ST x, ST z) const noexcept;
 
-    inline T sum_z(ST x, ST y) const;
+    inline T sum_z(ST x, ST y) const noexcept;
 
-    inline T sum() const;
+    inline T sum() const noexcept;
 
     /**** min/max ****/
 
-    T max() const;
+    T max() const noexcept;
 
-    T min() const;
+    T min() const noexcept;
 
-    inline T min(ST x, ST y) const;
+    inline void ensure_min(T lower_limit) noexcept;
 
-    inline T min_x(ST y, ST z) const;
+    inline T min(ST x, ST y) const noexcept;
 
-    inline T min_y(ST x, ST z) const;
+    inline T min_x(ST y, ST z) const noexcept;
 
-    inline T min_z(ST x, ST y) const;
+    inline T min_y(ST x, ST z) const noexcept;
 
-    inline T min(ST z) const;
+    inline T min_z(ST x, ST y) const noexcept;
 
-    inline T max_x(ST y, ST z) const;
+    inline T min(ST z) const noexcept;
 
-    inline T max_y(ST x, ST z) const;
+    inline T max_x(ST y, ST z) const noexcept;
 
-    inline T max_z(ST x, ST y) const;
+    inline T max_y(ST x, ST z) const noexcept;
 
-    inline T max(ST z) const;
+    inline T max_z(ST x, ST y) const noexcept;
 
-    inline T max_abs() const;
+    inline T max(ST z) const noexcept;
 
-    inline T max_abs(ST z) const;
+    inline T max_abs() const noexcept;
 
-    double max_vector_norm() const;
+    inline T max_abs(ST z) const noexcept;
 
-    void operator+=(const Tensor<T,ST>& toAdd);
+    double max_vector_norm() const noexcept;
 
-    void operator-=(const Tensor<T,ST>& toSub);
+    void operator=(const Tensor<T,ST>& toCopy) noexcept;
 
-    void operator*=(const T scalar);
+    Tensor<T,ST>& operator=(Tensor<T,ST>&& toTake) = default;
 
-    void elem_mul(const Tensor<T,ST>& v);
-    
-    void elem_div(const Tensor<T,ST>& v);
+    void operator+=(const Tensor<T,ST>& toAdd) noexcept;
+
+    void operator-=(const Tensor<T,ST>& toSub) noexcept;
+
+    void operator*=(const T scalar) noexcept;
+
+    void elem_mul(const Tensor<T,ST>& v) noexcept;
+
+    void elem_div(const Tensor<T,ST>& v) noexcept;
 
     //returns if the operation was successful
     bool savePPM(std::string filename, size_t max_intensity, bool fit_to_range = true) const;
@@ -138,7 +151,7 @@ namespace Math3D {
   };
 
   //NOTE: dest can be the same as src1 or src2
-  inline void go_in_neg_direction(Math3D::Tensor<double>& dest, const Math3D::Tensor<double>& src1, const Math3D::Tensor<double>& src2, double alpha)
+  inline void go_in_neg_direction(Math3D::Tensor<double>& dest, const Math3D::Tensor<double>& src1, const Math3D::Tensor<double>& src2, double alpha) noexcept
   {
     assert(dest.dims() == src1.dims());
     assert(dest.dims() == src2.dims());
@@ -147,7 +160,7 @@ namespace Math3D {
 
   //NOTE: dest can be the same as src1 or src2
   inline void assign_weighted_combination(Math3D::Tensor<double>& dest, double w1, const Math3D::Tensor<double>& src1,
-                                          double w2, const Math3D::Tensor<double>& src2)
+                                          double w2, const Math3D::Tensor<double>& src2) noexcept
   {
     assert(dest.dims() == src1.dims());
     assert(dest.dims() == src2.dims());
@@ -156,10 +169,10 @@ namespace Math3D {
 
   /**** stand-alone operators ****/
   template<typename T, typename ST>
-  Tensor<T,ST> operator+(const Tensor<T,ST>& v1, const Tensor<T,ST>& v2);
+  Tensor<T,ST> operator+(const Tensor<T,ST>& v1, const Tensor<T,ST>& v2) noexcept;
 
   template<typename T, typename ST>
-  Tensor<T,ST> operator-(const Tensor<T,ST>& v1, const Tensor<T,ST>& v2);
+  Tensor<T,ST> operator-(const Tensor<T,ST>& v1, const Tensor<T,ST>& v2) noexcept;
 }
 
 namespace Makros {
@@ -235,14 +248,13 @@ namespace Math3D {
   }
 
   template<typename T,typename ST>
-  void Tensor<T,ST>::set_zeros()
+  void Tensor<T,ST>::set_zeros() noexcept
   {
     memset(Base::data_,0,Base::size()*sizeof(T));
   }
 
-
   template<typename T, typename ST>
-  inline void Tensor<T,ST>::add_const(const T addon)
+  inline void Tensor<T,ST>::add_const(const T addon) noexcept
   {
     const ST size = Base::size_;
     const T_A16* data = Base::data_;
@@ -254,7 +266,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  inline void Tensor<T,ST>::add_tensor_multiple(const Tensor<T,ST>& toAdd, const T alpha)
+  inline void Tensor<T,ST>::add_tensor_multiple(const Tensor<T,ST>& toAdd, const T alpha) noexcept
   {
 
 #ifndef DONT_CHECK_VECTOR_ARITHMETIC
@@ -276,7 +288,7 @@ namespace Math3D {
   }
 
   template<>
-  inline void Tensor<double>::add_tensor_multiple(const Tensor<double>& toAdd, const double alpha)
+  inline void Tensor<double>::add_tensor_multiple(const Tensor<double>& toAdd, const double alpha) noexcept
   {
 
 #ifndef DONT_CHECK_VECTOR_ARITHMETIC
@@ -294,7 +306,13 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  void Tensor<T,ST>::operator+=(const Tensor<T,ST>& toAdd)
+  void Tensor<T,ST>::operator=(const Tensor<T,ST>& toCopy) noexcept
+  {
+    Base::operator=(toCopy);
+  }
+
+  template<typename T, typename ST>
+  void Tensor<T,ST>::operator+=(const Tensor<T,ST>& toAdd) noexcept
   {
 
 #ifndef DONT_CHECK_VECTOR_ARITHMETIC
@@ -319,7 +337,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  void Tensor<T,ST>::operator-=(const Tensor<T,ST>& toSub)
+  void Tensor<T,ST>::operator-=(const Tensor<T,ST>& toSub) noexcept
   {
 
 #ifndef DONT_CHECK_VECTOR_ARITHMETIC
@@ -344,7 +362,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  void Tensor<T,ST>::operator*=(const T scalar)
+  void Tensor<T,ST>::operator*=(const T scalar) noexcept
   {
 
     const ST size = Base::size_;
@@ -356,13 +374,13 @@ namespace Math3D {
   }
 
   template<>
-  void Tensor<float>::operator*=(const float scalar);
+  void Tensor<float>::operator*=(const float scalar) noexcept;
 
   template<>
-  void Tensor<double>::operator*=(const double scalar);
+  void Tensor<double>::operator*=(const double scalar) noexcept;
 
   template<typename T, typename ST>
-  inline double Tensor<T,ST>::norm() const
+  inline double Tensor<T,ST>::norm() const noexcept
   {
     const T_A16* data = Base::data_;
 
@@ -376,7 +394,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  inline double Tensor<T,ST>::sqr_norm() const
+  inline double Tensor<T,ST>::sqr_norm() const noexcept
   {
     const T_A16* data = Base::data_;
 
@@ -389,7 +407,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  inline T Tensor<T,ST>::sum(ST x, ST y) const
+  inline T Tensor<T,ST>::sum(ST x, ST y) const noexcept
   {
     T result = (T) 0;
     ST offs = (y*Base::xDim_+x)*Base::zDim_;
@@ -404,7 +422,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  inline T Tensor<T,ST>::sum_x(ST y, ST z) const
+  inline T Tensor<T,ST>::sum_x(ST y, ST z) const noexcept
   {
     T result = (T) 0;
 
@@ -415,7 +433,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  inline T Tensor<T,ST>::sum_y(ST x, ST z) const
+  inline T Tensor<T,ST>::sum_y(ST x, ST z) const noexcept
   {
     T result = (T) 0;
 
@@ -426,7 +444,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  inline T Tensor<T,ST>::sum_z(ST x, ST y) const
+  inline T Tensor<T,ST>::sum_z(ST x, ST y) const noexcept
   {
     T result = (T) 0;
     ST offs = (y*Base::xDim_+x)*Base::zDim_;
@@ -441,7 +459,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  inline T Tensor<T,ST>::min(ST x, ST y) const
+  inline T Tensor<T,ST>::min(ST x, ST y) const noexcept
   {
     const T_A16* data = Base::data_;
 
@@ -451,7 +469,7 @@ namespace Math3D {
 
 
   template<typename T, typename ST>
-  inline T Tensor<T,ST>::min_x(ST y, ST z) const
+  inline T Tensor<T,ST>::min_x(ST y, ST z) const noexcept
   {
     T min_el = std::numeric_limits<T>::max();
     for (ST x = 0; x < Base::xDim_; x++)
@@ -461,7 +479,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  inline T Tensor<T,ST>::min_y(ST x, ST z) const
+  inline T Tensor<T,ST>::min_y(ST x, ST z) const noexcept
   {
     T min_el = std::numeric_limits<T>::min();
     for (ST y = 0; y < Base::yDim_; y++)
@@ -471,13 +489,23 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  inline T Tensor<T,ST>::min_z(ST x, ST y) const
+  inline T Tensor<T,ST>::min_z(ST x, ST y) const noexcept
   {
     return min(x,y);
   }
 
   template<typename T, typename ST>
-  double Tensor<T,ST>::norm(ST x, ST y) const
+  inline void Tensor<T,ST>::ensure_min(T lower_limit) noexcept
+  {
+    const ST size = Base::size_;
+    T_A16* data = Base::data_;
+
+    for (ST i=0; i < size; i++)
+      data[i] = std::max(lower_limit,data[i]);
+  }
+
+  template<typename T, typename ST>
+  double Tensor<T,ST>::norm(ST x, ST y) const noexcept
   {
     const T_A16* data = Base::data_;
 
@@ -493,7 +521,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  inline double Tensor<T,ST>::sqr_norm(ST x, ST y) const
+  inline double Tensor<T,ST>::sqr_norm(ST x, ST y) const noexcept
   {
     const T_A16* data = Base::data_;
 
@@ -509,7 +537,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  inline T Tensor<T,ST>::sum() const
+  inline T Tensor<T,ST>::sum() const noexcept
   {
     const ST size = Base::size_;
     const T_A16* data = Base::data_;
@@ -527,7 +555,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  inline T Tensor<T,ST>::max_x(ST y, ST z) const
+  inline T Tensor<T,ST>::max_x(ST y, ST z) const noexcept
   {
     T max_el = std::numeric_limits<T>::min();
     for (ST x = 0; x < Base::xDim_; x++)
@@ -537,7 +565,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  inline T Tensor<T,ST>::max_y(ST x, ST z) const
+  inline T Tensor<T,ST>::max_y(ST x, ST z) const noexcept
   {
     T max_el = std::numeric_limits<T>::min();
     for (ST y = 0; y < Base::yDim_; y++)
@@ -547,13 +575,13 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  inline T Tensor<T,ST>::max_z(ST x, ST y) const
+  inline T Tensor<T,ST>::max_z(ST x, ST y) const noexcept
   {
     return max(x,y);
   }
 
   template<typename T, typename ST>
-  T Tensor<T,ST>::max() const
+  T Tensor<T,ST>::max() const noexcept
   {
     //     T max_el = std::numeric_limits<T>::min();
     //     for (ST i=0; i < Base::size_; i++)
@@ -569,10 +597,10 @@ namespace Math3D {
   }
 
   template<>
-  float Tensor<float>::max() const;
+  float Tensor<float>::max() const noexcept;
 
   template<typename T, typename ST>
-  T Tensor<T,ST>::min() const
+  T Tensor<T,ST>::min() const noexcept
   {
     //     T min_el = std::numeric_limits<T>::max();
     //     for (ST i=0; i < Base::size_; i++)
@@ -588,10 +616,10 @@ namespace Math3D {
   }
 
   template<>
-  float Tensor<float>::min() const;
+  float Tensor<float>::min() const noexcept;
 
   template<typename T, typename ST>
-  inline T Tensor<T,ST>::max_abs() const
+  inline T Tensor<T,ST>::max_abs() const noexcept
   {
     const T_A16* data = Base::data_;
 
@@ -605,7 +633,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  inline T Tensor<T,ST>::max(ST z) const
+  inline T Tensor<T,ST>::max(ST z) const noexcept
   {
     const T_A16* data = Base::data_;
 
@@ -617,7 +645,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  inline T Tensor<T,ST>::min(ST z) const
+  inline T Tensor<T,ST>::min(ST z) const noexcept
   {
     const T_A16* data = Base::data_;
 
@@ -629,7 +657,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  inline T Tensor<T,ST>::max_abs(ST z) const
+  inline T Tensor<T,ST>::max_abs(ST z) const noexcept
   {
     const T_A16* data = Base::data_;
 
@@ -643,7 +671,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  inline double Tensor<T,ST>::max_vector_norm() const
+  inline double Tensor<T,ST>::max_vector_norm() const noexcept
   {
     const T_A16* data = Base::data_;
 
@@ -665,15 +693,15 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  void Tensor<T,ST>::elem_mul(const Tensor<T,ST>& v)
+  void Tensor<T,ST>::elem_mul(const Tensor<T,ST>& v) noexcept
   {
     assert(Base::dims() == v.dims());
     for (ST i = 0; i < Base::size_; i++)
       Base::data_[i] *= v.direct_access(i);
   }
-    
+
   template<typename T, typename ST>
-  void Tensor<T,ST>::elem_div(const Tensor<T,ST>& v)
+  void Tensor<T,ST>::elem_div(const Tensor<T,ST>& v) noexcept
   {
     assert(Base::dims() == v.dims());
     for (ST i = 0; i < Base::size_; i++)
@@ -771,7 +799,7 @@ namespace Math3D {
 
   /*** implementation of stand-alone operators and routines ****/
   template<typename T, typename ST>
-  Tensor<T,ST> operator+(const Tensor<T,ST>& v1, const Tensor<T,ST>& v2)
+  Tensor<T,ST> operator+(const Tensor<T,ST>& v1, const Tensor<T,ST>& v2) noexcept
   {
 
 #ifndef DONT_CHECK_VECTOR_ARITHMETIC
@@ -796,7 +824,7 @@ namespace Math3D {
   }
 
   template<typename T, typename ST>
-  Tensor<T,ST> operator-(const Tensor<T,ST>& v1, const Tensor<T,ST>& v2)
+  Tensor<T,ST> operator-(const Tensor<T,ST>& v1, const Tensor<T,ST>& v2) noexcept
   {
 
 #ifndef DONT_CHECK_VECTOR_ARITHMETIC
