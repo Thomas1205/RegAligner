@@ -534,7 +534,7 @@ bool UnsortedSetExploitSort<T,Less,Equal>::erase(const PassType val) noexcept
     pos = it - Base::data_.begin();
   }
   else {
-    pos = binsearch<T,Less,Equal>(Base::data_, val, Base::data_);
+    pos = binsearch<T,Less,Equal>(Base::data_, val);
     if (pos == MAX_UINT)
       return false;
   }
