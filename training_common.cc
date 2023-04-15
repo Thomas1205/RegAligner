@@ -1097,20 +1097,6 @@ void update_dict_from_counts(const UnnamedSingleWordDictionary& fdict_count, con
           else {
             single_dict_m_step(cur_count, cur_prior, nSentences, cur_dict, alpha, nDictStepIter, smoothed_l0, l0_beta, min_prob, true, prior_const,
                                false);
-
-            // ConstrainedSmoothMinizerOptions options;
-            // options.min_param_entry_ = 1e-300;
-            // options.initial_line_reduction_factor_ = 0.5;
-
-            // double slack = 1.0 - dict[i].sum();
-            // DictMStepMinimizer minimizer(options, dict[i].size()+1, cur_count, cur_prior, smoothed_l0, l0_beta, nSentences, slack);
-            // Math1D::Vector<double> params(dict[i].size()+1);
-            // params[dict[i].size()] = slack;
-            // for (uint k = 0; k < dict[i].size(); k++)
-            // params[k] = dict[i][k];
-            // minimizer.optimize_projected_lbfgs(params, 5);
-            // for (uint k = 0; k < dict[i].size(); k++)
-            // dict[i][k] = params[k];
           }
         }
         else

@@ -951,14 +951,6 @@ void train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
       if (options.msolve_mode_ == MSSolvePGD) {
         start_prob_m_step(fsentence_start_count, fstart_span_count, init_params, options.init_m_step_iter_, options.gd_stepsize_);
-        //ehmm_init_m_step_projected_lbfgs(ficount, init_params, options.init_m_step_iter_, 5);
-
-        //ConstrainedSmoothMinizerOptions options;
-        ////options.nInnerIter_ = 150;
-        //EHMMInitMinizer ehmm_minimizer(options, ficount, init_params.size());
-        //ehmm_minimizer.optimize_projected_lbfgs(init_params, 5);
-        //StartProbMinimizer start_prob_minimizer(options, fsentence_start_count, fstart_span_count, init_params.size());
-        //start_prob_minimizer.optimize_projected_lbfgs(init_params, 5);
       }
       else
         start_prob_m_step_unconstrained(fsentence_start_count, fstart_span_count, init_params, options.init_m_step_iter_);

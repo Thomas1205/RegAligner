@@ -2482,17 +2482,6 @@ void IBM3Trainer::update_distortion_probs(const ReducedIBM3ClassDistortionModel&
             }
             //nondeficient_m_step_with_interpolation(fnondef_par_distort_count,open_pos,vec_nondef_count,i,c,start_energy);
             nondeficient_m_step(fnondef_par_distort_count, open_pos, vec_nondef_count, i, c, start_energy);
-
-            // std::cerr << "calling plgfbs" << std::endl;
-            // ConstrainedSmoothMinizerOptions options;
-            // int xDim = distortion_param_.xDim();
-            // NondeficientMStepMinimizer minimizer(options, fnondef_par_distort_count, open_pos, vec_nondef_count, i, c, xDim);
-            // Math1D::Vector<double> cur_distortion_param(xDim);
-            // for (uint x = 0; x < xDim; x++)
-            // cur_distortion_param[x] = distortion_param_(x, i, c);
-            // minimizer.optimize_projected_lbfgs(cur_distortion_param, 5);
-            // for (uint x = 0; x < xDim; x++)
-            // distortion_param_(x, i, c) = cur_distortion_param[x];
           }
         }
       }
