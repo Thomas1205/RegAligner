@@ -177,7 +177,6 @@ void FertilityHMMTrainer::init_from_prevmodel(FertilityModelTrainerBase* prev_mo
   if (options_.align_type_ == HmmAlignProbNonpar || options_.align_type_ == HmmAlignProbNonpar2 ) {
 
     const HmmWrapperWithTargetClasses* hmmc_wrapper = dynamic_cast<const HmmWrapperWithTargetClasses*>(passed_wrapper);
-    const HmmWrapperDoubleClasses* hmmcc_wrapper = dynamic_cast<const HmmWrapperDoubleClasses*>(passed_wrapper);
 
     if (hmmc_wrapper != 0) {
       const FullHMMAlignmentModelSingleClass& passed_align_model = hmmc_wrapper->align_model_;
@@ -201,9 +200,6 @@ void FertilityHMMTrainer::init_from_prevmodel(FertilityModelTrainerBase* prev_mo
           }
         }
       }
-    }
-    else if (hmmcc_wrapper != 0) {
-      TODO("");
     }
   }
   else
