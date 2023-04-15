@@ -21,7 +21,7 @@
 #include "sparse_matrix_description.hh"
 #include "OsiClpSolverInterface.hpp"
 #include "CbcModel.hpp"
-#include "CglGomory/CglGomory.hpp"
+#include "CglGomory.hpp"
 #endif
 
 IBM1Options::IBM1Options(uint nSourceWords, uint nTargetWords, RefAlignmentStructure& sure_ref_alignments,
@@ -142,35 +142,35 @@ void train_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
   }
   dict[0].set_constant(1.0 / dict[0].size());
 
-#if 1
-  for (uint i = 1; i < options.nTargetWords_; i++) {
-    dict[i].set_constant(0.0);
-  }
-  for (size_t s = 0; s < nSentences; s++) {
+  if (!options.uniform_dict_init_) {
+    for (uint i = 1; i < options.nTargetWords_; i++) {
+      dict[i].set_constant(0.0);
+    }
+    for (size_t s = 0; s < nSentences; s++) {
 
-    const Storage1D<uint>& cur_source = source[s];
-    const Storage1D<uint>& cur_target = target[s];
+      const Storage1D<uint>& cur_source = source[s];
+      const Storage1D<uint>& cur_target = target[s];
 
-    const uint curJ = cur_source.size();
-    const uint curI = cur_target.size();
+      const uint curJ = cur_source.size();
+      const uint curI = cur_target.size();
 
-    const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, nSourceWords, slookup[s], aux_lookup);
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, nSourceWords, slookup[s], aux_lookup);
 
-    for (uint i = 0; i < curI; i++) {
-      uint tidx = cur_target[i];
-      for (uint j = 0; j < curJ; j++) {
+      for (uint i = 0; i < curI; i++) {
+        uint tidx = cur_target[i];
+        for (uint j = 0; j < curJ; j++) {
 
-        dict[tidx][cur_lookup(j, i)] += 1.0;
+          dict[tidx][cur_lookup(j, i)] += 1.0;
+        }
       }
     }
-  }
 
-  for (uint i = 1; i < options.nTargetWords_; i++) {
-    double sum = dict[i].sum();
-    if (sum > 1e-305)
-      dict[i] *= 1.0 / sum;
+    for (uint i = 1; i < options.nTargetWords_; i++) {
+      double sum = dict[i].sum();
+      if (sum > 1e-305)
+        dict[i] *= 1.0 / sum;
+    }
   }
-#endif
 
   //fractional counts used for EM-iterations
   NamedStorage1D<Math1D::Vector<double> > fcount(options.nTargetWords_, MAKENAME(fcount));
@@ -224,7 +224,7 @@ void train_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
     /*** update dict from counts ***/
 
     update_dict_from_counts(fcount, prior_weight, nSentences, dict_weight_sum, smoothed_l0, l0_beta, options.dict_m_step_iter_, dict,
-                            ibm1_min_dict_entry, options.unconstrained_m_step_);
+                            ibm1_min_dict_entry, options.unconstrained_m_step_, options.gd_stepsize_);
 
     if (options.print_energy_) {
       std::cerr << "IBM-1 energy after iteration #" << iter << ": "
@@ -328,35 +328,35 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, c
 
   const uint nSourceWords = options.nSourceWords_;
 
-#if 1
-  for (uint i = 1; i < options.nTargetWords_; i++) {
-    dict[i].set_constant(0.0);
-  }
+  if (!options.uniform_dict_init_) {
+    for (uint i = 1; i < options.nTargetWords_; i++) {
+      dict[i].set_constant(0.0);
+    }
+    for (size_t s = 0; s < nSentences; s++) {
 
-  for (size_t s = 0; s < nSentences; s++) {
+      const Storage1D<uint>& cur_source = source[s];
+      const Storage1D<uint>& cur_target = target[s];
 
-    const Storage1D<uint>& cur_source = source[s];
-    const Storage1D<uint>& cur_target = target[s];
+      const uint curJ = cur_source.size();
+      const uint curI = cur_target.size();
 
-    const uint curJ = cur_source.size();
-    const uint curI = cur_target.size();
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, nSourceWords, slookup[s], aux_lookup);
 
-    const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, nSourceWords, slookup[s], aux_lookup);
+      for (uint i = 0; i < curI; i++) {
+        uint tidx = cur_target[i];
+        for (uint j = 0; j < curJ; j++) {
 
-    for (uint i = 0; i < curI; i++) {
-      uint tidx = cur_target[i];
-      for (uint j = 0; j < curJ; j++) {
-        dict[tidx][cur_lookup(j, i)] += 1.0;
+          dict[tidx][cur_lookup(j, i)] += 1.0;
+        }
       }
     }
-  }
 
-  for (uint i = 1; i < options.nTargetWords_; i++) {
-    double sum = dict[i].sum();
-    if (sum > 1e-305)
-      dict[i] *= 1.0 / sum;
+    for (uint i = 1; i < options.nTargetWords_; i++) {
+      double sum = dict[i].sum();
+      if (sum > 1e-305)
+        dict[i] *= 1.0 / sum;
+    }
   }
-#endif
 
   double energy = ibm1_energy(source, slookup, target, dict, wcooc, nSourceWords, prior_weight, smoothed_l0, l0_beta, dict_weight_sum);
 
@@ -378,9 +378,9 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, c
   //double alpha = 0.5; //0.1; // 0.0001;
   //double alpha = 1.0;
 
-  double alpha = 100.0;
+  const double alpha = options.gd_stepsize_;
 
-  double line_reduction_factor = 0.5;
+  double line_reduction_factor = 0.1;
   //double line_reduction_factor = 0.75;
 
   uint nSuccessiveReductions = 0;
@@ -511,7 +511,7 @@ void train_ibm1_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, c
 
     /**** move in gradient direction ****/
     double real_alpha = alpha;
-#if 0
+#if 1
     double sqr_grad_norm = 0.0;
     for (uint i = 0; i < options.nTargetWords_; i++)
       sqr_grad_norm += dict_grad[i].sqr_norm();
@@ -717,7 +717,7 @@ double compute_ibm1_lbfgs_gradient(const Storage1D<Math1D::Vector<uint> >& sourc
 {
   //WARNING: regularity terms are so far ignored
 
-  const uint nSentences = source.size();
+  const size_t nSentences = source.size();
   const uint nSourceWords = options.nSourceWords_;
 
   SingleLookupTable aux_lookup;
@@ -823,7 +823,6 @@ double compute_ibm1_lbfgs_gradient(const Storage1D<Math1D::Vector<uint> >& sourc
       lower_bound_share += dict_grad[i].min();
     lower_bound_share -= dict_grad[i] % dict[i];
   }
-
 
   for (uint i = 0; i < options.nTargetWords_; i++) {
 
@@ -1187,6 +1186,417 @@ void train_ibm1_lbfgs_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source
   } //end for iter
 }
 
+void train_ibm1_projected_lbfgs_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup,
+    const Storage1D<Math1D::Vector<uint> >& target, const CooccuringWordsType& wcooc,
+    SingleWordDictionary& dict, const floatSingleWordDictionary& prior_weight,
+    const IBM1Options& options, uint L)
+{
+  //following Schmidt et al. Optimizing Costly Functions with simple constraints
+
+  const uint nIter = options.nIterations_;
+  bool smoothed_l0 = options.smoothed_l0_;
+  double l0_beta = options.l0_beta_;
+
+  assert(wcooc.size() == options.nTargetWords_);
+  dict.resize_dirty(options.nTargetWords_);
+
+  const size_t nSentences = source.size();
+  assert(nSentences == target.size());
+
+  double dict_weight_sum = 0.0;
+  for (uint i = 0; i < options.nTargetWords_; i++) {
+    dict_weight_sum += prior_weight[i].max_abs();
+  }
+
+  //prepare dictionary
+  for (uint i = 0; i < options.nTargetWords_; i++) {
+
+    const uint size = (i == 0) ? options.nSourceWords_ - 1 : wcooc[i].size();
+    dict[i].resize_dirty(size);
+    dict[i].set_constant(1.0 / ((double)size));
+  }
+  dict[0].set_constant(1.0 / dict[0].size());
+
+  Math1D::Vector<double> slack_vector(options.nTargetWords_, 0.0);
+
+  SingleLookupTable aux_lookup;
+
+  const uint nSourceWords = options.nSourceWords_;
+
+  if (!options.uniform_dict_init_) {
+    for (uint i = 1; i < options.nTargetWords_; i++) {
+      dict[i].set_constant(0.0);
+    }
+    for (size_t s = 0; s < nSentences; s++) {
+
+      const Storage1D<uint>& cur_source = source[s];
+      const Storage1D<uint>& cur_target = target[s];
+
+      const uint curJ = cur_source.size();
+      const uint curI = cur_target.size();
+
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, nSourceWords, slookup[s], aux_lookup);
+
+      for (uint i = 0; i < curI; i++) {
+        uint tidx = cur_target[i];
+        for (uint j = 0; j < curJ; j++) {
+
+          dict[tidx][cur_lookup(j, i)] += 1.0;
+        }
+      }
+    }
+
+    for (uint i = 1; i < options.nTargetWords_; i++) {
+      double sum = dict[i].sum();
+      if (sum > 1e-305)
+        dict[i] *= 1.0 / sum;
+    }
+  }
+
+  double energy = ibm1_energy(source, slookup, target, dict, wcooc, nSourceWords, prior_weight, smoothed_l0, l0_beta, dict_weight_sum);
+
+  std::cerr << "initial energy: " << energy << std::endl;
+
+  SingleWordDictionary new_dict(options.nTargetWords_, MAKENAME(new_dict));
+  SingleWordDictionary hyp_dict(options.nTargetWords_, MAKENAME(hyp_dict));
+
+  for (uint i = 0; i < options.nTargetWords_; i++) {
+
+    const uint size = dict[i].size();
+    new_dict[i].resize_dirty(size);
+    hyp_dict[i].resize_dirty(size);
+  }
+
+  Math1D::Vector<double> new_slack_vector(options.nTargetWords_, 0.0);
+
+  //double alpha = 0.0001; //0.01;
+  //double alpha = 0.5; //0.1; // 0.0001;
+  //double alpha = 1.0;
+
+  double alpha = 100.0;
+
+  double line_reduction_factor = 0.5;
+  //double line_reduction_factor = 0.75;
+
+  uint nSuccessiveReductions = 0;
+
+  double best_lower_bound = -1e300;
+
+  SingleWordDictionary dict_grad(options.nTargetWords_, MAKENAME(dict_grad));
+  SingleWordDictionary search_direction = dict; //d_k in the paper
+  SingleWordDictionary old_dict = dict;
+
+  for (uint i = 0; i < options.nTargetWords_; i++) {
+
+    const uint size = dict[i].size();
+    dict_grad[i].resize_dirty(size);
+  }
+
+  for (uint iter = 1; iter <= nIter; iter++) {
+
+    std::cerr << "starting IBM-1 gradient descent iteration #" << iter << std::endl;
+
+    /**** calcuate gradients ****/
+
+    //SPG--START
+    SingleWordDictionary old_dict_grad;
+    if (iter > 1)
+      old_dict_grad = dict_grad;
+    //SPG--END
+
+    for (uint i = 0; i < options.nTargetWords_; i++) {
+      dict_grad[i].set_constant(0.0);
+      search_direction[i].set_constant(0.0);
+    }
+
+    for (size_t s = 0; s < nSentences; s++) {
+
+      const Storage1D<uint>& cur_source = source[s];
+      const Storage1D<uint>& cur_target = target[s];
+
+      const uint curJ = cur_source.size();
+      const uint curI = cur_target.size();
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, nSourceWords, slookup[s], aux_lookup);
+
+      for (uint j = 0; j < curJ; j++) {
+
+        uint s_idx = cur_source[j];
+
+        double sum = dict[0][s_idx - 1];
+
+        for (uint i = 0; i < curI; i++)
+          sum += dict[cur_target[i]][cur_lookup(j, i)];
+
+        const double cur_grad = -1.0 / sum;
+
+        dict_grad[0][s_idx - 1] += cur_grad;
+        for (uint i = 0; i < curI; i++)
+          dict_grad[cur_target[i]][cur_lookup(j, i)] += cur_grad;
+      }
+    } //end for sentences
+
+    for (uint i = 0; i < options.nTargetWords_; i++) {
+      dict_grad[i] *= 1.0 / nSentences;
+    }
+
+    if (dict_weight_sum != 0.0) {
+      for (uint i = 0; i < options.nTargetWords_; i++) {
+
+        const Math1D::Vector<double>& cur_dict = dict[i];
+        const Math1D::Vector<float>& cur_prior = prior_weight[i];
+        Math1D::Vector<double>& cur_dict_grad = dict_grad[i];
+        const uint size = cur_dict.size();
+
+        for (uint k = 0; k < size; k++) {
+          if (smoothed_l0)
+            cur_dict_grad[k] += cur_prior[k] * prob_pen_prime(cur_dict[k], l0_beta);
+          else
+            cur_dict_grad[k] += cur_prior[k];
+        }
+      }
+    }
+
+    /**** compute lower bound ****/
+
+    //lower bounds can only be derived for convex functions. L0 isn't convex!!!
+    if (dict_weight_sum == 0.0 || !smoothed_l0) {
+      double lower_bound = energy;
+      for (uint i = 0; i < options.nTargetWords_; i++) {
+
+        const Math1D::Vector<double>& cur_dict_grad = dict_grad[i];
+
+        if (dict_weight_sum != 0.0) //consider slack gradient of 0
+          lower_bound += std::min(0.0, cur_dict_grad.min());
+        else
+          lower_bound += cur_dict_grad.min();
+        lower_bound -= cur_dict_grad % dict[i];
+      }
+
+      best_lower_bound = std::max(best_lower_bound, lower_bound);
+
+      std::cerr << "lower bound: " << lower_bound << ", best known: " << best_lower_bound << std::endl;
+    }
+
+    double real_alpha = alpha;
+
+    if (iter == 1) {
+      search_direction = dict_grad;
+      double sqr_norm = 0.0;
+      for (uint i=0; i < dict_grad.size(); i++)
+        sqr_norm += search_direction[i].sqr_norm();
+
+      for (uint i=0; i < dict_grad.size(); i++)
+        search_direction[i] *= sqrt(sqr_norm);
+    }
+    else {
+      TODO("compute search_direction d_k");
+    }
+
+    /******** check if we are near the minimum *******/
+    for (uint i = 0; i < options.nTargetWords_; i++) {
+
+      //for (uint k = 0; k < dict[i].size(); k++)
+      //  new_dict[i][k] = dict[i][k] - real_alpha * dict_grad[i][k];
+      Math1D::go_in_neg_direction(new_dict[i], dict[i], dict_grad[i], real_alpha);
+    }
+
+    if (dict_weight_sum != 0.0)
+      new_slack_vector = slack_vector;
+
+    /**** reproject on the simplices [Michelot 1986] ****/
+    double sqr_diff = 0.0;
+    for (uint i = 0; i < options.nTargetWords_; i++) {
+
+      const uint nCurWords = new_dict[i].size();
+      double old_slack_vector = slack_vector[i];
+
+      if (dict_weight_sum != 0.0) {
+        projection_on_simplex_with_slack(new_dict[i].direct_access(), slack_vector[i], nCurWords, ibm1_min_dict_entry);
+        double temp = (old_slack_vector - slack_vector[i]);
+        sqr_diff += temp * temp;
+      }
+      else
+        projection_on_simplex(new_dict[i].direct_access(), nCurWords, ibm1_min_dict_entry);
+
+      for (uint k=0; k < dict[i].size(); k++) {
+        double temp = dict[i][k] - new_dict[i][k];
+        sqr_diff += temp * temp;
+      }
+    }
+
+    if (sqrt(sqr_diff) < 1e-5) {
+      std::cerr << "CUTOFF after " << nIter << " iterations because the projected point is near the original" << std::endl;
+    }
+
+    /******* backtracking line search *********/
+
+    if (iter > 1) {
+      for (uint i = 0; i < options.nTargetWords_; i++) {
+        for (uint k = 0; k < new_dict[i].size(); k++)
+          new_dict[i][k] = dict[i][k] + search_direction[i][k];
+      }
+
+    }
+
+    /**** find a suitable step size ****/
+
+    double lambda = 1.0;
+    double best_lambda = 1.0;
+
+
+    double hyp_energy = 1e300;
+
+    uint nInnerIter = 0;
+
+    bool decreasing = true;
+
+    while (hyp_energy > energy || decreasing) {
+
+      nInnerIter++;
+
+      if (hyp_energy <= 0.95 * energy)
+        break;
+
+      if (hyp_energy < 0.99 * energy && nInnerIter > 3)
+        break;
+
+      lambda *= line_reduction_factor;
+
+      const double neg_lambda = 1.0 - lambda;
+
+      for (uint i = 0; i < options.nTargetWords_; i++) {
+
+        //for (uint k = 0; k < dict[i].size(); k++)
+        //  hyp_dict[i][k] = neg_lambda * dict[i][k] + lambda * new_dict[i][k];
+
+        assert(dict[i].size() == hyp_dict[i].size());
+        Math1D::assign_weighted_combination(hyp_dict[i], neg_lambda, dict[i], lambda, new_dict[i]);
+      }
+
+      double new_energy = ibm1_energy(source, slookup, target, hyp_dict, wcooc, nSourceWords, prior_weight, smoothed_l0, l0_beta, dict_weight_sum);
+
+      std::cerr << "new hyp: " << new_energy << ", previous: " << hyp_energy << std::endl;
+
+      if (new_energy < hyp_energy) {
+        hyp_energy = new_energy;
+        best_lambda = lambda;
+        decreasing = true;
+      }
+      else
+        decreasing = false;
+    }
+
+    //EXPERIMENTAL
+#if 0
+    if (nInnerIter > 4)
+      alpha *= 1.5;
+#endif
+    //END_EXPERIMENTAL
+
+    if (nInnerIter > 4) {
+      nSuccessiveReductions++;
+    }
+    else {
+      nSuccessiveReductions = 0;
+    }
+
+    if (nSuccessiveReductions > 15) {
+      line_reduction_factor *= 0.9;
+      nSuccessiveReductions = 0;
+    }
+    //     std::cerr << "alpha: " << alpha << std::endl;
+
+    const double neg_best_lambda = 1.0 - best_lambda;
+
+    for (uint i = 0; i < options.nTargetWords_; i++) {
+
+      //for (uint k = 0; k < dict[i].size(); k++)
+      //  dict[i][k] = neg_best_lambda * dict[i][k] + best_lambda * new_dict[i][k];
+
+      Math1D::assign_weighted_combination(dict[i], neg_best_lambda, dict[i], best_lambda, new_dict[i]);
+    }
+
+    if (dict_weight_sum > 0.0)
+      Math1D::assign_weighted_combination(slack_vector, neg_best_lambda, slack_vector, best_lambda, new_slack_vector);
+
+#ifndef NDEBUG
+    double check_energy = ibm1_energy(source, slookup, target, dict, wcooc, nSourceWords, prior_weight, smoothed_l0, l0_beta, dict_weight_sum);
+    assert(fabs(check_energy - hyp_energy) < 0.0025);
+#endif
+
+    energy = hyp_energy;
+
+    //     if (best_lambda == 1.0)
+    //       alpha *= 1.5;
+    //     else
+    //       alpha *= 0.75;
+
+    if (options.print_energy_)
+      std::cerr << "energy: " << energy << std::endl;
+
+    /************* compute alignment error rate ****************/
+    if (!options.possible_ref_alignments_.empty()) {
+
+      double sum_aer = 0.0;
+      double sum_fmeasure = 0.0;
+      double nErrors = 0.0;
+      uint nContributors = 0;
+
+      double sum_postdec_aer = 0.0;
+      double sum_postdec_fmeasure = 0.0;
+      double sum_postdec_daes = 0.0;
+
+      for (RefAlignmentStructure::const_iterator it = options.possible_ref_alignments_.begin();
+           it != options.possible_ref_alignments_.end(); it++) {
+
+        uint s = it->first - 1;
+
+        if (s >= nSentences)
+          break;
+
+        nContributors++;
+
+        const AlignmentStructure& cur_sure = options.sure_ref_alignments_[s + 1];
+        const AlignmentStructure& cur_possible = it->second;
+
+        const SingleLookupTable& cur_lookup = get_wordlookup(source[s], target[s], wcooc, nSourceWords, slookup[s], aux_lookup);
+
+        //compute viterbi alignment
+        Storage1D<AlignBaseType> viterbi_alignment;
+        compute_ibm1_viterbi_alignment(source[s], cur_lookup, target[s], dict, viterbi_alignment);
+
+        //add alignment error rate
+        sum_aer += AER(viterbi_alignment, cur_sure, cur_possible);
+        sum_fmeasure += f_measure(viterbi_alignment, cur_sure, cur_possible);
+        nErrors += nDefiniteAlignmentErrors(viterbi_alignment, cur_sure, cur_possible);
+
+        std::set<std::pair<AlignBaseType,AlignBaseType> > postdec_alignment;
+        compute_ibm1_postdec_alignment(source[s], cur_lookup, target[s], dict, postdec_alignment);
+
+        sum_postdec_aer += AER(postdec_alignment, cur_sure, cur_possible);
+        sum_postdec_fmeasure += f_measure(postdec_alignment, cur_sure, cur_possible);
+        sum_postdec_daes += nDefiniteAlignmentErrors(postdec_alignment, cur_sure, cur_possible);
+      }
+
+      sum_aer *= 100.0 / nContributors;
+      sum_fmeasure /= nContributors;
+      nErrors /= nContributors;
+
+      sum_postdec_aer *= 100.0 / nContributors;
+      sum_postdec_fmeasure /= nContributors;
+      sum_postdec_daes /= nContributors;
+
+      std::cerr << "#### IBM-1 Viterbi-AER after P-LBFGS iteration #" << iter << ": " << sum_aer << " %" << std::endl;
+      std::cerr << "#### IBM-1 Viterbi-fmeasure P-LBFGS iteration #" << iter << ": " << sum_fmeasure << std::endl;
+      std::cerr << "#### IBM-1 Viterbi-DAE/S after P-LBFGS iteration #" << iter << ": " << nErrors << std::endl;
+      std::cerr << "#### IBM-1 Postdec-AER after P-LBFGS iteration #" << iter << ": " << sum_postdec_aer << " %" << std::endl;
+      std::cerr << "#### IBM-1 Postdec-fmeasure after P-LBFGS iteration #" << iter << ": " << sum_postdec_fmeasure << std::endl;
+      std::cerr << "#### IBM-1 Postdec-DAE/S after P-LBFGS iteration #" << iter << ": " << sum_postdec_daes << std::endl;
+    }
+
+    std::cerr << "slack sum: " << slack_vector.sum() << std::endl;
+  } //end for iter
+}
 
 #ifdef HAS_CBC
 void viterbi_move(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup,
@@ -1931,4 +2341,148 @@ void ibm1_viterbi_training(const Storage1D<Math1D::Vector<uint> >& source, const
     viterbi_move(source, slookup, target, k, k + (granularity - 1), dict_penalty, viterbi_alignment, dcount);
   }
 #endif
+
+}
+
+void derive_symibm1_alignment(const Storage1D<uint>& cur_source, const SingleLookupTable& cur_slookup,
+                              const SingleLookupTable& cur_tlookup, const Storage1D<uint>& cur_target,
+                              SingleWordDictionary& s2t_dict, SingleWordDictionary& t2s_dict,
+                              std::set<std::pair<AlignBaseType,AlignBaseType> >& alignment, double threshold = 0.1)
+{
+
+  alignment.clear();
+
+  const uint curJ = cur_source.size();
+  const uint curI = cur_target.size();
+
+  Math2D::Matrix<double> marginal(curI, curJ, 0.0);
+
+  /*** 1.) s|t ***/
+  for (uint j = 0; j < curJ; j++) {
+
+    const uint s_idx = cur_source[j];
+
+    double sum = s2t_dict[0][s_idx - 1];
+
+    for (uint i = 0; i < curI; i++)
+      sum += s2t_dict[cur_target[i]][cur_slookup(j, i)];
+
+    if (sum > 1e-305) {
+      double inv_sum = 1.0 / sum;
+      for (uint i = 0; i < curI; i++)
+        marginal(i, j) += 0.5 * inv_sum * s2t_dict[cur_target[i]][cur_slookup(j, i)];
+    }
+  }
+
+  /*** 2.) t|s ***/
+  for (uint i = 0; i < curI; i++) {
+
+    const uint t_idx = cur_target[i];
+
+    double sum = t2s_dict[0][t_idx - 1];
+    for (uint j = 0; j < curJ; j++)
+      sum += t2s_dict[cur_source[j]][cur_tlookup(i, j)];
+
+    if (sum > 1e-305) {
+
+      double inv_sum = 1.0 / sum;
+      for (uint j = 0; j < curJ; j++)
+        marginal(i, j) += 0.5 * inv_sum * t2s_dict[cur_source[j]][cur_tlookup(i, j)];
+    }
+  }
+
+  for (uint j = 0; j < curJ; j++)
+    for (uint i = 0; i < curI; i++)
+      if (marginal(i, j) >= threshold)
+        alignment.insert(std::make_pair(j + 1, i + 1));
+}
+
+double symibm1_energy(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const LookupTable& tlookup,
+                      const Storage1D<Math1D::Vector<uint> >& target, SingleWordDictionary& s2t_dict, SingleWordDictionary& t2s_dict,
+                      double gamma, bool diff_of_logs)
+{
+
+  //objective function:
+  // log-perplexity(s|t) + log-perplexity(t|s) + \gamma/2 * sum_{sentences} (marginal-diff)^2
+
+  double energy = 0.0;
+
+  const size_t nSentences = source.size();
+
+  for (size_t s = 0; s < nSentences; s++) {
+
+    const Storage1D<uint>& cur_source = source[s];
+    const Storage1D<uint>& cur_target = target[s];
+
+    const uint curJ = cur_source.size();
+    const uint curI = cur_target.size();
+    const SingleLookupTable& cur_slookup = slookup[s];
+    const SingleLookupTable& cur_tlookup = tlookup[s];
+
+    energy += curJ * std::log(curI);
+    energy += curI * std::log(curJ);
+
+    Math2D::Matrix < double >marginal_diff(curI, curJ, 0.0);
+
+    /*** 1.) s|t ***/
+    for (uint j = 0; j < curJ; j++) {
+
+      const uint s_idx = cur_source[j];
+
+      double sum = s2t_dict[0][s_idx - 1];
+
+      for (uint i = 0; i < curI; i++)
+        sum += s2t_dict[cur_target[i]][cur_slookup(j, i)];
+
+      if (sum > 1e-305) {
+        double inv_sum = 1.0 / sum;
+        for (uint i = 0; i < curI; i++) {
+          double marginal =
+            inv_sum * s2t_dict[cur_target[i]][cur_slookup(j, i)];
+          if (diff_of_logs)
+            marginal_diff(i, j) += std::log(1.0 + marginal);
+          else
+            marginal_diff(i, j) += marginal;
+        }
+      }
+
+      energy -= std::log(sum);
+    }
+
+    /*** 2.) t|s ***/
+    for (uint i = 0; i < curI; i++) {
+
+      const uint t_idx = cur_target[i];
+
+      double sum = t2s_dict[0][t_idx - 1];
+      for (uint j = 0; j < curJ; j++)
+        sum += t2s_dict[cur_source[j]][cur_tlookup(i, j)];
+
+      if (sum > 1e-305) {
+
+        double inv_sum = 1.0 / sum;
+        for (uint j = 0; j < curJ; j++) {
+          double marginal =
+            inv_sum * t2s_dict[cur_source[j]][cur_tlookup(i, j)];
+          if (diff_of_logs)
+            marginal_diff(i, j) -= std::log(1.0 + marginal);
+          else
+            marginal_diff(i, j) -= marginal;
+        }
+      }
+
+      energy -= std::log(sum);
+    }
+
+    /**** marginal term *****/
+    for (uint i = 0; i < curI; i++) {
+      for (uint j = 0; j < curJ; j++) {
+
+        energy += 0.5 * gamma * marginal_diff(i, j) * marginal_diff(i, j);
+      }
+    }
+  }
+
+  return energy / nSentences;
+
 }

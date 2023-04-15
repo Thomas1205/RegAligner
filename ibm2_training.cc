@@ -14,6 +14,7 @@
 #include "alignment_error_rate.hh"
 #include "alignment_computation.hh"
 #include "projection.hh"
+#include "conditional_m_steps.hh"
 
 IBM2Options::IBM2Options(uint nSourceWords, uint nTargetWords, RefAlignmentStructure& sure_ref_alignments,
                          RefAlignmentStructure& possible_ref_alignments):
@@ -226,7 +227,7 @@ void train_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
     }
 
     update_dict_from_counts(fwcount, prior_weight, nSentences, dict_weight_sum, smoothed_l0, l0_beta, dict_m_step_iter, dict,
-                            ibm1_min_dict_entry, MSSolvePGD);
+                            ibm1_min_dict_entry, false, 1.0);
 
     //compute new alignment model from normalized fractional counts
     for (uint I = 0; I < alignment_model.size(); I++) {
@@ -454,329 +455,7 @@ void nonpar2par_reduced_ibm2alignment_model(Math3D::Tensor<double>& align_param,
   }
 }
 
-double reducedibm2_par_m_step_energy(const Math1D::Vector<double>& align_param, const Math1D::Vector<double>& singleton_count,
-                                     const Math1D::Vector<double>& span_count)
-{
-  const uint xDim = align_param.size();
 
-  double energy = 0.0;
-
-  for (uint i = 0; i < xDim; i++)
-    energy -= singleton_count[i] * std::log(align_param[i]);
-
-  double param_sum = 0.0;
-  for (uint i = 0; i < xDim; i++) {
-    param_sum += align_param[i];
-    energy += span_count[i] * std::log(param_sum);
-  }
-
-  return energy;
-}
-
-void reducedibm2_par_m_step(Math3D::Tensor<double>& align_param, const ReducedIBM2ClassAlignmentModel& acount, uint j, uint c, uint nIter,
-                            bool deficient, bool quiet = false)
-{
-  //std::cerr << "reducedibm2_par_m_step" << std::endl;
-
-  const uint xDim = align_param.xDim();
-
-  Math1D::Vector<double> cur_param(xDim);
-  for (uint k = 0; k < xDim; k++)
-    cur_param[k] = std::max(ibm2_min_align_param, align_param(k, j, c));
-
-  Math1D::Vector<double> hyp_param(xDim);
-  Math1D::Vector<double> new_param(xDim);
-  Math1D::Vector<double> grad(xDim);
-
-  Math1D::Vector<double> singleton_count(xDim, 0.0);
-  Math1D::Vector<double> span_count(xDim, 0.0);
-
-  for (uint k = 0; k < acount.size(); k++) {
-
-    const Math3D::Tensor<double>& cur_acount = acount[k];
-    if (cur_acount.yDim() > j) {
-
-      uint curI = cur_acount.xDim()-1;
-      for (uint i=1; i <= curI; i++) {
-        singleton_count[i - 1] += cur_acount(i, j, c);
-        span_count[curI - 1] += cur_acount(i, j, c);
-      }
-    }
-  }
-
-  double energy = reducedibm2_par_m_step_energy(cur_param, singleton_count, span_count);
-
-  {
-    //test start point
-    double sum = singleton_count.sum();
-    for (uint i = 0; i < xDim; i++)
-      hyp_param[i] = std::max(ibm2_min_align_param, singleton_count[i] / sum);
-
-    double hyp_energy = reducedibm2_par_m_step_energy(hyp_param, singleton_count, span_count);
-
-    if (deficient || hyp_energy < energy) {
-      if (!quiet)
-        std::cerr << "switching to normalized counts: " << hyp_energy << " instead of " << energy << std::endl;
-
-      energy = hyp_energy;
-      cur_param = hyp_param;
-    }
-  }
-
-  if (deficient) {
-
-    align_param.set_x(j, c, cur_param);
-    return;
-  }
-
-  double line_reduction_factor = 0.5;
-  const double alpha = 100.0;
-
-  for (uint iter = 1; iter <= nIter; iter++) {
-    //if ((iter % 15) == 0)
-    //  std::cerr << "iter " << iter << ", energy: " << energy << std::endl;
-
-    /***** compute gradient *****/
-    for (uint i = 0; i < xDim; i++)
-      grad[i] = -singleton_count[i] / cur_param[i];
-
-    double param_sum = 0.0;
-    for (uint i = 0; i < xDim; i++) {
-      param_sum += cur_param[i];
-      double cur_grad = span_count[i] / param_sum;
-      for (uint k = 0; k <= i; k++)
-        grad[k] += cur_grad;
-    }
-
-    /**** go in negative gradient direction and reproject ****/
-
-    for (uint i = 0; i < xDim; i++)
-      new_param[i] = cur_param[i] - alpha * grad[i];
-
-    projection_on_simplex(new_param.direct_access(), xDim, ibm2_min_align_param);
-
-    /**** find a suitable stepsize ****/
-
-    double best_energy = 1e300;
-
-    double lambda = 1.0;
-    double best_lambda = lambda;
-
-    uint nIter = 0;
-
-    bool decreasing = true;
-
-    while (decreasing || best_energy > energy) {
-
-      nIter++;
-      if (nIter > 15 && best_energy > energy) {
-        break;
-      }
-
-      lambda *= line_reduction_factor;
-
-      double neg_lambda = 1.0 - lambda;
-
-      for (uint i = 0; i < xDim; i++)
-        hyp_param[i] = lambda * new_param[i] + neg_lambda * cur_param[i];
-
-      double new_energy = reducedibm2_par_m_step_energy(hyp_param, singleton_count, span_count);
-
-      if (new_energy < best_energy) {
-        best_energy = new_energy;
-        best_lambda = lambda;
-
-        decreasing = true;
-      }
-      else {
-        decreasing = false;
-      }
-    }
-
-    if (nIter > 5)
-      line_reduction_factor *= 0.9;
-
-    if (nIter > 15 || fabs(energy - best_energy) < 1e-4) {
-      if (!quiet)
-        std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
-      break;
-    }
-
-    energy = best_energy;
-
-    //set new values
-    double neg_best_lambda = 1.0 - best_lambda;
-
-    for (uint i = 0; i < xDim; i++)
-      cur_param[i] = best_lambda * new_param[i] + neg_best_lambda * cur_param[i];
-  }
-
-  align_param.set_x(j, c, cur_param);
-}
-
-double reducedibm2_diffpar_m_step_energy(const Math3D::Tensor<double>& align_param, const Math1D::Vector<double>& singleton_count,
-    const Math2D::TriMatrix<double>& span_count, uint c)
-{
-  const uint xDim = align_param.xDim();
-
-  double energy = 0.0;
-
-  for (uint x = 0; x < xDim; x++)
-    energy -= singleton_count[x] * std::log(align_param(x, 0, c) );
-
-  for (uint x_start = 0; x_start < xDim; x_start++) {
-
-    double param_sum = 0.0;
-
-    for (uint x_end = x_start; x_end < xDim; x_end++) {
-
-      param_sum += align_param(x_end, 0, c);
-      const double count = span_count(x_start, x_end);
-
-      if (count != 0.0)
-        energy += count * std::log(param_sum);
-    }
-  }
-
-  return energy;
-}
-
-void reducedibm2_diffpar_m_step(Math3D::Tensor<double>& align_param, const ReducedIBM2ClassAlignmentModel& acount, uint offset, uint c,
-                                uint nIter, bool deficient)
-{
-  const uint xDim = align_param.xDim();
-
-  Math1D::Vector<double> singleton_count(xDim, 0.0);
-  Math2D::TriMatrix<double> span_count(xDim, 0.0);
-
-  for (uint k = 0; k < acount.size(); k++) {
-
-    const Math3D::Tensor<double>& cur_acount = acount[k];
-    for (uint j = 0; j < cur_acount.yDim(); j++) {
-
-      uint curI = cur_acount.xDim()-1;
-      for (uint i=1; i <= curI; i++) {
-        singleton_count[offset + j - (i - 1)] += cur_acount(i, j, c);
-        span_count(offset + j - (curI - 1), offset + j) += cur_acount(i, j, c);
-      }
-    }
-  }
-
-  Math3D::Tensor<double> hyp_param(xDim, 1, align_param.zDim());
-  Math1D::Vector<double> new_param(xDim);
-  Math1D::Vector<double> grad(xDim);
-
-  double energy = reducedibm2_diffpar_m_step_energy(align_param, singleton_count, span_count, c);
-
-  {
-    //test start point
-    double sum = singleton_count.sum();
-    for (uint x = 0; x < xDim; x++)
-      hyp_param(x, 0, c) = singleton_count[x] / sum;
-
-    double hyp_energy = reducedibm2_diffpar_m_step_energy(hyp_param, singleton_count, span_count, c);
-
-    if (deficient || hyp_energy < energy) {
-
-      std::cerr << "switching to normalized counts" << std::endl;
-      align_param = hyp_param;
-      energy = hyp_energy;
-    }
-  }
-
-  if (deficient)
-    return;
-
-  double line_reduction_factor = 0.5;
-  const double alpha = 100.0;
-
-  for (uint iter = 1; iter <= nIter; iter++) {
-    if ((iter % 15) == 0)
-      std::cerr << "iter " << iter << ", energy: " << energy << std::endl;
-
-    /***** compute gradient *****/
-    for (uint i = 0; i < xDim; i++)
-      grad[i] = -singleton_count[i] / align_param(i, 0, c);
-
-    for (uint x_start = 0; x_start < xDim; x_start++) {
-
-      double param_sum = 0.0;
-
-      for (uint x_end = x_start; x_end < xDim; x_end++) {
-
-        param_sum += align_param(x_end, 0, c);
-        const double count = span_count(x_start, x_end);
-
-        if (count != 0.0) {
-          const double cur_grad = count / param_sum;
-          for (uint x = x_start; x <= x_end; x++)
-            grad[x] += cur_grad;
-        }
-      }
-    }
-
-    /**** go in negative gradient direction and reproject ****/
-
-    for (uint i = 0; i < xDim; i++)
-      new_param[i] = align_param(i, 0, c) - alpha * grad[i];
-
-    projection_on_simplex(new_param.direct_access(), xDim, ibm2_min_align_param);
-
-    /**** find a suitable stepsize ****/
-
-    double best_energy = 1e300;
-
-    double lambda = 1.0;
-    double best_lambda = lambda;
-
-    uint nIter = 0;
-
-    bool decreasing = true;
-
-    while (decreasing || best_energy > energy) {
-
-      nIter++;
-      if (nIter > 15 && best_energy > energy) {
-        break;
-      }
-
-      lambda *= line_reduction_factor;
-
-      double neg_lambda = 1.0 - lambda;
-
-      for (uint i = 0; i < xDim; i++)
-        hyp_param(i, 0, c) = lambda * new_param[i] + neg_lambda * align_param(i, 0, c);
-
-      double new_energy = reducedibm2_diffpar_m_step_energy(hyp_param, singleton_count, span_count, c);
-
-      if (new_energy < best_energy) {
-        best_energy = new_energy;
-        best_lambda = lambda;
-
-        decreasing = true;
-      }
-      else {
-        decreasing = false;
-      }
-    }
-
-    if (nIter > 5)
-      line_reduction_factor *= 0.9;
-
-    if (nIter > 15 || fabs(energy - best_energy) < 1e-4) {
-      std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
-      break;
-    }
-
-    energy = best_energy;
-
-    //set new values
-    double neg_best_lambda = 1.0 - best_lambda;
-
-    for (uint i = 0; i < xDim; i++)
-      align_param(i, 0, c) = best_lambda * new_param[i] + neg_best_lambda * align_param(i, 0, c);
-  }
-}
 
 void init_from_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const Storage1D<Math1D::Vector<uint> >& target,
                     const SingleWordDictionary& dict, const CooccuringWordsType& wcooc, const Math1D::Vector<WordClassType>& sclass,
@@ -794,7 +473,7 @@ void init_from_ibm1(const Storage1D<Math1D::Vector<uint> >& source, const Lookup
   for (uint I = 0; I < alignment_model.size(); I++)
     alignment_model[I].set_constant(0.0);
 
-  for (uint s=0; s < source.size(); s++) {
+  for (size_t s = 0; s < source.size(); s++) {
 
     const Math1D::Vector<uint>& cur_source = source[s];
     const Math1D::Vector<uint>& cur_target = target[s];
@@ -1120,7 +799,7 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
     }
 
     update_dict_from_counts(fwcount, prior_weight, nSentences, dict_weight_sum, smoothed_l0, l0_beta, options.dict_m_step_iter_, dict,
-                            ibm1_min_dict_entry, options.unconstrained_m_step_);
+                            ibm1_min_dict_entry, options.unconstrained_m_step_, options.gd_stepsize_);
 
     //compute new alignment model from normalized fractional counts
     if (par_mode == IBM23Nonpar) {
@@ -1295,8 +974,8 @@ void train_reduced_ibm2_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
     dict_weight_sum += prior_weight[i].max_abs();
   }
 
-  double alpha = 100.0;
-  double line_reduction_factor = 0.5;
+  const double alpha = options.gd_stepsize_;
+  double line_reduction_factor = 0.1;
 
   uint nSuccessiveReductions = 0;
 
@@ -1558,6 +1237,19 @@ void train_reduced_ibm2_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
     /**** move in gradient direction ****/
     double real_alpha = alpha;
+    double sqr_grad_norm = 0.0;
+    for (uint i = 0; i < options.nTargetWords_; i++)
+      sqr_grad_norm += wgrad[i].sqr_norm();
+    if (par_mode == IBM23Nonpar) {
+      for (uint I = 0; I < lcooc.size(); I++)
+        sqr_grad_norm += agrad[I].sqr_norm();
+    }
+    else {
+      sqr_grad_norm += source_fert_grad[0] * source_fert_grad[0] + source_fert_grad[1] * source_fert_grad[1];
+      sqr_grad_norm += align_param_grad.sqr_norm();
+    }
+
+    real_alpha /= sqrt(sqr_grad_norm);
 
     for (uint i = 0; i < options.nTargetWords_; i++) {
 
@@ -2337,4 +2029,609 @@ void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& sourc
 
   if (par_mode == IBM23Nonpar)
     nonpar2par_reduced_ibm2alignment_model(align_param, alignment_model);
+}
+
+void derive_symibm2_alignment(const Math1D::Vector<uint>& cur_source, const SingleLookupTable& cur_slookup, const SingleLookupTable& cur_tlookup,
+                              const Math1D::Vector<uint>& cur_target, SingleWordDictionary& s2t_dict, SingleWordDictionary& t2s_dict,
+                              ReducedIBM2AlignmentModel& s2t_alignment_model, ReducedIBM2AlignmentModel& t2s_alignment_model,
+                              std::set<std::pair<AlignBaseType,AlignBaseType> >& alignment, double threshold = 0.1)
+{
+  alignment.clear();
+
+  const uint curJ = cur_source.size();
+  const uint curI = cur_target.size();
+
+  const Math2D::Matrix<double>& s2t_cur_align_model = s2t_alignment_model[curI];
+  const Math2D::Matrix<double>& t2s_cur_align_model = t2s_alignment_model[curJ];
+
+  Math2D::Matrix<double>marginal(curI, curJ, 0.0);
+
+  /*** 1.) s|t ***/
+  for (uint j = 0; j < curJ; j++) {
+
+    const uint s_idx = cur_source[j];
+
+    double sum = s2t_dict[0][s_idx - 1] * s2t_cur_align_model(j, 0);
+
+    for (uint i = 0; i < curI; i++)
+      sum += s2t_dict[cur_target[i]][cur_slookup(j, i)] * s2t_cur_align_model(j, i + 1);
+
+    if (sum > 1e-305) {
+      double inv_sum = 1.0 / sum;
+      for (uint i = 0; i < curI; i++)
+        marginal(i, j) += 0.5 * inv_sum * s2t_dict[cur_target[i]][cur_slookup(j, i)] * s2t_cur_align_model(j, i + 1);
+    }
+  }
+
+  /*** 2.) t|s ***/
+  for (uint i = 0; i < curI; i++) {
+
+    const uint t_idx = cur_target[i];
+
+    double sum = t2s_dict[0][t_idx - 1] * t2s_cur_align_model(i, 0);
+    for (uint j = 0; j < curJ; j++)
+      sum += t2s_dict[cur_source[j]][cur_tlookup(i, j)] * t2s_cur_align_model(i, j +  1);
+
+    if (sum > 1e-305) {
+
+      double inv_sum = 1.0 / sum;
+      for (uint j = 0; j < curJ; j++)
+        marginal(i, j) += 0.5 * inv_sum * t2s_dict[cur_source[j]][cur_tlookup(i, j)] *  t2s_cur_align_model(i, j + 1);
+    }
+  }
+
+  for (uint j = 0; j < curJ; j++)
+    for (uint i = 0; i < curI; i++)
+      if (marginal(i, j) >= threshold)
+        alignment.insert(std::make_pair(j + 1, i + 1));
+}
+
+double symibm2_energy(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const LookupTable& tlookup,
+                      const Storage1D<Math1D::Vector<uint> >& target, SingleWordDictionary& s2t_dict, SingleWordDictionary& t2s_dict,
+                      ReducedIBM2AlignmentModel& s2t_alignment_model, ReducedIBM2AlignmentModel& t2s_alignment_model,
+                      double gamma, bool diff_of_logs)
+{
+
+  //objective function:
+  // log-perplexity(s|t) + log-perplexity(t|s) + \gamma/2 * sum_{sentences} (marginal-diff)^2
+
+  double energy = 0.0;
+
+  const size_t nSentences = source.size();
+
+  for (size_t s = 0; s < nSentences; s++) {
+
+    const Storage1D<uint>& cur_source = source[s];
+    const Storage1D<uint>& cur_target = target[s];
+
+    const uint curJ = cur_source.size();
+    const uint curI = cur_target.size();
+    const SingleLookupTable& cur_slookup = slookup[s];
+    const SingleLookupTable& cur_tlookup = tlookup[s];
+
+    const Math2D::Matrix<double>& s2t_cur_align_model = s2t_alignment_model[curI];
+    const Math2D::Matrix<double>& t2s_cur_align_model = t2s_alignment_model[curJ];
+
+    Math2D::Matrix < double >marginal_diff(curI, curJ, 0.0);
+
+    /*** 1.) s|t ***/
+    for (uint j = 0; j < curJ; j++) {
+
+      const uint s_idx = cur_source[j];
+
+      double sum = s2t_dict[0][s_idx - 1] * s2t_cur_align_model(j, 0);
+
+      for (uint i = 0; i < curI; i++)
+        sum += s2t_dict[cur_target[i]][cur_slookup(j, i)] * s2t_cur_align_model(j, i + 1);
+
+      if (sum > 1e-305) {
+        double inv_sum = 1.0 / sum;
+        for (uint i = 0; i < curI; i++) {
+          if (diff_of_logs)
+            marginal_diff(i, j) += std::log(1.0 + inv_sum * s2t_dict[cur_target[i]][cur_slookup(j, i)] * s2t_cur_align_model(j, i + 1));
+          else
+            marginal_diff(i, j) += inv_sum * s2t_dict[cur_target[i]][cur_slookup(j, i)] * s2t_cur_align_model(j, i + 1);
+        }
+      }
+
+      energy -= std::log(sum);
+    }
+
+    /*** 2.) t|s ***/
+    for (uint i = 0; i < curI; i++) {
+
+      const uint t_idx = cur_target[i];
+
+      double sum = t2s_dict[0][t_idx - 1] * t2s_cur_align_model(i, 0);
+
+      for (uint j = 0; j < curJ; j++)
+        sum += t2s_dict[cur_source[j]][cur_tlookup(i, j)] * t2s_cur_align_model(i, j + 1);
+
+      if (sum > 1e-305) {
+
+        double inv_sum = 1.0 / sum;
+        for (uint j = 0; j < curJ; j++) {
+          if (diff_of_logs)
+            marginal_diff(i, j) -= std::log(1.0 + inv_sum * t2s_dict[cur_source[j]][cur_tlookup(i, j)] * t2s_cur_align_model(i, j + 1));
+          else
+            marginal_diff(i, j) -= inv_sum * t2s_dict[cur_source[j]][cur_tlookup(i, j)] * t2s_cur_align_model(i, j + 1);
+        }
+      }
+
+      energy -= std::log(sum);
+    }
+
+    /**** marginal term *****/
+    for (uint i = 0; i < curI; i++) {
+      for (uint j = 0; j < curJ; j++) {
+
+        energy += 0.5 * gamma * marginal_diff(i, j) * marginal_diff(i, j);
+      }
+    }
+  }
+
+  return energy / nSentences;
+}
+
+void symtrain_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const LookupTable& tlookup,
+                           const Storage1D<Math1D::Vector<uint> >& target, const CooccuringWordsType& s2t_wcooc, const CooccuringWordsType& t2s_wcooc,
+                           const CooccuringLengthsType& s2t_lcooc, const CooccuringLengthsType& t2s_lcooc, uint nSourceWords, uint nTargetWords,
+                           ReducedIBM2AlignmentModel& s2t_alignment_model, ReducedIBM2AlignmentModel& t2s_alignment_model,
+                           SingleWordDictionary& s2t_dict, SingleWordDictionary& t2s_dict, uint nIter, double gamma,
+                           std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
+                           std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
+                           bool diff_of_logs)
+{
+
+  assert(s2t_wcooc.size() == nTargetWords);
+  assert(t2s_wcooc.size() == nSourceWords);
+
+  const size_t nSentences = source.size();
+  assert(nSentences == target.size());
+
+  //initialize alignment models
+  s2t_alignment_model.resize_dirty(s2t_lcooc.size());
+  for (uint I = 0; I < s2t_lcooc.size(); I++) {
+
+    uint maxJ = 0;
+    for (uint k = 0; k < s2t_lcooc[I].size(); k++) {
+      uint curJ = s2t_lcooc[I][k];
+      if (curJ > maxJ)
+        maxJ = curJ;
+    }
+
+    if (maxJ > 0) {
+      s2t_alignment_model[I].resize_dirty(maxJ, I + 1);
+      s2t_alignment_model[I].set_constant(1.0 / (I + 1));
+    }
+  }
+
+  t2s_alignment_model.resize_dirty(t2s_lcooc.size());
+  for (uint J = 0; J < t2s_lcooc.size(); J++) {
+
+    uint maxI = 0;
+    for (uint k = 0; k < t2s_lcooc[J].size(); k++) {
+      uint curI = t2s_lcooc[J][k];
+      if (curI > maxI)
+        maxI = curI;
+    }
+
+    if (maxI > 0) {
+      t2s_alignment_model[J].resize_dirty(maxI, J + 1);
+      t2s_alignment_model[J].set_constant(1.0 / (J + 1));
+    }
+  }
+
+  SingleWordDictionary new_s2t_dict(nTargetWords, MAKENAME(new_s2t_dict));
+  SingleWordDictionary hyp_s2t_dict(nTargetWords, MAKENAME(hyp_s2t_dict));
+  SingleWordDictionary new_t2s_dict(nTargetWords, MAKENAME(new_t2s_dict));
+  SingleWordDictionary hyp_t2s_dict(nTargetWords, MAKENAME(hyp_t2s_dict));
+
+  ReducedIBM2AlignmentModel new_s2t_alignment_model = s2t_alignment_model;
+  ReducedIBM2AlignmentModel hyp_s2t_alignment_model = s2t_alignment_model;
+  ReducedIBM2AlignmentModel new_t2s_alignment_model = t2s_alignment_model;
+  ReducedIBM2AlignmentModel hyp_t2s_alignment_model = t2s_alignment_model;
+
+  for (uint i = 0; i < nTargetWords; i++) {
+
+    const uint size = s2t_wcooc[i].size();
+    new_s2t_dict[i].resize_dirty(size);
+    hyp_s2t_dict[i].resize_dirty(size);
+  }
+  for (uint j = 0; j < nSourceWords; j++) {
+
+    const uint size = t2s_wcooc[j].size();
+    new_t2s_dict[j].resize_dirty(size);
+    hyp_t2s_dict[j].resize_dirty(size);
+  }
+
+  double energy = symibm2_energy(source, slookup, tlookup, target, s2t_dict, t2s_dict,
+                                 s2t_alignment_model, t2s_alignment_model, gamma, diff_of_logs);
+
+  std::cerr << "start_energy: " << energy << std::endl;
+
+  double alpha = 0.5;           //0.1; //0.1; // 0.0001;
+
+  double line_reduction_factor = 0.5;
+
+  uint nSuccessiveReductions = 0;
+
+  for (uint iter = 1; iter <= nIter; iter++) {
+
+    std::cerr << "*************** sym-2 iteration #" << iter << " ************" << std::endl;
+
+    /*** clear gradients ***/
+    SingleWordDictionary s2t_dict_grad(nTargetWords, MAKENAME(s2t_dict_grad));
+    SingleWordDictionary t2s_dict_grad(nSourceWords, MAKENAME(t2s_dict_grad));
+
+    for (uint i = 0; i < nTargetWords; i++) {
+
+      const uint size = s2t_wcooc[i].size();
+      s2t_dict_grad[i].resize_dirty(size);
+      s2t_dict_grad[i].set_constant(0.0);
+    }
+    for (uint j = 0; j < nSourceWords; j++) {
+
+      const uint size = t2s_wcooc[j].size();
+      t2s_dict_grad[j].resize_dirty(size);
+      t2s_dict_grad[j].set_constant(0.0);
+    }
+
+    ReducedIBM2AlignmentModel s2t_align_grad = s2t_alignment_model;
+    ReducedIBM2AlignmentModel t2s_align_grad = t2s_alignment_model;
+
+    for (uint I = 0; I < s2t_alignment_model.size(); I++)
+      s2t_align_grad[I].set_constant(0.0);
+    for (uint J = 0; J < t2s_alignment_model.size(); J++)
+      t2s_align_grad[J].set_constant(0.0);
+
+    for (size_t s = 0; s < nSentences; s++) {
+
+      //std::cerr << "s: " << s << std::endl;
+
+      const Storage1D<uint>& cur_source = source[s];
+      const Storage1D<uint>& cur_target = target[s];
+
+      const uint curJ = cur_source.size();
+      const uint curI = cur_target.size();
+      const SingleLookupTable& cur_slookup = slookup[s];
+      const SingleLookupTable& cur_tlookup = tlookup[s];
+
+      const Math2D::Matrix<double>& s2t_cur_align_model = s2t_alignment_model[curI];
+      const Math2D::Matrix<double>& t2s_cur_align_model = t2s_alignment_model[curJ];
+
+      Math2D::Matrix<double>& s2t_cur_align_grad = s2t_align_grad[curI];
+      Math2D::Matrix<double>& t2s_cur_align_grad = t2s_align_grad[curJ];
+
+      Math2D::Matrix<double> marginal_diff(curI, curJ, 0.0);
+      Math2D::Matrix<double> s2t_marginal(curI, curJ, 0.0);
+      Math2D::Matrix<double> t2s_marginal(curI, curJ, 0.0);
+
+      Math1D::Vector<double> i_sum(curI, 0.0);
+      Math1D::Vector<double> j_sum(curJ, 0.0);
+
+      //std::cerr << "A" << std::endl;
+
+      /*** 1.) s|t ***/
+      for (uint j = 0; j < curJ; j++) {
+
+        const uint s_idx = cur_source[j];
+
+        double sum = s2t_dict[0][s_idx - 1] * s2t_cur_align_model(j, 0);
+
+        for (uint i = 0; i < curI; i++)
+          sum += s2t_dict[cur_target[i]][cur_slookup(j, i)] * s2t_cur_align_model(j, i + 1);
+
+        j_sum[j] = sum;
+
+        if (sum > 1e-305) {
+          double inv_sum = 1.0 / sum;
+
+          double cur_grad = -1.0 * inv_sum;
+
+          s2t_dict_grad[0][s_idx - 1] += cur_grad * s2t_cur_align_model(j, 0);
+          s2t_cur_align_grad(j, 0) += cur_grad * s2t_dict[0][s_idx - 1];
+
+          for (uint i = 0; i < curI; i++) {
+            s2t_dict_grad[cur_target[i]][cur_slookup(j, i)] += cur_grad * s2t_cur_align_model(j, i + 1);
+            s2t_cur_align_grad(j, i + 1) += cur_grad * s2t_dict[cur_target[i]][cur_slookup(j, i)];
+
+            double marginal = s2t_dict[cur_target[i]][cur_slookup(j, i)] * s2t_cur_align_model(j, i + 1) * inv_sum;
+            s2t_marginal(i, j) = marginal;
+
+            if (diff_of_logs)
+              marginal_diff(i, j) += std::log(1.0 + marginal);
+            else
+              marginal_diff(i, j) += marginal;
+          }
+        }
+      }
+
+      /*** 2.) t|s ***/
+      for (uint i = 0; i < curI; i++) {
+
+        const uint t_idx = cur_target[i];
+
+        double sum = t2s_dict[0][t_idx - 1] * t2s_cur_align_model(i, 0);
+        for (uint j = 0; j < curJ; j++)
+          sum += t2s_dict[cur_source[j]][cur_tlookup(i, j)] * t2s_cur_align_model(i, j + 1);
+
+        i_sum[i] = sum;
+
+        if (sum > 1e-305) {
+
+          double inv_sum = 1.0 / sum;
+
+          double cur_grad = -1.0 * inv_sum;
+          t2s_dict_grad[0][t_idx - 1] += cur_grad * t2s_cur_align_model(i, 0);
+          t2s_cur_align_grad(i, 0) += cur_grad * t2s_dict[0][t_idx - 1];
+
+          for (uint j = 0; j < curJ; j++) {
+            t2s_dict_grad[cur_source[j]][cur_tlookup(i, j)] += cur_grad * t2s_cur_align_model(i, j + 1);
+            t2s_cur_align_grad(i, j + 1) += cur_grad * t2s_dict_grad[cur_source[j]][cur_tlookup(i, j)];
+
+            double marginal = t2s_cur_align_model(i, j) * t2s_dict[cur_source[j]][cur_tlookup(i, j)] * inv_sum;
+            t2s_marginal(i, j) = marginal;
+
+            if (diff_of_logs)
+              marginal_diff(i, j) -= std::log(1.0 + marginal);
+            else
+              marginal_diff(i, j) -= marginal;
+          }
+        }
+      }
+
+      //std::cerr << "C" << std::endl;
+
+      /**** marginal term *****/
+      for (uint i = 0; i < curI; i++) {
+        for (uint j = 0; j < curJ; j++) {
+
+          double cur_s2t_contrib = s2t_dict[cur_target[i]][cur_slookup(j, i)] * s2t_cur_align_model(j, i + 1);
+          double cur_t2s_contrib = t2s_dict[cur_source[j]][cur_tlookup(i, j)] * t2s_cur_align_model(i, j + 1);
+
+          if (j_sum[j] > 1e-100) {
+            if (diff_of_logs) {
+
+              s2t_dict_grad[cur_target[i]][cur_slookup(j, i)] += gamma * marginal_diff(i, j) * (s2t_cur_align_model(j, i + 1) *
+                  (j_sum[j] - s2t_cur_align_model(j, i + 1) * s2t_dict[cur_target[i]][cur_slookup(j, i)]))
+                  / (j_sum[j] * j_sum[j] * (1.0 + s2t_marginal(i, j)));
+
+              s2t_cur_align_grad(j, i + 1) += gamma * marginal_diff(i, j) *(s2t_dict[cur_target[i]][cur_slookup(j, i)] *
+                                              (j_sum[j] - s2t_cur_align_model(j, i + 1) * s2t_dict[cur_target[i]][cur_slookup(j, i)]))
+                                              / (j_sum[j] * j_sum[j] * (1.0 + s2t_marginal(i, j)));
+            }
+            else {
+              s2t_dict_grad[cur_target[i]][cur_slookup(j, i)] += gamma * marginal_diff(i, j) * s2t_cur_align_model(j, i + 1) *
+                  (j_sum[j] - cur_s2t_contrib) / (j_sum[j] * j_sum[j]);
+
+              s2t_cur_align_grad(j, i + 1) += gamma * marginal_diff(i, j) * s2t_dict[cur_target[i]][cur_slookup(j, i)] * (j_sum[j] - cur_s2t_contrib)
+                                              / (j_sum[j] * j_sum[j]);
+            }
+          }
+          if (i_sum[i] > 1e-100) {
+            if (diff_of_logs) {
+
+              t2s_dict_grad[cur_source[j]][cur_tlookup(i, j)] -=
+                gamma * marginal_diff(i, j) * (t2s_cur_align_model(i, j + 1) * (i_sum[i] - t2s_dict[cur_source[j]][cur_tlookup(i, j)] *
+                                               t2s_cur_align_model(i, j + 1)))
+                / (i_sum[i] * i_sum[i] * (1.0 + t2s_marginal(i, j)));
+
+              t2s_cur_align_grad(i, j + 1) -= gamma * marginal_diff(i, j) * (t2s_dict[cur_source[j]][cur_tlookup(i, j)] *
+                                              (i_sum[i] - t2s_dict[cur_source[j]][cur_tlookup(i, j)] * t2s_cur_align_model(i, j + 1)))
+                                              / (i_sum[i] * i_sum[i] * (1.0 + t2s_marginal(i, j)));
+            }
+            else {
+              t2s_dict_grad[cur_source[j]][cur_tlookup(i, j)] -= gamma * marginal_diff(i, j) * t2s_cur_align_model(i, j + 1) *
+                  (i_sum[i] - cur_t2s_contrib) / (i_sum[i] * i_sum[i]);
+              t2s_cur_align_grad(i, j + 1) -= gamma * marginal_diff(i, j) * t2s_dict[cur_source[j]][cur_tlookup(i, j)] * (i_sum[i] - cur_t2s_contrib)
+                                              / (i_sum[i] * i_sum[i]);
+            }
+          }
+        }
+      }
+    }
+
+    /***** go in neg-gradient direction *****/
+    for (uint i = 0; i < nTargetWords; i++) {
+
+      for (uint k = 0; k < s2t_dict[i].size(); k++)
+        new_s2t_dict[i][k] = s2t_dict[i][k] - alpha * s2t_dict_grad[i][k];
+    }
+    for (uint j = 0; j < nSourceWords; j++) {
+
+      for (uint k = 0; k < t2s_dict[j].size(); k++)
+        new_t2s_dict[j][k] = t2s_dict[j][k] - alpha * t2s_dict_grad[j][k];
+    }
+
+    for (uint I = 0; I < s2t_alignment_model.size(); I++)
+      for (uint k = 0; k < s2t_alignment_model[I].size(); k++)
+        new_s2t_alignment_model[I].direct_access(k) =
+          s2t_alignment_model[I].direct_access(k) -
+          alpha * s2t_align_grad[I].direct_access(k);
+    for (uint J = 0; J < t2s_alignment_model.size(); J++)
+      for (uint k = 0; k < t2s_alignment_model[J].size(); k++)
+        new_t2s_alignment_model[J].direct_access(k) =
+          t2s_alignment_model[J].direct_access(k) -
+          alpha * t2s_align_grad[J].direct_access(k);
+
+    /**** reproject on the simplices [Michelot 1986]****/
+    for (uint i = 0; i < nTargetWords; i++) {
+
+      const uint nCurWords = new_s2t_dict[i].size();
+
+      projection_on_simplex(new_s2t_dict[i].direct_access(), nCurWords);
+    }
+    for (uint j = 0; j < nSourceWords; j++) {
+
+      const uint nCurWords = new_t2s_dict[j].size();
+
+      projection_on_simplex(new_t2s_dict[j].direct_access(), nCurWords);
+    }
+
+    for (uint I = 0; I < s2t_alignment_model.size(); I++) {
+
+      Math1D::Vector<double> temp(s2t_alignment_model[I].yDim());
+      for (uint x = 0; x < s2t_alignment_model[I].xDim(); x++) {
+        for (uint y = 0; y < s2t_alignment_model[I].yDim(); y++)
+          temp[y] = new_s2t_alignment_model[I] (x, y);
+
+        projection_on_simplex(temp.direct_access(), temp.size(), 1e-15);
+        for (uint y = 0; y < s2t_alignment_model[I].yDim(); y++)
+          new_s2t_alignment_model[I] (x, y) = temp[y];
+      }
+    }
+
+    for (uint J = 0; J < t2s_alignment_model.size(); J++) {
+
+      Math1D::Vector<double> temp(t2s_alignment_model[J].yDim());
+      for (uint x = 0; x < t2s_alignment_model[J].xDim(); x++) {
+        for (uint y = 0; y < t2s_alignment_model[J].yDim(); y++)
+          temp[y] = new_t2s_alignment_model[J] (x, y);
+
+        projection_on_simplex(temp.direct_access(), temp.size(), 1e-15);
+        for (uint y = 0; y < t2s_alignment_model[J].yDim(); y++)
+          new_t2s_alignment_model[J] (x, y) = temp[y];
+      }
+    }
+
+    /**** find appropriate step-size ***/
+
+    double hyp_energy =  symibm2_energy(source, slookup, tlookup, target, new_s2t_dict,  new_t2s_dict,
+                                        new_s2t_alignment_model, new_t2s_alignment_model, gamma, diff_of_logs);
+
+    std::cerr << "full step energy: " << hyp_energy << std::endl;
+
+    uint nInnerIter = 0;
+
+    bool decreasing = true;
+
+    double lambda = 1.0;
+    double best_lambda = 1.0;
+
+    while (hyp_energy > energy || decreasing) {
+
+      nInnerIter++;
+
+      if (hyp_energy <= 0.95 * energy)
+        break;
+
+      if (hyp_energy < 0.99 * energy && nInnerIter > 3)
+        break;
+
+      lambda *= line_reduction_factor;
+
+      double inv_lambda = 1.0 - lambda;
+
+      for (uint i = 0; i < nTargetWords; i++) {
+
+        for (uint k = 0; k < s2t_dict[i].size(); k++)
+          hyp_s2t_dict[i][k] = inv_lambda * s2t_dict[i][k] + lambda * new_s2t_dict[i][k];
+      }
+      for (uint j = 0; j < nSourceWords; j++) {
+
+        for (uint k = 0; k < t2s_dict[j].size(); k++)
+          hyp_t2s_dict[j][k] = inv_lambda * t2s_dict[j][k] + lambda * new_t2s_dict[j][k];
+      }
+
+      for (uint I = 0; I < s2t_alignment_model.size(); I++)
+        for (uint k = 0; k < s2t_alignment_model[I].size(); k++)
+          hyp_s2t_alignment_model[I].direct_access(k) =
+            inv_lambda * s2t_alignment_model[I].direct_access(k)
+            + lambda * new_s2t_alignment_model[I].direct_access(k);
+
+      for (uint J = 0; J < t2s_alignment_model.size(); J++)
+        for (uint k = 0; k < t2s_alignment_model[J].size(); k++)
+          hyp_t2s_alignment_model[J].direct_access(k) =
+            inv_lambda * t2s_alignment_model[J].direct_access(k)
+            + lambda * new_t2s_alignment_model[J].direct_access(k);
+
+      double new_energy = symibm2_energy(source, slookup, tlookup, target, hyp_s2t_dict, hyp_t2s_dict,
+                                         hyp_s2t_alignment_model, hyp_t2s_alignment_model, gamma, diff_of_logs);
+
+      std::cerr << "new hyp: " << new_energy << ", previous: " << hyp_energy << std::endl;
+
+      if (new_energy < hyp_energy) {
+        hyp_energy = new_energy;
+        best_lambda = lambda;
+        decreasing = true;
+      }
+      else
+        decreasing = false;
+    }
+
+    if (nInnerIter > 4) {
+      nSuccessiveReductions++;
+    }
+    else {
+      nSuccessiveReductions = 0;
+    }
+
+    if (nSuccessiveReductions > 15) {
+      line_reduction_factor *= 0.9;
+      nSuccessiveReductions = 0;
+    }
+
+    /**** update the dictionaries according to the determined step-size ******/
+
+    double inv_best_lambda = 1.0 - best_lambda;
+
+    for (uint i = 0; i < nTargetWords; i++) {
+
+      for (uint k = 0; k < s2t_dict[i].size(); k++)
+        s2t_dict[i][k] = inv_best_lambda * s2t_dict[i][k] + best_lambda * new_s2t_dict[i][k];
+    }
+    for (uint j = 0; j < nSourceWords; j++) {
+
+      for (uint k = 0; k < t2s_dict[j].size(); k++)
+        t2s_dict[j][k] = inv_best_lambda * t2s_dict[j][k] + best_lambda * new_t2s_dict[j][k];
+    }
+    for (uint I = 0; I < s2t_alignment_model.size(); I++)
+      for (uint k = 0; k < s2t_alignment_model[I].size(); k++)
+        s2t_alignment_model[I].direct_access(k) =
+          inv_best_lambda * s2t_alignment_model[I].direct_access(k)
+          + best_lambda * new_s2t_alignment_model[I].direct_access(k);
+
+    for (uint J = 0; J < t2s_alignment_model.size(); J++)
+      for (uint k = 0; k < t2s_alignment_model[J].size(); k++)
+        t2s_alignment_model[J].direct_access(k) =
+          inv_best_lambda * t2s_alignment_model[J].direct_access(k) + best_lambda * new_t2s_alignment_model[J].direct_access(k);
+
+    energy = hyp_energy;
+
+    /************* compute alignment error rate ****************/
+    if (!possible_ref_alignments.empty()) {
+
+      double sum_aer = 0.0;
+      double sum_fmeasure = 0.0;
+      double nErrors = 0.0;
+      uint nContributors = 0;
+
+      for (size_t s = 0; s < nSentences; s++) {
+
+        if (possible_ref_alignments.find(s + 1) != possible_ref_alignments.end()) {
+
+          std::set<std::pair<AlignBaseType,AlignBaseType> > alignment;
+
+          derive_symibm2_alignment(source[s], slookup[s], tlookup[s], target[s],
+                                   s2t_dict, t2s_dict, s2t_alignment_model, t2s_alignment_model, alignment, 0.15);
+
+          nContributors++;
+
+          //add alignment error rate
+          sum_aer += AER(alignment, sure_ref_alignments[s + 1], possible_ref_alignments[s + 1]);
+          sum_fmeasure += f_measure(alignment, sure_ref_alignments[s + 1], possible_ref_alignments[s + 1]);
+          nErrors += nDefiniteAlignmentErrors(alignment, sure_ref_alignments[s + 1], possible_ref_alignments[s + 1]);
+        }
+      }
+
+      sum_aer *= 100.0 / nContributors;
+      sum_fmeasure /= nContributors;
+      nErrors /= nContributors;
+
+      std::cerr << "#### Sym-IBM2 AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
+      std::cerr << "#### Sym-IBM2 fmeasure after iteration #" << iter << ": " << sum_fmeasure << std::endl;
+      std::cerr << "#### Sym-IBM2 DAE/S after iteration #" << iter << ": " << nErrors << std::endl;
+    }
+  }  //end of loop over iterations
 }

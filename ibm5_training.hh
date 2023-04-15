@@ -17,24 +17,24 @@ public:
               const Math1D::Vector<double>& log_table, const Math1D::Vector<double>& xlogx_table,
               const FertModelOptions& options);
 
-  virtual std::string model_name() const;
+  virtual std::string model_name() const override;
 
-  void init_from_prevmodel(FertilityModelTrainerBase* prev_model, const HmmWrapperWithClasses* passed_wrapper,
+  void init_from_prevmodel(FertilityModelTrainerBase* prev_model, const HmmWrapperBase* passed_wrapper,
                            bool clear_prev = true, bool count_collection = false, bool viterbi = false);
 
-  void train_em(uint nIter, FertilityModelTrainerBase* prev_model = 0, const HmmWrapperWithClasses* passed_wrapper = 0);
+  void train_em(uint nIter, FertilityModelTrainerBase* prev_model = 0, const HmmWrapperBase* passed_wrapper = 0);
 
-  void train_viterbi(uint nIter, FertilityModelTrainerBase* prev_model = 0, const HmmWrapperWithClasses* passed_wrapper = 0);
+  void train_viterbi(uint nIter, FertilityModelTrainerBase* prev_model = 0, const HmmWrapperBase* passed_wrapper = 0);
 
   virtual long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target,
       const SingleLookupTable& lookup, uint& nIter, Math1D::Vector<uint>& fertility,
       Math2D::Matrix<long double>& expansion_prob, Math2D::Matrix<long double>& swap_prob,
-      Math1D::Vector<AlignBaseType>& alignment) const;
+      Math1D::Vector<AlignBaseType>& alignment) const override;
 
 protected:
 
   virtual long double alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
-                                     const Math1D::Vector<ushort>& alignment) const;
+                                     const Math1D::Vector<ushort>& alignment) const override;
 
   //NOTE: the vectors need to be sorted
   long double distortion_prob(const Storage1D<uint>& source, const Storage1D<uint>& target,
@@ -60,11 +60,10 @@ protected:
   void intra_distortion_m_step(const Math2D::Matrix<double>& single_diff_count,
                                const Math2D::Matrix<double>& diff_span_count, uint sclass);
 
-  void intra_distortion_m_step_unconstrained(const Math2D::Matrix<double>& single_diff_count,
-      const Math2D::Matrix<double>& diff_span_count, uint sclass, uint L = 5);
+  void intra_distortion_m_step_unconstrained(const Math2D::Matrix<double>& single_diff_count, const Math2D::Matrix<double>& diff_span_count, uint sclass, uint L = 5);
 
   virtual void prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
-                                          Math1D::Vector<AlignBaseType>& alignment);
+                                          Math1D::Vector<AlignBaseType>& alignment) override;
 
   //dependence on the previous center (yDim) and source word classes (zDim)
   Storage1D<Math3D::Tensor<double> > inter_distortion_prob_;

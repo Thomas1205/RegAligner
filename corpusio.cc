@@ -11,8 +11,7 @@
 #include "gzstream.h"
 #endif
 
-void read_vocabulary(std::string filename, std::vector<std::string>& voc_list)
-{
+void read_vocabulary(std::string filename, std::vector<std::string>& voc_list) {
 
 #ifdef HAS_GZSTREAM
   std::ifstream infile;
@@ -41,8 +40,7 @@ void read_vocabulary(std::string filename, std::vector<std::string>& voc_list)
   }
 }
 
-void read_monolingual_corpus(std::string filename, Storage1D<Math1D::Vector<uint> >& sentence_list)
-{
+void read_monolingual_corpus(std::string filename, Storage1D<Math1D::Vector<uint> > & sentence_list) {
 
   bool zipped = is_gzip_file(filename);
 
@@ -70,7 +68,7 @@ void read_monolingual_corpus(std::string filename, Storage1D<Math1D::Vector<uint
 #endif
 
   std::vector<std::vector<uint> > slist;
-
+  
   char cline[65536];
   std::string line;
 
@@ -82,7 +80,7 @@ void read_monolingual_corpus(std::string filename, Storage1D<Math1D::Vector<uint
 
     line = cline;
     tokenize(line,tokens,' ');
-
+    
     std::vector<uint>& cur_line = slist.back();
 
     for (uint k=0; k < tokens.size(); k++) {
@@ -103,8 +101,7 @@ void read_monolingual_corpus(std::string filename, Storage1D<Math1D::Vector<uint
   }
 }
 
-void read_monolingual_corpus(std::string filename, NestedStorage1D<uint,uint>& sentence_list)
-{
+void read_monolingual_corpus(std::string filename, NestedStorage1D<uint,uint> & sentence_list) {
 
   bool zipped = is_gzip_file(filename);
 
@@ -133,7 +130,7 @@ void read_monolingual_corpus(std::string filename, NestedStorage1D<uint,uint>& s
 #endif
 
   std::vector<std::vector<uint> > slist;
-
+  
   char cline[65536];
   std::string line;
 
@@ -145,7 +142,7 @@ void read_monolingual_corpus(std::string filename, NestedStorage1D<uint,uint>& s
 
     line = cline;
     tokenize(line,tokens,' ');
-
+    
     std::vector<uint>& cur_line = slist.back();
 
     for (uint k=0; k < tokens.size(); k++) {
@@ -161,8 +158,7 @@ void read_monolingual_corpus(std::string filename, NestedStorage1D<uint,uint>& s
   sentence_list = slist;
 }
 
-void read_monolingual_corpus(std::string filename, Storage1D<Storage1D<std::string> >& sentence_list)
-{
+void read_monolingual_corpus(std::string filename, Storage1D<Storage1D<std::string> > & sentence_list) {
 
 
   bool zipped = is_gzip_file(filename);
@@ -191,7 +187,7 @@ void read_monolingual_corpus(std::string filename, Storage1D<Storage1D<std::stri
 #endif
 
   std::vector<std::vector<std::string> > slist;
-
+  
   char cline[65536];
   std::string line;
 
@@ -212,8 +208,7 @@ void read_monolingual_corpus(std::string filename, Storage1D<Storage1D<std::stri
   }
 }
 
-bool read_next_monolingual_sentence(std::istream& file, Storage1D<std::string>& sentence)
-{
+bool read_next_monolingual_sentence(std::istream& file, Storage1D<std::string>& sentence) {
 
   char cline[65536];
   std::string line;
@@ -239,8 +234,7 @@ bool read_next_monolingual_sentence(std::istream& file, Storage1D<std::string>& 
   return true;
 }
 
-void read_idx_dict(std::string filename, SingleWordDictionary& dict, CooccuringWordsType& cooc)
-{
+void read_idx_dict(std::string filename, SingleWordDictionary& dict, CooccuringWordsType& cooc) {
 
   bool zipped = is_gzip_file(filename);
 
@@ -304,25 +298,21 @@ void read_idx_dict(std::string filename, SingleWordDictionary& dict, CooccuringW
     }
     cur_cooc.push_back(sidx);
     cur_dict.push_back(prob);
-
+    
     last_tidx = tidx;
   }
 
   //write last entries
   dict[last_tidx].resize_dirty(cur_cooc.size());
   cooc[last_tidx].resize_dirty(cur_cooc.size());
-
+  
   for (uint k=0; k < cur_cooc.size(); k++) {
     cooc[last_tidx][k] = cur_cooc[k];
     dict[last_tidx][k] = cur_dict[k];
   }
-
 }
 
-
-void read_prior_dict(std::string filename, std::set<std::pair<uint, uint> >& known_pairs, bool invert)
-{
-
+void read_prior_dict(std::string filename, std::set<std::pair<uint, uint> >& known_pairs, bool invert) {
 
   bool zipped = is_gzip_file(filename);
 
@@ -359,8 +349,61 @@ void read_prior_dict(std::string filename, std::set<std::pair<uint, uint> >& kno
   }
 }
 
-void read_word_classes(std::string filename, Storage1D<WordClassType>& word_class)
+bool operator<(const PriorPair& p1, const PriorPair& p2) {
+	
+  if (p1.s_idx_ != p2.s_idx_)
+	return (p1.s_idx_ < p2.s_idx_);
+  if (p1.t_idx_ != p2.t_idx_)
+	return (p1.t_idx_ < p2.t_idx_);
+  return (p1.multiplicator_ < p2.multiplicator_); 
+}
+
+void read_prior_dict(std::string filename, std::set<PriorPair>& known_pairs, bool invert)
 {
+  bool zipped = is_gzip_file(filename);
+
+#ifdef HAS_GZSTREAM
+  std::ifstream infile;
+  igzstream gzin;
+
+  if (zipped)
+    gzin.open(filename.c_str());
+  else {
+    infile.open(filename.c_str());
+  }
+
+  std::istream* instream = (zipped) ? static_cast<std::istream*>(&gzin) : &infile;
+#else
+
+  if (zipped) {
+    INTERNAL_ERROR << "zipped file input, but support for gz is not enabled" << std::endl;
+    exit(1);
+  }
+
+  std::ifstream infile(filename.c_str());
+
+  std::istream* instream = &infile;
+#endif
+
+  char cline[65536];
+  std::string line;
+  std::vector<std::string> tokens;
+  
+  while(instream->getline(cline,65536)) {
+	line = cline;
+    tokenize(line,tokens,' ');
+    assert(tokens.size() >= 2 && tokens.size() <= 3);
+	uint tidx = convert<uint>(tokens[0]);
+    uint sidx = convert<uint>(tokens[1]);
+	float multiplicator = 0.0;
+	if (tokens.size() == 3)
+      multiplicator = convert<float>(tokens[2]);
+  
+    known_pairs.insert(PriorPair(sidx,tidx,multiplicator));
+  }
+}
+
+void read_word_classes(std::string filename, Storage1D<WordClassType>& word_class) {
 
   bool zipped = is_gzip_file(filename);
 
@@ -399,7 +442,7 @@ void read_word_classes(std::string filename, Storage1D<WordClassType>& word_clas
     }
 
     if (instream->bad() || instream->fail()) {
-      std::cerr << "ERROR: could not read word classes. Please check the file. Exiting.." << std::endl;
+      std::cerr << "ERROR: could not read word classes. Please check the file. Exiting.." << std::endl; 
       exit(1);
     }
 
@@ -419,7 +462,7 @@ void read_word_classes(std::string filename, Storage1D<WordClassType>& word_clas
     word_class[i] = dense_class_idx[word_class[i]];
 
   if (!instream->eof() && (instream->bad() || instream->fail()) ) {
-    std::cerr << "ERROR: could not read word classes. Please check the file. Exiting.." << std::endl;
+    std::cerr << "ERROR: could not read word classes. Please check the file. Exiting.." << std::endl; 
     exit(1);
   }
 
@@ -429,8 +472,7 @@ void read_word_classes(std::string filename, Storage1D<WordClassType>& word_clas
 }
 
 
-void read_word_classes(std::string filename, Storage1D<uint>& word_class)
-{
+void read_word_classes(std::string filename, Storage1D<uint>& word_class) {
 
 
   bool zipped = is_gzip_file(filename);
@@ -470,7 +512,7 @@ void read_word_classes(std::string filename, Storage1D<uint>& word_class)
     }
 
     if (instream->bad() || instream->fail()) {
-      std::cerr << "ERROR: could not read word classes. Please check the file. Exiting.." << std::endl;
+      std::cerr << "ERROR: could not read word classes. Please check the file. Exiting.." << std::endl; 
       exit(1);
     }
 
@@ -492,7 +534,7 @@ void read_word_classes(std::string filename, Storage1D<uint>& word_class)
   std::cerr << next_idx << " word classes" << std::endl;
 
   if (!instream->eof() && (instream->bad() || instream->fail()) ) {
-    std::cerr << "ERROR: could not read word classes. Please check the file. Exiting.." << std::endl;
+    std::cerr << "ERROR: could not read word classes. Please check the file. Exiting.." << std::endl; 
     exit(1);
   }
 

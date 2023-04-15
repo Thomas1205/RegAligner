@@ -30,32 +30,29 @@ bool operator<(const IBM4CacheStruct& c1, const IBM4CacheStruct& c2);
 class IBM4Trainer:public FertilityModelTrainer {
 public:
 
-  IBM4Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence, const LookupTable& slookup,
-              const Storage1D<Math1D::Vector<uint> >& target_sentence,
-              const RefAlignmentStructure& sure_ref_alignments, const RefAlignmentStructure& possible_ref_alignments,
-              SingleWordDictionary& dict, const CooccuringWordsType& wcooc,
-              const Math1D::Vector<uint>& tfert_class, uint nSourceWords, uint nTargetWords, const floatSingleWordDictionary& prior_weight,
-              const Storage1D<WordClassType>& source_class, const Storage1D<WordClassType>& target_class,
-              const Math1D::Vector<double>& log_table, const Math1D::Vector<double>& xlogx_table,
-              const FertModelOptions& options, bool no_factorial = true);
+  IBM4Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence, const LookupTable& slookup, const Storage1D<Math1D::Vector<uint> >& target_sentence,
+              const RefAlignmentStructure& sure_ref_alignments, const RefAlignmentStructure& possible_ref_alignments, SingleWordDictionary& dict,
+              const CooccuringWordsType& wcooc, const Math1D::Vector<uint>& tfert_class, uint nSourceWords, uint nTargetWords, const floatSingleWordDictionary& prior_weight,
+              const Storage1D<WordClassType>& source_class, const Storage1D<WordClassType>& target_class, const Math1D::Vector<double>& log_table,
+              const Math1D::Vector<double>& xlogx_table, const FertModelOptions& options, bool no_factorial = true);
 
-  virtual std::string model_name() const;
+  virtual std::string model_name() const override;
 
-  virtual void release_memory();
+  virtual void release_memory() override;
 
-  void init_from_prevmodel(FertilityModelTrainerBase* prev_model, const HmmWrapperWithClasses* passed_wrapper,
+  void init_from_prevmodel(FertilityModelTrainerBase* prev_model, const HmmWrapperBase* passed_wrapper,
                            bool clear_prev = true, bool count_collection = false, bool viterbi = false);
 
   //training without constraints on uncovered positions.
   //This is based on the EM-algorithm where the E-step uses heuristics
-  void train_em(uint nIter, FertilityModelTrainerBase* prev_model = 0, const HmmWrapperWithClasses* passed_wrapper = 0);
+  void train_em(uint nIter, FertilityModelTrainerBase* prev_model = 0, const HmmWrapperBase* passed_wrapper = 0);
 
   //unconstrained Viterbi training
-  void train_viterbi(uint nIter, FertilityModelTrainerBase* prev_model = 0, const HmmWrapperWithClasses* passed_wrapper = 0);
+  void train_viterbi(uint nIter, FertilityModelTrainerBase* prev_model = 0, const HmmWrapperBase* passed_wrapper = 0);
 
   virtual long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
       uint& nIter, Math1D::Vector<uint>& fertility, Math2D::Matrix<long double>& expansion_prob,
-      Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment) const;
+      Math2D::Matrix<long double>& swap_prob, Math1D::Vector<AlignBaseType>& alignment) const override;
 
   const Math1D::Vector<double>& sentence_start_parameters() const;
 
@@ -64,7 +61,7 @@ protected:
   double inter_distortion_prob(int j, int j_prev, uint sclass, uint tclass, uint J) const;
 
   virtual long double alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
-                                     const Math1D::Vector<AlignBaseType>& alignment) const;
+                                     const Math1D::Vector<AlignBaseType>& alignment) const override;
 
   long double nondeficient_alignment_prob(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
                                           const Math1D::Vector<AlignBaseType>& alignment) const;
@@ -147,14 +144,13 @@ protected:
                                           const IBM4WithinCeptModel& param, uint sclass) const;
 
   //compact form
-  void nondeficient_intra_m_step(const IBM4WithinCeptModel& singleton_count,
-                                 const std::vector<std::pair<Math1D::Vector<uchar,uchar >,double> >& count, uint sclass);
+  void nondeficient_intra_m_step(const IBM4WithinCeptModel& singleton_count, const std::vector<std::pair<Math1D::Vector<uchar,uchar >,double> >& count, uint sclass);
 
-  void nondeficient_intra_m_step_unconstrained(const IBM4WithinCeptModel& singleton_count,
-      const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count, uint sclass, uint L = 5);
+  void nondeficient_intra_m_step_unconstrained(const IBM4WithinCeptModel& singleton_count, const std::vector<std::pair<Math1D::Vector<uchar,uchar>,double> >& count,
+      uint sclass, uint L = 5);
 
   virtual void prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
-                                          const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment);
+                                          const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment) override;
 
   //indexed by (target word class idx, source word class idx, displacement)
   IBM4CeptStartModel cept_start_prob_;  //note: displacements of 0 are possible here (the center of a cept need not be an aligned word)
@@ -194,12 +190,9 @@ protected:
   uint nTargetClasses_;
 
   bool nondeficient_ = false;
-  bool nondef_norm_m_step_ = false;
 
   //if there are many word classes, inter distortion tables are only kept for J<=storage_limit_ and some very frequent ones
   const ushort storage_limit_;
-
-  bool compute_all_ = false;
 };
 
 #endif

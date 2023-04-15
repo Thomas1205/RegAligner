@@ -18,10 +18,16 @@ NOTE: since version 1.3 RegAligner uses C++-11. The amount of non-C++-03 code wi
 RegAligner Change History
 
 *** after the last release ***
+- implemented FertilityHMM (available with double word classes)
+- HMM with double word classes
 - IBM-3 can now take target word classes
 - HMM can now get a redpar limit. Default is 5, as before
+- HMM in Viterbi mode now evaluates all changes in ICM
 - IBM-2 now estimates p0, and it uses source word classes
 - IBM-1 got an alternative model IBM1p0 with fixed p0
+- dictionary prior can now also set weights
+- now trying normalized counts as a starting point for the dictionary m-step
+- bugfixes for IBM-3 Viterbi training with IBM-constraints
 
 *** release version 1.3 (released February 14 2020, lacking a Valentine) ***
 - several new model variants

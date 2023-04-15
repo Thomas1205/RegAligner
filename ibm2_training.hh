@@ -23,6 +23,7 @@ public:
   bool smoothed_l0_;
   double l0_beta_;
   double p0_ = 0.02;
+  double gd_stepsize_ = 1.0;
 
   bool print_energy_;
 
@@ -52,7 +53,8 @@ void train_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
                 const floatSingleWordDictionary& prior_weight, double l0_beta, bool smoothed_l0, uint dict_m_step_iter);
 
 void par2nonpar_reduced_ibm2alignment_model(const Math3D::Tensor<double>& align_param, const Math1D::Vector<double>& source_fert,
-    ReducedIBM2ClassAlignmentModel& alignment_model, IBM23ParametricMode par_mode, uint offset, bool deficient = false);
+    ReducedIBM2ClassAlignmentModel& alignment_model, IBM23ParametricMode par_mode, uint offset,
+    bool deficient = false);
 
 void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const Storage1D<Math1D::Vector<uint> >& target,
                         const CooccuringWordsType& wcooc, const CooccuringLengthsType& lcooc, ReducedIBM2ClassAlignmentModel& alignment_model,
@@ -69,5 +71,14 @@ void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& sourc
                                    Math3D::Tensor<double>& align_param, Math1D::Vector<double>& source_fert, SingleWordDictionary& dict,
                                    const Math1D::Vector<WordClassType>& sclass, const IBM2Options& options, const floatSingleWordDictionary& prior_weight,
                                    const Math1D::Vector<double>& xlogx_table);
+
+void symtrain_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const LookupTable& slookup, const LookupTable& tlookup,
+                           const Storage1D<Math1D::Vector<uint> >& target, const CooccuringWordsType& s2t_wcooc, const CooccuringWordsType& t2s_wcooc,
+                           const CooccuringLengthsType& s2t_lcooc, const CooccuringLengthsType& t2s_lcooc, uint nSourceWords, uint nTargetWords,
+                           ReducedIBM2AlignmentModel& s2t_alignment_model, ReducedIBM2AlignmentModel& t2s_alignment_model,
+                           SingleWordDictionary& s2t_dict, SingleWordDictionary& t2s_dict, uint nIterations, double gamma,
+                           std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& sure_ref_alignments,
+                           std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
+                           bool diff_of_logs);
 
 #endif

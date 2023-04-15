@@ -27,6 +27,7 @@ struct FertModelOptions {
   double l0_beta_ = 0.0;
   double l0_fertpen_ = 0.0;
   double min_nondef_count_ = 1e-6;
+  double gd_stepsize_ = 1.0;
 
   uint nMaxHCIter_ = 150;
   uint dict_m_step_iter_ = 45;
@@ -57,17 +58,15 @@ struct FertModelOptions {
   bool ibm5_nonpar_distortion_ = true;
   bool nondef_norm_m_step_ = false;
   bool ibm3_extra_deficient_ = false;
+  bool sptrw_reuse_ = false;
 };
 
 /*abstract*/ class FertilityModelTrainerBase {
 public:
 
-  FertilityModelTrainerBase(const Storage1D<Math1D::Vector<uint> >& source_sentence, const LookupTable& slookup,
-                            const Storage1D<Math1D::Vector<uint> >& target_sentence,
-                            const RefAlignmentStructure& sure_ref_alignments,
-                            const RefAlignmentStructure& possible_ref_alignments,
-                            SingleWordDictionary& dict, const CooccuringWordsType& wcooc,
-                            uint nSourceWords, uint nTargetWords, uint fertility_limit = 10000);
+  FertilityModelTrainerBase(const Storage1D<Math1D::Vector<uint> >& source_sentence, const LookupTable& slookup, const Storage1D<Math1D::Vector<uint> >& target_sentence,
+                            const RefAlignmentStructure& sure_ref_alignments, const RefAlignmentStructure& possible_ref_alignments,
+                            SingleWordDictionary& dict, const CooccuringWordsType& wcooc, uint nSourceWords, uint nTargetWords, uint fertility_limit = 10000);
 
   virtual std::string model_name() const = 0;
 
@@ -77,7 +76,7 @@ public:
 
   void write_postdec_alignments(const std::string filename, double thresh);
 
-  const Storage1D<Math1D::Vector<AlignBaseType> >& update_alignments_unconstrained(bool inform = true, const HmmWrapperWithClasses* wrapper = 0);
+  const Storage1D<Math1D::Vector<AlignBaseType> >& update_alignments_unconstrained(bool inform = true, const HmmWrapperBase* wrapper = 0);
 
   virtual void set_fertility_limit(uint new_limit);
 
@@ -87,8 +86,8 @@ public:
   // returns the probability of the resulting alignment
   //@param fertility: this vector must be of size I+1, where I is the length of target. It is then filled with the fertilities
   //      of the return <code> alignment </code>
-  virtual long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
-      uint& nIter, Math1D::Vector<uint>& fertility, Math2D::Matrix<long double>& expansion_prob, Math2D::Matrix<long double >& swap_prob,
+  virtual long double update_alignment_by_hillclimbing(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup, uint& nIter,
+      Math1D::Vector<uint>& fertility, Math2D::Matrix<long double>& expansion_prob, Math2D::Matrix<long double>& swap_prob,
       Math1D::Vector<AlignBaseType>& alignment) const = 0;
 
   virtual long double compute_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
@@ -101,13 +100,11 @@ public:
       double threshold = 0.25);
 
   void compute_approximate_jmarginals(const Math1D::Vector<AlignBaseType>& alignment, const Math2D::Matrix<long double>& expansion_prob,
-                                      const Math2D::Matrix<long double>& swap_prob, const long double sentence_prob,
-                                      Math2D::Matrix<double>& j_marg) const;
+                                      const Math2D::Matrix<long double>& swap_prob, const long double sentence_prob, Math2D::Matrix<double>& j_marg) const;
 
   //don't even need the swap matrix
   void compute_approximate_imarginals(const Math1D::Vector<AlignBaseType>& alignment, const Math1D::Vector<uint>& fertility,
-                                      const Math2D::Matrix<long double>& expansion_prob, const long double sentence_prob,
-                                      Math2D::Matrix<double>& i_marg) const;
+                                      const Math2D::Matrix<long double>& expansion_prob, const long double sentence_prob, Math2D::Matrix<double>& i_marg) const;
 
   virtual void compute_approximate_jmarginals(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
       Math1D::Vector<AlignBaseType>& alignment, Math2D::Matrix<double>& j_marg, bool& converged) const
@@ -118,8 +115,8 @@ public:
 
   //compute marginals needed for the IBM-3//returns the logarithm of the (approximated) normalization constant
   virtual double compute_approximate_marginals(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
-      Math1D::Vector<AlignBaseType>& alignment, Math2D::Matrix<double>& j_marg,
-      Math2D::Matrix<double >& i_marg, double hc_mass, bool& converged) const;
+      Math1D::Vector<AlignBaseType>& alignment, Math2D::Matrix<double>& j_marg, Math2D::Matrix<double>& i_marg,
+      double hc_mass, bool& converged) const;
 
   virtual void release_memory();
 
@@ -135,9 +132,11 @@ public:
 
   double DAE_S(const Storage1D<Math1D::Vector<AlignBaseType> >& alignments) const;
 
-  void set_hmm_alignments(const HmmWrapper& hmm_wrapper);
+  void set_hmm_alignments(const HmmWrapperNoClasses& hmm_wrapper);
 
-  void set_hmm_alignments(const HmmWrapperWithClasses& hmmc_wrapper);
+  void set_hmm_alignments(const HmmWrapperWithTargetClasses& hmmc_wrapper);
+
+  void set_hmm_alignments(const HmmWrapperBase& hmm_wrapper);
 
 protected:
 
@@ -151,7 +150,7 @@ protected:
 
   void compute_postdec_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target, const SingleLookupTable& lookup,
                                  Math1D::Vector<AlignBaseType>& alignment, double threshold,
-                                 std::set<std::pair<AlignBaseType,AlignBaseType > >& postdec_alignment) const;
+                                 std::set<std::pair<AlignBaseType,AlignBaseType> >& postdec_alignment) const;
 
   const Storage1D<Math1D::Vector<uint> >& source_sentence_;
   const LookupTable& slookup_;
@@ -169,7 +168,7 @@ protected:
   Math1D::Vector<ushort> fertility_limit_;
 
   NamedStorage1D<Math1D::Vector<AlignBaseType> > best_known_alignment_;
-
+  
   RefAlignmentStructure sure_ref_alignments_;
   RefAlignmentStructure possible_ref_alignments_;
 };
@@ -177,22 +176,18 @@ protected:
 /*abstract*/ class FertilityModelTrainer : public FertilityModelTrainerBase {
 public:
 
-  FertilityModelTrainer(const Storage1D<Math1D::Vector<uint> >& source_sentence, const LookupTable& slookup,
-                        const Storage1D<Math1D::Vector<uint> >& target_sentence, SingleWordDictionary& dict,
-                        const CooccuringWordsType& wcooc, const Math1D::Vector<uint>& tfert_class,
-                        uint nSourceWords, uint nTargetWords, const floatSingleWordDictionary& prior_weight,
-                        FertNullModel empty_word_model, bool smoothed_l0, double l0_beta, double l0_fertpen, bool no_factorial,
-                        const RefAlignmentStructure& sure_ref_alignments, const RefAlignmentStructure& possible_ref_alignments,
-                        const Math1D::Vector<double>& log_table, const Math1D::Vector<double>& xlogx_table, uint fertility_limit = 10000,
-                        MStepSolveMode msolve_mode = MSSolvePGD, HillclimbingMode hillclimb_mode = HillclimbingReuse);
+  // FertilityModelTrainer(const Storage1D<Math1D::Vector<uint> >& source_sentence, const LookupTable& slookup, const Storage1D<Math1D::Vector<uint> >& target_sentence,
+  // SingleWordDictionary& dict, const CooccuringWordsType& wcooc, const Math1D::Vector<uint>& tfert_class, uint nSourceWords, uint nTargetWords,
+  // const floatSingleWordDictionary& prior_weight, FertNullModel empty_word_model, bool smoothed_l0, double l0_beta, double l0_fertpen, bool no_factorial,
+  // const RefAlignmentStructure& sure_ref_alignments, const RefAlignmentStructure& possible_ref_alignments,
+  // const Math1D::Vector<double>& log_table, const Math1D::Vector<double>& xlogx_table, uint fertility_limit = 10000,
+  // MStepSolveMode msolve_mode = MSSolvePGD, HillclimbingMode hillclimb_mode = HillclimbingReuse);
 
-  FertilityModelTrainer(const Storage1D<Math1D::Vector<uint> >& source_sentence, const LookupTable& slookup,
-                        const Storage1D<Math1D::Vector<uint> >& target_sentence, SingleWordDictionary& dict,
-                        const CooccuringWordsType& wcooc, const Math1D::Vector<uint>& tfert_class,
-                        uint nSourceWords, uint nTargetWords, const floatSingleWordDictionary& prior_weight,
-                        const RefAlignmentStructure& sure_ref_alignments, const RefAlignmentStructure& possible_ref_alignments,
-                        const Math1D::Vector<double>& log_table, const Math1D::Vector<double>& xlogx_table,
-                        const FertModelOptions& options, bool no_factorial, uint fertility_limit = 10000);
+  FertilityModelTrainer(const Storage1D<Math1D::Vector<uint> >& source_sentence, const LookupTable& slookup, const Storage1D<Math1D::Vector<uint> >& target_sentence,
+                        SingleWordDictionary& dict, const CooccuringWordsType& wcooc, const Math1D::Vector<uint>& tfert_class, uint nSourceWords, uint nTargetWords,
+                        const floatSingleWordDictionary& prior_weight, const RefAlignmentStructure& sure_ref_alignments, const RefAlignmentStructure& possible_ref_alignments,
+                        const Math1D::Vector<double>& log_table, const Math1D::Vector<double>& xlogx_table, const FertModelOptions& options, bool no_factorial,
+                        uint fertility_limit = 10000);
 
   double p_zero() const;
 
@@ -237,38 +232,32 @@ protected:
   void update_fertility_prob(const Storage1D<Math1D::Vector<double> >& ffert_count, double min_prob = 1e-8, bool with_regularity = true);
 
   inline void update_fertility_counts(const Storage1D<uint>& target, const Math1D::Vector<AlignBaseType>& best_alignment,
-                                      const Math1D::NamedVector<uint>& fertility,
-                                      const Math2D::NamedMatrix<long double>& expansion_move_prob,
-                                      const long double sentence_prob, const long double inv_sentence_prob,
-                                      Storage1D<Math1D::Vector<double> >& ffert_count);
+                                      const Math1D::Vector<uint>& fertility, const Math2D::Matrix<long double>& expansion_move_prob,
+                                      const long double sentence_prob, const long double inv_sentence_prob, Storage1D<Math1D::Vector<double> >& ffert_count);
 
-  inline void update_dict_counts(const Storage1D<uint>& cur_source, const Storage1D<uint>& cur_target,
-                                 const SingleLookupTable& cur_lookup, const Math1D::Vector<AlignBaseType>& best_alignment,
-                                 const Math2D::NamedMatrix<long double>& expansion_move_prob,
-                                 const Math2D::NamedMatrix<long double>& swap_move_prob,
-                                 const long double sentence_prob, const long double inv_sentence_prob,
+  inline void update_dict_counts(const Storage1D<uint>& cur_source, const Storage1D<uint>& cur_target, const SingleLookupTable& cur_lookup,
+                                 const Math1D::Vector<AlignBaseType>& best_alignment, const Math2D::Matrix<long double>& expansion_move_prob,
+                                 const Math2D::Matrix<long double>& swap_move_prob, const long double sentence_prob, const long double inv_sentence_prob,
                                  Storage1D<Math1D::Vector<double> >& fwcount);
 
-  inline void update_zero_counts(const Math1D::Vector<AlignBaseType>& best_alignment, const Math1D::NamedVector<uint>& fertility,
-                                 const Math2D::NamedMatrix<long double>& expansion_move_prob, const long double swap_sum,
-                                 const long double best_prob, const long double sentence_prob, const long double inv_sentence_prob,
-                                 double& fzero_count, double& fnonzero_count);
+  inline void update_zero_counts(const Math1D::Vector<AlignBaseType>& best_alignment, const Math1D::Vector<uint>& fertility,
+                                 const Math2D::Matrix<long double>& expansion_move_prob, const long double swap_sum, const long double best_prob,
+                                 const long double sentence_prob, const long double inv_sentence_prob, double& fzero_count, double& fnonzero_count);
 
   inline long double swap_mass(const Math2D::Matrix<long double>& swap_move_prob) const;
 
   inline double common_icm_change(const Math1D::Vector<uint>& cur_fertilities, const double log_pzero, const double log_pnonzero,
-                                  const Math1D::NamedVector<uint>& dict_sum, const Math1D::Vector<double>& cur_dictcount,
+                                  const Math1D::Vector<uint>& dict_sum, const Math1D::Vector<double>& cur_dictcount,
                                   const Math1D::Vector<double>& hyp_dictcount, const Math1D::Vector<float>& cur_prior,
                                   const Math1D::Vector<float>& hyp_prior, const Math1D::Vector<double>& cur_fert_count,
                                   const Math1D::Vector<double>& hyp_fert_count, const Storage1D<Math1D::Vector<double> >& ffertclass_count,
                                   const uint cur_target_word, const uint hyp_target_word, const uint cur_idx, const uint hyp_idx,
                                   const uint cur_aj, const uint hyp_aj, const uint curJ) const;
 
-  inline void common_icm_count_change(Math1D::NamedVector<uint>& dict_sum, Math1D::Vector<double>& cur_dictcount,
-                                      Math1D::Vector<double>& hyp_dictcount, Math1D::Vector<double>& cur_fert_count,
-                                      Math1D::Vector<double>& hyp_fert_count, Storage1D<Math1D::Vector<double> >& ffertclass_count,
-                                      const uint cur_word, const uint new_target_word, const uint cur_idx, const uint hyp_idx,
-                                      const uint cur_aj, const uint hyp_aj, Math1D::Vector<uint>& cur_fertilities);
+  inline void common_icm_count_change(Math1D::Vector<uint>& dict_sum, Math1D::Vector<double>& cur_dictcount, Math1D::Vector<double>& hyp_dictcount,
+                                      Math1D::Vector<double>& cur_fert_count, Math1D::Vector<double>& hyp_fert_count, Storage1D<Math1D::Vector<double> >& ffertclass_count,
+                                      const uint cur_word, const uint new_target_word, const uint cur_idx, const uint hyp_idx, const uint cur_aj, const uint hyp_aj,
+                                      Math1D::Vector<uint>& cur_fertilities);
 
   void common_prepare_external_alignment(const Storage1D<uint>& source, const Storage1D<uint>& target,
                                          const SingleLookupTable& lookup, Math1D::Vector<AlignBaseType>& alignment);
@@ -279,8 +268,7 @@ protected:
 
   inline void update_nullpow(uint fert0, uint fert1, const double p_zero, const double p_nonzero) const;
 
-  inline void compute_null_prob(uint curJ, double p_zero, double p_nonzero,
-                                Math1D::Vector<long double>& null_prob, Math1D::Vector<double>& null_theta) const;
+  inline void compute_null_prob(uint curJ, double p_zero, double p_nonzero, Math1D::Vector<long double>& null_prob, Math1D::Vector<double>& null_theta) const;
 
   inline void compute_null_prob(uint curJ, double p_zero, double p_nonzero, Math1D::Vector<long double>& null_prob) const;
 
@@ -299,6 +287,7 @@ protected:
   bool smoothed_l0_;
   double l0_beta_;
   double l0_fertpen_;
+  double gd_stepsize_;
 
   bool no_factorial_;
 
@@ -333,7 +322,7 @@ protected:
 /*************** definition of inline functions ************/
 
 inline void FertilityModelTrainer::update_fertility_counts(const Storage1D<uint>& target, const Math1D::Vector<AlignBaseType>& best_alignment,
-    const Math1D::NamedVector<uint>& fertility, const Math2D::NamedMatrix<long double>& expansion_move_prob,
+    const Math1D::Vector<uint>& fertility, const Math2D::Matrix<long double>& expansion_move_prob,
     const long double sentence_prob, const long double inv_sentence_prob, Storage1D<Math1D::Vector<double> >& ffert_count)
 {
   uint curJ = best_alignment.size();
@@ -400,10 +389,10 @@ inline void FertilityModelTrainer::update_fertility_counts(const Storage1D<uint>
   }
 }
 
-inline void FertilityModelTrainer::update_dict_counts(const Storage1D<uint>& cur_source, const Storage1D<uint>& cur_target,
-    const SingleLookupTable& cur_lookup, const Math1D::Vector<AlignBaseType>& best_alignment,
-    const Math2D::NamedMatrix<long double>& expansion_move_prob, const Math2D::NamedMatrix<long double>& swap_move_prob,
-    const long double sentence_prob, const long double inv_sentence_prob, Storage1D<Math1D::Vector<double> >& fwcount)
+inline void FertilityModelTrainer::update_dict_counts(const Storage1D<uint>& cur_source, const Storage1D<uint>& cur_target, const SingleLookupTable& cur_lookup,
+    const Math1D::Vector<AlignBaseType>& best_alignment, const Math2D::Matrix<long double>& expansion_move_prob,
+    const Math2D::Matrix<long double>& swap_move_prob, const long double sentence_prob, const long double inv_sentence_prob,
+    Storage1D<Math1D::Vector<double> >& fwcount)
 {
   const uint curJ = cur_source.size();
   const uint curI = cur_target.size();
@@ -453,10 +442,9 @@ inline void FertilityModelTrainer::update_dict_counts(const Storage1D<uint>& cur
   }
 }
 
-inline void FertilityModelTrainer::update_zero_counts(const Math1D::Vector<AlignBaseType>& best_alignment,
-    const Math1D::NamedVector<uint>& fertility, const Math2D::NamedMatrix<long double>& expansion_move_prob,
-    const long double swap_sum, const long double best_prob, const long double sentence_prob, const long double inv_sentence_prob,
-    double& fzero_count, double& fnonzero_count)
+inline void FertilityModelTrainer::update_zero_counts(const Math1D::Vector<AlignBaseType>& best_alignment, const Math1D::Vector<uint>& fertility,
+    const Math2D::Matrix<long double>& expansion_move_prob, const long double swap_sum, const long double best_prob,
+    const long double sentence_prob, const long double inv_sentence_prob, double& fzero_count, double& fnonzero_count)
 {
   const uint curJ = expansion_move_prob.xDim();
   const uint curI = expansion_move_prob.yDim() - 1;
@@ -541,11 +529,11 @@ inline long double FertilityModelTrainer::swap_mass(const Math2D::Matrix<long do
 }
 
 inline double FertilityModelTrainer::common_icm_change(const Math1D::Vector<uint>& cur_fertilities, const double log_pzero, const double log_pnonzero,
-    const Math1D::NamedVector<uint>& dict_sum, const Math1D::Vector<double>& cur_dictcount, const Math1D::Vector<double>& hyp_dictcount,
-    const Math1D::Vector<float>& cur_prior, const Math1D::Vector<float>& hyp_prior, const Math1D::Vector<double>& cur_fert_count,
-    const Math1D::Vector<double>& hyp_fert_count, const Storage1D<Math1D::Vector<double> >& ffertclass_count,
-    const uint cur_word, const uint new_target_word, const uint cur_idx, const uint hyp_idx,
-    const uint cur_aj, const uint hyp_aj, const uint curJ) const
+    const Math1D::Vector<uint>& dict_sum, const Math1D::Vector<double>& cur_dictcount,
+    const Math1D::Vector<double>& hyp_dictcount, const Math1D::Vector<float>& cur_prior, const Math1D::Vector<float>& hyp_prior,
+    const Math1D::Vector<double>& cur_fert_count, const Math1D::Vector<double>& hyp_fert_count,
+    const Storage1D<Math1D::Vector<double> >& ffertclass_count, const uint cur_word, const uint new_target_word, const uint cur_idx,
+    const uint hyp_idx, const uint cur_aj, const uint hyp_aj, const uint curJ) const
 {
   double change = 0.0;
 
@@ -796,8 +784,8 @@ inline double FertilityModelTrainer::common_icm_change(const Math1D::Vector<uint
   return change;
 }
 
-inline void FertilityModelTrainer::common_icm_count_change(Math1D::NamedVector<uint>& dict_sum, Math1D::Vector<double>& cur_dictcount,
-    Math1D::Vector<double>& hyp_dictcount, Math1D::Vector<double>& cur_fert_count, Math1D::Vector<double>& hyp_fert_count,
+inline void FertilityModelTrainer::common_icm_count_change(Math1D::Vector<uint>& dict_sum, Math1D::Vector<double>& cur_dictcount, Math1D::Vector<double>& hyp_dictcount,
+    Math1D::Vector<double>& cur_fert_count, Math1D::Vector<double>& hyp_fert_count,
     Storage1D<Math1D::Vector<double> >& ffertclass_count, const uint cur_word, const uint new_target_word,
     const uint cur_idx, const uint hyp_idx, const uint cur_aj, const uint hyp_aj, Math1D::Vector<uint>& cur_fertilities)
 {
@@ -878,8 +866,7 @@ inline void FertilityModelTrainer::update_nullpow(uint fert0, uint fert1, const 
   }
 }
 
-inline void FertilityModelTrainer::compute_null_prob(uint curJ, double p_zero, double p_nonzero,
-    Math1D::Vector<long double>& null_prob, Math1D::Vector<double>& null_theta) const
+inline void FertilityModelTrainer::compute_null_prob(uint curJ, double p_zero, double p_nonzero, Math1D::Vector<long double>& null_prob, Math1D::Vector<double>& null_theta) const
 {
   null_prob.resize_dirty(curJ + 1);
   null_theta.resize_dirty(curJ + 1);
@@ -938,8 +925,7 @@ inline void FertilityModelTrainer::compute_null_prob(uint curJ, double p_zero, d
   }
 }
 
-inline void FertilityModelTrainer::compute_null_theta(uint curJ, double p_zero, double p_nonzero,
-    Math1D::Vector<double>& null_theta) const
+inline void FertilityModelTrainer::compute_null_theta(uint curJ, double p_zero, double p_nonzero, Math1D::Vector<double>& null_theta) const
 {
   null_theta.resize_dirty(curJ + 1);
   null_theta.set_constant(-1e7);

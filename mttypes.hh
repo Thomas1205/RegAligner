@@ -11,47 +11,47 @@
 #include <set>
 #include <map>
 
-typedef ushort WordClassType;
-typedef ushort AlignBaseType;
+using WordClassType = ushort;
+using AlignBaseType = ushort;
 
-typedef NamedStorage1D<Math1D::Vector<double> > SingleWordDictionary;
-typedef Storage1D<Math1D::Vector<double> > UnnamedSingleWordDictionary;
+using SingleWordDictionary = NamedStorage1D<Math1D::Vector<double> >;
+using UnnamedSingleWordDictionary = Storage1D<Math1D::Vector<double> >;
 
-typedef NamedStorage1D<Math1D::Vector<float> > floatSingleWordDictionary;
-typedef Storage1D<Math1D::Vector<float> > floatUnnamedSingleWordDictionary;
+using floatSingleWordDictionary = NamedStorage1D<Math1D::Vector<float> >;
+using floatUnnamedSingleWordDictionary = Storage1D<Math1D::Vector<float> >;
 
-typedef NamedStorage1D<Math1D::Vector<uint> > CooccuringWordsType;
+using CooccuringWordsType = NamedStorage1D<Math1D::Vector<uint> >;
 
-typedef std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > > RefAlignmentStructure;
-typedef std::set<std::pair<AlignBaseType,AlignBaseType> > AlignmentStructure;
+using RefAlignmentStructure = std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >;
+using AlignmentStructure = std::set<std::pair<AlignBaseType,AlignBaseType> >;
 
 //access: [target length][source length](source pos, target pos)
-typedef NamedStorage1D<Storage1D<Math2D::Matrix<double> > > IBM2AlignmentModel;
+using IBM2AlignmentModel = NamedStorage1D<Storage1D<Math2D::Matrix<double> > >;
 //this gets rid of the dependence on the length of the source sentence
-typedef NamedStorage1D<Math2D::Matrix<double> > ReducedIBM2AlignmentModel;
-typedef NamedStorage1D<Math3D::Tensor<double> > ReducedIBM2ClassAlignmentModel;
+using ReducedIBM2AlignmentModel = NamedStorage1D<Math2D::Matrix<double> >;
+using ReducedIBM2ClassAlignmentModel = NamedStorage1D<Math3D::Tensor<double> >;
 
-typedef NamedStorage1D<Math3D::Tensor<double> > Bi2AlignmentModel;
+using Bi2AlignmentModel = NamedStorage1D<Math3D::Tensor<double> >;
 
-typedef NamedStorage1D<Math1D::Vector<uint> > CooccuringLengthsType;
+using CooccuringLengthsType = NamedStorage1D<Math1D::Vector<uint> >;
 
-typedef NamedStorage1D<Math2D::Matrix<double> > FullHMMAlignmentModel;
-typedef NamedStorage1D<Math2D::Matrix<double> > FullHMMAlignmentModelNoClasses;
-typedef NamedStorage1D<Math3D::Tensor<double> > FullHMMAlignmentModelSingleClass;
-typedef NamedStorage1D<Math1D::Vector<double> > InitialAlignmentProbability;
+using FullHMMAlignmentModel = NamedStorage1D<Math2D::Matrix<double> >;
+using FullHMMAlignmentModelNoClasses = NamedStorage1D<Math2D::Matrix<double> >;
+using FullHMMAlignmentModelSingleClass = NamedStorage1D<Math3D::Tensor<double> >;
+using InitialAlignmentProbability = NamedStorage1D<Math1D::Vector<double> >;
 
-typedef NamedStorage1D<Math2D::Matrix<double> > ReducedIBM3DistortionModel;
-typedef NamedStorage1D<Math3D::Tensor<double> > ReducedIBM3ClassDistortionModel;
+using ReducedIBM3DistortionModel = NamedStorage1D<Math2D::Matrix<double> >;
+using ReducedIBM3ClassDistortionModel = NamedStorage1D<Math3D::Tensor<double> >;
 
 //indexed by (source word class idx, target word class idx, displacement)
-typedef Math3D::NamedTensor<double> IBM4CeptStartModel;
+using IBM4CeptStartModel = Math3D::NamedTensor<double>;
 //indexed by (source word class, displacement)
-typedef Math2D::NamedMatrix<double> IBM4WithinCeptModel;
+using IBM4WithinCeptModel = Math2D::NamedMatrix<double>;
 
-typedef Math2D::Matrix<uint,ushort> SingleLookupTable;
-typedef Storage1D<SingleLookupTable> LookupTable;
+using SingleLookupTable = Math2D::Matrix<uint,ushort>;
+using LookupTable = Storage1D<SingleLookupTable>;
 
-enum TransferMode { TransferNo, TransferViterbi, TransferPosterior, TransferInvalid };
+enum TransferMode {TransferNo, TransferViterbi, TransferPosterior, TransferInvalid};
 
 enum HmmInitProbType {HmmInitFix, HmmInitNonpar, HmmInitPar, HmmInitFix2, HmmInitInvalid};
 
@@ -59,7 +59,7 @@ enum HmmAlignProbType {HmmAlignProbNonpar, HmmAlignProbFullpar, HmmAlignProbRedu
 
 enum IBM23ParametricMode {IBM23ParByPosition, IBM23ParByDifference, IBM23Nonpar};
 
-enum MStepSolveMode {MSSolvePGD, MSSolveLBFGS, MSSolveGD};
+enum MStepSolveMode {MSSolvePGD, MSSolveLBFGS, MSSolveGD, MSSolvePLBFGS};
 
 enum ProjectionMode {Simplex, PosOrthant};
 
@@ -67,10 +67,10 @@ enum IlpMode {IlpOff, IlpComputeOnly, IlpCenter};
 
 enum FertNullModel {FertNullNondeficient, FertNullOchNey, FertNullIntra};
 
-enum IBM4CeptStartMode { IBM4CENTER, IBM4FIRST, IBM4LAST, IBM4UNIFORM };
+enum IBM4CeptStartMode { IBM4CENTER, IBM4FIRST, IBM4LAST, IBM4UNIFORM};
 
 //what target word to condition on. Previous is as proposed by Brown et al.
-enum IBM4InterDistMode {IBM4InterDistModePrevious, IBM4InterDistModeCurrent};
+enum IBM4InterDistMode {IBM4InterDistModePrevious, IBM4InterDistModeCurrent}; 
 
 //what word to condition on for the intra probability. Source is as proposed by Brown et al.
 enum IBM4IntraDistMode {IBM4IntraDistModeSource, IBM4IntraDistModeTarget};

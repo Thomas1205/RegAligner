@@ -15,6 +15,8 @@
 #include "ibm3_training.hh"
 #include "ibm4_training.hh"
 #include "ibm5_training.hh"
+#include "fertility_hmm.hh"
+#include "fertility_hmmcc.hh"
 #include "timing.hh"
 #include "training_common.hh"
 #include "alignment_computation.hh"
@@ -59,6 +61,7 @@ int main(int argc, char** argv)
               << " [-ibm3-iter <uint>] : iterations for the IBM-3 model (default 5)" << std::endl
               << " [-ibm4-iter <uint>] : iterations for the IBM-4 model (default 5)" << std::endl
               << " [-ibm5-iter <uint>] : iterations for the IBM-5 model (default 0)" << std::endl
+			  << " [-fert-hmm-iter <uint>] : iterations for the HMM model (default 0)" << std::endl
               << " [-dict-iter <uint>] : iterations for the dictionary m-step (with regularity terms, default 45)" << std::endl
               << " [-nondef-iter <uint>] : iterations for nondeficient m-steps of IBM-3/4" << std::endl
               << " [-start-param-iter <uint>] : iterations for start m-steps (HMM and IBM-4/5)" << std::endl
@@ -70,6 +73,7 @@ int main(int argc, char** argv)
               << "************ Options for the IBM-1 **************************"  << std::endl
               << " [-ibm1-p0 <double>] : empty word prob for a variant of IBM-1 (default -1 = off)" << std::endl
               << " [-ibm1-method (main | em | gd | viterbi)]: special method for IBM-1, default: main=as the others" << std::endl
+              << " [-dict-init (uni | cooc): default uniform start prob" << std::endl
               << "************ Options for IBM-2 only **************************"  << std::endl
               << " [-ibm2-p0 <double>] : empty word prob for the IBM-2 (default 0.02)" << std::endl
               << " [-ibm2-alignment] (pos | diff | nonpar) : parametric alignment model for IBM-2, default pos" << std::endl
@@ -79,10 +83,12 @@ int main(int argc, char** argv)
               << " [-hmm-init-type (par | nonpar | fix | fix2)] : default par" << std::endl
               << " [-hmm-start-empty-word] : HMM with extra empty word " << std::endl
               << " [-hmm-redpar-limit <uint>] : limit for redpar, default 5 as in [Vogel, Ney, Tillmann]" << std::endl
+              << " [-hmm-gd-stepsize <double>] : stepsize for gradient descent" << std::endl
               << "************ Options affecting a mixed set of models ****************"
               << " [-transfer-mode (no | viterbi | posterior)] : how to init HMM and IBM-2 from previous, default: no" << std::endl
               << " [-deficient-h25] : introduce deficiency for IBM-2, HMM and IBM-5 by not dividing by the param sum" << std::endl
               << " [-no-h23-classes] : don't use word classes for HMM" << std::endl
+              << " [-gd-stepsize <double>]: stepsize for m-steps" << std::endl
               << "************ Options affecting several (or all) fertility based models ***************" << std::endl
               << " [-p0 <double>] : fix probability for empty alignments for IBM-3/4/5" << std::endl
               << " [-count-collection] : collect counts from the previous model when initializing IBM-3/4/5 as in [Brown et al.]" << std::endl
@@ -117,7 +123,7 @@ int main(int argc, char** argv)
     exit(0);
   }
 
-  const int nParams = 66;
+  const int nParams = 70;
   ParamDescr params[nParams] = {
     {"-s", mandInFilename, 0, ""}, {"-t", mandInFilename, 0, ""}, {"-ds", optInFilename, 0, ""}, {"-dt", optInFilename, 0, ""},
     {"-o", optOutFilename, 0, ""}, {"-oa", mandOutFilename, 0, ""},  {"-refa", optInFilename, 0, ""}, {"-invert-biling-data", flag, 0, ""},
@@ -137,7 +143,9 @@ int main(int argc, char** argv)
     {"-ibm-max-skip", optWithValue,1,"3"},{"-dict-iter",optWithValue,1,"45"}, {"-nondef-iter",optWithValue,1,"250"}, {"-ibm5-nonpar-distortion", flag, 0, ""},
     {"-ibm45-uniform-start-prob", flag, 0, ""}, {"-start-param-iter", optWithValue, 1, "250"}, {"-main-param-iter", optWithValue, 1, "500"},
     {"-ibm2-p0", optWithValue, 1, "-1.0"}, {"-ibm1-method", optWithValue, 1, "main"}, {"-rare-threshold", optWithValue, 1, "3"},
-    {"-hmm-p0",optWithValue,0,""}, {"-ibm1-p0",optWithValue,1,"-1.0"}, {"-hmm-redpar-limit", optWithValue, 1, "5"}
+    {"-hmm-p0",optWithValue,0,""}, {"-ibm1-p0",optWithValue,1,"-1.0"}, {"-hmm-redpar-limit", optWithValue, 1, "5"},
+    {"-dict-init", optWithValue, 1, "uni"}, {"-hmm-gd-stepsize", optWithValue, 1, "50.0" }, {"-gd-stepsize",optWithValue,1,"1.0"},
+	{"-fert-hmm-iter", optWithValue, 1, "0"}
   };
 
   Application app(argc, argv, params, nParams);
@@ -158,6 +166,8 @@ int main(int argc, char** argv)
   uint ibm3_iter = convert<uint>(app.getParam("-ibm3-iter"));
   uint ibm4_iter = convert<uint>(app.getParam("-ibm4-iter"));
   uint ibm5_iter = convert<uint>(app.getParam("-ibm5-iter"));
+
+  uint fert_hmm_iter = convert<uint>(app.getParam("-fert-hmm-iter"));
 
   bool collect_counts = app.is_set("-count-collection");
 
@@ -201,6 +211,7 @@ int main(int argc, char** argv)
   const uint max_lookup = convert<uint>(app.getParam("-max-lookup"));
   double postdec_thresh = convert<double>(app.getParam("-postdec-thresh"));
   double fert_p0 = convert<double>(app.getParam("-p0"));
+  double gd_stepsize = convert<double>(app.getParam("-gd-stepsize"));
   const uint dict_m_step_iter = convert<uint>(app.getParam("-dict-iter"));
 
   MStepSolveMode msolve_mode = MSSolvePGD;
@@ -258,15 +269,17 @@ int main(int argc, char** argv)
 
   assert(source_sentence.size() == target_sentence.size());
 
-  uint nSentences = source_sentence.size();
+  const size_t nSentences = source_sentence.size();
 
   uint maxI = 0;
   uint maxJ = 0;
+  std::set<uint> allSeenIs;
 
-  for (size_t s = 0; s < source_sentence.size(); s++) {
+  for (size_t s = 0; s < nSentences; s++) {
 
     uint curJ = source_sentence[s].size();
     uint curI = target_sentence[s].size();
+    allSeenIs.insert(curI);
 
     maxI = std::max<uint>(maxI, curI);
     maxJ = std::max<uint>(maxJ, curJ);
@@ -286,10 +299,17 @@ int main(int argc, char** argv)
     exit(1);
   }
 
+  uint maxAllI = maxI;
+  for (size_t s = 0; s < dev_source_sentence.size(); s++) {
+    const uint curI = dev_target_sentence[s].size();
+    maxAllI = std::max<uint>(maxAllI, curI);
+    allSeenIs.insert(curI);
+  }
+
   uint nSourceWords = 0;
   uint nTargetWords = 0;
 
-  for (size_t s = 0; s < source_sentence.size(); s++) {
+  for (size_t s = 0; s < nSentences; s++) {
 
     nSourceWords = std::max(nSourceWords, source_sentence[s].max() + 1);
     nTargetWords = std::max(nTargetWords, target_sentence[s].max() + 1);
@@ -311,6 +331,24 @@ int main(int argc, char** argv)
     }
   }
 
+  Math1D::Vector<WordClassType> source_class(nSourceWords, 0);
+  Math1D::Vector<WordClassType> target_class(nTargetWords, 0);
+
+  if (app.is_set("-sclasses"))
+    read_word_classes(app.getParam("-sclasses"), source_class);
+  if (app.is_set("-tclasses"))
+    read_word_classes(app.getParam("-tclasses"), target_class);
+
+  if (app.is_set("-generate-classes")) {
+    for (uint s = 1; s < source_class.size(); s++)
+      source_class[s] = s % 50;
+    for (uint t = 1; t < target_class.size(); t++)
+      target_class[t] = t % 50;
+  }
+
+  const uint nSourceClasses = source_class.max() + 1;
+  const uint nTargetClasses = target_class.max() + 1;
+
   CooccuringWordsType wcooc(MAKENAME(wcooc));
   CooccuringLengthsType lcooc(MAKENAME(lcooc));
   SingleWordDictionary dict(MAKENAME(dict));
@@ -325,12 +363,58 @@ int main(int argc, char** argv)
   FullHMMAlignmentModelSingleClass hmmcalign_model(MAKENAME(hmmcalign_model));
   InitialAlignmentProbability initial_prob(MAKENAME(initial_prob));
 
+
   Math1D::Vector<double> hmm_init_params;
   Math1D::Vector<double> hmm_dist_params;
   double hmm_dist_grouping_param = -1.0;
 
   Math2D::Matrix<double> hmmc_dist_params;
   Math1D::Vector<double> hmmc_dist_grouping_param;
+
+  Storage2D<Math1D::Vector<double> > hmmcc_dist_params(nSourceClasses, nTargetClasses);
+  hmmcc_dist_params(0,0).resize(1,0.0);
+  Math2D::Matrix<double> hmmcc_dist_grouping_param(nSourceClasses, nTargetClasses);
+
+  Math1D::Vector<double> dev_hmm_init_params(maxAllI, 0.0);
+  Math1D::Vector<double> dev_hmm_dist_params(std::max<uint>(2 * maxAllI - 1, 0), 0.0);
+  FullHMMAlignmentModel dev_hmmalign_model(MAKENAME(dev_hmmalign_model));
+  InitialAlignmentProbability dev_initial_prob(MAKENAME(dev_initial_prob));
+
+  Math2D::Matrix<double> dev_hmmc_dist_params(std::max<uint>(2 * maxAllI - 1, 0), hmmc_dist_params.yDim(), 0.0);
+  FullHMMAlignmentModelSingleClass dev_hmmcalign_model(MAKENAME(dev_hmmcalign_model));
+
+  uint dev_zero_offset = maxAllI; //max_devI - 1;
+
+  for (size_t s = 0; s < nSentences; s++) {
+
+    const Math1D::Vector<uint>& source = source_sentence[s];
+    const Math1D::Vector<uint>& target = target_sentence[s];
+
+    for (uint j = 0; j < source.size(); j++) {
+      for (uint i = 0; i < target.size(); i++) {
+        hmmcc_dist_params(source_class[source[j]], target_class[target[i]]).resize(1,0.0);
+      }
+    }
+  }
+
+  for (size_t s = 0; s < dev_source_sentence.size(); s++) {
+    const Math1D::Vector<uint>& source = dev_source_sentence[s];
+    const Math1D::Vector<uint>& target = dev_target_sentence[s];
+
+    for (uint j = 0; j < source.size(); j++) {
+      for (uint i = 0; i < target.size(); i++) {
+        hmmcc_dist_params(source_class[source[j]], target_class[target[i]]).resize(1,0.0);
+      }
+    }
+  }
+
+  uint nClassCooc = 0;
+  for (uint sc = 0; sc < hmmcc_dist_params.xDim(); sc++) {
+    for (uint tc = 0; tc < hmmcc_dist_params.yDim(); tc++) {
+      if (hmmcc_dist_params(sc, tc).size() > 0)
+        nClassCooc++;
+    }
+  }
 
   double dict_regularity = convert<double>(app.getParam("-dict-regularity"));
 
@@ -377,19 +461,25 @@ int main(int argc, char** argv)
 
     read_in = read_cooccuring_words_structure(app.getParam("-dict-struct"), nSourceWords, nTargetWords, wcooc);
   }
-  if (!read_in)
+  if (!read_in) {
     find_cooccuring_words(source_sentence, target_sentence, dev_source_sentence,
                           dev_target_sentence, nSourceWords, nTargetWords, wcooc);
+  }
 
   std::cerr << "generating lookup table" << std::endl;
   LookupTable slookup;
   generate_wordlookup(source_sentence, target_sentence, wcooc, nSourceWords, slookup, max_lookup);
 
   floatSingleWordDictionary prior_weight(nTargetWords, MAKENAME(prior_weight));
+  Math1D::Vector<float> prior_t0_weight(nTargetWords,dict_regularity); //not used but needs to be passed
 
-  std::set<std::pair<uint,uint> > known_pairs;
+  std::set<PriorPair> known_pairs;
   if (app.is_set("-prior-dict"))
     read_prior_dict(app.getParam("-prior-dict"), known_pairs, app.is_set("-invert-biling-data"));
+
+  // std::set<std::pair<uint,uint> > known_pairs;
+  // if (app.is_set("-prior-dict"))
+  // read_prior_dict(app.getParam("-prior-dict"), known_pairs, app.is_set("-invert-biling-data"));
 
   for (uint i = 0; i < nTargetWords; i++) {
     uint size = (i == 0) ? nSourceWords - 1 : wcooc[i].size();
@@ -402,7 +492,8 @@ int main(int argc, char** argv)
       std::cerr << "WARNING: prior dict given, but regularity weight is 0" << std::endl;
     }
 
-    uint nIgnored = set_prior_dict_weights(known_pairs, wcooc, prior_weight, dict_regularity);
+    //uint nIgnored = set_prior_dict_weights(known_pairs, wcooc, prior_weight, dict_regularity);
+    uint nIgnored = set_prior_dict_weights(known_pairs, wcooc, prior_weight, prior_t0_weight, dict_regularity);
 
     // for (uint i = 0; i < nTargetWords; i++)
     // prior_weight[i].set_constant(dict_regularity);
@@ -474,14 +565,6 @@ int main(int argc, char** argv)
     for (uint i = 0; i < nTargetWords; i++)
       prior_weight[i].set_constant(distribution_weight[i]);
   }
-
-  Math1D::Vector<WordClassType> source_class(nSourceWords, 0);
-  Math1D::Vector<WordClassType> target_class(nTargetWords, 0);
-
-  if (app.is_set("-sclasses"))
-    read_word_classes(app.getParam("-sclasses"), source_class);
-  if (app.is_set("-tclasses"))
-    read_word_classes(app.getParam("-tclasses"), target_class);
 
   AlignmentSetConstraints align_constraints;
   std::string constraint_mode = downcase(app.getParam("-constraint-mode"));
@@ -591,6 +674,17 @@ int main(int argc, char** argv)
   ibm1_options.unconstrained_m_step_ = (msolve_mode != MSSolvePGD);
   ibm1_options.dict_m_step_iter_ = dict_m_step_iter;
   ibm1_options.p0_ = ibm1_p0;
+  ibm1_options.gd_stepsize_ = gd_stepsize;
+
+  std::string sDictInit = downcase(app.getParam("-dict-init"));
+  if (sDictInit == "uni" || sDictInit == "uniform")
+    ibm1_options.uniform_dict_init_ = true;
+  else if (sDictInit == "cooc")
+    ibm1_options.uniform_dict_init_ = false;
+  else {
+    USER_ERROR << " unknown dict-init: \"" << sDictInit << "\" " << std::endl;
+    exit(1);
+  }
 
   IBM2Options ibm2_options(nSourceWords, nTargetWords, sure_ref_alignments, possible_ref_alignments);
   ibm2_options.nIterations_ = ibm1_iter;
@@ -604,7 +698,7 @@ int main(int argc, char** argv)
   ibm2_options.align_m_step_iter_ = main_m_step_iter;
   ibm2_options.p0_ = convert<double>(app.getParam("-ibm2-p0"));
   ibm2_options.ibm1_p0_ = ibm1_p0;
-
+  ibm2_options.gd_stepsize_ = gd_stepsize;
 
   HmmOptions hmm_options(nSourceWords, nTargetWords, reduced_ibm2align_model, ibm2_sclass, sure_ref_alignments, possible_ref_alignments);
   hmm_options.nIterations_ = hmm_iter;
@@ -621,6 +715,7 @@ int main(int argc, char** argv)
   hmm_options.align_m_step_iter_ = main_m_step_iter;
   hmm_options.redpar_limit_ = std::min(maxI-3,convert<uint>(app.getParam("-hmm-redpar-limit")));
   hmm_options.ibm1_p0_ = ibm1_p0;
+  hmm_options.gd_stepsize_ = convert<double>(app.getParam("-hmm-gd-stepsize"));
 
   if (app.is_set("-hmm-p0")) {
     double p0 = convert<double>(app.getParam("-hmm-p0"));
@@ -670,13 +765,14 @@ int main(int argc, char** argv)
   fert_options.uniform_sentence_start_prob_ = app.is_set("-ibm45-uniform-start-prob");
   fert_options.dist_m_step_iter_ = main_m_step_iter;
   fert_options.start_m_step_iter_ = start_m_step_iter;
+  fert_options.gd_stepsize_ = gd_stepsize;
 
   Math1D::NamedVector<double> log_table(MAKENAME(log_table));
   Math1D::NamedVector<double> xlogx_table(MAKENAME(xlogx_table));
   if (method == "viterbi" || constraint_mode != "unconstrained") {
 
-    uint sumJ = 0;
-    for (uint s = 0; s < source_sentence.size(); s++)
+    size_t sumJ = 0;
+    for (size_t s = 0; s < source_sentence.size(); s++)
       sumJ += source_sentence[s].size();
 
     log_table.resize(sumJ + 1);
@@ -751,99 +847,218 @@ int main(int argc, char** argv)
 
   /*** HMM ***/
 
+  HmmWrapperNoClasses hmm_wrapper(hmmalign_model, dev_hmmalign_model, initial_prob, hmm_dist_params, hmm_dist_grouping_param, hmm_options);
+  HmmWrapperWithTargetClasses hmmc_wrapper(hmmcalign_model, dev_hmmcalign_model, initial_prob, hmmc_dist_params, hmmc_dist_grouping_param, target_class, hmm_options);
+  HmmWrapperDoubleClasses hmmcc_wrapper(hmmcc_dist_params, hmmcc_dist_grouping_param, source_fert, initial_prob, source_class, target_class,
+                                        hmm_options, maxAllI - 1);
+
+  HmmWrapperBase* used_hmm = 0;
+
   if (method == "em") {
 
-    if (app.is_set("-no-h23-classes") || target_class.max() == 0) {
+    if (app.is_set("-no-h23-classes") || ((nSourceClasses == 1) && (nTargetClasses == 1))) {
       train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, hmmalign_model, hmm_dist_params,
-                         hmm_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict, prior_weight, hmm_options);
+                         hmm_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict, prior_weight, hmm_options, maxAllI);
+      used_hmm = &hmm_wrapper;
+    }
+    else if (nSourceClasses == 1) {
+      train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, target_class, hmmcalign_model, hmmc_dist_params,
+                         hmmc_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict, prior_weight, hmm_options, maxAllI);
+      used_hmm = &hmmc_wrapper;
     }
     else {
-      train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, target_class, hmmcalign_model, hmmc_dist_params,
-                         hmmc_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict, prior_weight, hmm_options);
+      train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, source_class, target_class, hmmcc_dist_params,
+                         hmmcc_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict, prior_weight, hmm_options, maxAllI);
+      used_hmm = &hmmcc_wrapper;
     }
   }
   else if (method == "gd" || method == "l-bfgs") {
 
     if (app.is_set("-no-h23-classes") || target_class.max() == 0) {
       train_extended_hmm_gd_stepcontrol(source_sentence, slookup, target_sentence, wcooc, hmmalign_model, hmm_dist_params,
-                                        hmm_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict,
-                                        prior_weight, hmm_options);
+                                        hmm_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict, prior_weight, hmm_options, maxAllI);
+      used_hmm = &hmm_wrapper;
     }
     else {
       train_extended_hmm_gd_stepcontrol(source_sentence, slookup, target_sentence, wcooc, target_class, hmmcalign_model, hmmc_dist_params,
-                                        hmmc_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict, prior_weight, hmm_options);
+                                        hmmc_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict, prior_weight, hmm_options, maxAllI);
+      used_hmm = &hmmc_wrapper;
     }
   }
   else {
 
-    if (app.is_set("-no-h23-classes") || target_class.max() == 0) {
+    if (app.is_set("-no-h23-classes") || ((nSourceClasses == 1) && (nTargetClasses == 1))) {
       viterbi_train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, hmmalign_model, hmm_dist_params,
-                                 hmm_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict, prior_weight, hmm_options, xlogx_table);
+                                 hmm_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict, prior_weight, hmm_options, xlogx_table, maxAllI);
+
+      used_hmm = &hmm_wrapper;
+    }
+    else if (nSourceClasses == 1) {
+      viterbi_train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, target_class, hmmcalign_model, hmmc_dist_params,
+                                 hmmc_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict, prior_weight, hmm_options, xlogx_table, maxAllI);
+      used_hmm = &hmmc_wrapper;
     }
     else {
-      viterbi_train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, target_class, hmmcalign_model,
-                                 hmmc_dist_params, hmmc_dist_grouping_param, source_fert, initial_prob, hmm_init_params,
-                                 dict, prior_weight, hmm_options, xlogx_table);
+
+      viterbi_train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, source_class, target_class, hmmcc_dist_params,
+                                 hmmcc_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict, prior_weight, hmm_options, xlogx_table,
+                                 maxAllI);
+
+      used_hmm = &hmmcc_wrapper;
     }
   }
+
+  //std::cerr << "AA" << std::endl;
+  used_hmm->fill_dist_params(hmm_dist_params, hmm_dist_grouping_param);
+  //std::cerr << "BB" << std::endl;
+  used_hmm->fill_dist_params(nTargetClasses, hmmc_dist_params, hmmc_dist_grouping_param);
+  //std::cerr << "CC" << std::endl;
+  used_hmm->fill_dist_params(nSourceClasses, nTargetClasses, hmmcc_dist_params, hmmcc_dist_grouping_param);
 
   if (hmmcalign_model.size() == 0) {
 
     const uint nClasses = target_class.max() + 1;
 
-    hmmc_dist_params.resize(hmm_dist_params.size(), nClasses);
-    for (uint c = 0; c < nClasses; c++)
-      for (uint k = 0; k < hmm_dist_params.size(); k++)
-        hmmc_dist_params(k, c) = hmm_dist_params[k];
-    hmmc_dist_grouping_param.resize(nClasses);
-    for (uint c = 0; c < nClasses; c++)
-      hmmc_dist_grouping_param[c] = hmm_dist_grouping_param;
-
-    hmmcalign_model.resize(hmmalign_model.size());
-    for (uint I = 0; I < hmmalign_model.size(); I++) {
-
-      hmmcalign_model[I].resize(hmmalign_model[I].xDim(), hmmalign_model[I].yDim(), nClasses);
-      for (uint c = 0; c < nClasses; c++)
-        for (uint x = 0; x < hmmalign_model[I].xDim(); x++)
-          for (uint y = 0; y < hmmalign_model[I].yDim(); y++)
-            hmmcalign_model[I](x, y, c) = hmmalign_model[I](x, y);
+    hmmcalign_model.resize(maxAllI);
+    for (std::set<uint>::const_iterator it = allSeenIs.begin(); it != allSeenIs.end(); it++) {
+      uint I = *it;
+      hmmcalign_model[I-1].resize(I+1, I, nClasses);
     }
+
+    par2nonpar_hmm_alignment_model(hmmc_dist_params, maxAllI-1, hmmc_dist_grouping_param, source_fert, hmm_options.align_type_,
+                                   hmm_options.deficient_, hmm_options.redpar_limit_, hmmcalign_model);
   }
   if (hmmalign_model.size() == 0) {
 
-    hmm_dist_params.resize(hmmc_dist_params.xDim());
-    for (uint k = 0; k < hmm_dist_params.size(); k++) {
-      double sum = 0.0;
-      for (uint c = 0; c < hmmc_dist_params.yDim(); c++)
-        sum += hmmc_dist_params(k, c);
-      hmm_dist_params[k] = sum / hmmc_dist_params.yDim();
+    hmmalign_model.resize(maxAllI);
+    for (std::set<uint>::const_iterator it = allSeenIs.begin(); it != allSeenIs.end(); it++) {
+      uint I = *it;
+      hmmalign_model[I-1].resize(I + 1, I);
     }
-    hmm_dist_grouping_param = hmmc_dist_grouping_param.sum() / hmmc_dist_grouping_param.size();
-    hmmalign_model.resize(hmmcalign_model.size());
-    for (uint I = 0; I < hmmalign_model.size(); I++) {
-      hmmalign_model[I].resize(hmmcalign_model[I].xDim(), hmmcalign_model[I].yDim());
-      for (uint x = 0; x < hmmalign_model[I].xDim(); x++) {
-        for (uint y = 0; y < hmmalign_model[I].yDim(); y++) {
-          double sum = 0.0;
-          for (uint c = 0; c < hmmcalign_model[I].zDim(); c++)
-            sum += hmmcalign_model[I] (x, y, c);
-          hmmalign_model[I] (x, y) = sum / hmmcalign_model[I].zDim();
-        }
-      }
-    }
+
+    par2nonpar_hmm_alignment_model(hmm_dist_params, maxAllI - 1, hmm_dist_grouping_param, source_fert, hmm_options.align_type_,
+                                   hmm_options.deficient_, hmmalign_model, hmm_options.redpar_limit_);
   }
 
-  HmmWrapper hmm_wrapper(hmmalign_model, initial_prob, hmm_options);
-  HmmWrapperWithClasses hmmc_wrapper(hmmcalign_model, initial_prob, target_class, hmm_options);
+  std::cerr << "creating wrapper" << std::endl;
 
-  HmmFertInterface hmm_interface(hmmc_wrapper, source_sentence, slookup, target_sentence, sure_ref_alignments,
-                                 possible_ref_alignments, dict, wcooc, nSourceWords, nTargetWords, fert_limit);
 
-  hmm_interface.set_fertility_limit(fert_limit);
+
+  // if (method == "em") {
+
+  // if (app.is_set("-no-h23-classes") || target_class.max() == 0) {
+  // train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, hmmalign_model, hmm_dist_params,
+  // hmm_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict, prior_weight, hmm_options, maxAllI);
+  // }
+  // else {
+  // train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, target_class, hmmcalign_model, hmmc_dist_params,
+  // hmmc_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict, prior_weight, hmm_options, maxAllI);
+  // }
+  // }
+  // else if (method == "gd" || method == "l-bfgs") {
+
+  // if (app.is_set("-no-h23-classes") || target_class.max() == 0) {
+  // train_extended_hmm_gd_stepcontrol(source_sentence, slookup, target_sentence, wcooc, hmmalign_model, hmm_dist_params,
+  // hmm_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict,
+  // prior_weight, hmm_options, maxAllI);
+  // }
+  // else {
+  // train_extended_hmm_gd_stepcontrol(source_sentence, slookup, target_sentence, wcooc, target_class, hmmcalign_model, hmmc_dist_params,
+  // hmmc_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict, prior_weight, hmm_options, maxAllI);
+  // }
+  // }
+  // else {
+
+  // if (app.is_set("-no-h23-classes") || target_class.max() == 0) {
+  // viterbi_train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, hmmalign_model, hmm_dist_params,
+  // hmm_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict, prior_weight, hmm_options, xlogx_table, maxAllI);
+  // }
+  // else {
+  // viterbi_train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, target_class, hmmcalign_model,
+  // hmmc_dist_params, hmmc_dist_grouping_param, source_fert, initial_prob, hmm_init_params,
+  // dict, prior_weight, hmm_options, xlogx_table, maxAllI);
+  // }
+  // }
+
+  // if (hmmcalign_model.size() == 0) {
+
+  // const uint nClasses = target_class.max() + 1;
+
+  // hmmc_dist_params.resize(hmm_dist_params.size(), nClasses);
+  // for (uint c = 0; c < nClasses; c++)
+  // for (uint k = 0; k < hmm_dist_params.size(); k++)
+  // hmmc_dist_params(k, c) = hmm_dist_params[k];
+  // hmmc_dist_grouping_param.resize(nClasses);
+  // for (uint c = 0; c < nClasses; c++)
+  // hmmc_dist_grouping_param[c] = hmm_dist_grouping_param;
+
+  // hmmcalign_model.resize(hmmalign_model.size());
+  // for (uint I = 0; I < hmmalign_model.size(); I++) {
+
+  // hmmcalign_model[I].resize(hmmalign_model[I].xDim(), hmmalign_model[I].yDim(), nClasses);
+  // for (uint c = 0; c < nClasses; c++)
+  // for (uint x = 0; x < hmmalign_model[I].xDim(); x++)
+  // for (uint y = 0; y < hmmalign_model[I].yDim(); y++)
+  // hmmcalign_model[I](x, y, c) = hmmalign_model[I](x, y);
+  // }
+  // }
+  // if (hmmalign_model.size() == 0) {
+
+  // hmm_dist_params.resize(hmmc_dist_params.xDim());
+  // for (uint k = 0; k < hmm_dist_params.size(); k++) {
+  // double sum = 0.0;
+  // for (uint c = 0; c < hmmc_dist_params.yDim(); c++)
+  // sum += hmmc_dist_params(k, c);
+  // hmm_dist_params[k] = sum / hmmc_dist_params.yDim();
+  // }
+  // hmm_dist_grouping_param = hmmc_dist_grouping_param.sum() / hmmc_dist_grouping_param.size();
+  // hmmalign_model.resize(hmmcalign_model.size());
+  // for (uint I = 0; I < hmmalign_model.size(); I++) {
+  // hmmalign_model[I].resize(hmmcalign_model[I].xDim(), hmmcalign_model[I].yDim());
+  // for (uint x = 0; x < hmmalign_model[I].xDim(); x++) {
+  // for (uint y = 0; y < hmmalign_model[I].yDim(); y++) {
+  // double sum = 0.0;
+  // for (uint c = 0; c < hmmcalign_model[I].zDim(); c++)
+  // sum += hmmcalign_model[I] (x, y, c);
+  // hmmalign_model[I] (x, y) = sum / hmmcalign_model[I].zDim();
+  // }
+  // }
+  // }
+  // }
+
+  HmmFertInterfaceTargetClasses hmmc_interface(hmmc_wrapper, source_sentence, slookup, target_sentence, sure_ref_alignments,
+      possible_ref_alignments, dict, wcooc, nSourceWords, nTargetWords, fert_limit);
+
+  hmmc_interface.set_fertility_limit(fert_limit);
   if (rare_fert_limit < fert_limit)
-    hmm_interface.set_rare_fertility_limit(rare_fert_limit, nMaxRareOccurences);
+    hmmc_interface.set_rare_fertility_limit(rare_fert_limit, nMaxRareOccurences);
 
-  const HmmWrapperWithClasses* passed_wrapper = (hillclimb_mode == HillclimbingReuse) ? 0 : &hmmc_wrapper;
+  HmmFertInterfaceDoubleClasses hmmcc_interface(hmmcc_wrapper, source_sentence, slookup, target_sentence, sure_ref_alignments,
+      possible_ref_alignments, dict, wcooc, nSourceWords, nTargetWords, fert_limit);
+
+  hmmcc_interface.set_fertility_limit(fert_limit);
+  if (rare_fert_limit < fert_limit)
+    hmmcc_interface.set_rare_fertility_limit(rare_fert_limit, nMaxRareOccurences);
+
+  const HmmWrapperBase* passed_wrapper = (hillclimb_mode == HillclimbingReuse) ? 0 : used_hmm;
+
+  FertilityModelTrainerBase* last_model = 0;
+  if (used_hmm == &hmmc_wrapper)
+    last_model = &hmmc_interface;
+  else
+    last_model = &hmmcc_interface;
+
+  // HmmWrapperNoClasses hmm_wrapper(hmmalign_model, dev_hmmalign_model, initial_prob, hmm_dist_params, hmm_dist_grouping_param, hmm_options);
+  // HmmWrapperWithTargetClasses hmmc_wrapper(hmmcalign_model, dev_hmmcalign_model, initial_prob, hmmc_dist_params, hmmc_dist_grouping_param, target_class, hmm_options);
+
+  // HmmFertInterfaceTargetClasses hmm_interface(hmmc_wrapper, source_sentence, slookup, target_sentence, sure_ref_alignments,
+  // possible_ref_alignments, dict, wcooc, nSourceWords, nTargetWords, fert_limit);
+
+  // hmm_interface.set_fertility_limit(fert_limit);
+  // if (rare_fert_limit < fert_limit)
+  // hmm_interface.set_rare_fertility_limit(rare_fert_limit, nMaxRareOccurences);
+
+  //const HmmWrapperBase* passed_wrapper = (hillclimb_mode == HillclimbingReuse) ? 0 : &hmmc_wrapper;
 
   if (fert_p0 == 0.0 && ibm3_iter+ibm4_iter+ibm5_iter > 0) {
     //fert interface only uses the classed models
@@ -883,7 +1098,15 @@ int main(int argc, char** argv)
     }
   }
 
-  FertilityModelTrainerBase* last_model = &hmm_interface;
+  //check the word classes
+  for (uint i=0; i < tfert_class.size(); i++) {
+    if (tfert_class[i] != i && tfert_class[i] < tfert_class.size()) {
+      std::cerr << "error with tfert-classes: word " << i << " points to smaller than nWords and not to self. Exiting" << std::endl;
+      exit(1);
+    }
+  }
+
+  //FertilityModelTrainerBase* last_model = &hmm_interface;
 
   /*** IBM-3 ***/
 
@@ -938,6 +1161,59 @@ int main(int argc, char** argv)
     }
 
     last_model = &ibm3_trainer;
+  }
+
+  /************ Fertility-HMM *************/
+  std::cerr << "handling Fertility-HMM" << std::endl;
+
+  FertilityHMMTrainer fert_hmm(source_sentence, slookup, target_sentence, target_class, sure_ref_alignments, possible_ref_alignments, dict, wcooc, tfert_class,
+                               nSourceWords, nTargetWords, prior_weight, log_table, xlogx_table, hmm_options, fert_options);
+
+  fert_hmm.set_fertility_limit(fert_limit);
+  if (rare_fert_limit < fert_limit)
+    fert_hmm.set_rare_fertility_limit(rare_fert_limit, nMaxRareOccurences);
+
+  FertilityHMMTrainerDoubleClass fert_hmmcc(source_sentence, slookup, target_sentence, source_class, target_class,
+											sure_ref_alignments, possible_ref_alignments, dict, wcooc, tfert_class,
+											source_fert, maxAllI - 1, nSourceWords, nTargetWords, prior_weight, log_table, xlogx_table,
+											hmm_options, fert_options, hmmcc_dist_params, hmmcc_dist_grouping_param, false);
+
+  fert_hmmcc.set_fertility_limit(fert_limit);
+  if (rare_fert_limit < fert_limit)
+    fert_hmmcc.set_rare_fertility_limit(rare_fert_limit, nMaxRareOccurences);
+
+  if (fert_hmm_iter > 0) {
+	
+    if (nSourceClasses == 1) {
+      fert_hmm.init_from_prevmodel(last_model, passed_wrapper, hmmc_dist_params, hmmc_dist_grouping_param, true, collect_counts, method == "viterbi");
+
+      if (collect_counts)
+        fert_hmm_iter--;
+
+      if (fert_hmm_iter > 0) {
+        if (method != "viterbi")
+          fert_hmm.train_em(fert_hmm_iter, 0, passed_wrapper);
+        else
+          fert_hmm.train_viterbi(fert_hmm_iter, 0, passed_wrapper);
+      }
+
+      last_model = &fert_hmm;
+    }
+    else {
+      fert_hmmcc.init_from_prevmodel(last_model, passed_wrapper, hmmcc_dist_params, hmmcc_dist_grouping_param,  true, collect_counts, method == "viterbi");
+
+      if (collect_counts)
+        fert_hmm_iter--;
+
+      if (fert_hmm_iter > 0) {
+        if (method != "viterbi")
+          fert_hmmcc.train_em(fert_hmm_iter, 0, passed_wrapper);
+        else
+          fert_hmmcc.train_viterbi(fert_hmm_iter, 0, passed_wrapper);
+      }
+
+      last_model = &fert_hmmcc;
+    }
   }
 
   /*** IBM-4 ***/
@@ -1007,7 +1283,7 @@ int main(int argc, char** argv)
     if (app.is_set("-prior-dict")) {
 
       Math1D::Vector<uint> target_count(nTargetWords, 0);
-      for (uint s=0; s < target_sentence.size(); s++)
+      for (size_t s = 0; s < target_sentence.size(); s++)
         for (uint i=0; i < target_sentence[s].size(); i++)
           target_count[target_sentence[s][i]]++;
 
@@ -1057,12 +1333,6 @@ int main(int argc, char** argv)
     }
   }
 
-  Math1D::Vector<double> dev_hmm_init_params(max_devI, 0.0);
-  Math1D::Vector<double> dev_hmm_dist_params(std::max(2 * max_devI - 1, 0), 0.0);
-  FullHMMAlignmentModel dev_hmmalign_model(MAKENAME(dev_hmmalign_model));
-  InitialAlignmentProbability dev_initial_prob(MAKENAME(dev_initial_prob));
-
-  uint dev_zero_offset = max_devI - 1;
 
   if (dev_present) {
 
@@ -1242,7 +1512,7 @@ int main(int argc, char** argv)
     }
   }
 
-  if (last_model != &hmm_interface) {
+  if (last_model != &hmmc_interface && last_model != &hmmcc_interface) {
 
     std::cerr << "updating final alignments" << std::endl;
     last_model->update_alignments_unconstrained();
@@ -1279,9 +1549,16 @@ int main(int argc, char** argv)
         const uint curI = dev_target_sentence[s].size();
 
         //initialize by HMM
+        const uint curJ = dev_source_sentence[s].size();
 
-        compute_ehmm_viterbi_alignment(dev_source_sentence[s], dev_slookup[s], dev_target_sentence[s], dict,
-                                       dev_hmmalign_model[curI - 1], dev_initial_prob[curI - 1], viterbi_alignment, hmm_options, false);
+        SingleLookupTable aux_lookup;
+        const SingleLookupTable& cur_lookup = get_wordlookup(dev_source_sentence[s], dev_target_sentence[s], wcooc, nSourceWords, aux_lookup, aux_lookup);
+
+        used_hmm->compute_ehmm_viterbi_alignment(dev_source_sentence[s], cur_lookup, dev_target_sentence[s], dict, viterbi_alignment, false, false);
+
+
+        // compute_ehmm_viterbi_alignment(dev_source_sentence[s], dev_slookup[s], dev_target_sentence[s], dict,
+        // dev_hmmalign_model[curI - 1], dev_initial_prob[curI - 1], viterbi_alignment, hmm_options, false);
 
         if (postdec_thresh <= 0.0) {
 
@@ -1312,7 +1589,7 @@ int main(int argc, char** argv)
       delete dev_alignment_stream;
     }
   }
-  else {
+  else { //no fertility models trained
 
     std::ostream* alignment_stream;
 
@@ -1344,12 +1621,18 @@ int main(int argc, char** argv)
 
         if (postdec_thresh <= 0.0) {
 
-          compute_ehmm_viterbi_alignment(cur_source, cur_lookup, cur_target, dict, hmmalign_model[curI - 1],
-                                         initial_prob[curI - 1], viterbi_alignment, hmm_options, false);
+          used_hmm->compute_ehmm_viterbi_alignment(cur_source, cur_lookup, cur_target, dict, viterbi_alignment, false, false);
+
+          //compute_ehmm_viterbi_alignment(cur_source, cur_lookup, cur_target, dict, hmmalign_model[curI - 1],
+          //                               initial_prob[curI - 1], viterbi_alignment, hmm_options, false);
         }
-        else
-          compute_ehmm_postdec_alignment(cur_source, cur_lookup, cur_target, dict, hmmalign_model[curI - 1],
-                                         initial_prob[curI - 1], hmm_options, postdec_alignment, postdec_thresh);
+        else {
+
+          used_hmm->compute_ehmm_postdec_alignment(cur_source, cur_lookup, cur_target, dict, postdec_alignment);
+
+          //compute_ehmm_postdec_alignment(cur_source, cur_lookup, cur_target, dict, hmmalign_model[curI - 1],
+          //                               initial_prob[curI - 1], hmm_options, postdec_alignment, postdec_thresh);
+        }
       }
       else if (ibm2_iter > 0) {
 
@@ -1425,12 +1708,18 @@ int main(int argc, char** argv)
         if (hmm_iter > 0) {
 
           if (postdec_thresh <= 0.0) {
-            compute_ehmm_viterbi_alignment(cur_dev_source, cur_lookup, cur_dev_target, dict, dev_hmmalign_model[curI - 1], dev_initial_prob[curI - 1],
-                                           viterbi_alignment, hmm_options, false);
+
+            used_hmm->compute_ehmm_viterbi_alignment(cur_dev_source, cur_lookup, cur_dev_target, dict, viterbi_alignment, false, false);
+
+            //compute_ehmm_viterbi_alignment(cur_dev_source, cur_lookup, cur_dev_target, dict, dev_hmmalign_model[curI - 1], dev_initial_prob[curI - 1],
+            //                               viterbi_alignment, hmm_options, false);
           }
           else {
-            compute_ehmm_postdec_alignment(cur_dev_source, cur_lookup, cur_dev_target, dict, dev_hmmalign_model[curI - 1], dev_initial_prob[curI - 1],
-                                           hmm_options, postdec_alignment, postdec_thresh);
+
+            used_hmm->compute_ehmm_postdec_alignment(cur_dev_source, cur_lookup, cur_dev_target, dict, postdec_alignment);
+
+            //compute_ehmm_postdec_alignment(cur_dev_source, cur_lookup, cur_dev_target, dict, dev_hmmalign_model[curI - 1], dev_initial_prob[curI - 1],
+            //                               hmm_options, postdec_alignment, postdec_thresh);
           }
         }
         else if (ibm2_iter > 0) {

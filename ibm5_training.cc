@@ -7,6 +7,7 @@
 #include "training_common.hh"   // for get_wordlookup(), dictionary and start-prob m-step
 #include "stl_util.hh"
 #include "storage_util.hh"
+#include "conditional_m_steps.hh"
 
 #ifdef HAS_GZSTREAM
 #include "gzstream.h"
@@ -70,7 +71,7 @@ IBM5Trainer::IBM5Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence
   intra_distortion_param_.resize(maxJ_, nClasses, 1.0 / maxJ_);
 
   std::set<uint> seenJs;
-  for (uint s = 0; s < source_sentence.size(); s++)
+  for (size_t s = 0; s < source_sentence.size(); s++)
     seenJs.insert(source_sentence[s].size());
 
   sentence_start_parameters_.resize(maxJ_, 1.0 / maxJ_);
@@ -329,7 +330,7 @@ long double IBM5Trainer::distortion_prob(const Storage1D<uint>& source, const St
   return prob;
 }
 
-void IBM5Trainer::init_from_prevmodel(FertilityModelTrainerBase* prev_model, const HmmWrapperWithClasses* passed_wrapper, bool clear_prev,
+void IBM5Trainer::init_from_prevmodel(FertilityModelTrainerBase* prev_model, const HmmWrapperBase* passed_wrapper, bool clear_prev,
                                       bool count_collection, bool viterbi)
 {
   std::cerr << "******** initializing IBM-5 from " << prev_model->model_name() << " *******" << std::endl;
@@ -400,7 +401,7 @@ void IBM5Trainer::init_from_prevmodel(FertilityModelTrainerBase* prev_model, con
 
     //TODO: also estimate sentence_start_prob if ibm4==0
 
-    for (uint s = 0; s < source_sentence_.size(); s++) {
+    for (size_t s = 0; s < source_sentence_.size(); s++) {
 
       //std::cerr << "s: " << s << std::endl;
 
@@ -913,8 +914,6 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
       }
 
       vec_erase<ushort>(aligned_source_words[cur_aj], best_move_j);
-      //aligned_source_words[best_move_aj].push_back(best_move_j);
-      //vec_sort(aligned_source_words[best_move_aj]);
       sorted_vec_insert<ushort>(aligned_source_words[best_move_aj], best_move_j);
 
       hyp_aligned_source_words[cur_aj] = aligned_source_words[cur_aj];
@@ -934,11 +933,6 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
 
       alignment[best_swap_j1] = cur_aj2;
       alignment[best_swap_j2] = cur_aj1;
-
-      //vec_replace<ushort>(aligned_source_words[cur_aj2], best_swap_j2, best_swap_j1);
-      //vec_replace<ushort>(aligned_source_words[cur_aj1], best_swap_j1, best_swap_j2);
-      //vec_sort(aligned_source_words[cur_aj1]);
-      //vec_sort(aligned_source_words[cur_aj2]);
 
       vec_replace_maintainsort<ushort>(aligned_source_words[cur_aj2], best_swap_j2, best_swap_j1);
       vec_replace_maintainsort<ushort>(aligned_source_words[cur_aj1], best_swap_j1, best_swap_j2);
@@ -1023,8 +1017,8 @@ void IBM5Trainer::inter_distortion_m_step(const Math2D::Matrix<double>& single_d
   if (nSourceClasses_ <= 4)
     std::cerr << "start energy: " << energy << std::endl;
 
-  double alpha = 0.1;
-  double line_reduction_factor = 0.35;
+  double alpha = gd_stepsize_;
+  double line_reduction_factor = 0.1;
 
   for (uint iter = 1; iter <= dist_m_step_iter_; iter++) {
 
@@ -1066,8 +1060,15 @@ void IBM5Trainer::inter_distortion_m_step(const Math2D::Matrix<double>& single_d
     }
 
     /*** 2. go in neg. gradient direction ***/
+    double sqr_grad_norm = gradient.sqr_norm();
+    if (sqr_grad_norm < 1e-5) {
+      std::cerr << "CUTOFF after " << iter << "iterations because squared gradient norm was " << sqr_grad_norm << std::endl;
+      break;
+    }
+
+    double real_alpha = alpha / sqrt(sqr_grad_norm);
     for (uint j = 0; j < nParams; j++)
-      new_param[j] = inter_distortion_param_(j, sclass) - alpha * gradient[j];
+      new_param[j] = inter_distortion_param_(j, sclass) - real_alpha * gradient[j];
 
     /*** 3. reproject ***/
     projection_on_simplex(new_param, fert_min_param_entry);
@@ -1078,13 +1079,13 @@ void IBM5Trainer::inter_distortion_m_step(const Math2D::Matrix<double>& single_d
 
     double best_energy = 1e300;
 
-    uint nIter = 0;
+    uint nTrials = 0;
 
     bool decreasing = false;
 
     while (decreasing || best_energy > energy) {
 
-      nIter++;
+      nTrials++;
 
       lambda *= line_reduction_factor;
       double neg_lambda = 1.0 - lambda;
@@ -1103,10 +1104,10 @@ void IBM5Trainer::inter_distortion_m_step(const Math2D::Matrix<double>& single_d
       else
         decreasing = false;
 
-      if (nIter > 5 && best_energy < 0.975 * energy)
+      if (nTrials > 5 && best_energy < 0.975 * energy)
         break;
 
-      if (nIter > 15 && lambda < 1e-12)
+      if (nTrials > 25 && lambda < 1e-12)
         break;
     }
     //std::cerr << "best lambda: " << best_lambda << std::endl;
@@ -1116,7 +1117,7 @@ void IBM5Trainer::inter_distortion_m_step(const Math2D::Matrix<double>& single_d
       break;
     }
 
-    if (nIter > 6)
+    if (nTrials > 6)
       line_reduction_factor *= 0.9;
 
     //EXPERIMENTAL
@@ -1346,7 +1347,7 @@ void IBM5Trainer::inter_distortion_m_step_unconstrained(const Math2D::Matrix<dou
       search_direction *= 1.0 / sqrt(search_direction.sqr_norm());
     }
 
-    negate(search_direction);
+    Math1D::negate(search_direction);
 
     // d) line search
 
@@ -1357,18 +1358,18 @@ void IBM5Trainer::inter_distortion_m_step_unconstrained(const Math2D::Matrix<dou
     double alpha = 1.0;
     double best_alpha = alpha;
 
-    uint nIter = 0;
+    uint nTrials = 0;
 
     bool decreasing = true;
 
     while (decreasing || best_energy > energy) {
 
-      nIter++;
-      if (nIter > 15 && best_energy > energy) {
+      nTrials++;
+      if (nTrials > 15 && best_energy < energy) {
         break;
       }
 
-      if (nIter > 1)
+      if (nTrials > 1)
         alpha *= line_reduction_factor;
 
       double sqr_sum = 0.0;
@@ -1394,7 +1395,7 @@ void IBM5Trainer::inter_distortion_m_step_unconstrained(const Math2D::Matrix<dou
       }
     }
 
-    if (nIter > 5)
+    if (nTrials > 5)
       line_reduction_factor *= 0.9;
 
     //e) go to the determined point
@@ -1516,8 +1517,15 @@ void IBM5Trainer::intra_distortion_m_step(const Math2D::Matrix<double>& single_d
     }
 
     /*** 2. go in neg. gradient direction ***/
+    double sqr_grad_norm = gradient.sqr_norm();
+    if (sqr_grad_norm < 1e-5) {
+      std::cerr << "CUTOFF after " << iter << " iterations because squared gradient norm was " << sqr_grad_norm << std::endl;
+      break;
+    }
+
+    double real_alpha = alpha / sqrt(sqr_grad_norm);
     for (uint j = 0; j < gradient.size(); j++)
-      new_param[j] = intra_distortion_param_(j, sclass) - alpha * gradient[j];
+      new_param[j] = intra_distortion_param_(j, sclass) - real_alpha * gradient[j];
 
     /*** 3. reproject ***/
     projection_on_simplex(new_param, fert_min_param_entry);
@@ -1528,13 +1536,13 @@ void IBM5Trainer::intra_distortion_m_step(const Math2D::Matrix<double>& single_d
 
     double best_energy = 1e300;
 
-    uint nIter = 0;
+    uint nTrials = 0;
 
     bool decreasing = false;
 
     while (decreasing || best_energy > energy) {
 
-      nIter++;
+      nTrials++;
 
       lambda *= line_reduction_factor;
       double neg_lambda = 1.0 - lambda;
@@ -1553,10 +1561,10 @@ void IBM5Trainer::intra_distortion_m_step(const Math2D::Matrix<double>& single_d
       else
         decreasing = false;
 
-      if (nIter > 5 && best_energy < 0.975 * energy)
+      if (nTrials > 5 && best_energy < 0.975 * energy)
         break;
 
-      if (nIter > 15 && lambda < 1e-12)
+      if (nTrials > 25 && lambda < 1e-12)
         break;
     }
     //std::cerr << "best lambda: " << best_lambda << std::endl;
@@ -1566,7 +1574,7 @@ void IBM5Trainer::intra_distortion_m_step(const Math2D::Matrix<double>& single_d
       break;
     }
 
-    if (nIter > 6)
+    if (nTrials > 6)
       line_reduction_factor *= 0.9;
 
     //EXPERIMENTAL
@@ -1787,7 +1795,7 @@ void IBM5Trainer::intra_distortion_m_step_unconstrained(const Math2D::Matrix<dou
       search_direction *= 1.0 / sqrt(search_direction.sqr_norm());
     }
 
-    negate(search_direction);
+    Math1D::negate(search_direction);
 
     // d) line search
 
@@ -1798,18 +1806,18 @@ void IBM5Trainer::intra_distortion_m_step_unconstrained(const Math2D::Matrix<dou
     double alpha = 1.0;
     double best_alpha = alpha;
 
-    uint nIter = 0;
+    uint nTrials = 0;
 
     bool decreasing = true;
 
     while (decreasing || best_energy > energy) {
 
-      nIter++;
-      if (nIter > 15 && best_energy > energy) {
+      nTrials++;
+      if (nTrials > 15 && best_energy < energy) {
         break;
       }
 
-      if (nIter > 1)
+      if (nTrials > 1)
         alpha *= line_reduction_factor;
 
       double sqr_sum = 0.0;
@@ -1835,7 +1843,7 @@ void IBM5Trainer::intra_distortion_m_step_unconstrained(const Math2D::Matrix<dou
       }
     }
 
-    if (nIter > 5)
+    if (nTrials > 5)
       line_reduction_factor *= 0.9;
 
     //e) go to the determined point
@@ -1870,9 +1878,9 @@ void IBM5Trainer::intra_distortion_m_step_unconstrained(const Math2D::Matrix<dou
   }
 }
 
-void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, const HmmWrapperWithClasses* passed_wrapper)
+void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, const HmmWrapperBase* passed_wrapper)
 {
-  const uint nSentences = source_sentence_.size();
+  const size_t nSentences = source_sentence_.size();
 
   std::cerr << "starting IBM-5 training without constraints";
   if (fert_trainer != 0)
@@ -2325,11 +2333,6 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
 
             const uint aj2 = best_known_alignment_[s][j2];
 
-            //vec_replace<ushort>(hyp_aligned_source_words[aj2], j2, j1);
-            //vec_replace<ushort>(hyp_aligned_source_words[aj1], j1, j2);
-            //vec_sort(hyp_aligned_source_words[aj1]);
-            //vec_sort(hyp_aligned_source_words[aj2]);
-
             vec_replace_maintainsort<ushort>(hyp_aligned_source_words[aj2], j2, j1);
             vec_replace_maintainsort<ushort>(hyp_aligned_source_words[aj1], j1, j2);
 
@@ -2495,7 +2498,7 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
 
     //update dictionary
     update_dict_from_counts(fwcount, prior_weight_, nSentences, dict_weight_sum, smoothed_l0_, l0_beta_, dict_m_step_iter_, dict_, fert_min_dict_entry,
-                            msolve_mode_ != MSSolvePGD);
+                            msolve_mode_ != MSSolvePGD, gd_stepsize_);
 
     //update fertility probabilities
     update_fertility_prob(ffert_count, fert_min_param_entry);
@@ -2571,7 +2574,7 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
     if (use_sentence_start_prob_) {
 
       if (msolve_mode_ == MSSolvePGD)
-        start_prob_m_step(fsentence_start_count, fstart_span_count, sentence_start_parameters_, start_m_step_iter_);
+        start_prob_m_step(fsentence_start_count, fstart_span_count, sentence_start_parameters_, start_m_step_iter_, gd_stepsize_);
       else
         start_prob_m_step_unconstrained(fsentence_start_count, fstart_span_count, sentence_start_parameters_, start_m_step_iter_);
 
@@ -2664,9 +2667,9 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
   iter_offs_ = iter - 1;
 }
 
-void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trainer, const HmmWrapperWithClasses* passed_wrapper)
+void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trainer, const HmmWrapperBase* passed_wrapper)
 {
-  const uint nSentences = source_sentence_.size();
+  const size_t nSentences = source_sentence_.size();
 
   std::cerr << "starting IBM-5 training without constraints";
   if (fert_trainer != 0)
@@ -2997,7 +3000,8 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
     //END_DEBUG
 
     //update dictionary
-    update_dict_from_counts(fwcount, prior_weight_, nSentences, 0.0, false, 0.0, 0, dict_, fert_min_dict_entry);
+    update_dict_from_counts(fwcount, prior_weight_, nSentences, 0.0, false, 0.0, 0, dict_, fert_min_dict_entry,
+                            msolve_mode_ != MSSolvePGD, gd_stepsize_);
 
     //update fertility probabilities
     update_fertility_prob(ffert_count, fert_min_param_entry, false);    //needed at least with fert-prob-sharing
@@ -3068,7 +3072,7 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
 
     if (use_sentence_start_prob_) {
       if (msolve_mode_ == MSSolvePGD)
-        start_prob_m_step(fsentence_start_count, fstart_span_count, sentence_start_parameters_, start_m_step_iter_);
+        start_prob_m_step(fsentence_start_count, fstart_span_count, sentence_start_parameters_, start_m_step_iter_, gd_stepsize_);
       else
         start_prob_m_step_unconstrained(fsentence_start_count, fstart_span_count, sentence_start_parameters_, start_m_step_iter_);
       par2nonpar_start_prob(sentence_start_parameters_, sentence_start_prob_);
@@ -3153,8 +3157,6 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
               const Math1D::Vector<double>& hyp_fert_count = ffert_count[new_target_word];
 
               vec_erase<ushort>(cur_hyp_aligned_source_words, j);
-              //hyp_aligned_source_words[i].push_back(j);
-              //vec_sort(hyp_aligned_source_words[i]);
               sorted_vec_insert<ushort>(hyp_aligned_source_words[i], j);
 
               //std::cerr << "cur_word: " << cur_word << std::endl;
@@ -3181,8 +3183,6 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
               }
               //rollback
               vec_erase<ushort>(hyp_aligned_source_words[i], j);
-              //cur_hyp_aligned_source_words.push_back(j);
-              //vec_sort(cur_hyp_aligned_source_words);
               sorted_vec_insert<ushort>(cur_hyp_aligned_source_words, j);
             }
           }
@@ -3213,8 +3213,6 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
             }
 
             vec_erase<ushort>(cur_hyp_aligned_source_words, j);
-            //hyp_aligned_source_words[new_aj].push_back(j);
-            //vec_sort(hyp_aligned_source_words[new_aj]);
             sorted_vec_insert<ushort>(hyp_aligned_source_words[new_aj], j);
 
             cur_neglog_distort_prob = -logl(distortion_prob(cur_source, cur_target, hyp_aligned_source_words));
@@ -3241,7 +3239,7 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
       //TODO: think about whether to update distortions parameters here as well (would need to update the counts)
 
       max_perplexity = 0.0;
-      for (uint s = 0; s < source_sentence_.size(); s++) {
+      for (size_t s = 0; s < source_sentence_.size(); s++) {
         max_perplexity -= logl(FertilityModelTrainer::alignment_prob(s, best_known_alignment_[s]));
       }
 

@@ -121,34 +121,35 @@ void train_ibm1p0(const Storage1D<Math1D::Vector<uint> >& source, const LookupTa
   }
   dict[0].set_constant(1.0 / dict[0].size());
 
-#if 1
-  for (uint i = 1; i < options.nTargetWords_; i++) {
-    dict[i].set_constant(0.0);
-  }
-  for (size_t s = 0; s < nSentences; s++) {
-    const Storage1D<uint>& cur_source = source[s];
-    const Storage1D<uint>& cur_target = target[s];
+  if (!options.uniform_dict_init_) {
+    for (uint i = 1; i < options.nTargetWords_; i++) {
+      dict[i].set_constant(0.0);
+    }
+    for (size_t s = 0; s < nSentences; s++) {
 
-    const uint curJ = cur_source.size();
-    const uint curI = cur_target.size();
+      const Storage1D<uint>& cur_source = source[s];
+      const Storage1D<uint>& cur_target = target[s];
 
-    const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, nSourceWords, slookup[s], aux_lookup);
+      const uint curJ = cur_source.size();
+      const uint curI = cur_target.size();
 
-    for (uint i = 0; i < curI; i++) {
-      uint tidx = cur_target[i];
-      for (uint j = 0; j < curJ; j++) {
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, nSourceWords, slookup[s], aux_lookup);
 
-        dict[tidx][cur_lookup(j, i)] += 1.0;
+      for (uint i = 0; i < curI; i++) {
+        uint tidx = cur_target[i];
+        for (uint j = 0; j < curJ; j++) {
+
+          dict[tidx][cur_lookup(j, i)] += 1.0;
+        }
       }
     }
-  }
 
-  for (uint i = 1; i < options.nTargetWords_; i++) {
-    double sum = dict[i].sum();
-    if (sum > 1e-305)
-      dict[i] *= 1.0 / sum;
+    for (uint i = 1; i < options.nTargetWords_; i++) {
+      double sum = dict[i].sum();
+      if (sum > 1e-305)
+        dict[i] *= 1.0 / sum;
+    }
   }
-#endif
 
   //fractional counts used for EM-iterations
   NamedStorage1D<Math1D::Vector<double> > fcount(options.nTargetWords_, MAKENAME(fcount));
@@ -203,7 +204,7 @@ void train_ibm1p0(const Storage1D<Math1D::Vector<uint> >& source, const LookupTa
     /*** update dict from counts ***/
 
     update_dict_from_counts(fcount, prior_weight, nSentences, dict_weight_sum, smoothed_l0, l0_beta, options.dict_m_step_iter_, dict,
-                            ibm1_min_dict_entry, options.unconstrained_m_step_);
+                            ibm1_min_dict_entry, options.unconstrained_m_step_, options.gd_stepsize_);
 
     if (options.print_energy_) {
       std::cerr << "IBM-1-p0 energy after iteration #" << iter << ": "
@@ -312,35 +313,35 @@ void train_ibm1p0_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source,
 
   const uint nSourceWords = options.nSourceWords_;
 
-#if 1
-  for (uint i = 1; i < options.nTargetWords_; i++) {
-    dict[i].set_constant(0.0);
-  }
+  if (!options.uniform_dict_init_) {
+    for (uint i = 1; i < options.nTargetWords_; i++) {
+      dict[i].set_constant(0.0);
+    }
+    for (size_t s = 0; s < nSentences; s++) {
 
-  for (size_t s = 0; s < nSentences; s++) {
+      const Storage1D<uint>& cur_source = source[s];
+      const Storage1D<uint>& cur_target = target[s];
 
-    const Storage1D<uint>& cur_source = source[s];
-    const Storage1D<uint>& cur_target = target[s];
+      const uint curJ = cur_source.size();
+      const uint curI = cur_target.size();
 
-    const uint curJ = cur_source.size();
-    const uint curI = cur_target.size();
+      const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, nSourceWords, slookup[s], aux_lookup);
 
-    const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, nSourceWords, slookup[s], aux_lookup);
+      for (uint i = 0; i < curI; i++) {
+        uint tidx = cur_target[i];
+        for (uint j = 0; j < curJ; j++) {
 
-    for (uint i = 0; i < curI; i++) {
-      uint tidx = cur_target[i];
-      for (uint j = 0; j < curJ; j++) {
-        dict[tidx][cur_lookup(j, i)] += 1.0;
+          dict[tidx][cur_lookup(j, i)] += 1.0;
+        }
       }
     }
-  }
 
-  for (uint i = 1; i < options.nTargetWords_; i++) {
-    double sum = dict[i].sum();
-    if (sum > 1e-305)
-      dict[i] *= 1.0 / sum;
+    for (uint i = 1; i < options.nTargetWords_; i++) {
+      double sum = dict[i].sum();
+      if (sum > 1e-305)
+        dict[i] *= 1.0 / sum;
+    }
   }
-#endif
 
   double energy = ibm1p0_energy(source, slookup, target, dict, p0, wcooc, nSourceWords, prior_weight, smoothed_l0, l0_beta, dict_weight_sum);
 
@@ -358,9 +359,9 @@ void train_ibm1p0_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source,
 
   Math1D::Vector<double> new_slack_vector(options.nTargetWords_, 0.0);
 
-  double alpha = 100.0;
+  double alpha = options.gd_stepsize_;
 
-  double line_reduction_factor = 0.5;
+  double line_reduction_factor = 0.1;
 
   uint nSuccessiveReductions = 0;
 
@@ -451,7 +452,7 @@ void train_ibm1p0_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& source,
     /**** move in gradient direction ****/
 
     double real_alpha = alpha;
-#if 0
+#if 1
     double sqr_grad_norm = 0.0;
     for (uint i = 0; i < options.nTargetWords_; i++)
       sqr_grad_norm += dict_grad[i].sqr_norm();
