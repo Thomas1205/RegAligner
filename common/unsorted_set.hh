@@ -245,7 +245,7 @@ template<typename T, typename Equal = std::equal_to<T> >
 inline typename std::vector<T>::const_iterator set_find(const std::vector<T>& vec, const T val) noexcept
 {
   if (std::is_trivially_copyable<T>::value) {
-    const uint pos = Routines::find_unique(vec.data(), val, vec.size());
+    const uint pos = Routines::find_unique<T,Equal>(vec.data(), val, vec.size());
     if (pos >= vec.size())
       return vec.end();
     else
@@ -268,11 +268,14 @@ inline std::vector<uint>::const_iterator set_find(const std::vector<uint>& vec, 
 template<typename T, typename Equal>
 inline bool set_contains(const std::vector<T>& vec, const T val) noexcept
 {
+  //std::cerr << "*****set_contains" << std::endl;
   const static Equal equal;
   if (std::is_trivially_copyable<T>::value)
-    return Routines::contains(vec.data(), val);
-  else
-    return (std::find<T,Equal>(vec.begin(), vec.end(), val) != vec.end());
+    return Routines::contains(vec.data(), val, vec.size());
+  else {
+	//std::cerr << "calling Routines::find_unique" << std::endl; 
+	return (Routines::find_unique<T,Equal>(vec.data(), val, vec.size()) < vec.size() );
+  }
 }
 
 template<>
@@ -312,6 +315,11 @@ bool UnsortedSet<T,Equal>::contains(const PassType val) const noexcept
 template<typename T, typename Equal>
 bool UnsortedSet<T,Equal>::insert(const PassType val) noexcept
 {
+  // std::cerr << "*** UnsortedSet::insert of " << val << " in " << Base::data_ << std::endl;
+  // if (Base::data_.size() == 0) {
+	// bool in = set_contains<T,Equal>(Base::data_, val);
+	// assert(!in);
+  // }
   if (set_contains<T,Equal>(Base::data_, val))
     return false;
 
