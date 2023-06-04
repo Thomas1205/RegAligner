@@ -28,6 +28,8 @@ RegAligner Change History
 - dictionary prior can now also set weights
 - now trying normalized counts as a starting point for the dictionary m-step
 - bugfixes for IBM-3 Viterbi training with IBM-constraints
+- IBM-5 got a pos-par inter-mode
+- IBM-5 bugfix for intra-mode target
 
 *** release version 1.3 (released February 14 2020, lacking a Valentine) ***
 - several new model variants
