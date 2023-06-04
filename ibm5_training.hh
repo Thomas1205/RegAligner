@@ -5,7 +5,7 @@
 
 #include "ibm4_training.hh"
 
-class IBM5Trainer:public FertilityModelTrainer {
+class IBM5Trainer : public FertilityModelTrainer {
 public:
 
   IBM5Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence, const LookupTable& slookup,
@@ -42,13 +42,19 @@ protected:
 
   void par2nonpar_inter_distortion();
 
-  double inter_distortion_m_step_energy(const Math2D::Matrix<double>& single_diff_count, const Math3D::Tensor<double>& diff_span_count,
-                                        uint sclass, const Math2D::Matrix<double>& param) const;
+  double inter_distortion_diffpar_m_step_energy(const Math2D::Matrix<double>& single_diff_count, const Math3D::Tensor<double>& diff_span_count,
+												uint sclass, const Math2D::Matrix<double>& param, double grouping_prob) const;
 
-  void inter_distortion_m_step(const Math2D::Matrix<double>& single_diff_count, const Math3D::Tensor<double>& diff_span_count,
-                               uint sclass);
+  double inter_distortion_pospar_m_step_energy(const Math3D::Tensor<double>& single_pos_count, const Math3D::Tensor<double>& pos_span_count,
+											   uint sclass, uint prev_center, const Math3D::Tensor<double>& param, double grouping_prob) const;
 
-  void inter_distortion_m_step_unconstrained(const Math2D::Matrix<double>& single_diff_count,
+  void inter_distortion_diffpar_m_step(const Math2D::Matrix<double>& single_diff_count, const Math3D::Tensor<double>& diff_span_count,
+									   uint sclass);
+
+  void inter_distortion_pospar_m_step(const Math3D::Tensor<double>& single_pos_count, const Math3D::Tensor<double>& pos_span_count,
+									  uint sclass, uint prev_center);
+
+  void inter_distortion_diffpar_m_step_unconstrained(const Math2D::Matrix<double>& single_diff_count,
       const Math3D::Tensor<double>& diff_span_count, uint sclass, uint L = 5);
 
   void par2nonpar_intra_distortion();
@@ -68,6 +74,7 @@ protected:
   //dependence on the previous center (yDim) and source word classes (zDim)
   Storage1D<Math3D::Tensor<double> > inter_distortion_prob_;
   Math2D::Matrix<double> inter_distortion_param_;
+  Math3D::Tensor<double> inter_dist_pospar_param_;
 
   uint displacement_offset_;
 
@@ -78,12 +85,17 @@ protected:
   Math1D::NamedVector<double> sentence_start_parameters_;
   Storage1D<Math1D::Vector<double> > sentence_start_prob_;
 
-  bool nonpar_distortion_;
+  IBM23ParametricMode distortion_type_;
+  //bool nonpar_distortion_;
+ 
   bool use_sentence_start_prob_;
   bool uniform_intra_prob_;
 
   IBM4CeptStartMode cept_start_mode_;
   IBM4IntraDistMode intra_dist_mode_;
+  
+  Math1D::Vector<double> inter_grouping_prob_; //relevant when inter_dist_grouping_ isn't Off
+  Math2D::Matrix<double> inter_pospar_grouping_prob_;
 
   Storage1D<WordClassType> source_class_;
   Storage1D<WordClassType> target_class_;
@@ -92,6 +104,9 @@ protected:
   uint nTargetClasses_;
 
   bool deficient_;
+  DistortionGroupingMode inter_dist_grouping_;
+  //bool inter_dist_grouping_ = false; // currently only for the inter probs, not the intra probs
+  int dist_grouping_limit_ = 5; 
 
   uint dist_m_step_iter_ = 400;
   uint start_m_step_iter_ = 100;

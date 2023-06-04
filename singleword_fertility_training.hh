@@ -16,7 +16,8 @@
 #include <map>
 #include <set>
 
-enum HillclimbingMode { HillclimbingReuse, HillclimbingRestart, HillclimbingReinit };
+enum HillclimbingMode { HillclimbingReuse, HillclimbingRestart, HillclimbingReinit};
+enum DistortionGroupingMode {DistGroupModeOff, DistGroupModeDivide, DistGroupModeExpand};
 
 struct FertModelOptions {
 
@@ -51,6 +52,10 @@ struct FertModelOptions {
   IBM4CeptStartMode cept_start_mode_ = IBM4FIRST; //CENTER is the original of Brown et. al.
   IBM4InterDistMode inter_dist_mode_ = IBM4InterDistModePrevious; // previous is the original of Brown et. al.
   IBM4IntraDistMode intra_dist_mode_ = IBM4IntraDistModeSource; // source is the original of Brown et al.
+
+  IBM23ParametricMode ibm5_distortion_type_ = IBM23ParByPosition;
+  DistortionGroupingMode ibm5_dist_grouping_ = DistGroupModeOff;
+  int dist_grouping_limit_ = 5;
 
   bool uniform_sentence_start_prob_ = false;
   bool reduce_deficiency_ = false;

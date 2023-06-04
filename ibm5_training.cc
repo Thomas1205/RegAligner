@@ -28,10 +28,12 @@ IBM5Trainer::IBM5Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence
   : FertilityModelTrainer(source_sentence, slookup, target_sentence, dict, wcooc, tfert_class, nSourceWords, nTargetWords, prior_weight,
                           sure_ref_alignments, possible_ref_alignments, log_table, xlogx_table, options, true),
     inter_distortion_prob_(maxJ_ + 1), intra_distortion_prob_(maxJ_ + 1),
-    sentence_start_prob_(maxJ_ + 1), nonpar_distortion_(options.ibm5_nonpar_distortion_),
+    sentence_start_prob_(maxJ_ + 1), distortion_type_(options.ibm5_distortion_type_),
+	//nonpar_distortion_(options.ibm5_nonpar_distortion_),
     use_sentence_start_prob_(!options.uniform_sentence_start_prob_), uniform_intra_prob_(options.uniform_intra_prob_),
     cept_start_mode_(options.cept_start_mode_), intra_dist_mode_(options.intra_dist_mode_),
     source_class_(source_class), target_class_(target_class), deficient_(options.deficient_),
+	inter_dist_grouping_(options.ibm5_dist_grouping_), dist_grouping_limit_(options.dist_grouping_limit_),
     dist_m_step_iter_(options.dist_m_step_iter_), start_m_step_iter_(options.start_m_step_iter_)
 {
   uint max_source_class = 0;
@@ -61,19 +63,21 @@ IBM5Trainer::IBM5Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence
   }
 
   nTargetClasses_ = max_target_class + 1;
-
-  inter_distortion_param_.resize(2 * maxJ_ + 1, nSourceClasses_, 1.0 / (2 * maxJ_ + 1));
-
-  displacement_offset_ = maxJ_;
-
-  const uint nClasses = (intra_dist_mode_ == IBM4IntraDistModeSource) ? nSourceClasses_ : nTargetClasses_;
-
-  intra_distortion_param_.resize(maxJ_, nClasses, 1.0 / maxJ_);
-
+  
   std::set<uint> seenJs;
   for (size_t s = 0; s < source_sentence.size(); s++)
     seenJs.insert(source_sentence[s].size());
 
+  const uint nClasses = (intra_dist_mode_ == IBM4IntraDistModeSource) ? nSourceClasses_ : nTargetClasses_;
+  
+  const uint nDisplacements = 2 * maxJ_-1;
+  if (nDisplacements <= (2 * dist_grouping_limit_ +1) ) {
+	inter_dist_grouping_ = DistGroupModeOff;
+	dist_grouping_limit_ = 1;
+  }
+  displacement_offset_ = maxJ_-1;
+
+  intra_distortion_param_.resize(maxJ_, nClasses, 1.0 / maxJ_);
   sentence_start_parameters_.resize(maxJ_, 1.0 / maxJ_);
 
   for (std::set<uint>::const_iterator it = seenJs.begin(); it != seenJs.end(); it++) {
@@ -86,6 +90,28 @@ IBM5Trainer::IBM5Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence
     intra_distortion_prob_[J].resize(J, nClasses, 1.0 / J);
     inter_distortion_prob_[J].resize(J, maxJ_, nSourceClasses_, 1.0 / J);
   }
+
+  inter_distortion_param_.resize(nDisplacements, nSourceClasses_, 1.0 / nDisplacements);
+  inter_grouping_prob_.resize(nSourceClasses_,0.0);
+  inter_dist_pospar_param_.resize(maxJ_+1, maxJ_+1, nSourceClasses_);
+  inter_pospar_grouping_prob_.resize(maxJ_+1,nSourceClasses_,0.0);
+  
+  if (distortion_type_ != IBM23Nonpar) {
+	if (inter_dist_grouping_ != DistGroupModeOff) {
+	  inter_distortion_param_.set_constant(0.8 / (2*dist_grouping_limit_+1));
+      inter_dist_pospar_param_.set_constant(0.8 / (dist_grouping_limit_+1));
+	  inter_grouping_prob_.set_constant(0.2);
+	  inter_pospar_grouping_prob_.set_constant(0.2);
+	}
+	else {
+	  inter_distortion_param_.set_constant(1.0 / nDisplacements);
+      inter_dist_pospar_param_.set_constant(1.0 / (maxJ_+1));
+	  inter_grouping_prob_.set_constant(0.0);
+	  inter_pospar_grouping_prob_.set_constant(0.0);		
+	}
+	par2nonpar_inter_distortion();
+    par2nonpar_intra_distortion();
+  }
 }
 
 /*virtual*/ std::string IBM5Trainer::model_name() const
@@ -95,26 +121,93 @@ IBM5Trainer::IBM5Trainer(const Storage1D<Math1D::Vector<uint> >& source_sentence
 
 void IBM5Trainer::par2nonpar_inter_distortion()
 {
+  if (distortion_type_ == IBM23Nonpar)
+	return;
+
   for (uint J = 1; J < inter_distortion_prob_.size(); J++) {
 
     for (uint s = 0; s < inter_distortion_prob_[J].zDim(); s++) {
 
-      for (uint prev_pos = 0; prev_pos < inter_distortion_prob_[J].yDim(); prev_pos++) {
+      for (int prev_pos = 0; prev_pos < inter_distortion_prob_[J].yDim(); prev_pos++) {
 
-        double denom = 0.0;
-        if (deficient_)
-          denom = 1.0;
-        else {
-          for (uint j = 0; j < J; j++)
-            denom += inter_distortion_param_(displacement_offset_ + j - prev_pos, s);
-        }
+		if (distortion_type_ == IBM23ParByPosition) {
 
-        assert(denom > 1e-305);
-
-        for (uint j = 0; j < J; j++)
-          inter_distortion_prob_[J] (j, prev_pos, s) =
-            std::max(fert_min_param_entry, inter_distortion_param_(displacement_offset_ + j -  prev_pos, s) / denom);
-      }
+		  const uint nDistGroupingTerms = maxJ_+1 - (dist_grouping_limit_+1);
+			
+		  double sum = 0.0;
+		  uint nLong = 0;
+		  for (uint j = 0; j < J; j++)
+		  {
+			if (inter_dist_grouping_ == DistGroupModeOff || j <= dist_grouping_limit_)
+			  sum += inter_dist_pospar_param_(j,prev_pos,s);
+		    else if (inter_dist_grouping_ == DistGroupModeDivide)
+			  sum += inter_pospar_grouping_prob_(prev_pos,s) / nDistGroupingTerms;
+		    else {
+			  assert(inter_dist_grouping_ == DistGroupModeExpand);
+			  nLong++;
+			}
+		  }
+		  if (nLong > 0) 
+		  {
+			assert(inter_dist_grouping_ == DistGroupModeExpand);
+			assert(dist_grouping_limit_ < J);
+			sum += inter_pospar_grouping_prob_(prev_pos,s);
+			assert(sum >= 0.99 && sum <= 1.01); //for pospar always the entire sum of non-grouped probs enters
+		  }
+		  
+		  if (sum > 1e-300) {
+			
+			double inv_sum = (deficient_) ? 1.0 : 1.0 / sum;
+			for (uint j = 0; j < J; j++)
+		    {
+			  if (inter_dist_grouping_ == DistGroupModeOff || j <= dist_grouping_limit_)
+				inter_distortion_prob_[J](j, prev_pos, s) = inter_dist_pospar_param_(j,prev_pos,s) * inv_sum;
+			  else if (inter_dist_grouping_ == DistGroupModeDivide)
+				inter_distortion_prob_[J](j, prev_pos, s) = inter_grouping_prob_[s] * inv_sum / nDistGroupingTerms;
+			  else 
+				inter_distortion_prob_[J](j, prev_pos, s) = inter_grouping_prob_[s] * inv_sum / nLong; 
+			}
+		  }
+		}
+		else if (distortion_type_ == IBM23ParByDifference) {
+			
+		  const uint nDistGroupingTerms = inter_distortion_param_.xDim() - (2*dist_grouping_limit_+1);
+		  double sum = 0.0;
+		  uint nLong = 0;
+		  for (int j = 0; j < J; j++) {
+			if (inter_dist_grouping_ == DistGroupModeOff || abs(j - prev_pos) <= dist_grouping_limit_)
+              sum += inter_distortion_param_(displacement_offset_ + j - prev_pos, s);
+		    else if (inter_dist_grouping_ == DistGroupModeDivide) {
+			  assert(abs(j-prev_pos) > dist_grouping_limit_);
+			  sum += inter_grouping_prob_[s] / nDistGroupingTerms;
+			}
+		    else {
+			  assert(inter_dist_grouping_ == DistGroupModeExpand);
+			  assert(j > dist_grouping_limit_);
+			  nLong++;
+			}
+		  }
+		  if (nLong > 0) {
+			assert(inter_dist_grouping_ == DistGroupModeExpand);
+			sum += inter_grouping_prob_[s];
+		  }
+		 
+		  if (sum > 1e-300) {
+			double inv_sum = (deficient_) ? 1.0 : 1.0 / sum;
+			
+			for (int j = 0; j < J; j++) {
+			  if (inter_dist_grouping_ == DistGroupModeOff || abs(j-prev_pos) <= dist_grouping_limit_)
+                inter_distortion_prob_[J](j, prev_pos, s) = inv_sum * inter_distortion_param_(displacement_offset_ + j - prev_pos, s);
+		      else if (inter_dist_grouping_ == DistGroupModeDivide) {
+				assert(abs(j-prev_pos) > dist_grouping_limit_);
+			    inter_distortion_prob_[J](j, prev_pos, s) = inv_sum * inter_grouping_prob_[s] / nDistGroupingTerms;
+			  }
+			  else //DistGroupModeExpand
+				inter_distortion_prob_[J](j, prev_pos, s) = inv_sum * inter_grouping_prob_[s] / nLong; 
+		    }
+		  }
+		}
+	  }
     }
   }
 }
@@ -296,7 +389,7 @@ long double IBM5Trainer::distortion_prob(const Storage1D<uint>& source, const St
 
         nAvailable -= cur_aligned_source_words.size() - 1 - k;
 
-        prob *= intra_distortion_prob_[nAvailable] (pos, cur_class);
+        prob *= intra_distortion_prob_[nAvailable](pos, cur_class);
 
         fixed[cur_j] = true;
         nOpen--;
@@ -357,7 +450,7 @@ void IBM5Trainer::init_from_prevmodel(FertilityModelTrainerBase* prev_model, con
     }
 
     if (fert_model == 0) {
-      init_fertilities(0);      //alignments were already updated an set
+      init_fertilities(0);      //alignments were already updated and set
     }
     else {
 
@@ -383,7 +476,8 @@ void IBM5Trainer::init_from_prevmodel(FertilityModelTrainerBase* prev_model, con
 
     //init distortion models from best known alignments
     Storage1D<Math3D::Tensor<double> > inter_distortion_count = inter_distortion_prob_;
-    Math2D::Matrix<double> inter_distparam_count = inter_distortion_param_;
+    Math2D::Matrix<double> single_diff_count = inter_distortion_param_;
+    Math3D::Tensor<double> inter_dist_pospar_count(maxJ_+1,maxJ_+1,nSourceClasses_,0.0);
 
     Storage1D<Math2D::Matrix<double> > intra_distortion_count = intra_distortion_prob_;
     Math2D::Matrix<double> intra_distparam_count = intra_distortion_param_;
@@ -391,7 +485,7 @@ void IBM5Trainer::init_from_prevmodel(FertilityModelTrainerBase* prev_model, con
     /*** clear counts ***/
     for (uint J = 1; J < inter_distortion_count.size(); J++)
       inter_distortion_count[J].set_constant(0.0);
-    inter_distparam_count.set_constant(0.0);
+    single_diff_count.set_constant(0.0);
 
     if (!uniform_intra_prob_) {
       for (uint J = 1; J < intra_distortion_count.size(); J++)
@@ -461,8 +555,11 @@ void IBM5Trainer::init_from_prevmodel(FertilityModelTrainerBase* prev_model, con
               }
 
               cur_inter_distortion_count(pos_first_j, pos_prev_center, sclass) += 1.0;
-              inter_distparam_count(displacement_offset_ + pos_first_j - pos_prev_center, sclass) += 1.0;
-            }
+			  if (distortion_type_ == IBM23ParByDifference)
+                single_diff_count(displacement_offset_ + pos_first_j - pos_prev_center, sclass) += 1.0;
+              else
+				inter_dist_pospar_count(pos_first_j, pos_prev_center, sclass) += 1.0;
+			}
 
             fixed[first_j] = true;
             nOpen--;
@@ -489,7 +586,7 @@ void IBM5Trainer::init_from_prevmodel(FertilityModelTrainerBase* prev_model, con
 
                 nAvailable -= cur_aligned_source_words.size() - 1 - k;
 
-                intra_distortion_count[nAvailable] (pos, sclass) += 1.0;
+                intra_distortion_count[nAvailable](pos, sclass) += 1.0;
                 intra_distparam_count(pos, sclass) += 1.0;
 
                 fixed[cur_j] = true;
@@ -523,52 +620,154 @@ void IBM5Trainer::init_from_prevmodel(FertilityModelTrainerBase* prev_model, con
     }
 
     //std::cerr << "A" << std::endl;
-
+	
     //update inter distortion probabilities
-    if (nonpar_distortion_) {
+    if (distortion_type_ == IBM23Nonpar) {
+
+	  const uint nDistGroupingTerms = maxJ_+1 - (dist_grouping_limit_+1);
 
       for (uint J = 1; J < inter_distortion_count.size(); J++) {
 
+		//std::cerr << "J: " << J << std::endl;
         for (uint y = 0; y < inter_distortion_count[J].yDim(); y++) {
           for (uint z = 0; z < inter_distortion_count[J].zDim(); z++) {
 
             double sum = 0.0;
             for (uint j = 0; j < inter_distortion_count[J].xDim(); j++)
-              sum += inter_distortion_count[J] (j, y, z);
+              sum += inter_distortion_count[J](j, y, z);
 
             if (sum > 1e-305) {
-
-              for (uint j = 0; j < inter_distortion_count[J].xDim(); j++)
-                inter_distortion_prob_[J](j, y, z) =
-                  0.95 * std::max(fert_min_param_entry, inter_distortion_count[J] (j, y, z) / sum)
-                  + 0.05 * inter_distortion_prob_[J](j, y, z);
-            }
+				
+			  if (inter_dist_grouping_ == DistGroupModeOff) {
+                for (uint j = 0; j < inter_distortion_count[J].xDim(); j++)
+                  inter_distortion_prob_[J](j, y, z) =
+                    0.95 * std::max(fert_min_param_entry, inter_distortion_count[J](j, y, z) / sum)
+                    + 0.05 * inter_distortion_prob_[J](j, y, z); 
+			  }
+			  else {
+				  
+				double longparam_sum = 0.0;
+				for (uint j = dist_grouping_limit_+1; j < inter_distortion_count[J].xDim();  j++)
+				  longparam_sum += inter_distortion_count[J](j, y, z);
+			    if (inter_dist_grouping_ == DistGroupModeDivide) {
+  			      sum -= longparam_sum;
+				  longparam_sum /= nDistGroupingTerms;
+				  sum += longparam_sum;
+				}
+			  
+			    for (uint j = 0; j < inter_distortion_count[J].xDim(); j++)
+				  inter_distortion_prob_[J](j, y, z) = std::max(fert_min_param_entry, inter_distortion_count[J](j, y, z) / sum);
+			    const uint nGroup = inter_distortion_count[J].xDim() - (dist_grouping_limit_+1);
+			    for (uint j = dist_grouping_limit_+1; j < inter_distortion_count[J].xDim();  j++)
+				  inter_distortion_prob_[J](j, y, z) = longparam_sum / (sum * nGroup);
+			  }
+			}
           }
         }
       }
     }
-    else {
+    else if (distortion_type_ == IBM23ParByDifference) {
+
+	  const uint nDistGroupingTerms = inter_distortion_param_.xDim() - (2*dist_grouping_limit_-1);
 
       for (uint s = 0; s < inter_distortion_param_.yDim(); s++) {
 
-        double sum = 0.0;
-        for (uint j = 0; j < inter_distortion_param_.xDim(); j++)
-          sum += inter_distparam_count(j, s);
+		if (inter_dist_grouping_ != DistGroupModeOff) {
+			
+		  double sum = 0.0;
+		  double grouping_param = 0.0;
+		  for (int d = 0; d < inter_distortion_param_.xDim(); d++) {
+			if (abs(d - (int) displacement_offset_) <= dist_grouping_limit_)
+			  sum += single_diff_count(d, s);
+		    else 
+			  grouping_param += single_diff_count(d, s);
+		  }
+		  sum += grouping_param;
+		  
+		  if (sum > 1e-50) {
+			double inv_sum = 1.0 / sum;
+			for (int d = 0; d < inter_distortion_param_.xDim(); d++) {
+			  if (abs(d - (int) displacement_offset_) <= dist_grouping_limit_)
+				inter_distortion_param_(d, s) =
+					0.95 * std::max(fert_min_param_entry, single_diff_count(d, s)* inv_sum) + 0.05 * inter_distortion_param_(d, s);  
+			  else {
+				inter_distortion_param_(d, s) = std::max(fert_min_param_entry, inv_sum * grouping_param) / nDistGroupingTerms;
+			  }
+			}
+			inter_grouping_prob_[s] = std::max(fert_min_param_entry, inv_sum * grouping_param);
+		  }
+		}
+		else { // dist-grouping off
+          double sum = 0.0;
+          for (uint j = 0; j < inter_distortion_param_.xDim(); j++)
+            sum += single_diff_count(j, s);
 
-        assert(sum > 1e-305);
+          assert(sum > 1e-305);
+		  assert(inter_distortion_param_.row_sum(s) >= 0.99 && inter_distortion_param_.row_sum(s) <= 1.01);
 
-        for (uint j = 0; j < inter_distortion_param_.xDim(); j++)
-          inter_distortion_param_(j, s) =
-            0.95 * std::max(fert_min_param_entry, inter_distparam_count(j, s) / sum) + 0.05 * inter_distortion_param_(j, s);
-      }
+          for (uint j = 0; j < inter_distortion_param_.xDim(); j++)
+            inter_distortion_param_(j, s) =
+              0.95 * std::max(fert_min_param_entry, single_diff_count(j, s) / sum) + 0.05 * inter_distortion_param_(j, s);
+		  assert(inter_distortion_param_.row_sum(s) >= 0.99 && inter_distortion_param_.row_sum(s) <= 1.01);
+		}
+	  }
 
       par2nonpar_inter_distortion();
     }
+	else { //parbypos
+		
+	  const uint nDistGroupingTerms = maxJ_+1 - (dist_grouping_limit_+1);
+
+      for (uint s = 0; s < inter_distortion_param_.yDim(); s++) {
+		  
+		for (uint prev_pos = 0; prev_pos <= maxJ_; prev_pos++) {
+
+ 		  if (inter_dist_grouping_ != DistGroupModeOff) {
+
+		    double sum = 0.0;
+		    double grouping_count = 0.0;
+		    for (uint j = 0; j < inter_dist_pospar_param_.xDim(); j++) {
+			  if (j <= dist_grouping_limit_)
+			    sum += inter_dist_pospar_count(j, prev_pos, s);
+		      else
+			    grouping_count += inter_dist_pospar_count(j, prev_pos, s);
+		    }
+		    sum += grouping_count;
+		  
+		    if (sum > 1e-300) {
+		      double inv_sum = 1.0 / sum;
+		      inter_pospar_grouping_prob_(prev_pos,s) = std::max(fert_min_param_entry, inv_sum * grouping_count);
+		      for (uint j = 0; j < inter_dist_pospar_param_.xDim(); j++) {
+		        if (j <= dist_grouping_limit_)
+				  inter_dist_pospar_param_(j, prev_pos, s) = std::max(fert_min_param_entry, inv_sum * inter_dist_pospar_count(j, prev_pos, s));
+			    else
+				  inter_dist_pospar_param_(j, prev_pos, s) = std::max(fert_min_param_entry,inv_sum * grouping_count) / nDistGroupingTerms;
+			  }
+			  inter_pospar_grouping_prob_(prev_pos, s) = std::max(fert_min_param_entry, inv_sum * grouping_count);
+		    }
+		  }
+	 	  else {
+		    //dist-grouping off
+		    double sum = 0.0;
+		    for (uint d = 0; d < inter_dist_pospar_count.xDim(); d++)
+			  sum += inter_dist_pospar_count(d, prev_pos, s);
+		    if (sum > 1e-300) {
+			  double inv_sum = 1.0 / sum;
+			  for (uint d = 0; d < inter_dist_pospar_count.xDim(); d++)
+			   inter_dist_pospar_param_(d, prev_pos, s) = 0.95 * std::max(inv_sum * inter_dist_pospar_count(d, prev_pos, s), fert_min_param_entry)
+				  + 0.05 / inter_dist_pospar_param_.xDim();
+			}
+		  }
+		}
+	  }
+	  
+	  par2nonpar_inter_distortion();
+	}
 
     //std::cerr << "B" << std::endl;
 
     //update intra distortion probabilities
-    if (nonpar_distortion_) {
+    if (distortion_type_ == IBM23Nonpar) {
 
       for (uint J = 1; J < intra_distortion_prob_.size(); J++) {
 
@@ -951,26 +1150,47 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
   return base_prob;
 }
 
-double IBM5Trainer::inter_distortion_m_step_energy(const Math2D::Matrix<double>& single_diff_count, const Math3D::Tensor<double>& diff_span_count,
-    uint sclass, const Math2D::Matrix<double>& param) const
+double IBM5Trainer::inter_distortion_diffpar_m_step_energy(const Math2D::Matrix<double>& single_diff_count, 
+														   const Math3D::Tensor<double>& diff_span_count,
+														   uint sclass, const Math2D::Matrix<double>& param,
+														   double grouping_prob) const
 {
   double energy = 0.0;
 
-  for (uint j = 0; j < param.xDim(); j++)
-    energy -= single_diff_count(j, sclass) * std::log(std::max(1e-15, param(j, sclass)));
+  for (int d = 0; d < param.xDim(); d++) {
+    if (inter_dist_grouping_ == DistGroupModeOff || abs(d - (int) displacement_offset_) <= dist_grouping_limit_)
+	  energy -= single_diff_count(d, sclass) * std::log(std::max(fert_min_param_entry, param(d, sclass)));
+    else
+	  energy -= single_diff_count(d, sclass) * std::log(grouping_prob);
+  }
+  
+  const uint nDistGroupingTerms = param.xDim() - (2*dist_grouping_limit_+1);
 
-  for (uint d_start = 0; d_start < diff_span_count.xDim(); d_start++) {
+  //for (uint d_start = 0; d_start < diff_span_count.xDim(); d_start++) {
+  for (uint d_start = 0; d_start < std::min<uint>(displacement_offset_+1,diff_span_count.xDim()); d_start++) {
 
     const uint yDim = diff_span_count.yDim();
 
-    double param_sum = 0.0;
+    //double param_sum = 0.0;
     for (uint d_end = d_start; d_end < yDim; d_end++) {
-
-      param_sum += std::max(fert_min_param_entry, param(d_end, sclass));
+    
+	  
+      //param_sum += std::max(fert_min_param_entry, param(d_end, sclass));
       const double count = diff_span_count(d_start, d_end, sclass);
       if (count != 0.0) {
 
-        energy += count * std::log(param_sum);
+	    double param_sum = 0.0;
+	    for (int d = d_start; d <= d_end; d++) {
+		  if (inter_dist_grouping_ == DistGroupModeOff || abs(d - (int) displacement_offset_) <= dist_grouping_limit_)
+			param_sum += param(d,sclass);
+		  else if (inter_dist_grouping_ == DistGroupModeDivide && abs(d - (int) displacement_offset_) > dist_grouping_limit_)
+			param_sum += grouping_prob / nDistGroupingTerms;
+	    } 
+		if (inter_dist_grouping_ == DistGroupModeExpand && 
+			(d_start < displacement_offset_-dist_grouping_limit_ || d_end > displacement_offset_ + dist_grouping_limit_))
+		  param_sum += grouping_prob;
+        
+		energy += count * std::log(param_sum);
       }
     }
   }
@@ -978,9 +1198,49 @@ double IBM5Trainer::inter_distortion_m_step_energy(const Math2D::Matrix<double>&
   return energy;
 }
 
-void IBM5Trainer::inter_distortion_m_step(const Math2D::Matrix<double>& single_diff_count, const Math3D::Tensor<double>& diff_span_count, uint sclass)
+double IBM5Trainer::inter_distortion_pospar_m_step_energy(const Math3D::Tensor<double>& single_pos_count, const Math3D::Tensor<double>& pos_span_count,
+														  uint sclass, uint prev_center, const Math3D::Tensor<double>& param, double grouping_prob) const
 {
+  const uint nDistGroupingTerms = maxJ_+1 - (dist_grouping_limit_+1);
+  double energy = 0.0;
+  
+  for (int d = 0; d < param.xDim(); d++) {
+    if (inter_dist_grouping_ == DistGroupModeOff || abs(d - (int) displacement_offset_) <= dist_grouping_limit_)
+	  energy -= single_pos_count(d, prev_center, sclass) * std::log(std::max(fert_min_param_entry, param(d, prev_center, sclass)));
+    else
+	  energy -= single_pos_count(d, prev_center, sclass) * std::log(grouping_prob);
+  }
+
+  double param_sum = 0.0;
+  uint nLong = 0;
+  for (uint d = 0; d < pos_span_count.xDim(); d++) {
+	
+	if (inter_dist_grouping_ == DistGroupModeOff || d <= dist_grouping_limit_)
+	  param_sum += param(d, prev_center, sclass);
+    else if (inter_dist_grouping_ == DistGroupModeDivide)
+	  param_sum += grouping_prob / nDistGroupingTerms;
+    else {
+	  assert(inter_dist_grouping_ == DistGroupModeExpand);
+	  nLong++;
+	}
+  
+    double full_sum = param_sum;
+    if (nLong > 0)
+      full_sum += grouping_prob;	
+
+	energy += pos_span_count(d, prev_center, sclass) * std::log(full_sum); 
+  }	  
+  
+  return energy;
+}
+
+
+void IBM5Trainer::inter_distortion_diffpar_m_step(const Math2D::Matrix<double>& single_diff_count, const Math3D::Tensor<double>& diff_span_count, 
+												  uint sclass)
+{
+  assert(distortion_type_ == IBM23ParByDifference);
   const uint nParams = inter_distortion_param_.xDim();
+  const int nDistGroupingTerms = nParams - (2*dist_grouping_limit_+1);
 
   for (uint k = 0; k < nParams; k++)
     inter_distortion_param_(k, sclass) = std::max(fert_min_param_entry, inter_distortion_param_(k, sclass));
@@ -989,33 +1249,77 @@ void IBM5Trainer::inter_distortion_m_step(const Math2D::Matrix<double>& single_d
   Math1D::Vector<double> new_param(inter_distortion_param_.xDim());
   Math2D::Matrix<double> hyp_param = inter_distortion_param_;
 
-  double energy = (deficient_) ? 0.0 : inter_distortion_m_step_energy(single_diff_count, diff_span_count, sclass, inter_distortion_param_);
+  double hyp_grouping_prob = 0.0;
+  double new_grouping_prob = 0.0;
 
-  {
-    //check if normalized expectations give a better starting point
+  double energy = (deficient_) ? 0.0 : inter_distortion_diffpar_m_step_energy(single_diff_count, diff_span_count, sclass, 
+																			  inter_distortion_param_, inter_grouping_prob_[sclass]);
 
+  //check if normalized expectations give a better starting point
+  if (inter_dist_grouping_ != DistGroupModeOff) {
+	hyp_grouping_prob = 0.0;
+	double sum = 0.0;
+	
+	for (int d = 0; d < nParams; d++)
+	{
+	  if (abs(d - (int) displacement_offset_) <= dist_grouping_limit_)
+		sum += single_diff_count(d, sclass);
+	  else 
+	    hyp_grouping_prob += single_diff_count(d, sclass);
+	}
+	hyp_grouping_prob = std::max(fert_min_param_entry, hyp_grouping_prob);
+	sum += hyp_grouping_prob;
+
+	if (sum > 1e-50) {
+      for (int d = 0; d < nParams; d++) {
+	    if (abs(d - (int) displacement_offset_) <= dist_grouping_limit_)		  
+          hyp_param(d, sclass) = std::max(fert_min_param_entry, single_diff_count(d, sclass) / sum);
+	    else
+		  hyp_param(d, sclass) = std::max(fert_min_param_entry, hyp_grouping_prob / (sum * nDistGroupingTerms));
+	  }
+	  hyp_grouping_prob = std::max(fert_min_param_entry, hyp_grouping_prob / sum);
+	 
+      double hyp_energy = (deficient_) ? -1.0 
+		: inter_distortion_diffpar_m_step_energy(single_diff_count, diff_span_count, sclass, hyp_param, hyp_grouping_prob);
+
+      //NOTE: the closed-form deficient solution does not necessarily reduce the energy INCLUDING the normalization term
+      if (hyp_energy < energy) {
+
+        for (uint d = 0; d < nParams; d++)
+          inter_distortion_param_(d, sclass) = hyp_param(d, sclass);
+	    inter_grouping_prob_[sclass] = hyp_grouping_prob;
+
+        energy = hyp_energy;
+      }
+	}
+  }
+  else {
+    
     const double sum = single_diff_count.row_sum(sclass);
 
-    for (uint d = 0; d < nParams; d++)
-      hyp_param(d, sclass) = std::max(fert_min_param_entry, single_diff_count(d, sclass) / sum);
-
-    double hyp_energy = (deficient_) ? -1.0 : inter_distortion_m_step_energy(single_diff_count, diff_span_count, sclass, hyp_param);
-
-    //NOTE: the closed-form deficient solution does not necessarily reduce the energy INCLUDING the normalization term
-    if (hyp_energy < energy) {
-
+	if (sum > 1e-50) {
       for (uint d = 0; d < nParams; d++)
-        inter_distortion_param_(d, sclass) = hyp_param(d, sclass);
+        hyp_param(d, sclass) = std::max(fert_min_param_entry, single_diff_count(d, sclass) / sum);
 
-      energy = hyp_energy;
-    }
+      double hyp_energy = (deficient_) ? -1.0 : inter_distortion_diffpar_m_step_energy(single_diff_count, diff_span_count, sclass, 
+																					   hyp_param, hyp_grouping_prob);
+
+      //NOTE: the closed-form deficient solution does not necessarily reduce the energy INCLUDING the normalization term
+      if (hyp_energy < energy) {
+
+        for (uint d = 0; d < nParams; d++)
+          inter_distortion_param_(d, sclass) = hyp_param(d, sclass);
+
+        energy = hyp_energy;
+	  }
+	}
   }
 
   if (deficient_)
     return;
 
   if (nSourceClasses_ <= 4)
-    std::cerr << "start energy: " << energy << std::endl;
+    std::cerr << "inter m-step start energy: " << energy << std::endl;
 
   double alpha = gd_stepsize_;
   double line_reduction_factor = 0.1;
@@ -1025,53 +1329,145 @@ void IBM5Trainer::inter_distortion_m_step(const Math2D::Matrix<double>& single_d
     if ((iter % 5) == 0) {
 
       if (nSourceClasses_ <= 4)
-        std::cerr << "iteration #" << iter << ", energy: " << energy << std::endl;
+        std::cerr << "inter m-step iteration #" << iter << ", energy: " << energy << std::endl;
     }
 
     gradient.set_constant(0.0);
+	double grouping_param_grad = 0.0;
 
     /*** 1. calculate gradient ***/
 
-    for (uint j = 0; j < nParams; j++)
-      gradient[j] -= single_diff_count(j, sclass) / std::max(fert_min_param_entry, inter_distortion_param_(j,sclass));
+	if (inter_dist_grouping_ != DistGroupModeOff) {
+		
+	  //a) singleton terms
+      for (int d = 0; d < nParams; d++) {
+		if (abs(d - (int) displacement_offset_) <= dist_grouping_limit_)
+          gradient[d] -= single_diff_count(d, sclass) / std::max(fert_min_param_entry, inter_distortion_param_(d, sclass));
+		else
+		  grouping_param_grad -= single_diff_count(d, sclass) / inter_grouping_prob_[sclass];
+	  }
 
-    Math1D::Vector<double> addon(diff_span_count.yDim());
+	  //b) normalization terms
+      //for (uint d_start = 0; d_start < diff_span_count.xDim(); d_start++) {
+      for (uint d_start = 0; d_start < std::min<uint>(displacement_offset_+1,diff_span_count.xDim()); d_start++) {
+ 
+        //double param_sum = 0.0;
+        for (int d_end = d_start; d_end < diff_span_count.yDim(); d_end++) {
 
-    for (uint d_start = 0; d_start < diff_span_count.xDim(); d_start++) {
+		  const double count = diff_span_count(d_start,d_end,sclass);
+		  if (count == 0.0)
+			continue;
+		  
+		  double param_sum = 0.0;
+		  uint nLong = 0;
+		  for (int d = d_start; d <= d_end; d++) {
+			if (distortion_type_ == DistGroupModeOff || abs(d - (int) displacement_offset_) <= dist_grouping_limit_)
+			  param_sum += std::max(fert_min_param_entry, inter_distortion_param_(d, sclass));
+		    else if (distortion_type_ == DistGroupModeDivide)
+			  param_sum += inter_grouping_prob_[sclass] / nDistGroupingTerms;
+		    else if (distortion_type_ == DistGroupModeExpand)
+			  nLong++;
+		  }
+		  if (nLong > 0) {
+			assert(distortion_type_ == DistGroupModeExpand);
+			param_sum += inter_grouping_prob_[sclass];
+		  }
+		  
+		  for (int d = d_start; d <= d_end; d++) {
+			if (abs(d - (int) displacement_offset_) <= dist_grouping_limit_)
+			  gradient[d] += count / param_sum;
+		    else if (distortion_type_ == DistGroupModeDivide)
+			  grouping_param_grad += count / (nDistGroupingTerms * param_sum);
+		  }
+		  if (nLong > 0) {
+			assert(distortion_type_ == DistGroupModeExpand);
+			grouping_param_grad += count / param_sum;
+		  }
 
-      double param_sum = 0.0;
-      for (uint d_end = d_start; d_end < diff_span_count.yDim(); d_end++) {
+		  // if (abs(d_end - (int) displacement_offset_) <= dist_grouping_limit_)
+            // param_sum += std::max(fert_min_param_entry, inter_distortion_param_(d_end, sclass));
+		  // else
+			// param_sum += grouping_param / nDistGroupingTerms;
+		
+		  // double addon = diff_span_count(d_start,d_end,sclass) / param_sum;
+          // if (addon == 0.0)
+			// continue;
+		  // for (int d=d_start; d <= d_end; d++) {
+            // if (abs(d - (int) displacement_offset_) <= dist_grouping_limit_)
+			  // gradient[d] += addon;
+			// else 
+			  // grouping_param_grad += addon / nDistGroupingTerms;
+		  // }
+		}
+	  }		
+	}
+	else { //dist grouping off
+	
+	  // a) singleton terms
+      for (uint d = 0; d < nParams; d++)
+        gradient[d] -= single_diff_count(d, sclass) / std::max(fert_min_param_entry, inter_distortion_param_(d, sclass));
 
-        param_sum += std::max(fert_min_param_entry, inter_distortion_param_(d_end, sclass));
+	  // b) normalization terms
+      Math1D::Vector<double> addon(diff_span_count.yDim());
 
-        addon[d_end] = diff_span_count(d_start, d_end, sclass) / param_sum;
-        // double addon = diff_span_count(d_start,d_end,sclass) / param_sum;
+      //for (uint d_start = 0; d_start < diff_span_count.xDim(); d_start++) {
+      for (uint d_start = 0; d_start < std::min<uint>(displacement_offset_+1,diff_span_count.xDim()); d_start++) {
+		  
+        double param_sum = 0.0;
+        for (uint d_end = d_start; d_end < diff_span_count.yDim(); d_end++) {
+        
+          param_sum += std::max(fert_min_param_entry, inter_distortion_param_(d_end, sclass));
 
-        // for (uint d=d_start; d <= d_end; d++)
-        //   gradient[d] += addon;
-      }
+          addon[d_end] = diff_span_count(d_start, d_end, sclass) / param_sum;
+          // double addon = diff_span_count(d_start,d_end,sclass) / param_sum;
 
-      double addon_sum = 0.0;
-      for (int d = diff_span_count.yDim() - 1; d >= int (d_start); d--) {
+          // for (uint d=d_start; d <= d_end; d++)
+          //   gradient[d] += addon;
+        }
 
-        addon_sum += addon[d];
-        gradient[d] += addon_sum;
-      }
+        double addon_sum = 0.0;
+        for (int d = diff_span_count.yDim() - 1; d >= int (d_start); d--) {
+
+          addon_sum += addon[d];
+          gradient[d] += addon_sum;
+		}
+	  }
     }
 
     /*** 2. go in neg. gradient direction ***/
-    double sqr_grad_norm = gradient.sqr_norm();
+    double sqr_grad_norm = gradient.sqr_norm() + grouping_param_grad*grouping_param_grad;
     if (sqr_grad_norm < 1e-5) {
       std::cerr << "CUTOFF after " << iter << "iterations because squared gradient norm was " << sqr_grad_norm << std::endl;
       break;
     }
 
     double real_alpha = alpha / sqrt(sqr_grad_norm);
-    for (uint j = 0; j < nParams; j++)
-      new_param[j] = inter_distortion_param_(j, sclass) - real_alpha * gradient[j];
+	
+	Math1D::Vector<double> temp(2*dist_grouping_limit_+1);
+	double new_grouping_param = inter_grouping_prob_[sclass];
+	
+	if (inter_dist_grouping_ != DistGroupModeOff) {
+	
+	  new_grouping_param -= real_alpha * grouping_param_grad;
+	  for (int d = -dist_grouping_limit_; d <= dist_grouping_limit_; d++)
+		temp[d+dist_grouping_limit_] = inter_distortion_param_(d+displacement_offset_,sclass) 
+			- real_alpha * gradient[d+displacement_offset_];
+	}
+	else {
+	  for (uint j = 0; j < nParams; j++)
+        new_param[j] = inter_distortion_param_(j, sclass) - real_alpha * gradient[j];
+	}
 
     /*** 3. reproject ***/
-    projection_on_simplex(new_param, fert_min_param_entry);
+	if (inter_dist_grouping_ != DistGroupModeOff) {
+	  projection_on_simplex_with_slack(temp.direct_access(), new_grouping_param, temp.size(), fert_min_param_entry);
+	  new_param.set_constant(std::max(fert_min_param_entry, new_grouping_param / nDistGroupingTerms));
+	  for (int d = -dist_grouping_limit_; d <= dist_grouping_limit_; d++)
+	    new_param[d+displacement_offset_] = temp[d+dist_grouping_limit_]; 
+	}
+	else {
+      projection_on_simplex(new_param, fert_min_param_entry);
+	}
 
     /*** 4. find appropriate step size ***/
     double best_lambda = 1.0;
@@ -1092,8 +1488,9 @@ void IBM5Trainer::inter_distortion_m_step(const Math2D::Matrix<double>& single_d
 
       for (uint j = 0; j < nParams; j++)
         hyp_param(j, sclass) = lambda * new_param[j] + neg_lambda * inter_distortion_param_(j,sclass);
+	  hyp_grouping_prob = lambda * new_grouping_param + neg_lambda * inter_grouping_prob_[sclass];
 
-      double hyp_energy = inter_distortion_m_step_energy(single_diff_count, diff_span_count, sclass, hyp_param);
+      double hyp_energy = inter_distortion_diffpar_m_step_energy(single_diff_count, diff_span_count, sclass, hyp_param, hyp_grouping_prob);
 
       if (hyp_energy < best_energy) {
 
@@ -1129,12 +1526,225 @@ void IBM5Trainer::inter_distortion_m_step(const Math2D::Matrix<double>& single_d
 
     for (uint j = 0; j < nParams; j++)
       inter_distortion_param_(j, sclass) = best_lambda * new_param[j] + neg_best_lambda * inter_distortion_param_(j, sclass);
+    inter_grouping_prob_[sclass] = best_lambda * new_grouping_param + neg_best_lambda * inter_grouping_prob_[sclass];
+
 
     energy = best_energy;
   }
 }
 
-void IBM5Trainer::inter_distortion_m_step_unconstrained(const Math2D::Matrix<double>& single_diff_count, const Math3D::Tensor<double>& diff_span_count,
+void IBM5Trainer::inter_distortion_pospar_m_step(const Math3D::Tensor<double>& single_pos_count, const Math3D::Tensor<double>& pos_span_count,
+												 uint sclass, uint prev_pos)
+{
+  const uint nPosParams = (inter_dist_grouping_ == DistGroupModeOff) ? maxJ_+1 : dist_grouping_limit_+1;	
+  const uint nDistGroupingTerms = maxJ_+1 - nPosParams;
+	
+  inter_dist_pospar_param_.ensure_min(fert_min_param_entry);
+  inter_pospar_grouping_prob_.ensure_min(fert_min_param_entry);  
+  Math3D::Tensor<double> hyp_dist_param = inter_dist_pospar_param_;
+  double hyp_grouping_prob = 0.0;
+  double new_grouping_prob = (inter_dist_grouping_ == DistGroupModeOff) ? 0.0 : inter_pospar_grouping_prob_(prev_pos,sclass);
+  double grouping_grad = 0.0;
+  
+  Math1D::Vector<double> new_dist_param(nPosParams);
+  Math1D::Vector<double> dist_param_grad(nPosParams); 
+  
+  double energy = inter_distortion_pospar_m_step_energy(single_pos_count, pos_span_count, sclass, prev_pos, 
+														inter_dist_pospar_param_, inter_pospar_grouping_prob_(prev_pos,sclass));
+  
+  { //test if normalized counts give a better starting point
+
+	for (uint d = 0; d < single_pos_count.xDim(); d++)
+	  hyp_dist_param(d, prev_pos, sclass) = 0.0;
+    hyp_grouping_prob = 0.0;
+	
+	double sum = 0.0;
+	for (uint d = 0; d < single_pos_count.xDim(); d++)
+	{
+	  const double count = single_pos_count(d, prev_pos, sclass);
+	  sum += count;
+	  if (inter_dist_grouping_ == DistGroupModeOff || d <= dist_grouping_limit_)
+		hyp_dist_param(d, prev_pos, sclass) += count;
+	  else 
+		hyp_grouping_prob += count;
+	}
+	
+	if (sum > 1e-300) {
+	  double inv_sum = 1.0 / sum;
+	  
+	  for (uint d = 0; d < nPosParams; d++)
+		hyp_dist_param(d, prev_pos, sclass) = std::max(fert_min_param_entry, inv_sum * hyp_dist_param(d, prev_pos, sclass));
+	  if (inter_dist_grouping_ != DistGroupModeOff)
+	    hyp_grouping_prob = std::max(fert_min_param_entry, inv_sum * hyp_grouping_prob);
+	
+	  double hyp_energy = (deficient_) ? -1.0 : inter_distortion_pospar_m_step_energy(single_pos_count, pos_span_count, sclass, prev_pos, 
+																					  hyp_dist_param, hyp_grouping_prob);
+	
+	  if (hyp_energy < energy) {
+		if (nSourceClasses_ <= 4)  
+		  std::cerr << "switching to normalized counts" << std::endl;
+		energy = hyp_energy;
+	    for (uint d = 0; d < nPosParams; d++)
+		  inter_dist_pospar_param_(d, prev_pos, sclass) = hyp_dist_param(d, prev_pos, sclass);
+	    inter_pospar_grouping_prob_(prev_pos, sclass) = hyp_grouping_prob;
+	  }
+	}
+  }
+  
+  if (deficient_)
+	return;
+
+  double line_reduction_factor = 0.5;
+  for (uint iter = 1; iter <= dist_m_step_iter_; iter++) {
+
+    if ((iter % 5) == 0) {
+
+      if (nSourceClasses_ <= 4)
+        std::cerr << "inter m-step iteration #" << iter << ", energy: " << energy << std::endl;
+    }
+
+	dist_param_grad.set_constant(0.0);
+	grouping_grad = 0.0;
+	
+	//1. compute the gradient
+	//a) singleton terms
+    for (int d = 0; d <= maxJ_; d++) {
+      if (inter_dist_grouping_ == DistGroupModeOff || d <= dist_grouping_limit_)
+	    dist_param_grad[d] -= single_pos_count(d, prev_pos, sclass) / inter_dist_pospar_param_(d, prev_pos, sclass);
+      else
+	    grouping_grad -= single_pos_count(d, prev_pos, sclass) / inter_pospar_grouping_prob_(prev_pos,sclass);
+    }
+
+	//b) normalization terms
+    double param_sum = 0.0;
+    uint nLong = 0;
+    for (uint d = 0; d < pos_span_count.xDim(); d++) {
+	
+	  if (inter_dist_grouping_ == DistGroupModeOff || d <= dist_grouping_limit_)
+	    param_sum += inter_dist_pospar_param_(d, prev_pos, sclass);
+      else if (inter_dist_grouping_ == DistGroupModeDivide)
+	    param_sum += inter_pospar_grouping_prob_(prev_pos,sclass) / nDistGroupingTerms;
+      else {
+	    assert(inter_dist_grouping_ == DistGroupModeExpand);
+	    nLong++;
+	  }
+  
+      double full_sum = param_sum;
+      if (nLong > 0)
+        full_sum += inter_pospar_grouping_prob_(prev_pos,sclass);	
+	  const double count = pos_span_count(d, prev_pos, sclass);
+	  if (count == 0.0)
+		continue;
+
+	  for (uint dd = 0; dd <= d; dd++)
+	  {
+		if (inter_dist_grouping_ == DistGroupModeOff || dd <= dist_grouping_limit_)
+	      dist_param_grad[dd] += count / full_sum;
+	    else if (inter_dist_grouping_ == DistGroupModeDivide)
+		  grouping_grad += count / (full_sum * nDistGroupingTerms);
+	  }		  
+		
+	  if (nLong > 0)
+	    grouping_grad += count / full_sum;  
+		
+	  //energy += pos_span_count(d, prev_center, sclass) * std::log(full_sum); 
+    }	  
+	
+	double sqr_grad_norm = dist_param_grad.sqr_norm() + grouping_grad * grouping_grad;
+	if (sqr_grad_norm < 1e-5)
+	{
+	  if (nSourceClasses_ <= 4)	
+	    std::cerr << "CUTOFF because gradient was nearly zero: " << sqr_grad_norm << std::endl;
+	  break;
+	}
+	
+	double real_alpha = 10.0 / sqrt(sqr_grad_norm);
+
+    //2. go in neg gradient direction and reproject
+	for (uint d = 0; d < nPosParams; d++) {
+	  new_dist_param[d] = inter_dist_pospar_param_(d, prev_pos, sclass) - real_alpha * dist_param_grad[d];
+	  if (isnan(new_dist_param[d])) {
+		std::cerr << "params: " << new_dist_param << std::endl;
+		std::cerr << "gradient: " << dist_param_grad << std::endl;
+		std::cerr << "real_alpha: " << real_alpha << std::endl;
+	  }
+	  assert(!isnan(new_dist_param[d]));
+	}
+    if (inter_dist_grouping_ != DistGroupModeOff) {
+      new_grouping_prob = inter_pospar_grouping_prob_(prev_pos, sclass) - real_alpha * grouping_grad;
+	  assert(!isnan(new_grouping_prob));
+      projection_on_simplex_with_slack(new_dist_param.direct_access(), new_grouping_prob, nPosParams, fert_min_param_entry);
+	}
+	else {
+	  projection_on_simplex(new_dist_param, fert_min_param_entry);
+	}
+	
+	//3. find a suitable step size
+    double best_lambda = 1.0;
+    double lambda = 1.0;
+
+    double best_energy = 1e300;
+
+    uint nTrials = 0;
+
+    bool decreasing = false;
+
+    while (decreasing || best_energy > energy) {
+
+      nTrials++;
+
+      lambda *= line_reduction_factor;
+      const double neg_lambda = 1.0 - lambda;
+
+	  for (uint d = 0; d < nPosParams; d++)
+	    hyp_dist_param(d, prev_pos, sclass) = lambda * new_dist_param[d] + neg_lambda * inter_dist_pospar_param_(d, prev_pos, sclass);
+	  hyp_grouping_prob = lambda * new_grouping_prob + neg_lambda * inter_pospar_grouping_prob_(prev_pos,sclass);
+
+      double hyp_energy = inter_distortion_pospar_m_step_energy(single_pos_count, pos_span_count, sclass, prev_pos, 
+															    hyp_dist_param, hyp_grouping_prob);
+																
+	  assert(!isnan(hyp_energy));
+	  
+      if (hyp_energy < best_energy) {
+
+        best_energy = hyp_energy;
+        best_lambda = lambda;
+        decreasing = true;
+      }
+      else
+        decreasing = false;
+
+      if (nTrials > 5 && best_energy < 0.975 * energy)
+        break;
+
+      if (nTrials > 25 && lambda < 1e-12)
+        break;
+    }
+    //std::cerr << "best lambda: " << best_lambda << std::endl;
+	
+    if (best_energy >= energy) {
+      std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
+      break;
+    }
+
+    if (nTrials > 6)
+      line_reduction_factor *= 0.9;
+
+    //EXPERIMENTAL
+    // if (nIter > 4)
+    //   alpha *= 1.5;
+    //END_EXPERIMENTAL
+
+    const double neg_best_lambda = 1.0 - best_lambda;
+	for (uint d = 0; d < nPosParams; d++)
+	  inter_dist_pospar_param_(d, prev_pos, sclass) = best_lambda * new_dist_param[d] + neg_best_lambda * inter_dist_pospar_param_(d, prev_pos, sclass);
+	inter_pospar_grouping_prob_(prev_pos,sclass) = best_lambda * new_grouping_prob + neg_best_lambda * inter_pospar_grouping_prob_(prev_pos,sclass);
+
+    energy = best_energy;	
+  }
+}
+
+void IBM5Trainer::inter_distortion_diffpar_m_step_unconstrained(const Math2D::Matrix<double>& single_diff_count, const Math3D::Tensor<double>& diff_span_count,
     uint sclass, uint L)
 {
   const uint nParams = inter_distortion_param_.xDim();
@@ -1149,7 +1759,7 @@ void IBM5Trainer::inter_distortion_m_step_unconstrained(const Math2D::Matrix<dou
   Math1D::Vector<double> search_direction(nParams);
   Math2D::Matrix<double> hyp_param = inter_distortion_param_;
 
-  double energy = (deficient_) ? 0.0 : inter_distortion_m_step_energy(single_diff_count, diff_span_count, sclass, inter_distortion_param_);
+  double energy = (deficient_) ? 0.0 : inter_distortion_diffpar_m_step_energy(single_diff_count, diff_span_count, sclass, inter_distortion_param_, 0.0);
 
   {
     //check if normalized expectations give a better starting point
@@ -1160,7 +1770,8 @@ void IBM5Trainer::inter_distortion_m_step_unconstrained(const Math2D::Matrix<dou
       hyp_param(d, sclass) = std::max(fert_min_param_entry, single_diff_count(d, sclass) / sum);
 
     //NOTE: the closed-form deficient solution does not necessarily reduce the energy INCLUDING the normalization term
-    double hyp_energy = (deficient_) ? -1.0 : inter_distortion_m_step_energy(single_diff_count, diff_span_count, sclass, hyp_param);
+    double hyp_energy = (deficient_) ? -1.0 : inter_distortion_diffpar_m_step_energy(single_diff_count, diff_span_count, sclass, 
+																					 hyp_param, 0.0);
 
     if (hyp_energy < energy) {
 
@@ -1382,7 +1993,7 @@ void IBM5Trainer::inter_distortion_m_step_unconstrained(const Math2D::Matrix<dou
       for (uint k = 0; k < nParams; k++)
         hyp_param(k, sclass) = std::max(fert_min_param_entry, hyp_work_param[k] * hyp_work_param[k] / sqr_sum);
 
-      double hyp_energy = inter_distortion_m_step_energy(single_diff_count, diff_span_count, sclass, hyp_param);
+      double hyp_energy = inter_distortion_diffpar_m_step_energy(single_diff_count, diff_span_count, sclass, hyp_param, 0.0);
 
       if (hyp_energy < best_energy) {
         best_energy = hyp_energy;
@@ -1487,7 +2098,7 @@ void IBM5Trainer::intra_distortion_m_step(const Math2D::Matrix<double>& single_d
     return;
 
   if (nSourceClasses_ <= 4)
-    std::cerr << "start energy: " << energy << std::endl;
+    std::cerr << "intra m-step start energy: " << energy << std::endl;
 
   double alpha = 0.1;
   double line_reduction_factor = 0.35;
@@ -1499,7 +2110,7 @@ void IBM5Trainer::intra_distortion_m_step(const Math2D::Matrix<double>& single_d
     if ((iter % 5) == 0) {
 
       if (nSourceClasses_ <= 4)
-        std::cerr << "iteration #" << iter << ", energy: " << energy << std::endl;
+        std::cerr << "intra m-step iteration #" << iter << ", energy: " << energy << std::endl;
     }
 
     /*** 1. calculate gradient ***/
@@ -1910,11 +2521,13 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
   Storage1D<Math3D::Tensor<double> > inter_distortion_count = inter_distortion_prob_;
 
   //new variant
-  Math2D::Matrix<double> inter_distparam_count = inter_distortion_param_;
+  Math2D::Matrix<double> single_diff_count(2*maxJ_,nSourceClasses_);
+  Math3D::Tensor<double> single_pos_count(maxJ_+1,maxJ_+1,nSourceClasses_,0.0);
 
   //NOTE: unlike for the IBM-4, here the second index can also be one smaller than the displacement offset
   //  but of course the end of a span is never smaller than its start
   Math3D::Tensor<double> inter_span_count(displacement_offset_ + 1, inter_distortion_param_.xDim(), inter_distortion_param_.yDim());
+  Math3D::Tensor<double> inter_pos_span_count(maxJ_+1,maxJ_+1,inter_distortion_param_.yDim());
 
   Storage1D<Math2D::Matrix<double> > intra_distortion_count = intra_distortion_prob_;
 
@@ -1942,8 +2555,10 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
     /*** clear counts ***/
     for (uint J = 1; J < inter_distortion_count.size(); J++)
       inter_distortion_count[J].set_constant(0.0);
-    inter_distparam_count.set_constant(0.0);
+    single_diff_count.set_constant(0.0);
     inter_span_count.set_constant(0.0);
+	inter_pos_span_count.set_constant(0.0);
+	single_pos_count.set_constant(0.0);
 
     for (uint J = 1; J < intra_distortion_count.size(); J++) {
       intra_distortion_count[J].set_constant(0.0);
@@ -1999,11 +2614,11 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
 
       if (fert_trainer != 0 && iter == 1) {
         best_prob = fert_trainer->update_alignment_by_hillclimbing(cur_source, cur_target, cur_lookup, sum_iter,
-                    fertility, expansion_move_prob, swap_move_prob, cur_alignment);
+																   fertility, expansion_move_prob, swap_move_prob, cur_alignment);
       }
       else {
         best_prob = update_alignment_by_hillclimbing(cur_source, cur_target, cur_lookup, sum_iter, fertility,
-                    expansion_move_prob, swap_move_prob, cur_alignment);
+													 expansion_move_prob, swap_move_prob, cur_alignment);
       }
       max_perplexity -= std::log(best_prob);
 
@@ -2108,9 +2723,12 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
               assert(pos_prev_center < cur_inter_distortion_count.yDim());
 
               cur_inter_distortion_count(pos_first_j, pos_prev_center, sclass) += increment;
-              inter_distparam_count(displacement_offset_ + pos_first_j - pos_prev_center, sclass) += increment;
+              single_diff_count(displacement_offset_ + pos_first_j - pos_prev_center, sclass) += increment;
               inter_span_count(displacement_offset_ - pos_prev_center, displacement_offset_ + nAvailable - 1 - pos_prev_center, sclass) += increment;
-            }
+              
+			  single_pos_count(pos_first_j, pos_prev_center, sclass) += increment;
+			  inter_pos_span_count(nAvailable,pos_prev_center,sclass) += increment;
+			}
             else if (use_sentence_start_prob_) {
               sentence_start_count[curJ][first_j] += increment;
 
@@ -2126,6 +2744,8 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
               const uint cur_j = cur_aligned_source_words[k];
 
               const uint sclass = source_class_[cur_source[cur_j]];
+			  const uint tclass = target_class_[cur_target[i-1]];
+			  const uint cur_class = (intra_dist_mode_ == IBM4IntraDistModeSource) ? sclass : tclass;
 
               uint pos = MAX_UINT;
 
@@ -2141,9 +2761,9 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
 
               nAvailable -= cur_aligned_source_words.size() - 1 - k;
 
-              intra_distortion_count[nAvailable] (pos, sclass) += increment;
-              intra_distparam_count(pos, sclass) += increment;
-              intra_span_count(nAvailable - 1, sclass) += increment;
+              intra_distortion_count[nAvailable] (pos, cur_class) += increment;
+              intra_distparam_count(pos, cur_class) += increment;
+              intra_span_count(nAvailable - 1, cur_class) += increment;
 
               fixed[cur_j] = true;
               nOpen--;
@@ -2245,9 +2865,12 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
                   assert(pos_prev_center < cur_inter_distortion_count.yDim());
 
                   cur_inter_distortion_count(pos_first_j, pos_prev_center, sclass) += increment;
-                  inter_distparam_count(displacement_offset_ + pos_first_j - pos_prev_center, sclass) += increment;
+                  single_diff_count(displacement_offset_ + pos_first_j - pos_prev_center, sclass) += increment;
                   inter_span_count(displacement_offset_ - pos_prev_center, displacement_offset_ + nAvailable - 1 - pos_prev_center, sclass) += increment;
-                }
+                  
+				  single_pos_count(pos_first_j, pos_prev_center, sclass) += increment;
+				  inter_pos_span_count(nAvailable,pos_prev_center,sclass) += increment;
+				}
                 else if (use_sentence_start_prob_) {
                   sentence_start_count[curJ][first_j] += increment;
 
@@ -2263,12 +2886,13 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
                   const uint cur_j = cur_aligned_source_words[k];
 
                   const uint sclass = source_class_[cur_source[cur_j]];
+	  			  const uint tclass = target_class_[cur_target[i-1]];
+				  const uint cur_class = (intra_dist_mode_ == IBM4IntraDistModeSource) ? sclass : tclass;
 
                   uint pos = MAX_UINT;
 
                   uint nAvailable = 0;
-                  for (uint j = cur_aligned_source_words[k - 1] + 1; j < curJ;
-                       j++) {
+                  for (uint j = cur_aligned_source_words[k - 1] + 1; j < curJ; j++) {
 
                     if (j == cur_j)
                       pos = nAvailable;
@@ -2279,9 +2903,9 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
 
                   nAvailable -= cur_aligned_source_words.size() - 1 - k;
 
-                  intra_distortion_count[nAvailable] (pos, sclass) += increment;
-                  intra_distparam_count(pos, sclass) += increment;
-                  intra_span_count(nAvailable - 1, sclass) += increment;
+                  intra_distortion_count[nAvailable] (pos, cur_class) += increment;
+                  intra_distparam_count(pos, cur_class) += increment;
+                  intra_span_count(nAvailable - 1, cur_class) += increment;
 
                   fixed[cur_j] = true;
                   nOpen--;
@@ -2390,9 +3014,12 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
                   assert(pos_prev_center < cur_inter_distortion_count.yDim());
 
                   cur_inter_distortion_count(pos_first_j, pos_prev_center, sclass) += increment;
-                  inter_distparam_count(displacement_offset_ + pos_first_j - pos_prev_center, sclass) += increment;
+                  single_diff_count(displacement_offset_ + pos_first_j - pos_prev_center, sclass) += increment;
                   inter_span_count(displacement_offset_ - pos_prev_center, displacement_offset_ + nAvailable - 1 - pos_prev_center, sclass) += increment;
-                }
+                  
+				  single_pos_count(pos_first_j, pos_prev_center, sclass) += increment;
+				  inter_pos_span_count(nAvailable,pos_prev_center,sclass) += increment;
+				}
                 else if (use_sentence_start_prob_) {
                   sentence_start_count[curJ][first_j] += increment;
 
@@ -2408,12 +3035,13 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
                   const uint cur_j = cur_aligned_source_words[k];
 
                   const uint sclass = source_class_[cur_source[cur_j]];
+	  			  const uint tclass = target_class_[cur_target[i-1]];
+				  const uint cur_class = (intra_dist_mode_ == IBM4IntraDistModeSource) ? sclass : tclass;
 
                   uint pos = MAX_UINT;
 
                   uint nAvailable = 0;
-                  for (uint j = cur_aligned_source_words[k - 1] + 1; j < curJ;
-                       j++) {
+                  for (uint j = cur_aligned_source_words[k - 1] + 1; j < curJ; j++) {
 
                     if (j == cur_j)
                       pos = nAvailable;
@@ -2424,9 +3052,9 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
 
                   nAvailable -= cur_aligned_source_words.size() - 1 - k;
 
-                  intra_distortion_count[nAvailable] (pos, sclass) += increment;
-                  intra_distparam_count(pos, sclass) += increment;
-                  intra_span_count(nAvailable - 1, sclass) += increment;
+                  intra_distortion_count[nAvailable] (pos, cur_class) += increment;
+                  intra_distparam_count(pos, cur_class) += increment;
+                  intra_span_count(nAvailable - 1, cur_class) += increment;
 
                   fixed[cur_j] = true;
                   nOpen--;
@@ -2504,22 +3132,44 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
     update_fertility_prob(ffert_count, fert_min_param_entry);
 
     //update inter distortion probabilities
-    if (nonpar_distortion_) {
+    if (distortion_type_ == IBM23Nonpar) {
+		
+	  const uint nDistGroupingTerms = maxJ_+1 - (dist_grouping_limit_+1);
 
+	  //NOTE: inter_dist_grouping_ is ignored for nonpar distortion
       for (uint J = 1; J < inter_distortion_count.size(); J++) {
 
         for (uint y = 0; y < inter_distortion_count[J].yDim(); y++) {
           for (uint z = 0; z < inter_distortion_count[J].zDim(); z++) {
 
             double sum = 0.0;
+			
             for (uint j = 0; j < inter_distortion_count[J].xDim(); j++)
-              sum += inter_distortion_count[J] (j, y, z);
-
+              sum += inter_distortion_count[J](j, y, z);
+ 
             if (sum > 1e-305) {
 
-              for (uint j = 0; j < inter_distortion_count[J].xDim(); j++)
-                inter_distortion_prob_[J] (j, y, z) = std::max(fert_min_param_entry, inter_distortion_count[J] (j, y, z) / sum);
-            }
+			  if (inter_dist_grouping_ == DistGroupModeOff)
+			  {
+                for (uint j = 0; j < inter_distortion_count[J].xDim(); j++)
+                  inter_distortion_prob_[J](j, y, z) = std::max(fert_min_param_entry, inter_distortion_count[J](j, y, z) / sum);
+			  }
+			  else {
+				double longparam_sum = 0.0;
+			    for (uint j = dist_grouping_limit_+1; j < inter_distortion_count[J].xDim(); j++)
+				  longparam_sum += inter_distortion_count[J](j, y, z);
+			    if (inter_dist_grouping_ == DistGroupModeDivide) {
+  			      sum -= longparam_sum;
+				  longparam_sum /= nDistGroupingTerms;
+				  sum += longparam_sum;
+				}
+				
+			    for (uint j = 0; j <= std::min<uint>(dist_grouping_limit_,J-1); j++)
+				  inter_distortion_prob_[J](j, y, z) = std::max(fert_min_param_entry, inter_distortion_count[J](j, y, z) / sum);
+			    for (uint j = dist_grouping_limit_+1; j < inter_distortion_count[J].xDim(); j++)
+				  inter_distortion_prob_[J](j, y, z) = longparam_sum / (sum * (inter_distortion_count[J].xDim() - (dist_grouping_limit_+1)));
+			  }
+			}
           }
         }
       }
@@ -2528,18 +3178,24 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
 
       for (uint s = 0; s < inter_distortion_param_.yDim(); s++) {
 
-        if (msolve_mode_ == MSSolvePGD)
-          inter_distortion_m_step(inter_distparam_count, inter_span_count, s);
-        else
-          inter_distortion_m_step_unconstrained(inter_distparam_count,inter_span_count,s);
-      }
+		if (distortion_type_ == IBM23ParByDifference) {
+          if (msolve_mode_ == MSSolvePGD)
+            inter_distortion_diffpar_m_step(single_diff_count, inter_span_count, s);
+          else
+            inter_distortion_diffpar_m_step_unconstrained(single_diff_count,inter_span_count,s);
+		}
+		else {
+		  for (uint prev_pos = 0; prev_pos < inter_dist_pospar_param_.yDim(); prev_pos++)
+		    inter_distortion_pospar_m_step(single_pos_count, inter_pos_span_count, s, prev_pos);
+		}
+	  }
 
       par2nonpar_inter_distortion();
     }
 
     //update intra distortion probabilities
     if (!uniform_intra_prob_) {
-      if (nonpar_distortion_) {
+      if (distortion_type_ == IBM23Nonpar) {
 
         for (uint J = 1; J < intra_distortion_prob_.size(); J++) {
 
@@ -2549,7 +3205,7 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
 
             if (sum > 1e-305) {
               for (uint j = 0; j < J; j++)
-                intra_distortion_prob_[J] (j, s) = std::max(fert_min_param_entry, intra_distortion_count[J] (j, s) / sum);
+                intra_distortion_prob_[J](j, s) = std::max(fert_min_param_entry, intra_distortion_count[J] (j, s) / sum);
             }
           }
         }
@@ -2599,7 +3255,7 @@ void IBM5Trainer::train_em(uint nIter, FertilityModelTrainerBase* fert_trainer, 
     printEval(iter, transfer, "EM");
   }
 
-  if (nonpar_distortion_) {
+  if (distortion_type_ == IBM23Nonpar) {
 
     //we still update <code> inter_distortion_param_ </code>  and <code> intra_distortion_param_ </code>
     //so that we can use them when computing external alignments
@@ -2704,10 +3360,12 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
   double fnonzero_count;
 
   Storage1D<Math3D::Tensor<double> > inter_distortion_count = inter_distortion_prob_;
+  Math3D::Tensor<double> single_pos_count(maxJ_+1,maxJ_+1, nSourceClasses_,0.0);
 
   //new variant
-  Math2D::Matrix<double> inter_distparam_count = inter_distortion_param_;
+  Math2D::Matrix<double> single_diff_count(inter_distortion_param_.dims(),0.0);
   Math3D::Tensor<double> inter_span_count(displacement_offset_ + 1, inter_distortion_param_.xDim(), inter_distortion_param_.yDim());
+  Math3D::Tensor<double> inter_pos_span_count(maxJ_+1,maxJ_+1,single_diff_count.yDim());
 
   Storage1D<Math2D::Matrix<double> > intra_distortion_count = intra_distortion_prob_;
 
@@ -2735,8 +3393,9 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
     /*** clear counts ***/
     for (uint J = 1; J < inter_distortion_count.size(); J++)
       inter_distortion_count[J].set_constant(0.0);
-    inter_distparam_count.set_constant(0.0);
+    single_diff_count.set_constant(0.0);
     inter_span_count.set_constant(0.0);
+	inter_pos_span_count.set_constant(0.0);
 
     for (uint J = 1; J < intra_distortion_count.size(); J++) {
       intra_distortion_count[J].set_constant(0.0);
@@ -2869,7 +3528,6 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
             if (prev_center != MAX_UINT) {      // currently not estimating a start probability
 
               const uint sclass = source_class_[cur_source[first_j]];
-
               const uint nAvailable = nOpen - (cur_aligned_source_words.size() - 1);
 
               Math3D::Tensor<double>& cur_inter_distortion_count = inter_distortion_count[nAvailable];
@@ -2891,9 +3549,12 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
               }
 
               cur_inter_distortion_count(pos_first_j, pos_prev_center, sclass) += 1.0;
-              inter_distparam_count(displacement_offset_ + pos_first_j - pos_prev_center, sclass) += 1.0;
+              single_diff_count(displacement_offset_ + pos_first_j - pos_prev_center, sclass) += 1.0;
               inter_span_count(displacement_offset_ - pos_prev_center, displacement_offset_ + nAvailable - 1 - pos_prev_center, sclass) += 1.0;
-            }
+              
+			  single_pos_count(pos_first_j, pos_prev_center, sclass) += 1.0;
+			  inter_pos_span_count(nAvailable, pos_prev_center, sclass) += 1.0;
+			}
             else if (use_sentence_start_prob_) {
               sentence_start_count[curJ][first_j] += 1.0;
               fsentence_start_count[first_j] += 1.0;
@@ -2909,6 +3570,8 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
               const uint cur_j = cur_aligned_source_words[k];
 
               const uint sclass = source_class_[cur_source[cur_j]];
+  			  const uint tclass = target_class_[cur_target[i-1]];
+			  const uint cur_class = (intra_dist_mode_ == IBM4IntraDistModeSource) ? sclass : tclass;
 
               uint pos = MAX_UINT;
 
@@ -2924,9 +3587,9 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
 
               nAvailable -= cur_aligned_source_words.size() - 1 - k;
 
-              intra_distortion_count[nAvailable] (pos, sclass) += 1.0;
-              intra_distparam_count(pos, sclass) += 1.0;
-              intra_span_count(nAvailable - 1, sclass) += 1.0;
+              intra_distortion_count[nAvailable](pos, cur_class) += 1.0;
+              intra_distparam_count(pos, cur_class) += 1.0;
+              intra_span_count(nAvailable - 1, cur_class) += 1.0;
 
               fixed[cur_j] = true;
               nOpen--;
@@ -3007,7 +3670,9 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
     update_fertility_prob(ffert_count, fert_min_param_entry, false);    //needed at least with fert-prob-sharing
 
     //update inter distortion probabilities
-    if (nonpar_distortion_) {
+    if (distortion_type_ == IBM23Nonpar) {
+
+	  const uint nDistGroupingTerms = maxJ_+1 - (dist_grouping_limit_+1);
 
       for (uint J = 1; J < inter_distortion_count.size(); J++) {
 
@@ -3016,32 +3681,53 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
 
             double sum = 0.0;
             for (uint j = 0; j < inter_distortion_count[J].xDim(); j++)
-              sum += inter_distortion_count[J] (j, y, z);
+              sum += inter_distortion_count[J](j, y, z);
 
             if (sum > 1e-305) {
 
-              for (uint j = 0; j < inter_distortion_count[J].xDim(); j++)
-                inter_distortion_prob_[J] (j, y, z) = std::max(fert_min_param_entry, inter_distortion_count[J] (j, y, z) / sum);
-            }
+			  if (inter_dist_grouping_ != DistGroupModeExpand) {
+                for (uint j = 0; j < inter_distortion_count[J].xDim(); j++)
+                  inter_distortion_prob_[J](j, y, z) = std::max(fert_min_param_entry, inter_distortion_count[J](j, y, z) / sum);
+			  }
+  			  else {
+				double longparam_sum = 0.0;
+			    for (uint j = dist_grouping_limit_+1; j < inter_distortion_count[J].xDim(); j++)
+				  longparam_sum += inter_distortion_count[J](j, y, z);
+			    if (inter_dist_grouping_ == DistGroupModeDivide) {
+  			      sum -= longparam_sum;
+				  longparam_sum /= nDistGroupingTerms;
+				  sum += longparam_sum;
+				}
+			  			  
+			    for (uint j = 0; j <= std::min<uint>(dist_grouping_limit_,J-1); j++)
+				  inter_distortion_prob_[J](j, y, z) = std::max(fert_min_param_entry, inter_distortion_count[J](j, y, z) / sum);
+			    for (uint j = dist_grouping_limit_+1; j < inter_distortion_count[J].xDim(); j++)
+				  inter_distortion_prob_[J](j, y, z) = longparam_sum / (sum * (inter_distortion_count[J].xDim() - (dist_grouping_limit_+1)));
+			  }
+			}
           }
         }
       }
     }
     else {
 
-      Math2D::Matrix<double> hyp_param = inter_distortion_param_;
-
       for (uint s = 0; s < inter_distortion_param_.yDim(); s++) {
 
-        inter_distortion_m_step(inter_distparam_count, inter_span_count, s);
-      }
+		if (distortion_type_ == IBM23ParByDifference)
+          inter_distortion_diffpar_m_step(single_diff_count, inter_span_count, s);
+        else  
+		{
+		  for (uint prev_pos = 0; prev_pos <= maxJ_; prev_pos++)
+  		    inter_distortion_pospar_m_step(single_pos_count, inter_pos_span_count, s, prev_pos);
+		}
+	  }
 
       par2nonpar_inter_distortion();
     }
 
     //update intra distortion probabilities
     if (!uniform_intra_prob_) {
-      if (nonpar_distortion_) {
+      if (distortion_type_ == IBM23Nonpar) {
 
         for (uint J = 1; J < intra_distortion_prob_.size(); J++) {
 
@@ -3260,7 +3946,7 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
     }
   }
 
-  if (nonpar_distortion_) {
+  if (distortion_type_ == IBM23Nonpar) {
 
     //we still update <code> inter_distortion_param_ </code>  and <code> intra_distortion_param_ </code>
     //so that we can use them when computing external alignments
@@ -3362,18 +4048,22 @@ void IBM5Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
 
   if (J > maxJ_) {
 
-    Math2D::Matrix<double> new_inter_param(2 * J + 1, nSourceClasses_, 1e-8);
+	TODO("intergrate pospar and grouping");
+
+    Math2D::Matrix<double> new_inter_param(2 * J - 1, nSourceClasses_, 1e-8);
 
     for (uint s = 0; s < inter_distortion_param_.yDim(); s++) {
 
-      for (int j = -int (maxJ_); j <= int (maxJ_); j++)
+      for (int j = -int (maxJ_-1); j <= int (maxJ_-1); j++)
         new_inter_param(j + J, s) = inter_distortion_param_(j + displacement_offset_, s);
     }
 
-    displacement_offset_ = J;
+	if (distortion_type_ == IBM23ParByDifference)
+      displacement_offset_ = J-1;
 
     inter_distortion_param_ = new_inter_param;
     inter_distortion_prob_.resize(J + 1);
+	inter_grouping_prob_.resize(J+1,1e-8);
 
     for (uint JJ = 1; JJ < inter_distortion_prob_.size(); JJ++) {
 
@@ -3387,7 +4077,7 @@ void IBM5Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
 
       inter_distortion_prob_[JJ].resize(JJ, J, nSourceClasses_, 1e-8);
 
-      if (nonpar_distortion_) { //otherwise the update is done by par2nonpar_.. below
+      if (distortion_type_ == IBM23Nonpar) { //otherwise the update is done by par2nonpar_.. below
 
         for (uint y = prev_yDim; y < inter_distortion_prob_[JJ].yDim(); y++) {
           for (uint z = 0; z < inter_distortion_prob_[JJ].zDim(); z++) {
@@ -3409,7 +4099,7 @@ void IBM5Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
       }
     }
 
-    if (!nonpar_distortion_)
+    if (distortion_type_ != IBM23Nonpar)
       par2nonpar_inter_distortion();
 
     Math2D::Matrix<double> new_intra_param(J, nSourceClasses_, 1e-8);
@@ -3424,7 +4114,7 @@ void IBM5Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
 
       intra_distortion_prob_[JJ].resize(JJ, nSourceClasses_, 1e-8);
 
-      if (nonpar_distortion_ && JJ > maxJ_) {   //for parametric distortion the update is done by par2nonpar_... below
+      if (distortion_type_ == IBM23Nonpar && JJ > maxJ_) {   //for parametric distortion the update is done by par2nonpar_... below
 
         for (uint s = 0; s < intra_distortion_param_.yDim(); s++) {
 
@@ -3433,12 +4123,12 @@ void IBM5Trainer::prepare_external_alignment(const Storage1D<uint>& source, cons
             sum += intra_distortion_param_(j, s);
 
           for (uint j = 0; j < JJ; j++)
-            intra_distortion_prob_[JJ] (j, s) = intra_distortion_param_(j, s) / sum;
+            intra_distortion_prob_[JJ](j, s) = intra_distortion_param_(j, s) / sum;
         }
       }
     }
 
-    if (!nonpar_distortion_)
+    if (distortion_type_ == IBM23Nonpar)
       par2nonpar_intra_distortion();
 
     maxJ_ = J;

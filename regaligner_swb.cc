@@ -115,7 +115,7 @@ int main(int argc, char** argv)
               << " [-ibm4-reduce-deficiency] : renormalize probabilities for IBM-4 to stay inside the sentence" << std::endl
               << " [-ibm4-deficient-null (intra | uniform)] : default intra, uniform as in [Och & Ney]" << std::endl
               << "************ Options for IBM-5 only *****************" << std::endl
-              << " [-ibm5-nonpar-distortion] : nonparametric distortion for IBM-5" << std::endl
+              << " [-ibm5-distortion (nonpar | diff | pos) ] : nonparametric distortion for IBM-5" << std::endl
               << std::endl << std::endl;
 
     std::cerr << "this program estimates p(s|t). Parameters in []-brackets are optional." << std::endl;;
@@ -140,9 +140,9 @@ int main(int argc, char** argv)
     {"-ilp-mode", optWithValue, 1, "off"}, {"-utmost-ilp-precision", flag, 0, ""}, {"-hmm-start-empty-word", flag, 0, ""}, {"-ibm3-extra-deficient", flag, 0, ""},
     {"-deficient-h25", flag, 0, ""},{"-ibm4-deficient-null", optWithValue, 1, "intra"}, {"-rare-fert-limit", optWithValue, 1, "9"},
     {"-ibm2-alignment", optWithValue, 1, "pos"}, {"-no-h23-classes", flag, 0, ""}, {"-itg-max-mid-dev",optWithValue,1,"8"},{"-itg-ext-level",optWithValue,1,"0"},
-    {"-ibm-max-skip", optWithValue,1,"3"},{"-dict-iter",optWithValue,1,"45"}, {"-nondef-iter",optWithValue,1,"250"}, {"-ibm5-nonpar-distortion", flag, 0, ""},
-    {"-ibm45-uniform-start-prob", flag, 0, ""}, {"-start-param-iter", optWithValue, 1, "250"}, {"-main-param-iter", optWithValue, 1, "500"},
-    {"-ibm2-p0", optWithValue, 1, "-1.0"}, {"-ibm1-method", optWithValue, 1, "main"}, {"-rare-threshold", optWithValue, 1, "3"},
+    {"-ibm-max-skip", optWithValue,1,"3"},{"-dict-iter",optWithValue,1,"45"}, {"-nondef-iter",optWithValue,1,"250"}, 
+	{"-ibm5-distortion", flag, 1, "pos"}, {"-ibm45-uniform-start-prob", flag, 0, ""}, {"-start-param-iter", optWithValue, 1, "250"}, 
+	{"-main-param-iter", optWithValue, 1, "500"}, {"-ibm2-p0", optWithValue, 1, "-1.0"}, {"-ibm1-method", optWithValue, 1, "main"}, {"-rare-threshold", optWithValue, 1, "3"},
     {"-hmm-p0",optWithValue,0,""}, {"-ibm1-p0",optWithValue,1,"-1.0"}, {"-hmm-redpar-limit", optWithValue, 1, "5"},
     {"-dict-init", optWithValue, 1, "uni"}, {"-hmm-gd-stepsize", optWithValue, 1, "50.0" }, {"-gd-stepsize",optWithValue,1,"1.0"},
 	{"-fert-hmm-iter", optWithValue, 1, "0"}
@@ -583,22 +583,22 @@ int main(int argc, char** argv)
 
   std::string ibm2_alignment_string = downcase(app.getParam("-ibm2-alignment"));
   IBM23ParametricMode ibm2_align_mode = IBM23ParByPosition;
-  if (ibm2_alignment_string == "diff")
+  if (ibm2_alignment_string == "diff" || ibm2_alignment_string == "diffpar")
     ibm2_align_mode = IBM23ParByDifference;
   else if (ibm2_alignment_string == "nonpar")
     ibm2_align_mode = IBM23Nonpar;
-  else if (ibm2_alignment_string != "pos") {
+  else if (ibm2_alignment_string != "pos" && ibm2_alignment_string != "pospar") {
     USER_ERROR << " unknown ibm2-alignment: \"" << ibm2_alignment_string << "\" " << std::endl;
     exit(1);
   }
 
   std::string ibm3_distortion_string = downcase(app.getParam("-ibm3-distortion"));
   IBM23ParametricMode ibm3_dist_mode = IBM23ParByPosition;
-  if (ibm3_distortion_string == "diff")
+  if (ibm3_distortion_string == "diff" || ibm3_distortion_string == "diffpar")
     ibm3_dist_mode = IBM23ParByDifference;
   else if (ibm3_distortion_string == "nonpar")
     ibm3_dist_mode = IBM23Nonpar;
-  else if (ibm3_distortion_string != "pos") {
+  else if (ibm3_distortion_string != "pos" && ibm3_distortion_string != "pospar") {
     USER_ERROR << " unknown ibm3-distortion: \"" << ibm3_distortion_string << "\" " << std::endl;
     exit(1);
   }
@@ -757,7 +757,20 @@ int main(int argc, char** argv)
   fert_options.deficient_ = app.is_set("-deficient-h25");
   fert_options.nondeficient_ = app.is_set("-nondeficient");
   fert_options.reduce_deficiency_ = app.is_set("-ibm4-reduce-deficiency");
-  fert_options.ibm5_nonpar_distortion_ = app.is_set("-ibm5-nonpar-distortion");
+  
+  //fert_options.ibm5_nonpar_distortion_ = app.is_set("-ibm5-nonpar-distortion");
+  std::string sIBM5Distortion = downcase(app.getParam("-ibm5-distortion"));
+  if (sIBM5Distortion == "nonpar")
+	fert_options.ibm5_distortion_type_ = IBM23Nonpar;
+  else if (sIBM5Distortion == "diffpar" || sIBM5Distortion == "diff")
+	fert_options.ibm5_distortion_type_ = IBM23ParByDifference;
+  else if (sIBM5Distortion == "pospar" || sIBM5Distortion == "pos")
+	fert_options.ibm5_distortion_type_ = IBM23ParByPosition;
+  else {
+	std::cerr << "ERROR: unknonw ibm5-distortion: \"" << sIBM5Distortion << "\". Exiting." << std::endl;
+	exit(1);
+  }
+  
   fert_options.ibm3_extra_deficient_ = app.is_set("-ibm3-extra-deficient");
   fert_options.empty_word_model_ = empty_word_model;
   fert_options.dict_m_step_iter_ = dict_m_step_iter;
