@@ -7,7 +7,6 @@
 #include "training_common.hh"   // for get_wordlookup(), dictionary and start-prob m-step
 #include "stl_util.hh"
 #include "storage_util.hh"
-#include "conditional_m_steps.hh"
 
 #ifdef HAS_GZSTREAM
 #include "gzstream.h"
@@ -571,6 +570,8 @@ void IBM5Trainer::init_from_prevmodel(FertilityModelTrainerBase* prev_model, con
                 const uint cur_j = cur_aligned_source_words[k];
 
                 const uint sclass = source_class_[cur_source[cur_j]];
+				const uint tclass = target_class_[cur_target[i-1]];
+				const uint cur_class = (intra_dist_mode_ == IBM4IntraDistModeSource) ? sclass : tclass;
 
                 uint pos = MAX_UINT;
 
@@ -586,8 +587,8 @@ void IBM5Trainer::init_from_prevmodel(FertilityModelTrainerBase* prev_model, con
 
                 nAvailable -= cur_aligned_source_words.size() - 1 - k;
 
-                intra_distortion_count[nAvailable](pos, sclass) += 1.0;
-                intra_distparam_count(pos, sclass) += 1.0;
+                intra_distortion_count[nAvailable](pos, cur_class) += 1.0;
+                intra_distparam_count(pos, cur_class) += 1.0;
 
                 fixed[cur_j] = true;
                 nOpen--;
@@ -850,8 +851,8 @@ long double IBM5Trainer::update_alignment_by_hillclimbing(const Storage1D<uint>&
   }
 
   uint zero_fert = fertility[0];
-  base_prob *= choose_factor_[curJ][zero_fert];
   update_nullpow(zero_fert, curJ - 2 * zero_fert);
+  base_prob *= choose_factor_[curJ][zero_fert];
   base_prob *= p_zero_pow_[zero_fert];
   base_prob *= p_nonzero_pow_[curJ - 2 * zero_fert];
 
