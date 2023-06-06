@@ -5,6 +5,7 @@
 #include "timing.hh"
 #include "projection.hh"
 #include "training_common.hh"   // for get_wordlookup(), dictionary and start-prob m-step
+#include "conditional_m_steps.hh"
 #include "stl_util.hh"
 #include "storage_util.hh"
 
