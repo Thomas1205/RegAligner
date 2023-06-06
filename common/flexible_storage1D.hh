@@ -161,19 +161,22 @@ protected:
 template<typename T, typename ST>
 /*static*/ const std::string FlexibleStorage1D<T,ST>::flex_stor1D_name_ = "unnamed flexible 1Dstorage";
 
-template<typename T, typename ST> FlexibleStorage1D<T,ST>::FlexibleStorage1D() : StorageBase<T,ST>(0), reserved_size_(INIT_CAPACITY)
+template<typename T, typename ST> 
+FlexibleStorage1D<T,ST>::FlexibleStorage1D() : StorageBase<T,ST>(), reserved_size_(INIT_CAPACITY)
 {
 #if INIT_CAPACITY > 0
   Base::data_ = new T[reserved_size_];
 #endif
 }
 
-template<typename T, typename ST> FlexibleStorage1D<T,ST>::FlexibleStorage1D(ST reserved_size) : StorageBase<T,ST>(0), reserved_size_(reserved_size)
+template<typename T, typename ST> 
+FlexibleStorage1D<T,ST>::FlexibleStorage1D(ST reserved_size) : StorageBase<T,ST>(), reserved_size_(reserved_size)
 {
   Base::data_ = new T[reserved_size_];
 }
 
-template<typename T, typename ST> FlexibleStorage1D<T,ST>::FlexibleStorage1D(ST reserved_size, ST fill_size, T val) : StorageBase<T,ST>(0), reserved_size_(reserved_size)
+template<typename T, typename ST> 
+FlexibleStorage1D<T,ST>::FlexibleStorage1D(ST reserved_size, ST fill_size, T val) : StorageBase<T,ST>(), reserved_size_(reserved_size)
 {
   assert(fill_size <= reserved_size_);
 
@@ -182,7 +185,8 @@ template<typename T, typename ST> FlexibleStorage1D<T,ST>::FlexibleStorage1D(ST 
   std::fill_n(Base::data_,fill_size,val);
 }
 
-template<typename T, typename ST> FlexibleStorage1D<T,ST>::FlexibleStorage1D(const std::initializer_list<T>& init, ST extra_reserve) : StorageBase<T,ST>(0)
+template<typename T, typename ST> 
+FlexibleStorage1D<T,ST>::FlexibleStorage1D(const std::initializer_list<T>& init, ST extra_reserve) : StorageBase<T,ST>()
 {
   reserved_size_ = init.size() + extra_reserve;
   Base::size_ = init.size();
@@ -192,7 +196,8 @@ template<typename T, typename ST> FlexibleStorage1D<T,ST>::FlexibleStorage1D(con
 }
 
 //copy constructor
-template<typename T, typename ST> FlexibleStorage1D<T,ST>::FlexibleStorage1D(const FlexibleStorage1D<T,ST>& toCopy)
+template<typename T, typename ST> 
+FlexibleStorage1D<T,ST>::FlexibleStorage1D(const FlexibleStorage1D<T,ST>& toCopy) : StorageBase<T,ST>()
 {
   Base::size_ = toCopy.size();
   reserved_size_ = toCopy.reserved_size();
@@ -205,7 +210,8 @@ template<typename T, typename ST> FlexibleStorage1D<T,ST>::FlexibleStorage1D(con
 }
 
 //move constructor
-template<typename T, typename ST> FlexibleStorage1D<T,ST>::FlexibleStorage1D(FlexibleStorage1D<T,ST>&& toTake) : StorageBase<T,ST>(toTake)
+template<typename T, typename ST> 
+FlexibleStorage1D<T,ST>::FlexibleStorage1D(FlexibleStorage1D<T,ST>&& toTake) : StorageBase<T,ST>(toTake)
 {
   reserved_size_ = toTake.reserved_size_;
 }
@@ -221,7 +227,7 @@ void FlexibleStorage1D<T,ST>::swap(FlexibleStorage1D<T,ST>& toSwap) noexcept
 template<typename T, typename ST>
 FlexibleStorage1D<T,ST>& FlexibleStorage1D<T,ST>::operator=(const FlexibleStorage1D<T,ST>& toCopy) noexcept
 {
-  uint new_res = toCopy.reserved_size();
+  ST new_res = toCopy.reserved_size();
   if (new_res != reserved_size_) {
     reserved_size_ = new_res;
 
