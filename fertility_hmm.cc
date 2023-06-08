@@ -148,36 +148,7 @@ void FertilityHMMTrainer::init_from_prevmodel(FertilityModelTrainerBase* prev_mo
 
   /*** init hmm parameters ***/
 
-  if (options_.align_type_ == HmmAlignProbNonpar || options_.align_type_ == HmmAlignProbNonpar2 ) {
-
-    const HmmWrapperWithTargetClasses* hmmc_wrapper = dynamic_cast<const HmmWrapperWithTargetClasses*>(passed_wrapper);
-
-    if (hmmc_wrapper != 0) {
-      const FullHMMAlignmentModelSingleClass& passed_align_model = hmmc_wrapper->align_model_;
-
-      for (uint I = 0; I < align_model_.size(); I++) {
-
-        if (align_model_[I].xDim() > 0) {
-          assert(align_model_[I].xDim() == I + 1);
-          assert(passed_align_model[I].xDim() == I + 2);
-
-          for (uint c = 0; c < align_model_[I].zDim(); c++) {
-            for (uint y = 0; y < align_model_[I].yDim(); y++) {
-
-              double sum = 0.0;
-              for (uint x = 0; x < I + 1; x++)
-                sum += passed_align_model[I](x, y, c);
-
-              for (uint x = 0; x < I + 1; x++)
-                align_model_[I](x, y, c) = std::max(fert_min_param_entry, passed_align_model[I](x, y, c) / sum);
-            }
-          }
-        }
-      }
-    }
-  }
-  else
-    par2nonpar();
+  par2nonpar();
 
   std::cerr << "done initializing the alignment model" << std::endl;
 
