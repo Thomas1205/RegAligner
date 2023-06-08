@@ -329,6 +329,11 @@ int main(int argc, char** argv)
       USER_ERROR << " index 0 is reserved for the empty word. Exiting.." << std::endl;
       exit(1);
     }
+  
+    if (dev_source_sentence.size() > maxJ || dev_target_sentence.size() > maxI) {
+	  USER_ERROR << " dev sentences may not be longer than the longest training sentence. Exiting.." << std::endl;
+	  exit(1);
+	}
   }
 
   Math1D::Vector<WordClassType> source_class(nSourceWords, 0);

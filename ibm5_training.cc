@@ -3329,7 +3329,7 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
 {
   const size_t nSentences = source_sentence_.size();
 
-  std::cerr << "starting IBM-5 training without constraints";
+  std::cerr << "starting IBM-5 Viterbi-training without constraints";
   if (fert_trainer != 0)
     std::cerr << " (init from " << fert_trainer->model_name() << ") ";
   std::cerr << std::endl;
@@ -3384,7 +3384,7 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
   uint iter;
   for (iter = 1 + iter_offs_; iter <= nIter + iter_offs_; iter++) {
 
-    std::cerr << "******* IBM-5 EM-iteration " << iter << std::endl;
+    std::cerr << "******* IBM-5 Viterbi-iteration " << iter << std::endl;
 
     if (passed_wrapper != 0
         && (hillclimb_mode_ == HillclimbingRestart || (hillclimb_mode_ == HillclimbingReinit && (iter-iter_offs_) == 1)  ) )
