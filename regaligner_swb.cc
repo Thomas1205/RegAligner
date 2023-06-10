@@ -344,13 +344,6 @@ int main(int argc, char** argv)
   if (app.is_set("-tclasses"))
     read_word_classes(app.getParam("-tclasses"), target_class);
 
-  if (app.is_set("-generate-classes")) {
-    for (uint s = 1; s < source_class.size(); s++)
-      source_class[s] = s % 50;
-    for (uint t = 1; t < target_class.size(); t++)
-      target_class[t] = t % 50;
-  }
-
   const uint nSourceClasses = source_class.max() + 1;
   const uint nTargetClasses = target_class.max() + 1;
 
