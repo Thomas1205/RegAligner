@@ -141,7 +141,7 @@ int main(int argc, char** argv)
     {"-deficient-h25", flag, 0, ""},{"-ibm4-deficient-null", optWithValue, 1, "intra"}, {"-rare-fert-limit", optWithValue, 1, "9"},
     {"-ibm2-alignment", optWithValue, 1, "pos"}, {"-no-h23-classes", flag, 0, ""}, {"-itg-max-mid-dev",optWithValue,1,"8"},{"-itg-ext-level",optWithValue,1,"0"},
     {"-ibm-max-skip", optWithValue,1,"3"},{"-dict-iter",optWithValue,1,"45"}, {"-nondef-iter",optWithValue,1,"250"}, 
-	{"-ibm5-distortion", flag, 1, "pos"}, {"-ibm45-uniform-start-prob", flag, 0, ""}, {"-start-param-iter", optWithValue, 1, "250"}, 
+	{"-ibm5-distortion", optWithValue, 1, "pos"}, {"-ibm45-uniform-start-prob", flag, 0, ""}, {"-start-param-iter", optWithValue, 1, "250"}, 
 	{"-main-param-iter", optWithValue, 1, "500"}, {"-ibm2-p0", optWithValue, 1, "-1.0"}, {"-ibm1-method", optWithValue, 1, "main"}, {"-rare-threshold", optWithValue, 1, "3"},
     {"-hmm-p0",optWithValue,0,""}, {"-ibm1-p0",optWithValue,1,"-1.0"}, {"-hmm-redpar-limit", optWithValue, 1, "5"},
     {"-dict-init", optWithValue, 1, "uni"}, {"-hmm-gd-stepsize", optWithValue, 1, "50.0" }, {"-gd-stepsize",optWithValue,1,"1.0"},
