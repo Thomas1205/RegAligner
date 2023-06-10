@@ -1109,6 +1109,10 @@ int main(int argc, char** argv)
   Math1D::Vector<uint> tfert_class(nTargetWords);
   if (app.is_set("-tfert-classes")) {
     read_word_classes(app.getParam("-tfert-classes"), tfert_class);
+	if (tfert_class.size() != nTargetWords) {
+	  USER_ERROR << "wrong tfert-classes, size mismatch. Exiting..." << std::endl;
+	  exit(1);
+	}
   }
   else {
     for (uint i = 0; i < nTargetWords; i++) {
@@ -1117,12 +1121,12 @@ int main(int argc, char** argv)
   }
 
   //check the word classes
-  for (uint i=0; i < tfert_class.size(); i++) {
-    if (tfert_class[i] != i && tfert_class[i] < tfert_class.size()) {
-      std::cerr << "error with tfert-classes: word " << i << " points to smaller than nWords and not to self. Exiting" << std::endl;
-      exit(1);
-    }
-  }
+  // for (uint i=0; i < tfert_class.size(); i++) {
+    // if (tfert_class[i] != i && tfert_class[i] < nTargetClasses) {
+      // std::cerr << "error with tfert-classes: word " << i << " points to smaller than nWords and not to self. Exiting" << std::endl;
+      // exit(1);
+    // }
+  // }
 
   //FertilityModelTrainerBase* last_model = &hmm_interface;
 

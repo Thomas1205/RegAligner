@@ -17,7 +17,7 @@ NOTE: since version 1.3 RegAligner uses C++-11. The amount of non-C++-03 code wi
 
 RegAligner Change History
 
-*** after the last release ***
+*** changes for the upcoming release version 1.4 ***
 - implemented FertilityHMM (available with double word classes)
 - HMM with double word classes
 - IBM-3 can now take target word classes
