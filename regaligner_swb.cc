@@ -726,9 +726,9 @@ int main(int argc, char** argv)
 
   std::string ibm1_transfer_mode = downcase(app.getParam("-transfer-mode"));
   if (ibm1_transfer_mode != "no" && ibm1_transfer_mode != "viterbi" && ibm1_transfer_mode != "posterior") {
-    std::cerr << "WARNING: unknown mode \"" << ibm1_transfer_mode
-              << "\" for transfer from IBM-1 to HMM. Selecting \"no\"" << std::endl;
-    ibm1_transfer_mode = "no";
+    std::cerr << "ERROR: unknown mode \"" << ibm1_transfer_mode
+              << "\" for transfer from IBM-1 to HMM. Exiting." << std::endl;
+    exit(1);
   }
 
   hmm_options.transfer_mode_ = TransferNo;

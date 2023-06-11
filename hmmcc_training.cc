@@ -521,8 +521,8 @@ void init_hmm_from_prev(const Storage1D<Math1D::Vector<uint> >& source, const Lo
   }
 
   if (transfer_mode != TransferNo) {
-    //std::cerr << "WARNING: ignoring transfer mode" << std::endl;
 
+	//std::cerr << "here" << std::endl;
     const double ibm1_p0 = options.ibm1_p0_;
 
     if (align_type == HmmAlignProbReducedpar)
@@ -535,6 +535,7 @@ void init_hmm_from_prev(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
     for (size_t s = 0; s < nSentences; s++) {
 
+	  //std::cerr << "s: " << s << std::endl;
       const Math1D::Vector<uint>& cur_source = source[s];
       const Math1D::Vector<uint>& cur_target = target[s];
       const SingleLookupTable& cur_lookup = get_wordlookup(cur_source, cur_target, wcooc, options.nSourceWords_, slookup[s], aux_lookup);
@@ -555,6 +556,7 @@ void init_hmm_from_prev(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
         for (uint j = 1; j < source[s].size(); j++) {
 
+		  //std::cerr << "j: " << j << std::endl;
           int prev_aj = viterbi_alignment[j - 1];
           int cur_aj = viterbi_alignment[j];
 
@@ -684,13 +686,18 @@ void init_hmm_from_prev(const Storage1D<Math1D::Vector<uint> >& source, const Lo
           }
         }
         else {
-          dist_grouping_param(sc, tc) = 0.2;
-          dist_params(sc, tc).set_constant(0.0);
+		  if (align_type == HmmAlignProbReducedpar) {
+            dist_grouping_param(sc, tc) = 0.2;
+            dist_params(sc, tc).set_constant(0.0);
 
-          const double val = 0.8 / (2 * redpar_limit + 1);
-          for (int k = -redpar_limit; k <= redpar_limit; k++)
-            dist_params(sc, tc)[zero_offset + k] = val;
-        }
+            const double val = 0.8 / (2 * redpar_limit + 1);
+            for (int k = -redpar_limit; k <= redpar_limit; k++)
+              dist_params(sc, tc)[zero_offset + k] = val;
+		  }
+		  else {
+			dist_params(sc,tc).set_constant(1.0 / dist_params(sc,tc).size());
+		  }
+		}
       }
     }
   }
@@ -1293,8 +1300,7 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
   const bool deficient = options.deficient_;
 
   if (align_type == HmmAlignProbNonpar || align_type == HmmAlignProbNonpar2) {
-    std::cerr << "WARNING: nonparametric model selected, but will be treated like reduced parametric" << std::endl;
-    align_type = HmmAlignProbReducedpar;
+	TODO("nonpar");
   }
 
   double dict_weight_sum = 0.0;
@@ -1324,8 +1330,10 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
   uint maxI = maxAllI;
   const uint zero_offset = maxI - 1;
 
+  std::cerr << "calling init" << std::endl;
   init_hmm_from_prev(source, slookup, target, dict, wcooc, source_class, target_class, dist_params, dist_grouping_param, source_fert_prob,
                      initial_prob, init_params, options, zero_offset, options.transfer_mode_, maxAllI);
+  std::cerr << "back from init" << std::endl;
 
   Math1D::Vector<double> source_fert_count(2);
 
