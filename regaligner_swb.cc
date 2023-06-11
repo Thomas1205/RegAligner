@@ -330,7 +330,7 @@ int main(int argc, char** argv)
       exit(1);
     }
   
-    if (dev_source_sentence.size() > maxJ || dev_target_sentence.size() > maxI) {
+    if (dev_source_sentence[s].size() > maxJ || dev_target_sentence[s].size() > maxI) {
 	  USER_ERROR << " dev sentences may not be longer than the longest training sentence. Exiting.." << std::endl;
 	  exit(1);
 	}

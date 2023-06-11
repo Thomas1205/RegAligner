@@ -691,7 +691,7 @@ double reducedibm2_par_m_step_energy(const Math1D::Vector<double>& align_param, 
 }
 
 void reducedibm2_par_m_step(Math3D::Tensor<double>& align_param, const ReducedIBM2ClassAlignmentModel& acount, uint j, uint c, uint nIter,
-                            bool deficient, bool quiet)
+                            bool deficient, double gd_stepsize, bool quiet)
 {
   //std::cerr << "reducedibm2_par_m_step" << std::endl;
 
@@ -747,7 +747,7 @@ void reducedibm2_par_m_step(Math3D::Tensor<double>& align_param, const ReducedIB
   }
 
   double line_reduction_factor = 0.5;
-  const double alpha = 100.0;
+  const double alpha = gd_stepsize;
 
   for (uint iter = 1; iter <= nIter; iter++) {
     //if ((iter % 15) == 0)
@@ -767,8 +767,15 @@ void reducedibm2_par_m_step(Math3D::Tensor<double>& align_param, const ReducedIB
 
     /**** go in negative gradient direction and reproject ****/
 
+	const double sqr_grad_norm = grad.sqr_norm();
+	
+	if (sqr_grad_norm < 1e-5)
+	  break;
+	
+	const double real_alpha = alpha / sqrt(sqr_grad_norm);
+
     for (uint i = 0; i < xDim; i++)
-      new_param[i] = cur_param[i] - alpha * grad[i];
+      new_param[i] = cur_param[i] - real_alpha * grad[i];
 
     projection_on_simplex(new_param.direct_access(), xDim, ibm2_min_align_param);
 
@@ -859,7 +866,7 @@ double reducedibm2_diffpar_m_step_energy(const Math3D::Tensor<double>& align_par
 }
 
 void reducedibm2_diffpar_m_step(Math3D::Tensor<double>& align_param, const ReducedIBM2ClassAlignmentModel& acount, uint offset, uint c,
-                                uint nIter, bool deficient)
+                                uint nIter, bool deficient, double gd_stepsize)
 {
   const uint xDim = align_param.xDim();
 
@@ -895,7 +902,7 @@ void reducedibm2_diffpar_m_step(Math3D::Tensor<double>& align_param, const Reduc
 
     if (deficient || hyp_energy < energy) {
 
-      std::cerr << "switching to normalized counts" << std::endl;
+      //std::cerr << "switching to normalized counts" << std::endl;
       align_param = hyp_param;
       energy = hyp_energy;
     }
@@ -905,11 +912,11 @@ void reducedibm2_diffpar_m_step(Math3D::Tensor<double>& align_param, const Reduc
     return;
 
   double line_reduction_factor = 0.5;
-  const double alpha = 100.0;
+  const double alpha = gd_stepsize;
 
   for (uint iter = 1; iter <= nIter; iter++) {
-    if ((iter % 15) == 0)
-      std::cerr << "iter " << iter << ", energy: " << energy << std::endl;
+    //if ((iter % 15) == 0)
+    //  std::cerr << "iter " << iter << ", energy: " << energy << std::endl;
 
     /***** compute gradient *****/
     for (uint i = 0; i < xDim; i++)
@@ -934,8 +941,14 @@ void reducedibm2_diffpar_m_step(Math3D::Tensor<double>& align_param, const Reduc
 
     /**** go in negative gradient direction and reproject ****/
 
+	double sqr_grad_norm = grad.sqr_norm();
+	if (sqr_grad_norm < 1e-5)
+	  break;
+	
+	double real_alpha = alpha / sqrt(sqr_grad_norm);
+
     for (uint i = 0; i < xDim; i++)
-      new_param[i] = align_param(i, 0, c) - alpha * grad[i];
+      new_param[i] = align_param(i, 0, c) - real_alpha * grad[i];
 
     projection_on_simplex(new_param.direct_access(), xDim, ibm2_min_align_param);
 

@@ -1494,8 +1494,8 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
           for (int i = 0; i < (int)I; i++) {
 
             for (uint ii = 0; ii < I; ii++)
-              source_fert_grad[1] += align_grad[I - 1] (ii, i) * (align_model[I - 1] (ii, i) / source_fert[1]);
-            source_fert_grad[0] += align_grad[I - 1] (I, i) * (align_model[I - 1] (I, i) / source_fert[0]);
+              source_fert_grad[1] += align_grad[I - 1](ii, i) * (align_model[I - 1](ii, i) / source_fert[1]);
+            source_fert_grad[0] += align_grad[I - 1](I, i) * (align_model[I - 1](I, i) / source_fert[0]);
 
             double non_zero_sum = 0.0;
 
@@ -1537,10 +1537,10 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
                 for (int ii = 0; ii < (int)I; ii++) {
                   //NOTE: align_grad has already a negative sign
                   if (abs(ii - i) <= redpar_limit) {
-                    dist_grad[zero_offset + ii - i] += source_fert[1] * align_grad[I - 1] (ii, i);
+                    dist_grad[zero_offset + ii - i] += source_fert[1] * align_grad[I - 1](ii, i);
                   }
                   else {
-                    dist_grouping_grad += source_fert[1] * align_grad[I - 1] (ii, i) / grouping_norm;
+                    dist_grouping_grad += source_fert[1] * align_grad[I - 1](ii, i) / grouping_norm;
                   }
                 }
               }
@@ -1705,7 +1705,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
           //  new_init_prob[I - 1][k] = initial_prob[I - 1][k] - alpha * init_grad[I - 1][k];
 
           if (new_init_prob[I - 1].size() > 0)
-            Math1D::go_in_neg_direction(new_init_prob[I - 1], initial_prob[I - 1], init_grad[I -1], alpha);
+            Math1D::go_in_neg_direction(new_init_prob[I - 1], initial_prob[I - 1], init_grad[I -1], real_alpha);
         }
 
         if (align_type == HmmAlignProbNonpar || align_type == HmmAlignProbNonpar2) {
@@ -1713,7 +1713,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
           //  new_align_prob[I - 1].direct_access(k) = align_model[I - 1].direct_access(k) - alpha * align_grad[I - 1].direct_access(k);
 
           if (align_model[I - 1].size() > 0)
-            Math2D::go_in_neg_direction(new_align_prob[I - 1], align_model[I - 1], align_grad[I - 1], alpha);
+            Math2D::go_in_neg_direction(new_align_prob[I - 1], align_model[I - 1], align_grad[I - 1], real_alpha);
         }
       }
     }

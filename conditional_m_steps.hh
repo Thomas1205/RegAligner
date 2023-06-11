@@ -48,10 +48,10 @@ void ehmm_init_m_step_projected_lbfgs(const InitialAlignmentProbability& init_ac
 /********************* IBM-2 m-steps **********************/
 
 void reducedibm2_diffpar_m_step(Math3D::Tensor<double>& align_param, const ReducedIBM2ClassAlignmentModel& acount, uint offset, uint c,
-                                uint nIter, bool deficient);
+                                uint nIter, bool deficient, double gd_stepsize);
 
 void reducedibm2_par_m_step(Math3D::Tensor<double>& align_param, const ReducedIBM2ClassAlignmentModel& acount, uint j, uint c, uint nIter,
-                            bool deficient, bool quiet = false);
+                            bool deficient, double gd_stepsize, bool quiet = false);
 
 /********************* HMM m-steps ************************/
 

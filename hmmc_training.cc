@@ -2035,8 +2035,8 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
             for (int i = 0; i < (int)I; i++) {
 
               for (uint ii = 0; ii < I; ii++)
-                source_fert_grad[1] += align_grad[I - 1](ii, i, c) * (align_model[I - 1] (ii, i, c) / source_fert_prob[1]);
-              source_fert_grad[0] += align_grad[I - 1](I, i, c) * (align_model[I - 1] (I, i, c) / source_fert_prob[0]);
+                source_fert_grad[1] += align_grad[I - 1](ii, i, c) * (align_model[I - 1](ii, i, c) / source_fert_prob[1]);
+              source_fert_grad[0] += align_grad[I - 1](I, i, c) * (align_model[I - 1](I, i, c) / source_fert_prob[0]);
 
               double non_zero_sum = 0.0;
 
@@ -2044,7 +2044,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
                 if (options.deficient_) {
                   for (uint ii = 0; ii < I; ii++)
-                    dist_grad(zero_offset + ii - i, c) += source_fert_prob[1] * align_grad[I - 1] (ii, i, c);
+                    dist_grad(zero_offset + ii - i, c) += source_fert_prob[1] * align_grad[I - 1](ii, i, c);
                 }
                 else {
 
@@ -2250,18 +2250,18 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
         }
         else if (init_type != HmmInitFix && init_type == HmmInitFix2) {
           //for (uint k = 0; k < initial_prob[I - 1].size(); k++)
-          //  new_init_prob[I - 1][k] =  initial_prob[I - 1][k] - alpha * init_grad[I - 1][k];
+          //  new_init_prob[I - 1][k] =  initial_prob[I - 1][k] - real_alpha * init_grad[I - 1][k];
 
           if (new_init_prob[I - 1].size() > 0)
-            Math1D::go_in_neg_direction(new_init_prob[I - 1], initial_prob[I - 1], init_grad[I -1], alpha);
+            Math1D::go_in_neg_direction(new_init_prob[I - 1], initial_prob[I - 1], init_grad[I -1], real_alpha);
         }
 
         if (align_type == HmmAlignProbNonpar || align_type == HmmAlignProbNonpar2) {
           //for (uint k = 0; k < align_model[I - 1].size(); k++)
-          //  new_align_prob[I - 1].direct_access(k) = align_model[I - 1].direct_access(k) - alpha * align_grad[I - 1].direct_access(k);
+          //  new_align_prob[I - 1].direct_access(k) = align_model[I - 1].direct_access(k) - real_alpha * align_grad[I - 1].direct_access(k);
 
           if (align_model[I - 1].size() > 0)
-            Math3D::go_in_neg_direction(new_align_prob[I - 1], align_model[I - 1], align_grad[I - 1], alpha);
+            Math3D::go_in_neg_direction(new_align_prob[I - 1], align_model[I - 1], align_grad[I - 1], real_alpha);
         }
       }
     }
