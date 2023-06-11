@@ -422,8 +422,8 @@ int main(int argc, char** argv)
   std::string hmm_string = downcase(app.getParam("-hmm-alignment"));
   if (hmm_string != "redpar" && hmm_string != "fullpar"
       && hmm_string != "nonpar" && hmm_string != "nonpar2") {
-    std::cerr << "WARNING: \"" << hmm_string << "\" is not a valid hmm type. Selecting redpar." << std::endl;
-    hmm_string = "redpar";
+    std::cerr << "ERROR: \"" << hmm_string << "\" is not a valid hmm type. Exiting." << std::endl;
+    exit(1);
   }
 
   HmmAlignProbType hmm_align_mode = HmmAlignProbReducedpar;
@@ -441,8 +441,8 @@ int main(int argc, char** argv)
   std::string hmm_init_string = downcase(app.getParam("-hmm-init-type"));
   if (hmm_init_string != "par" && hmm_init_string != "nonpar" && hmm_init_string != "fix"
       && hmm_init_string != "fix2") {
-    std::cerr << "WARNING: \"" << hmm_init_string << "\" is not a valid hmm init type. Selecting par." << std::endl;
-    hmm_init_string = "par";
+    std::cerr << "ERROR: \"" << hmm_init_string << "\" is not a valid hmm init type. Exiting..." << std::endl;
+    exit(1);;
   }
   if (hmm_init_string == "par")
     hmm_init_mode = HmmInitPar;
@@ -586,7 +586,7 @@ int main(int argc, char** argv)
   else if (ibm2_alignment_string == "nonpar")
     ibm2_align_mode = IBM23Nonpar;
   else if (ibm2_alignment_string != "pos" && ibm2_alignment_string != "pospar") {
-    USER_ERROR << " unknown ibm2-alignment: \"" << ibm2_alignment_string << "\" " << std::endl;
+    USER_ERROR << " unknown ibm2-alignment: \"" << ibm2_alignment_string << "\". Exiting... " << std::endl;
     exit(1);
   }
 
@@ -911,6 +911,11 @@ int main(int argc, char** argv)
     }
     else {
 
+	  if (hmm_options.align_type_ == HmmAlignProbNonpar || hmm_options.align_type_ == HmmAlignProbNonpar2) {
+		std::cerr << "WARNING: nonpar selected, but not supported. Will be treated like redpar" << std::endl;
+	    hmm_options.align_type_ == HmmAlignProbReducedpar;
+	  }
+	  
       viterbi_train_extended_hmm(source_sentence, slookup, target_sentence, wcooc, source_class, target_class, hmmcc_dist_params,
                                  hmmcc_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict, prior_weight, hmm_options, xlogx_table,
                                  maxAllI);

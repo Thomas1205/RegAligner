@@ -441,10 +441,8 @@ void init_hmm_from_prev(const Storage1D<Math1D::Vector<uint> >& source, const Lo
   dist_params.resize(nSourceClasses,nTargetClasses);
   for (uint sc = 0; sc < nSourceClasses; sc++) {
     for (uint tc = 0; tc < nTargetClasses; tc++) {
-      if (dist_params(sc,tc).size() > 0) {
-        dist_params(sc,tc).resize(2*maxI-1);
-        dist_params(sc,tc).set_constant(0.0);
-      }
+      dist_params(sc,tc).resize(2*maxI-1);
+      dist_params(sc,tc).set_constant(0.0);
     }
   }
   dist_grouping_param.set_constant(0.0);
