@@ -467,16 +467,19 @@ void init_hmm_from_prev(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
       if (sum > 1e-300) {
 
-        dist_params *= 1.0 / sum;
+	    for (uint i = 0; i < dist_params.xDim(); i++)
+          dist_params(i, c) *= 1.0 / sum;
 
         if (align_type == HmmAlignProbReducedpar) {
           dist_grouping_param[c] *= 1.0 / sum;
 
-          for (int k = -redpar_limit; k <= redpar_limit; k++)
+          for (int k = -redpar_limit; k <= redpar_limit; k++) {
             dist_params(zero_offset + k, c) = 0.75 * dist_params(zero_offset + k, c) + 0.25 * 0.8 / (2 * redpar_limit + 1);
-
+			assert(dist_params(zero_offset + k, c) >= hmm_min_param_entry);
+		  }
           dist_grouping_param[c] = 0.75 * dist_grouping_param[c] + 0.25 * 0.2;
-        }
+          assert(dist_grouping_param[c] >= hmm_min_param_entry);
+		}
         else {
           for (uint k = 0; k < dist_params.size(); k++) {
             dist_params(k, c) = 0.75 * dist_params(k, c) + 0.25 / dist_params.xDim();
@@ -1684,7 +1687,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
   init_hmm_from_prev(source, slookup, target, dict, wcooc, target_class, align_model, dist_params, dist_grouping_param, source_fert_prob,
                      initial_prob, init_params, options, options.transfer_mode_, maxAllI);
 
-  std::cerr << "after init" << std::endl;
+  //std::cerr << "after init" << std::endl;
 
   const uint maxI = maxAllI; //align_model.size();
   const uint zero_offset = maxI - 1;
@@ -1970,7 +1973,8 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
       //finally include divisions
       for (uint k=0; k < init_grad[I - 1].size(); k++)
         init_grad[I - 1].direct_access(k) /= initial_prob[I - 1].direct_access(k);
-    }
+      assert(!isnan(init_grad[I - 1].sum()));
+	}
     for (uint I = 1; I <= maxI; I++) {
       align_grad[I - 1] *= 1.0 / nSentences;
 
@@ -1978,6 +1982,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
       for (uint k=0; k < align_grad[I - 1].size(); k++) {
         align_grad[I - 1].direct_access(k) /= std::max(hmm_min_param_entry, align_model[I - 1].direct_access(k));
       }
+	  assert(!isnan(align_grad[I - 1].sum()));
     }
 
     if (dict_weight_sum != 0.0) {
@@ -2032,7 +2037,11 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
     if (align_type != HmmAlignProbNonpar) {
 
+	  assert(!isnan(dist_params.sum()));
+
       for (uint I = 1; I <= maxI; I++) {
+		  
+		//std::cerr << "I: " << I << std::endl;
 
         if (align_grad[I - 1].size() > 0) {
 
@@ -2040,8 +2049,8 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
             for (int i = 0; i < (int)I; i++) {
 
               for (uint ii = 0; ii < I; ii++)
-                source_fert_grad[1] += align_grad[I - 1](ii, i, c) * (align_model[I - 1] (ii, i, c) / source_fert_prob[1]);
-              source_fert_grad[0] += align_grad[I - 1](I, i, c) * (align_model[I - 1] (I, i, c) / source_fert_prob[0]);
+                source_fert_grad[1] += align_grad[I - 1](ii, i, c) * (align_model[I - 1](ii, i, c) / source_fert_prob[1]);
+              source_fert_grad[0] += align_grad[I - 1](I, i, c) * (align_model[I - 1](I, i, c) / source_fert_prob[0]);
 
               double non_zero_sum = 0.0;
 
@@ -2049,7 +2058,7 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
                 if (options.deficient_) {
                   for (uint ii = 0; ii < I; ii++)
-                    dist_grad(zero_offset + ii - i, c) += source_fert_prob[1] * align_grad[I - 1] (ii, i, c);
+                    dist_grad(zero_offset + ii - i, c) += source_fert_prob[1] * align_grad[I - 1](ii, i, c);
                 }
                 else {
 
@@ -2079,6 +2088,12 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
                 double grouping_norm = std::max(0, i - redpar_limit);
                 grouping_norm += std::max(0, int (I) - 1 - (i + redpar_limit));
 
+				// double grouping_norm = 0.0;
+				// for (int ii = 0; ii < (int) I; ii++) {
+				  // if (abs(ii-i) > redpar_limit)
+					// grouping_norm += 1.0;
+				// }
+
                 if (options.deficient_) {
                   for (int ii = 0; ii < (int)I; ii++) {
                     //NOTE: align_grad has already a negative sign
@@ -2101,6 +2116,8 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
                       non_zero_sum += dist_params(zero_offset + ii - i, c);
                   }
 
+				  //std::cerr << "source_fert_prob: " << source_fert_prob << std::endl;
+				  //std::cerr << "non_zero_sum: " << non_zero_sum << std::endl;
                   const double factor = source_fert_prob[1] / (non_zero_sum * non_zero_sum);
 
                   assert(!isnan(factor));
@@ -2108,20 +2125,31 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
                   for (int ii = 0; ii < (int)I; ii++) {
 
                     const double cur_grad = align_grad[I - 1](ii, i, c);
+					assert(!isnan(cur_grad));
 
                     //NOTE: align_grad has already a negative sign
                     if (abs(ii - i) <= redpar_limit) {
 
                       dist_grad(zero_offset + ii - i, c) += cur_grad * factor * non_zero_sum;
                       for (int iii = 0; iii < (int)I; iii++) {
-                        if (abs(iii - i) <= redpar_limit)
+                        if (abs(iii - i) <= redpar_limit) {
                           dist_grad(zero_offset + iii - i, c) -= cur_grad * factor * dist_params(zero_offset + ii - i, c);
-                        else
+                          //std::cerr << "cur_grad: " << cur_grad << ", factor: " << factor << ", dist_param: " 
+						  //	      << dist_params(zero_offset + ii - i, c) << std::endl;
+						  assert(!isnan(dist_grad(zero_offset + iii - i, c)));
+						}
+						else {
                           dist_grouping_grad[c] -= cur_grad * factor * dist_params(zero_offset + ii - i, c) / grouping_norm;
-                      }
+						  assert(grouping_norm > 1e-300);
+						  assert(!isnan(dist_grouping_grad[c]));
+						}
+					  }
+					  //assert(!isnan(dist_grad.sum()));
+  					  //assert(!isnan(dist_grouping_grad.sum()));
                     }
                     else {
 
+					  assert(grouping_norm > 1e-300);
                       dist_grouping_grad[c] += cur_grad * factor * (non_zero_sum - dist_grouping_param[c]) / grouping_norm;
 
                       for (int iii = 0; iii < (int)I; iii++) {
@@ -2130,6 +2158,8 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
                           dist_grad(zero_offset + iii - i, c) -= cur_grad * factor * dist_grouping_param[c] / grouping_norm;
                         }
                       }
+					  //assert(!isnan(dist_grad.sum()));
+  					  //assert(!isnan(dist_grouping_grad.sum()));
                     }
                   }
                 }
@@ -2150,20 +2180,24 @@ void train_extended_hmm_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
     if (align_type != HmmAlignProbNonpar || init_type == HmmInitPar)
       sqr_grad_norm += source_fert_grad.sqr_norm();
+    assert(!isnan(sqr_grad_norm));
     if (init_type == HmmInitPar)
       sqr_grad_norm += init_param_grad.sqr_norm();
+    assert(!isnan(sqr_grad_norm));
     if (align_type == HmmAlignProbFullpar) {
       sqr_grad_norm += dist_grad.sqr_norm();
     }
     else if (align_type == HmmAlignProbReducedpar) {
       sqr_grad_norm += dist_grad.sqr_norm() + dist_grouping_grad.sqr_norm();
     }
+    assert(!isnan(sqr_grad_norm));
     for (uint i = 0; i < options.nTargetWords_; i++)
       sqr_grad_norm += dict_grad[i].sqr_norm();
+    assert(!isnan(sqr_grad_norm));
 
     real_alpha /= sqrt(sqr_grad_norm);
 
-    //std::cerr << "A" << std::endl;
+    //std::cerr << "A, sqr_grad_norm: " << sqr_grad_norm << ", real_alpha: " << real_alpha  << std::endl;
 
     if (!options.fix_p0_) {
       if (align_type != HmmAlignProbNonpar || init_type == HmmInitPar) {

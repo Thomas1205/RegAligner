@@ -890,11 +890,14 @@ int main(int argc, char** argv)
                                         hmm_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict, prior_weight, hmm_options, maxAllI);
       used_hmm = &hmm_wrapper;
     }
-    else {
+    else if (nSourceClasses == 1) {
       train_extended_hmm_gd_stepcontrol(source_sentence, slookup, target_sentence, wcooc, target_class, hmmcalign_model, hmmc_dist_params,
                                         hmmc_dist_grouping_param, source_fert, initial_prob, hmm_init_params, dict, prior_weight, hmm_options, maxAllI);
       used_hmm = &hmmc_wrapper;
     }
+	else {
+	  TODO("gd for HMM-DoubleClass");
+	}
   }
   else {
 
