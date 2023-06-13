@@ -3316,6 +3316,7 @@ void IBM3Trainer::train_viterbi(uint nIter, const AlignmentSetConstraints& align
 
         make_alignment_feasible(cur_source, cur_target, cur_lookup, cur_best_known_alignment);
 
+		fertility.set_constant(0);
         for (uint j = 0; j < curJ; j++)
           fertility[cur_best_known_alignment[j]]++;
 
@@ -3543,7 +3544,7 @@ void IBM3Trainer::train_viterbi(uint nIter, const AlignmentSetConstraints& align
 
             bool allowed = (cur_aj != i && (i != 0 || 2 * cur_fertilities[0] + 2 <= curJ));
 
-            if (i != 0 && (cur_fertilities[i] + 1) > fertility_limit_[cur_word])
+            if (i != 0 && (cur_fertilities[i] + 1) > fertility_limit_[cur_target[i-1]])
               allowed = false;
 
             if (align_constraints.align_set_ != AllAlignments) {

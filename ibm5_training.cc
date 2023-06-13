@@ -3836,7 +3836,7 @@ void IBM5Trainer::train_viterbi(uint nIter, FertilityModelTrainerBase* fert_trai
 
             bool allowed = (cur_aj != i && (i != 0 || 2 * fertility[0] + 2 <= curJ));
 
-            if (i != 0 && (fertility[i] + 1) > fertility_limit_[cur_word])
+            if (i != 0 && (fertility[i] + 1) > fertility_limit_[cur_target[i-1]])
               allowed = false;
 
             if (allowed) {
