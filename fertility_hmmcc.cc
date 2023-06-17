@@ -860,8 +860,8 @@ void FertilityHMMTrainerDoubleClass::train_em(uint nIter, FertilityModelTrainerB
 
     for (size_t s = 0; s < nSentences; s++) {
 
-      //if ((s % 10000) == 0)
-      if ((s% 100) == 0)
+      if ((s % 10000) == 0)
+      //if ((s% 100) == 0)
         std::cerr << "sentence pair #" << s << std::endl;
 
       const Storage1D<uint>& cur_source = source_sentence_[s];
