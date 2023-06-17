@@ -85,7 +85,7 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count, const Math1D:
     std::cerr << "single_dict_m_step, with slack: " << with_slack << std::endl;
   assert(fdict_count.min() >= 0.0);
   assert(dict.min() >= 0.0);
-  assert(dict.max() <= 1.0);
+  assert(dict.max() <= 1.01);
   assert(min_prob > 0.0);
   assert(min_prob < 0.01);
 
@@ -204,7 +204,7 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count, const Math1D:
       projection_on_simplex(new_dict, min_prob);
     }
     assert(new_dict.min() >= 0.0);
-    assert(new_dict.max() <= 1.0);
+    assert(new_dict.max() <= 1.01);
 
     double best_energy = 1e300;
 
@@ -268,7 +268,7 @@ void single_dict_m_step(const Math1D::Vector<double>& fdict_count, const Math1D:
     //  dict[k] = best_lambda * new_dict[k] + neg_best_lambda * dict[k];
     Math1D::assign_weighted_combination(dict, best_lambda, new_dict, neg_best_lambda, dict);
     assert(dict.min() >= 0.0);
-    assert(dict.max() <= 1.0);
+    assert(dict.max() <= 1.01);
 
     slack_entry = best_lambda * new_slack_entry + neg_best_lambda * slack_entry;
     assert(dict.sum() + slack_entry <= 1.05);

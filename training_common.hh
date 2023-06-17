@@ -10,15 +10,15 @@
 #include <map>
 #include <set>
 
-const double ibm1_min_dict_entry = 1e-6;
+const double ibm1_min_dict_entry = 1e-8;
 const double ibm2_min_align_param = 1e-7;
-const double hmm_min_dict_entry = 1e-6; //with and without classes, also for all bi-word HMMs
+const double hmm_min_dict_entry = 1e-8; //with and without classes, also for all bi-word HMMs
 const double hmm_min_param_entry = 1e-8; //for init and align params, also for all bi-word HMMs
 
-const double bi1_min_dict_entry = 1e-6;
-const double bi2_min_dict_entry = 1e-6;
+const double bi1_min_dict_entry = 1e-8;
+const double bi2_min_dict_entry = 1e-8;
 const double bi2_min_param_entry = 1e-8;
-const double bihmm_min_dict_entry = 1e-6;
+const double bihmm_min_dict_entry = 1e-8;
 
 const double fert_min_param_entry = 1e-8;
 const double fert_min_p0 = 1e-12;

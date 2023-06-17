@@ -1439,7 +1439,8 @@ void IBM5Trainer::inter_distortion_diffpar_m_step(const Math2D::Matrix<double>& 
     /*** 2. go in neg. gradient direction ***/
     double sqr_grad_norm = gradient.sqr_norm() + grouping_param_grad*grouping_param_grad;
     if (sqr_grad_norm < 1e-5) {
-      std::cerr << "CUTOFF after " << iter << "iterations because squared gradient norm was " << sqr_grad_norm << std::endl;
+      if (nSourceClasses_ <= 4)
+        std::cerr << "CUTOFF after " << iter << "iterations because squared gradient norm was " << sqr_grad_norm << std::endl;
       break;
     }
 
@@ -1512,7 +1513,8 @@ void IBM5Trainer::inter_distortion_diffpar_m_step(const Math2D::Matrix<double>& 
     //std::cerr << "best lambda: " << best_lambda << std::endl;
 
     if (best_energy >= energy) {
-      std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
+      if (nSourceClasses_ <= 4)
+        std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
       break;
     }
 
@@ -1725,7 +1727,8 @@ void IBM5Trainer::inter_distortion_pospar_m_step(const Math3D::Tensor<double>& s
     //std::cerr << "best lambda: " << best_lambda << std::endl;
 	
     if (best_energy >= energy) {
-      std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
+      if (nSourceClasses_ <= 4)
+        std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
       break;
     }
 
@@ -2014,10 +2017,12 @@ void IBM5Trainer::inter_distortion_diffpar_m_step_unconstrained(const Math2D::Ma
     //e) go to the determined point
 
     if (best_energy >= energy - 1e-4) {
-      std::cerr << "CUTOFF after " << iter << " iterations, last gain: " << (energy - best_energy)
-                << ", final energy: " << energy << std::endl;
-      std::cerr << "last squared gradient norm: " << work_grad.sqr_norm() << std::endl;
-      break;
+      if (nSourceClasses_ <= 4) {
+        std::cerr << "CUTOFF after " << iter << " iterations, last gain: " << (energy - best_energy)
+                  << ", final energy: " << energy << std::endl;
+        std::cerr << "last squared gradient norm: " << work_grad.sqr_norm() << std::endl;
+      }
+	  break;
     }
 
     energy = best_energy;
@@ -2132,7 +2137,8 @@ void IBM5Trainer::intra_distortion_m_step(const Math2D::Matrix<double>& single_d
     /*** 2. go in neg. gradient direction ***/
     double sqr_grad_norm = gradient.sqr_norm();
     if (sqr_grad_norm < 1e-5) {
-      std::cerr << "CUTOFF after " << iter << " iterations because squared gradient norm was " << sqr_grad_norm << std::endl;
+      if (nSourceClasses_ <= 4)
+        std::cerr << "CUTOFF after " << iter << " iterations because squared gradient norm was " << sqr_grad_norm << std::endl;
       break;
     }
 
@@ -2183,7 +2189,8 @@ void IBM5Trainer::intra_distortion_m_step(const Math2D::Matrix<double>& single_d
     //std::cerr << "best lambda: " << best_lambda << std::endl;
 
     if (best_energy >= energy) {
-      std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
+      if (nSourceClasses_ <= 4)
+        std::cerr << "CUTOFF after " << iter << " iterations" << std::endl;
       break;
     }
 
@@ -2462,10 +2469,12 @@ void IBM5Trainer::intra_distortion_m_step_unconstrained(const Math2D::Matrix<dou
     //e) go to the determined point
 
     if (best_energy >= energy - 1e-4) {
-      std::cerr << "CUTOFF after " << iter << " iterations, last gain: " << (energy - best_energy)
-                << ", final energy: " << energy << std::endl;
-      std::cerr << "last squared gradient norm: " << work_grad.sqr_norm() << std::endl;
-      break;
+	  if (nSourceClasses_ <= 4) {
+        std::cerr << "CUTOFF after " << iter << " iterations, last gain: " << (energy - best_energy)
+                  << ", final energy: " << energy << std::endl;
+        std::cerr << "last squared gradient norm: " << work_grad.sqr_norm() << std::endl;
+	  }
+	  break;
     }
 
     energy = best_energy;

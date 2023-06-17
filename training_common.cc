@@ -1008,7 +1008,7 @@ const SingleLookupTable& get_wordlookup(const Storage1D<uint>& source, const Sto
               if (p == sidx)
                 idx = guess_idx;
               else if (p < sidx)
-                idx = Routines::binsearch(guess+1, sidx, cur_size-guess_idx-1); //std::lower_bound(guess, end, sidx);
+                idx = guess_idx + 1 +  Routines::binsearch(guess+1, sidx, cur_size-guess_idx-1); //std::lower_bound(guess, end, sidx);
               else
                 idx = Routines::binsearch(start, sidx, guess_idx); //std::lower_bound(start, guess, sidx);
             }

@@ -109,7 +109,7 @@ void train_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
                 std::map<uint,std::set<std::pair<AlignBaseType,AlignBaseType> > >& possible_ref_alignments,
                 const floatSingleWordDictionary& prior_weight, double l0_beta, bool smoothed_l0, uint dict_m_step_iter)
 {
-  std::cerr << "starting IBM 2 training" << std::endl;
+  std::cerr << "starting IBM-2 training" << std::endl;
 
   double dict_weight_sum = 0.0;
   for (uint i = 0; i < nTargetWords; i++) {
@@ -157,7 +157,7 @@ void train_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
 
   for (uint iter = 1; iter <= nIterations; iter++) {
 
-    std::cerr << "starting IBM 2 iteration #" << iter << std::endl;
+    std::cerr << "starting IBM-2 iteration #" << iter << std::endl;
 
     //set counts to 0
     for (uint i = 0; i < nTargetWords; i++) {
@@ -254,9 +254,10 @@ void train_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
       }
     }
 
-    std::cerr << "IBM 2 energy after iteration #" << iter << ": "
-              << ibm2_energy(source, slookup, target, alignment_model, dict, wcooc, nSourceWords, prior_weight, l0_beta, smoothed_l0, dict_weight_sum)
-              << std::endl;
+	
+    std::cerr << "IBM-2 energy after iteration #" << iter << ": "
+                << ibm2_energy(source, slookup, target, alignment_model, dict, wcooc, nSourceWords, prior_weight, l0_beta, smoothed_l0, dict_weight_sum)
+                << std::endl;
 
     /************* compute alignment error rate ****************/
     if (!possible_ref_alignments.empty()) {
@@ -304,9 +305,9 @@ void train_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const LookupTabl
       sum_fmeasure /= nContributors;
       nErrors /= nContributors;
 
-      std::cerr << "#### IBM2 Viterbi-AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
-      std::cerr << "#### IBM2 Viterbi-fmeasure after iteration #" << iter << ": " << sum_fmeasure << std::endl;
-      std::cerr << "#### IBM2 Viterbi-DAE/S after iteration #" << iter << ": " << sum_fmeasure << std::endl;
+      std::cerr << "#### IBM-2 Viterbi-AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
+      std::cerr << "#### IBM-2 Viterbi-fmeasure after iteration #" << iter << ": " << sum_fmeasure << std::endl;
+      std::cerr << "#### IBM-2 Viterbi-DAE/S after iteration #" << iter << ": " << sum_fmeasure << std::endl;
     }
   }
 }
@@ -670,7 +671,7 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
   source_fert[0] = (options.p0_ >= 0.0 && options.p0_ < 1.0) ? options.p0_ : 0.02;
   source_fert[1] = 1.0 - source_fert[0];
 
-  std::cerr << "starting reduced IBM 2 training" << std::endl;
+  std::cerr << "starting reduced IBM-2 training" << std::endl;
 
   double dict_weight_sum = 0.0;
   for (uint i = 0; i < options.nTargetWords_; i++) {
@@ -729,7 +730,7 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
 
   for (uint iter = 1; iter <= nIter; iter++) {
 
-    std::cerr << "starting reduced IBM 2 iteration #" << iter << std::endl;
+    std::cerr << "starting reduced IBM-2 iteration #" << iter << std::endl;
 
     //set counts to 0
     for (uint i = 0; i < options.nTargetWords_; i++) {
@@ -873,7 +874,7 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
     std::cerr << "new p0: " << source_fert[0] << std::endl;
 
     if (options.print_energy_) {
-      std::cerr << "ReducedIBM-2 energy after iteration #" << iter << ": "
+      std::cerr << "Reduced IBM-2 energy after iteration #" << iter << ": "
                 << reduced_ibm2_energy(source, slookup, target, alignment_model, dict, sclass, wcooc, options.nSourceWords_,
                                        prior_weight, l0_beta, smoothed_l0, dict_weight_sum)
                 << std::endl;
@@ -932,17 +933,17 @@ void train_reduced_ibm2(const Storage1D<Math1D::Vector<uint> >& source, const Lo
       sum_fmeasure /= nContributors;
       nErrors /= nContributors;
 
-      std::cerr << "#### ReducedIBM2 Viterbi-AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
-      std::cerr << "#### ReducedIBM2 Viterbi-fmeasure after iteration #" << iter << ": " << sum_fmeasure << std::endl;
-      std::cerr << "#### ReducedIBM2 Viterbi-DAE/S after iteration #" << iter << ": " << nErrors << std::endl;
+      std::cerr << "#### Reduced IBM-2 Viterbi-AER after iteration #" << iter << ": " << sum_aer << " %" << std::endl;
+      std::cerr << "#### Reduced IBM-2 Viterbi-fmeasure after iteration #" << iter << ": " << sum_fmeasure << std::endl;
+      std::cerr << "#### Reduced IBM-2 Viterbi-DAE/S after iteration #" << iter << ": " << nErrors << std::endl;
 
       sum_postdec_aer *= 100.0 / nContributors;
       sum_postdec_fmeasure /= nContributors;
       sum_postdec_daes /= nContributors;
 
-      std::cerr << "#### ReducedIBM2 Postdec-AER after iteration #" << iter << ": " << sum_postdec_aer << " %" << std::endl;
-      std::cerr << "#### ReducedIBM2 Postdec-fmeasure after iteration #" << iter << ": " << sum_postdec_fmeasure << std::endl;
-      std::cerr << "#### ReducedIBM2 Postdec-DAE/S after iteration #" << iter << ": " << sum_postdec_daes << std::endl;
+      std::cerr << "#### Reduced IBM-2 Postdec-AER after iteration #" << iter << ": " << sum_postdec_aer << " %" << std::endl;
+      std::cerr << "#### Reduced IBM-2 Postdec-fmeasure after iteration #" << iter << ": " << sum_postdec_fmeasure << std::endl;
+      std::cerr << "#### Reduced IBM-2 Postdec-DAE/S after iteration #" << iter << ": " << sum_postdec_daes << std::endl;
     }
   }
 
@@ -968,7 +969,7 @@ void train_reduced_ibm2_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
   source_fert[0] = (options.p0_ >= 0.0 && options.p0_ < 1.0) ? options.p0_ : 0.02;
   source_fert[1] = 1.0 - source_fert[0];
 
-  std::cerr << "starting reduced IBM 2 training" << std::endl;
+  std::cerr << "starting reduced IBM-2 gd-training" << std::endl;
 
   double dict_weight_sum = 0.0;
   for (uint i = 0; i < options.nTargetWords_; i++) {
@@ -1058,7 +1059,7 @@ void train_reduced_ibm2_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
 
   for (uint iter = 1; iter <= nIter; iter++) {
 
-    std::cerr << "starting reduced IBM 2 gd-iteration #" << iter << std::endl;
+    std::cerr << "starting reduced IBM-2 gd-iteration #" << iter << std::endl;
 
     for (uint i = 0; i < options.nTargetWords_; i++) {
       wgrad[i].set_constant(0.0);
@@ -1438,7 +1439,7 @@ void train_reduced_ibm2_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
     std::cerr << "new p0: " << source_fert[0] << std::endl;
 
     if (options.print_energy_)
-      std::cerr << "ReducedIBM-2 energy after gd-iteration #" << iter << ": " << energy << std::endl;
+      std::cerr << "Reduced IBM-2 energy after gd-iteration #" << iter << ": " << energy << std::endl;
 
     /************* compute alignment error rate ****************/
     if (!options.possible_ref_alignments_.empty()) {
@@ -1494,17 +1495,17 @@ void train_reduced_ibm2_gd_stepcontrol(const Storage1D<Math1D::Vector<uint> >& s
       sum_fmeasure /= nContributors;
       nErrors /= nContributors;
 
-      std::cerr << "#### ReducedIBM2 Viterbi-AER after gd-iteration #" << iter << ": " << sum_aer << " %" << std::endl;
-      std::cerr << "#### ReducedIBM2 Viterbi-fmeasure after gd-iteration #" << iter << ": " << sum_fmeasure << std::endl;
-      std::cerr << "#### ReducedIBM2 Viterbi-DAE/S after gd-iteration #" << iter << ": " << nErrors << std::endl;
+      std::cerr << "#### Reduced IBM-2 Viterbi-AER after gd-iteration #" << iter << ": " << sum_aer << " %" << std::endl;
+      std::cerr << "#### Reduced IBM-2 Viterbi-fmeasure after gd-iteration #" << iter << ": " << sum_fmeasure << std::endl;
+      std::cerr << "#### Reduced IBM-2 Viterbi-DAE/S after gd-iteration #" << iter << ": " << nErrors << std::endl;
 
       sum_postdec_aer *= 100.0 / nContributors;
       sum_postdec_fmeasure /= nContributors;
       sum_postdec_daes /= nContributors;
 
-      std::cerr << "#### ReducedIBM2 Postdec-AER after gd-iteration #" << iter << ": " << sum_postdec_aer << " %" << std::endl;
-      std::cerr << "#### ReducedIBM2 Postdec-fmeasure after gd-iteration #" << iter << ": " << sum_postdec_fmeasure << std::endl;
-      std::cerr << "#### ReducedIBM2 Postdec-DAE/S after gd-iteration #" << iter << ": " << sum_postdec_daes << std::endl;
+      std::cerr << "#### Reduced IBM-2 Postdec-AER after gd-iteration #" << iter << ": " << sum_postdec_aer << " %" << std::endl;
+      std::cerr << "#### Reduced IBM-2 Postdec-fmeasure after gd-iteration #" << iter << ": " << sum_postdec_fmeasure << std::endl;
+      std::cerr << "#### Reduced IBM-2 Postdec-DAE/S after gd-iteration #" << iter << ": " << sum_postdec_daes << std::endl;
     }
   }
 
@@ -1589,7 +1590,7 @@ void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& sourc
 
   for (uint iter = 1; iter <= nIter; iter++) {
 
-    std::cerr << "starting ReducedIBM2 Viterbi iteration " << iter << std::endl;
+    std::cerr << "starting Reduced IBM-2 Viterbi iteration " << iter << std::endl;
 
     for (uint i = 0; i < options.nTargetWords_; i++)
       dcount[i].set_constant(0);
@@ -2023,9 +2024,9 @@ void reduced_ibm2_viterbi_training(const Storage1D<Math1D::Vector<uint> >& sourc
       sum_fmeasure /= nContributors;
       nErrors /= nContributors;
 
-      std::cerr << "#### ReducedIBM-2 Viterbi-AER after Viterbi-iteration #" << iter << ": " << sum_aer << " %" << std::endl;
-      std::cerr << "#### ReducedIBM-2 Viterbi-fmeasure after Viterbi-iteration #" << iter << ": " << sum_fmeasure << std::endl;
-      std::cerr << "#### ReducedIBM-2 Viterbi-DAE/S after Viterbi-iteration #" << iter << ": " << nErrors << std::endl;
+      std::cerr << "#### Reduced IBM-2 Viterbi-AER after Viterbi-iteration #" << iter << ": " << sum_aer << " %" << std::endl;
+      std::cerr << "#### Reduced IBM-2 Viterbi-fmeasure after Viterbi-iteration #" << iter << ": " << sum_fmeasure << std::endl;
+      std::cerr << "#### Reduced IBM-2 Viterbi-DAE/S after Viterbi-iteration #" << iter << ": " << nErrors << std::endl;
     }
   }
 
