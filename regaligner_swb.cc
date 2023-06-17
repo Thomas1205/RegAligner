@@ -138,7 +138,7 @@ int main(int argc, char** argv)
     {"-sclasses", optInFilename, 0, ""}, {"-tclasses", optInFilename, 0, ""}, {"-tfert-classes", optInFilename, 0, ""}, {"-max-lookup", optWithValue, 1, "65535"},
     {"-ibm4-inter-dist-mode", optWithValue, 1, "previous"}, {"-ibm45-intra-dist-mode", optWithValue, 1, "source"}, {"-nondeficient", flag, 0, ""},
     {"-ilp-mode", optWithValue, 1, "off"}, {"-utmost-ilp-precision", flag, 0, ""}, {"-hmm-start-empty-word", flag, 0, ""}, {"-ibm3-extra-deficient", flag, 0, ""},
-    {"-deficient-h25", flag, 0, ""},{"-ibm4-deficient-null", optWithValue, 1, "intra"}, {"-rare-fert-limit", optWithValue, 1, "9"},
+    {"-deficient-h25", flag, 0, ""},{"-ibm4-deficient-null", optWithValue, 1, "intra"}, {"-rare-fert-limit", optWithValue, 1, "3"},
     {"-ibm2-alignment", optWithValue, 1, "pos"}, {"-no-h23-classes", flag, 0, ""}, {"-itg-max-mid-dev",optWithValue,1,"8"},{"-itg-ext-level",optWithValue,1,"0"},
     {"-ibm-max-skip", optWithValue,1,"3"},{"-dict-iter",optWithValue,1,"200"}, {"-nondef-iter",optWithValue,1,"250"}, 
 	{"-ibm5-distortion", optWithValue, 1, "pos"}, {"-ibm45-uniform-start-prob", flag, 0, ""}, {"-start-param-iter", optWithValue, 1, "250"}, 
@@ -206,7 +206,7 @@ int main(int argc, char** argv)
 
   uint fert_limit = convert<uint>(app.getParam("-fert-limit"));
   uint rare_fert_limit = convert<uint> (app.getParam("-rare-fert-limit"));
-  uint nMaxRareOccurences = 4;  //3;
+  uint nMaxRareOccurences = convert<uint>(app.getParam("-rare-threshold"));
 
   const uint max_lookup = convert<uint>(app.getParam("-max-lookup"));
   double postdec_thresh = convert<double>(app.getParam("-postdec-thresh"));
