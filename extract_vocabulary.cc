@@ -10,8 +10,7 @@
 #include "gzstream.h"
 #endif
 
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
 
   if (argc == 1 || (argc == 2 && strings_equal(argv[1],"-h"))) {
 
@@ -19,21 +18,23 @@ int main(int argc, char** argv)
               << "-i <file> : list of sentences " << std::endl
               << "[-i2 <file>] : further sentences (e.g. a dev set)" << std::endl
               << "-o <file> : output for extracted vocabulary" << std::endl
-              << "[-one-extra-class]: group all rare words together, not by length" << std::endl
-              << "[-max-rare <uint>]: limit for counting as rare" << std::endl
-              << "[-statistics]: print statistics" << std::endl;
+			  << "[-one-extra-class]: group all rare words together, not by length" << std::endl
+			  << "[-max-rare <uint>]: limit for counting a word as rare" << std::endl
+              << "[-count-classes] " << std::endl
+			  << "[-statistics]: print statistics" << std::endl;
     exit(0);
   }
 
-  const int nParams = 6;
+  const int nParams = 7;
   ParamDescr  params[nParams] = {{"-i",mandInFilename,0,""},{"-o",mandOutFilename,0,""},
-    {"-i2",optInFilename,0,""},{"-statistics",flag,0,""},
-    {"-one-extra-class",flag,0,""},{"-max-rare",optWithValue,1,"2"}
-  };
+                                 {"-i2",optInFilename,0,""},{"-statistics",flag,0,""},
+								 {"-one-extra-class",flag,0,""},{"-max-rare",optWithValue,1,"2"}, 
+								 {"-count-classes", flag, 0, ""}};
 
   Application app(argc,argv,params,nParams);
 
   bool one_extra_class = app.is_set("-one-extra-class");
+  bool count_counts = app.is_set("-count-classes");
   uint max_rare = convert<uint>(app.getParam("-max-rare"));
 
   std::istream* raw_stream;
@@ -75,14 +76,14 @@ int main(int argc, char** argv)
 #endif
 
     while ((*raw_stream) >> s) {
-
+      
       vocabulary.insert(s);
 
       if (app.is_set("-statistics"))
         word_count[s]++;
     }
     delete raw_stream;
-  }
+  } 
 
   std::ostream* out_stream;
 
@@ -118,15 +119,22 @@ int main(int argc, char** argv)
   classesout << "0" << std::endl; //empty word
   const uint nWords = vocabulary.size()+1;
   uint idx = 1;
+  uint nSelf = 0;
   for (std::set<std::string>::iterator it = vocabulary.begin(); it != vocabulary.end(); it++) {
     if (word_count[*it] <= max_rare) {
       if (one_extra_class)
-        classesout << (nWords+1) << std::endl;
+		classesout << (nWords+1) << std::endl;
+	  else if (count_counts)
+		classesout << (nWords + word_count[*it]) << std::endl;
       else
-        classesout << (nWords+it->size()) << std::endl;
+		classesout << (nWords+it->size()) << std::endl;
     }
-    else
+    else {
       classesout << idx << std::endl;
-    idx++;
+      nSelf++;
+	}
+	idx++;
   }
+  
+  std::cerr << nSelf << " out of " << vocabulary.size() <<  " words point to their own class" << std::endl;
 }
