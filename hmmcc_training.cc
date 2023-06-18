@@ -1330,10 +1330,10 @@ void viterbi_train_extended_hmm(const Storage1D<Math1D::Vector<uint> >& source, 
   uint maxI = maxAllI;
   const uint zero_offset = maxI - 1;
 
-  std::cerr << "calling init" << std::endl;
+  //std::cerr << "calling init" << std::endl;
   init_hmm_from_prev(source, slookup, target, dict, wcooc, source_class, target_class, dist_params, dist_grouping_param, source_fert_prob,
                      initial_prob, init_params, options, zero_offset, options.transfer_mode_, maxAllI);
-  std::cerr << "back from init" << std::endl;
+  //std::cerr << "back from init" << std::endl;
 
   Math1D::Vector<double> source_fert_count(2);
 

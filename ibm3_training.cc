@@ -6291,20 +6291,28 @@ long double IBM3Trainer::compute_ibmconstrained_viterbi_alignment_noemptyword(co
 
   //std::cerr << "initial best_prev_score: " << best_prev_score << std::endl;
 
+  uint sum_prev_max_fertilities = std::min<uint>(curJ,fertility_limit_[t_start]);
+
   for (uint i = 1; i < curI; i++) {
     //std::cerr << "********* i: " << i << " ***************" << std::endl;
 
     const uint ti = cur_target[i];
     const uint curMaxFertility = std::min<uint>(curJ,fertility_limit_[ti]);
+	
+	//std::cerr << "cur max fertility: " << curMaxFertility << std::endl;
 
     const Math1D::Vector<double>& cur_dict = dict_[ti];
 
     for (uint j = 0; j < curJ; j++)
       translation_cost[j] = cur_dict[cur_lookup(j, i)] * cur_distort_prob(j, i, target_class_[cur_target[i]]);
 
-    const uint allfert_max_reachable_j = std::min(curJ, nMaxSkips + (i + 1) * curMaxFertility); //1-based
-    const uint fertone_max_reachable_j = std::min(curJ, nMaxSkips + i * curMaxFertility + 1); //1-based
-    const uint prevword_max_reachable_j = std::min(curJ, nMaxSkips + i * curMaxFertility); //1-based
+    //const uint allfert_max_reachable_j = std::min(curJ, nMaxSkips + (i + 1) * curMaxFertility); //1-based
+    //const uint fertone_max_reachable_j = std::min(curJ, nMaxSkips + i * curMaxFertility + 1); //1-based
+    //const uint prevword_max_reachable_j = std::min(curJ, nMaxSkips + i * curMaxFertility); //1-based
+
+    const uint allfert_max_reachable_j = std::min(curJ, nMaxSkips + sum_prev_max_fertilities + curMaxFertility); //1-based
+    const uint fertone_max_reachable_j = std::min(curJ, nMaxSkips + sum_prev_max_fertilities + 1); //1-based
+    const uint prevword_max_reachable_j = std::min(curJ, nMaxSkips + sum_prev_max_fertilities); //1-based
 
     const uint prevword_max_reachable_state = first_state_[prevword_max_reachable_j] - 1; //this is 0-based
     const uint allfert_max_reachable_state = first_state_[allfert_max_reachable_j] - 1; //this is 0-based
@@ -6388,7 +6396,9 @@ long double IBM3Trainer::compute_ibmconstrained_viterbi_alignment_noemptyword(co
     //fertility > 1
     for (uint fert = 2; fert <= curMaxFertility; fert++) {
 
-      const uint curfert_max_reachable_j = std::min(curJ, nMaxSkips + i * curMaxFertility + fert); //this is 1-based
+      //const uint curfert_max_reachable_j = std::min(curJ, nMaxSkips + i * curMaxFertility + fert); //this is 1-based
+	  const uint curfert_max_reachable_j = std::min(curJ, nMaxSkips + sum_prev_max_fertilities + fert); //this is 1-based
+	  
       const uint curfert_max_reachable_state = first_state_[curfert_max_reachable_j] - 1; //this is 0-based
 
       //std::cerr << "fert: " << fert << std::endl;
@@ -6466,6 +6476,8 @@ long double IBM3Trainer::compute_ibmconstrained_viterbi_alignment_noemptyword(co
     }
     //nothing to do for all uncovered state
 
+	sum_prev_max_fertilities += curMaxFertility;
+
     //std::cerr << "new best_prev_score: " << best_prev_score << std::endl;
   }
 
@@ -6476,6 +6488,8 @@ long double IBM3Trainer::compute_ibmconstrained_viterbi_alignment_noemptyword(co
   const ushort best_end_fert = fert_trace[curI - 1][end_state];
 
   /**** traceback ****/
+  //std::cerr << "traceback, best prob " << best_prob << std::endl;
+  
   alignment.resize(curJ);
   alignment.set_constant(0);
 
@@ -6492,7 +6506,7 @@ long double IBM3Trainer::compute_ibmconstrained_viterbi_alignment_noemptyword(co
     }
 
     // std::cerr << "**** traceback: i=" << i << ", fert=" << fert << ", state #" << state
-    // << ", uncovered set=";
+			   // << ", uncovered set=";
     // print_uncovered_set(coverage_state_(0,state));
     // std::cerr << " ; max_covered_j=" << coverage_state_(1,state) << std::endl;
 
