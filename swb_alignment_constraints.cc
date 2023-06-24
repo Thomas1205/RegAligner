@@ -58,7 +58,7 @@ bool subalignment_satisfies_ibm_nonull(const Math1D::Vector<T>& alignment, const
 }
 
 bool alignment_satisfies_itg_nonull(const Math1D::Vector<AlignBaseType>& alignment, uint I, uint ext_level, int max_mid_dev,
-                                    uint nMaxSkips, uint level3_maxlength)
+                                    uint nMaxSkips, uint level3_maxlength, uint max_fert)
 {
   if (alignment.min() == 0)
     return false; //NULL alignments are not allowed
@@ -130,7 +130,7 @@ bool alignment_satisfies_itg_nonull(const Math1D::Vector<AlignBaseType>& alignme
       for (uint j=minj[i]+1; j < maxj[i]; j++) {
         if (alignment[j] != i) {
           closed = false;
-          break;;
+          break;
         }
       }
       if (!closed && ext_level == 0)
@@ -142,46 +142,47 @@ bool alignment_satisfies_itg_nonull(const Math1D::Vector<AlignBaseType>& alignme
       }
       else if (ext_level >= 1) {
 
-        bool passes_ext1 = false;
+        // bool passes_ext1 = false;
 
-        int other = -1;
-        uint count = 0;
-        passes_ext1 = true;
-        for (uint j=minj[i]+1; j < maxj[i]; j++) {
-          const int aj = alignment[j];
-          //std::cerr << "aj: " << aj << std::endl;
-          if (aj != i) {
-            //std::cerr << "values: " << fabs(aj-i) << ", " << fabs(orgi[aj]-orgi[i]) <<  std::endl;
-            if (std::abs(inum[aj]-inum[i]) != 1 || std::abs(aj-i) > 10) {
-              passes_ext1 = false;
-              break;
-            }
-            else {
-              if (other == -1)
-                other = aj;
-              else if (other != aj) {
-                passes_ext1 = false;
-                break;
-              }
-              count++;
-            }
-          }
-        }
+         //int other = -1;
+        // uint count = 0;
+        // passes_ext1 = true;
+        //for (uint j=minj[i]+1; j < maxj[i]; j++) {
+          //const int aj = alignment[j];
+          // //std::cerr << "aj: " << aj << std::endl;
+          // if (aj != i) {
+            // //std::cerr << "values: " << fabs(aj-i) << ", " << fabs(orgi[aj]-orgi[i]) <<  std::endl;
+            // if (std::abs(inum[aj]-inum[i]) != 1 || std::abs(aj-i) > 10) {
+              // passes_ext1 = false;
+              // break;
+            // }
+            // else {
+              // if (other == -1)
+                // other = aj;
+              // else if (other != aj) {
+                // passes_ext1 = false;
+                // break;
+              // }
+              // count++;
+            // }
+          // }
+        // }
 
-        if (passes_ext1 && fertility[other] != count)
-          passes_ext1 = false;
+        // if (passes_ext1 && fertility[other] != count)
+          // passes_ext1 = false;
 
-        //std::cerr << "passes_ext1: " << passes_ext1 << std::endl;
+        // //std::cerr << "passes_ext1: " << passes_ext1 << std::endl;
 
-        if (passes_ext1) {
-          assert(other != -1);
-          //std::cerr << "insert ext1 (" << std::min(i,other) << "," << std::max(i,other) << ")("
-          //          << minj[i] << "," << maxj[i] << ")" << std::endl;
-          parsed(std::min(i,other),std::max(i,other)).insert(std::make_pair<ushort,ushort>(minj[i],maxj[i]));
-        }
-        else if (ext_level >= 2 && maxj[i]+1 < J && fertility[i] == 2 && maxj[i] == minj[i]+2) {
+        // if (passes_ext1) {
+          // assert(other != -1);
+          // //std::cerr << "insert ext1 (" << std::min(i,other) << "," << std::max(i,other) << ")("
+          // //          << minj[i] << "," << maxj[i] << ")" << std::endl;
+          // parsed(std::min(i,other),std::max(i,other)).insert(std::make_pair<ushort,ushort>(minj[i],maxj[i]));
+        // }
+        
+		if (ext_level >= 2 && maxj[i]+1 < J && fertility[i] == 2 && maxj[i] == minj[i]+2) {
 
-          other = alignment[minj[i]+1];
+          int other = alignment[minj[i]+1];
           //std::cerr << "other: "<< other << std::endl;
 
           //check for i - ii - i - ii
@@ -194,6 +195,42 @@ bool alignment_satisfies_itg_nonull(const Math1D::Vector<AlignBaseType>& alignme
         }
       }
     }
+  }
+
+  if (ext_level >= 1) {
+	for (uint j1 = 0; j1 < J; j1++) {
+	  for (uint j2 = j1+1; j2 < J; j2++) {
+		  
+		const uint J = j2-j1+1;
+		if (!(J <= std::min<int>(10,max_fert+1) && J > 2))
+		  continue;
+		  
+		std::set<int> is;
+		for (uint jj = j1; jj <= j2; jj++) 
+		  is.insert(alignment[jj]);
+		if (is.size() == 2) {
+		  std::set<int>::const_iterator it = is.begin();
+		  int i1 = *it;
+		  it++;
+		  int i2 = *it;
+		  const uint I = i2-i1+1;
+		  if (I <= 10 && minj[i1] >= j1 && minj[i2] >= j1 && maxj[i1] <= j2 && maxj[i2] <= j2) {
+			//bool pass = ((alignment[j1] == i1 && alignmet[j2] == i1) //level 1 cannot handle constellations that start or end with different words
+		    //	 			|| (alignment[j1] == i2 && alignment[j2] == i2));
+			bool pass = (alignment[j1] == alignment[j2]); //level 1 cannot handle constellations that start or end with different words
+			for (int ii = i1+1; ii <= i2-1; ii++) {
+			  if (fertility[ii] != 0)
+			  {
+				pass = false;
+				break;
+			  }
+			}				
+			if (pass) 
+			  parsed(i1,i2).insert(std::make_pair<ushort>(j1,j2));	
+		  }
+		}
+	  }
+	}		
   }
 
   std::set<ushort> dividedis;
@@ -382,7 +419,6 @@ bool alignment_satisfies_itg_nonull(const Math1D::Vector<AlignBaseType>& alignme
 
 bool alignment_satisfies_ibm_nonull(const Math1D::Vector<AlignBaseType>& alignment, uint nMaxSkips)
 {
-
   //std::cerr << "checking alignment " << alignment << std::endl;
 
   if (alignment.min() == 0)
@@ -422,9 +458,111 @@ bool alignment_satisfies_ibm_nonull(const Math1D::Vector<AlignBaseType>& alignme
   return true;
 }
 
+#if 0
+struct BatchStruct {
+
+  BatchStruct(uint f, uint l, uint s) : first_pos_(f), last_pos_(l), state_(s) {}
+
+  uint first_pos_;
+  uint last_pos_;
+  uint state_;
+};
+#endif
+
+void IBMConstraintStates::compute_segments(uint nMaxSkips, uint uncovered_set_num,
+    std::vector<std::pair<uint, uint> >& segments) const
+{
+  // std::cerr << "*********** IBMConstraintStates::compute_segments *************************" << std::endl;
+  // std::cerr << "processing set state ";
+  // print_uncovered_set(uncovered_set_num);
+  // std::cerr << std::endl;
+
+  segments.clear();
+  const uint nUncoveredPositions = nUncoveredPositions_[uncovered_set_num];
+  if (nUncoveredPositions == 0)
+    return;
+
+  if (nMaxSkips == 1) {
+    uint pos = uncovered_set_(nMaxSkips-1, uncovered_set_num);
+    segments.push_back(std::make_pair(pos,pos));
+  }
+  else {
+    //search for consecutive skips as these can only be inserted at once
+    uint last_pos = uncovered_set_(nMaxSkips-1, uncovered_set_num);
+    uint cur_pos = last_pos;
+
+    assert((nMaxSkips - nUncoveredPositions) >= 0);
+    for (int k = nMaxSkips - 2; k >= (int)(nMaxSkips - nUncoveredPositions); k--) {
+
+      const uint pos = uncovered_set_(k, uncovered_set_num);
+      //std::cerr << "k: " << k << ", pos: " << pos << std::endl;
+      if (pos == cur_pos - 1)
+        cur_pos = pos;
+      else {
+        segments.push_back(std::make_pair(cur_pos,last_pos));
+        last_pos = pos;
+        cur_pos = pos;
+      }
+    }
+    //std::cerr << "pushing " << cur_pos << ", " << last_pos << std::endl;
+    segments.push_back(std::make_pair(cur_pos,last_pos));
+
+    //std::cerr << "extracted segments: " << segments << std::endl;
+  }
+}
+
+void IBMConstraintStates::compute_segments(uint* data, uint nMaxSkips, std::vector<std::pair<uint, uint> >& segments) const
+{
+  //std::cerr << "*********** IBMConstraintStates::compute_segments *************************" << std::endl;
+  //std::cerr << "processing set state ";
+  //for (uint k = 0; k < nMaxSkips; k++)
+  //{
+  //std::cerr << data[k] << ", ";
+  //}
+  //std::cerr << std::endl;
+
+  segments.clear();
+  if (data[nMaxSkips-1] == MAX_USHORT)
+    return;
+
+  uint nUncoveredPositions = 0;
+  for (uint k = 0; k < nMaxSkips; k++) {
+    if (data[k] != MAX_USHORT)
+      nUncoveredPositions++;
+  }
+
+  if (nMaxSkips == 1) {
+    uint pos = data[0];
+    segments.push_back(std::make_pair(pos,pos));
+  }
+  else {
+    //search for consecutive skips as these can only be inserted at once
+    uint last_pos = data[nMaxSkips-1]; //uncovered_set_(nMaxSkips-1, uncovered_set_num);
+    uint cur_pos  = last_pos;
+
+    //std::cerr << "starting with cur_pos " << cur_pos << std::endl;
+
+    assert((nMaxSkips - nUncoveredPositions) >= 0);
+    for (int k = nMaxSkips - 2; k >= (int)(nMaxSkips - nUncoveredPositions); k--) {
+
+      //std::cerr << "k: " << std::endl;
+      const uint pos = data[k]; //uncovered_set_(k, uncovered_set_num);
+      if (pos == cur_pos - 1)
+        cur_pos = pos;
+      else {
+        segments.push_back(std::make_pair(cur_pos,last_pos));
+        last_pos = pos;
+        cur_pos = pos;
+      }
+    }
+    segments.push_back(std::make_pair(cur_pos,last_pos));
+
+    //std::cerr << "extracted segments: " << segments << std::endl;
+  }
+}
+
 void IBMConstraintStates::compute_uncovered_sets(uint maxJ, uint nMaxSkips)
 {
-
   uint nSets = 1;
   for (uint k=1; k <= nMaxSkips; k++)
     nSets += choose(maxJ,k);
@@ -458,29 +596,50 @@ void IBMConstraintStates::compute_uncovered_sets(uint maxJ, uint nMaxSkips)
 
   uint nMaxPredecessors = 0;
 
-  //set 0 has no predecessors
+  //predecessors for set 0 (no skips)
+  {
+    std::vector<std::pair<uint,uint> > cur_predecessor_sets;
+    for (uint prev_set_num = 1; prev_set_num < next_set_idx_; prev_set_num++) {
+      if (nUncoveredPositions_[prev_set_num] == 1) {
+        cur_predecessor_sets.push_back(std::make_pair(prev_set_num, uncovered_set_(nMaxSkips-1,prev_set_num)));
+      }
+    }
+
+    const uint nCurPredecessors = cur_predecessor_sets.size();
+    predecessor_sets_[0].resize(2, nCurPredecessors);
+    uint k;
+    for (k = 0; k < nCurPredecessors; k++) {
+      predecessor_sets_[0](0, k) = cur_predecessor_sets[k].first;
+      predecessor_sets_[0](1, k) = cur_predecessor_sets[k].second;
+    }
+
+    nMaxPredecessors = std::max(nMaxPredecessors, nCurPredecessors);
+  }
+
   for (uint state = 1; state < next_set_idx_; state++) {
 
     std::vector<std::pair<uint,uint> > cur_predecessor_sets;
 
-    // std::cerr << "processing state ";
-    // for (uint k=0; k < nMaxSkips; k++) {
-
-    // if (uncovered_set_(k,state) == MAX_USHORT)
-    // std::cerr << "-";
-    // else
-    // std::cerr << uncovered_set_(k,state);
-    // if (k+1 < nMaxSkips)
-    // std::cerr << ",";
-    // }
+    // if (state <= 10) {
+    // std::cerr << "########## processing set state " << state << " with uncovered set ";
+    // print_uncovered_set(state);
     // std::cerr << std::endl;
+    // }
 
     const uint nUncoveredPositions = nUncoveredPositions_[state];
     const uint highestUncoveredPos = uncovered_set_(nMaxSkips - 1, state);
+    uint lowestUncoveredPos = highestUncoveredPos;
+    for (int k = nMaxSkips-2; k >= 0; k--) {
+      if (uncovered_set_(k,state) < MAX_USHORT) {
+        lowestUncoveredPos = uncovered_set_(k,state);
+      }
+    }
 
+    //if (state <= 10) {
     //std::cerr << "state: " << state << ", highest uncovered pos: " << highestUncoveredPos << std::endl;
     //std::cerr << "lower: " << first_set_[highestUncoveredPos] << std::endl;
     //std::cerr << "higher: " << first_set_[highestUncoveredPos + 1] << std::endl;
+    //}
 
     assert(state >= first_set_[highestUncoveredPos]);
     assert(state < first_set_[highestUncoveredPos + 1]);
@@ -500,8 +659,11 @@ void IBMConstraintStates::compute_uncovered_sets(uint maxJ, uint nMaxSkips)
 
     if (nUncoveredPositions == nMaxSkips) {
 
+      //std::cerr << "current set has max number of uncovered positions" << std::endl;
+
       for (uint k=1; k < nMaxSkips; k++)
         assert(uncovered_set_(k,state) != MAX_USHORT);
+      assert(lowestUncoveredPos == uncovered_set_(0,state));
 
       //predecessor states can only be states with less entries
 
@@ -509,8 +671,10 @@ void IBMConstraintStates::compute_uncovered_sets(uint maxJ, uint nMaxSkips)
 
       if (nConsecutiveEndSkips == nMaxSkips) {
 
-        //the current state can only be reached by inserting all skips at once
-        cur_predecessor_sets.push_back(std::make_pair(0, highestUncoveredPos + 1));
+        if (lowestUncoveredPos > 1) {
+          //the current state can only be reached by inserting all skips at once
+          cur_predecessor_sets.push_back(std::make_pair(0, highestUncoveredPos + 1));
+        }
       }
       else {
 
@@ -546,10 +710,12 @@ void IBMConstraintStates::compute_uncovered_sets(uint maxJ, uint nMaxSkips)
     }
     else {
 
-      //the skip set is not full for this uncovered set
+      //if (state <= 10)
+      //std::cerr << "skip set is not full" << std::endl;
 
+      //the skip set is not full for this uncovered set
       //predecessor entries can be one state with less entries
-      //    (where the transition to the current state introduces the final block of consectutive skips)
+      //    (where the transition to the current state introduces the final block of consecutive skips)
       // or states with more entries (where the transition to the current state fills a skipped position)
 
       assert(state > 0);
@@ -559,14 +725,17 @@ void IBMConstraintStates::compute_uncovered_sets(uint maxJ, uint nMaxSkips)
       //a) find the one predecessor state with less entries
       if (nUncoveredPositions == nConsecutiveEndSkips) {
 
-        //the current state can only be reached by inserting all skips at once
-        cur_predecessor_sets.push_back(std::make_pair(0, highestUncoveredPos + 1));
+        if (lowestUncoveredPos > 1) {
+          //the current state can only be reached by inserting all skips at once
+          cur_predecessor_sets.push_back(std::make_pair(0, highestUncoveredPos + 1));
+        }
       }
       else {
 
         const uint skip_before_end_skips = uncovered_set_(nMaxSkips - nConsecutiveEndSkips - 1, state);
 
-        for (uint prev_candidate = first_set_[skip_before_end_skips]; prev_candidate < first_set_[skip_before_end_skips + 1]; prev_candidate++) {
+        uint prev_candidate = 0;
+        for (prev_candidate = first_set_[skip_before_end_skips]; prev_candidate < first_set_[skip_before_end_skips + 1]; prev_candidate++) {
 
           if (nUncoveredPositions_[prev_candidate] == nPrevSkips) {
 
@@ -585,6 +754,7 @@ void IBMConstraintStates::compute_uncovered_sets(uint maxJ, uint nMaxSkips)
             }
           }
         }
+        assert(prev_candidate < first_set_[skip_before_end_skips + 1]);
       }
 
       //b) find states with exactly one more entry (transitions from these states to the current one close a skipped position)
@@ -643,12 +813,11 @@ void IBMConstraintStates::compute_uncovered_sets(uint maxJ, uint nMaxSkips)
 
   std::cerr << nTransitions << " transitions" << std::endl;
 
-  //visualize_set_graph("stategraph.dot");
+//visualize_set_graph("stategraph.dot");
 }
 
 void IBMConstraintStates::cover(uint level)
 {
-
   //  std::cerr << "*****cover(" << level << ")" << std::endl;
 
   if (level == 0) {
@@ -691,7 +860,8 @@ void IBMConstraintStates::cover(uint level)
 
 void IBMConstraintStates::compute_coverage_states(uint maxJ)
 {
-
+  std::cerr << "************ compute_coverage_states ***********" << std::endl;
+  std::cerr << "maxJ: " << maxJ << std::endl;
   const uint nMaxSkips = uncovered_set_.xDim();
 
   uint nStates = maxJ;     //states for set #0
@@ -748,17 +918,31 @@ void IBMConstraintStates::compute_coverage_states(uint maxJ)
 
   for (uint state_num = 0; state_num < nStates; state_num++) {
 
-    //std::cerr << "state #" << state_num << std::endl;
+    //if (state_num <= 10)
+    //std::cerr << "############ state #" << state_num << std::endl;
 
     std::vector<std::pair<uint,uint> > cur_predecessor_states;
 
     const uint highest_covered_source_pos = coverage_state_(1, state_num);
     const uint uncovered_set_idx = coverage_state_(0, state_num);
 
+    // if (state_num <= 10)
+    // {
+    // std::cerr << "highest covered source pos: " << highest_covered_source_pos << ", uncovered set:";
+    // print_uncovered_set(uncovered_set_idx);
+    // std::cerr << std::endl;
+    // }
+
     if (uncovered_set_idx == 0) {
+
+      //if (state_num <= 10)
+      //std::cerr << "uncovered set is empty" << std::endl;
 
       //the set of uncovered positions is empty
       if (highest_covered_source_pos > 0) {     //otherwise there are no predecessor states
+
+        //if (state_num <= 10)
+        //std::cerr << "highest_covered_source_pos: " << highest_covered_source_pos << std::endl;
 
         //a) handle transition where the uncovered set is kept
         assert(state_num > 0);
@@ -769,30 +953,26 @@ void IBMConstraintStates::compute_coverage_states(uint maxJ)
         cur_predecessor_states.push_back(std::make_pair(prev_state, highest_covered_source_pos));
 
         //b) handle transitions where the uncovered set is changed
-        const uint nPredecessorSets = predecessor_sets_[uncovered_set_idx].yDim();
+        // the predecessor set must have exactly one uncovered position
+        const Math2D::Matrix<uint>& cur_predecessor_sets = predecessor_sets_[uncovered_set_idx];
+        const uint nPredecessorSets = cur_predecessor_sets.yDim();
 
         for (uint p = 0; p < nPredecessorSets; p++) {
 
-          const uint covered_source_pos = predecessor_sets_[uncovered_set_idx](1, p) - 1; //convert from 1-based to 0-based
-          if (covered_source_pos <= highest_covered_source_pos) {
-            const uint predecessor_set = predecessor_sets_[uncovered_set_idx](0, p);
+          const uint covered_source_pos = cur_predecessor_sets(1, p) - 1; //convert from 1-based to 0-based
 
+          //if (state_num <= 10)
+          //std::cerr << "**** p: " << p << ", covered source pos: " << covered_source_pos << std::endl;
+          if (covered_source_pos < highest_covered_source_pos) {
+
+            const uint predecessor_set = cur_predecessor_sets(0, p);
             assert(nUncoveredPositions_[predecessor_set] == 1);
 
-            int prev_highest_covered_source_pos = highest_covered_source_pos;
-            if (covered_source_pos == highest_covered_source_pos)
-              prev_highest_covered_source_pos--;
-
-            if (prev_highest_covered_source_pos >= 0) {
-
-              //find the index of the predecessor state
-              const uint prev_idx = cov_state_num(predecessor_set, prev_highest_covered_source_pos);
-
-              assert(prev_idx < first_state_[highest_covered_source_pos + 1]);
-              assert(coverage_state_(1, prev_idx) == highest_covered_source_pos);
-
-              cur_predecessor_states.push_back(std::make_pair(prev_idx, covered_source_pos));
-            }
+            const uint prev_idx = cov_state_num(predecessor_set, highest_covered_source_pos);
+            //if (state_num <= 10)
+            //std::cerr << "prev state: " << prev_idx << std::endl;
+            assert(prev_idx != MAX_UINT);
+            cur_predecessor_states.push_back(std::make_pair(prev_idx,covered_source_pos));
           }
         }
       }
@@ -801,38 +981,54 @@ void IBMConstraintStates::compute_coverage_states(uint maxJ)
     }
     else {
 
-      const uint highest_uncovered_source_pos = uncovered_set_(nMaxSkips - 1, uncovered_set_idx) - 1; //convert from 1-based to 0-based
+      //if (state_num <= 10)
+      //std::cerr << "uncovered set is not empty" << std::endl;
+
+      const int highest_uncovered_source_pos = uncovered_set_(nMaxSkips - 1, uncovered_set_idx) - 1; //convert from 1-based to 0-based
       assert(highest_uncovered_source_pos < highest_covered_source_pos);
 
       //a) handle transition where the uncovered set is kept
       if (highest_covered_source_pos > highest_uncovered_source_pos + 1) {
 
+        //if (state_num <= 10)
+        //std::cerr << "transition from self" << std::endl;
         assert(state_num > 0);
         const uint prev_state = cov_state_num(uncovered_set_idx, highest_covered_source_pos - 1);
 
+        assert(prev_state != MAX_UINT);
         assert(coverage_state_(1, prev_state) == highest_covered_source_pos - 1);
         assert(coverage_state_(0, prev_state) == uncovered_set_idx);
         cur_predecessor_states.push_back(std::make_pair(prev_state, highest_covered_source_pos));
       }
 
       //b) handle transitions where the uncovered set is changed
-      const uint nPredecessorSets = predecessor_sets_[uncovered_set_idx].yDim();
 
       //std::cerr << "examining state (";
       //print_uncovered_set(uncovered_set_idx);
       //std::cerr << " ; " << highest_covered_source_pos << " )" << std::endl;
 
+      const Math2D::Matrix<uint>& cur_predecessor_sets = predecessor_sets_[uncovered_set_idx];
+      const uint nPredecessorSets = cur_predecessor_sets.yDim();
       for (uint p = 0; p < nPredecessorSets; p++) {
 
-        const uint covered_source_pos = predecessor_sets_[uncovered_set_idx](1, p) - 1; //convert from 1-based to 0-based
+        const int covered_source_pos = cur_predecessor_sets(1, p) - 1; //convert from 1-based to 0-based
+        // if (state_num <= 10)
+        // std::cerr << "transition " << p << "; covered_source_pos: " << covered_source_pos << ", highest_covered_source_pos: "
+        // << highest_covered_source_pos << ", set num " << cur_predecessor_sets(0, p) << std::endl;
         if (covered_source_pos <= highest_covered_source_pos) {
-          const uint predecessor_set = predecessor_sets_[uncovered_set_idx](0, p);
+          const uint predecessor_set = cur_predecessor_sets(0, p);
 
-          //std::cerr << "predecessor set ";
-          //print_uncovered_set(predecessor_set);
-          //std::cerr << std::endl;
+          // if (state_num <= 10) {
+          // std::cerr << "predecessor set ";
+          // print_uncovered_set(predecessor_set);
+          // std::cerr << std::endl;
+          // }
 
           if (nUncoveredPositions_[predecessor_set] > nUncoveredPositions_[uncovered_set_idx]) {
+
+            //if (state_num <= 10) {
+            //std::cerr << "transition reduces the number of skips" << std::endl;
+            //}
 
             //transition from previous state to current fills a skipped position (this means the pos following the largest skip is already filled)
             if (uncovered_set_(nMaxSkips-1,predecessor_set) - 1 < highest_covered_source_pos) { //convert from 1-based to 0-based
@@ -849,6 +1045,10 @@ void IBMConstraintStates::compute_coverage_states(uint maxJ)
           }
           else if (covered_source_pos == highest_covered_source_pos) {
 
+            //if (state_num <= 10) {
+            //std::cerr << "covered source pos is last" << std::endl;
+            //}
+
             //transition from previous state to current introduces consecutive skips
 
             assert(nUncoveredPositions_[predecessor_set] < nUncoveredPositions_[uncovered_set_idx]);
@@ -856,9 +1056,13 @@ void IBMConstraintStates::compute_coverage_states(uint maxJ)
             int first_skipped_j = uncovered_set_(nMaxSkips-nNewSkips,uncovered_set_idx) - 1; //convert from 1-based to 0-based
             int prev_highest_covered_source_pos = first_skipped_j-1;
 
+            //if (state_num <= 10) {
+            //std::cerr << "prev_highest_covered_source_pos: " << prev_highest_covered_source_pos << std::endl;
+            //}
+
             if (prev_highest_covered_source_pos >= 0) {
 
-              // if (highest_covered_source_pos >= 73) {
+              // if (state_num <= 10) {
               // std::cerr << "examining state (" << uncovered_set_idx << "=";
               // print_uncovered_set(uncovered_set_idx);
               // std::cerr << " ; " << highest_covered_source_pos << " )" << std::endl;
@@ -869,12 +1073,13 @@ void IBMConstraintStates::compute_coverage_states(uint maxJ)
               // std::cerr << ")" << std::endl;
 
               // std::cerr << "ph: " << prev_highest_covered_source_pos << std::endl;
-              // std::cerr << "jb: " << (j_before_end_skips_[uncovered_set_idx]-1) << std::endl;
               // }
 
               //find the index of the predecessor state
               const uint prev_idx = cov_state_num(predecessor_set, prev_highest_covered_source_pos);
+              //std::cerr << "introducing a transition from state #" << prev_idx << std::endl;
 
+              assert(prev_idx != MAX_UINT);
               assert(prev_idx < first_state_[prev_highest_covered_source_pos + 1]);
               assert(coverage_state_(1, prev_idx) == prev_highest_covered_source_pos);
 
@@ -888,8 +1093,8 @@ void IBMConstraintStates::compute_coverage_states(uint maxJ)
     /*** copy cur_predecessor_states to predecessor_covered_sets_[state_num] ***/
     predecessor_coverage_states_[state_num].resize(2, cur_predecessor_states.size());
     for (uint k = 0; k < cur_predecessor_states.size(); k++) {
-      predecessor_coverage_states_[state_num] (0, k) = cur_predecessor_states[k].first;
-      predecessor_coverage_states_[state_num] (1, k) = cur_predecessor_states[k].second;
+      predecessor_coverage_states_[state_num](0, k) = cur_predecessor_states[k].first;
+      predecessor_coverage_states_[state_num](1, k) = cur_predecessor_states[k].second;
     }
   }
 
@@ -907,9 +1112,11 @@ void IBMConstraintStates::compute_coverage_states(uint maxJ)
 
       std::cerr << "allowing start state " << state << " with set ";
       print_uncovered_set(set_idx);
-      std::cerr << std::endl;
+      std::cerr << " and max_covered_j " << max_covered_j << std::endl;
 
       start_states_.insert(state);
+      assert(predecessor_coverage_states_.size() > state);
+      assert(predecessor_coverage_states_[state].size() == 0);
     }
   }
 }
@@ -933,7 +1140,6 @@ uint IBMConstraintStates::nUncoveredPositions(uint state) const
 
 void IBMConstraintStates::print_uncovered_set(uint setnum) const
 {
-
   for (uint k = 0; k < uncovered_set_.xDim(); k++) {
 
     if (uncovered_set_(k, setnum) == MAX_USHORT)
@@ -941,6 +1147,19 @@ void IBMConstraintStates::print_uncovered_set(uint setnum) const
     else
       std::cerr << uncovered_set_(k, setnum);
     if (k+1 < uncovered_set_.xDim())
+      std::cerr << ",";
+  }
+}
+
+void IBMConstraintStates::print_uncovered_set(uint* data, uint nMaxSkips) const
+{
+  for (uint k = 0; k < uncovered_set_.xDim(); k++) {
+
+    if (data[k] == MAX_USHORT)
+      std::cerr << "-";
+    else
+      std::cerr << data[k];
+    if (k+1 < nMaxSkips)
       std::cerr << ",";
   }
 }

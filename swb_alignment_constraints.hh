@@ -19,7 +19,7 @@ struct AlignmentSetConstraints {
 
 //nMaxSkips is relevant only for ext_level 3
 bool alignment_satisfies_itg_nonull(const Math1D::Vector<AlignBaseType>& alignment, uint II, uint ext_level = 0, int max_mid_dev = 10000,
-                                    uint nMaxSkips = 3, uint level3_maxlength = 8);
+                                    uint nMaxSkips = 3, uint level3_maxlength = 8, uint max_fert = 9);
 
 bool alignment_satisfies_ibm_nonull(const Math1D::Vector<AlignBaseType>& alignment, uint nMaxSkips);
 
@@ -35,6 +35,12 @@ public:
   uint nUncoveredPositions(uint state) const;
 
   void print_uncovered_set(uint setnum) const;
+
+  void print_uncovered_set(uint* data, uint nMaxSkips) const;
+
+  void compute_segments(uint nMaxSkips, uint uncovered_set_num, std::vector<std::pair<uint, uint> >& segments) const;
+
+  void compute_segments(uint* data, uint nMaxSkips, std::vector<std::pair<uint, uint> >& segments) const;
 
   void visualize_set_graph(std::string filename);
 

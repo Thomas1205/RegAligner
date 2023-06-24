@@ -3342,9 +3342,14 @@ void IBM3Trainer::train_viterbi(uint nIter, const AlignmentSetConstraints& align
 
             //std::cerr << "s: " << s << std::endl;
 
+			ushort max_fert = 1;
+			for (uint i=0; i < curI; i++)
+			  max_fert = std::max(max_fert, fertility_limit_[cur_target[i]]);
+
             prob = compute_itg_viterbi_alignment_noemptyword(cur_source, cur_target, cur_lookup, cur_best_known_alignment, itg_ext_level, max_mid_dev);
             prob *= pow(p_nonzero_, source_sentence_[s].size());
-            assert(alignment_satisfies_itg_nonull(cur_best_known_alignment,curI,itg_ext_level,max_mid_dev,nMaxSkips,level3_maxlength));
+            assert(alignment_satisfies_itg_nonull(cur_best_known_alignment,curI,itg_ext_level,max_mid_dev,nMaxSkips,
+												  level3_maxlength, max_fert));
           }
 
           //std::cerr << "probability " << prob << std::endl;
@@ -3494,6 +3499,10 @@ void IBM3Trainer::train_viterbi(uint nIter, const AlignmentSetConstraints& align
         const uint curI = cur_target.size();
         const uint curJ = cur_source.size();
 
+		ushort max_fert = 1;
+		for (uint i=0; i < curI; i++)
+		  max_fert = std::max(max_fert, fertility_limit_[cur_target[i]]);
+
         Math1D::Vector<uint> cur_fertilities(curI + 1, 0);
         for (uint j = 0; j < curJ; j++) {
 
@@ -3555,7 +3564,7 @@ void IBM3Trainer::train_viterbi(uint nIter, const AlignmentSetConstraints& align
                 if (allowed) {
                   Math1D::Vector<AlignBaseType> hyp_alignment = cur_best_known_alignment;
                   hyp_alignment[j] = i;
-                  allowed = alignment_satisfies_itg_nonull(hyp_alignment,curI,itg_ext_level,max_mid_dev,nMaxSkips,level3_maxlength);
+                  allowed = alignment_satisfies_itg_nonull(hyp_alignment,curI,itg_ext_level,max_mid_dev,nMaxSkips,level3_maxlength,max_fert);
                 }
               }
               else {
@@ -5333,7 +5342,7 @@ long double IBM3Trainer::compute_itg_viterbi_alignment_noemptyword(const Storage
 
       long double prob = jcost(j,i);
 
-      for (int jj=j+1; jj < std::min(j+fertility_limit_[ti]+1,curJ); jj++) {
+      for (int jj=j+1; jj < std::min(j+fertility_limit_[ti],curJ); jj++) {
 
         const uint J = jj-j+1;
 
