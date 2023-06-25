@@ -5373,7 +5373,9 @@ long double IBM3Trainer::compute_itg_viterbi_alignment_noemptyword(const Storage
     //const uint Istart = (J == curJ) ? curI : 1;
     const int Istart = (J == curJ) ? std::max<uint>(2,curI) : std::max<uint>(2,idiv);
 
-    for (int I = Istart; I <= max_span; I++) {
+    //for (int I = Istart; I <= max_span; I++) {
+	for (int I = 2; I <= curI; I++) {
+		
 
       //if (curJ == 62)
       //  std::cerr << "I: " << I << std::endl;
