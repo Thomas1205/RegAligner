@@ -458,13 +458,15 @@ void IBM5Trainer::init_from_prevmodel(FertilityModelTrainerBase* prev_model, con
         fertility_prob_[k] = fert_model->fertility_prob()[k];
 
         //EXPERIMENTAL
-        for (uint l = 0; l < fertility_prob_[k].size(); l++) {
-          if (l <= fertility_limit_[k])
-            fertility_prob_[k][l] = 0.95 * std::max(fert_min_param_entry, fertility_prob_[k][l])
-                                    + 0.05 / std::min<uint>(fertility_prob_[k].size(), fertility_limit_[k] + 1);
-          else
-            fertility_prob_[k][l] = 0.95 * fertility_prob_[k][l];
-        }
+		if (!fertprob_sharing_) {
+          for (uint l = 0; l < fertility_prob_[k].size(); l++) {
+            if (l <= fertility_limit_[k])
+              fertility_prob_[k][l] = 0.95 * std::max(fert_min_param_entry, fertility_prob_[k][l])
+                                      + 0.05 / std::min<uint>(fertility_prob_[k].size(), fertility_limit_[k] + 1);
+            else
+              fertility_prob_[k][l] = 0.95 * fertility_prob_[k][l];
+		  }
+		}
         //END_EXPERIMENTAL
       }
     }

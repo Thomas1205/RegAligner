@@ -5084,7 +5084,7 @@ double IBM3Trainer::compute_viterbi_alignment_ilp(const Storage1D<uint>& cur_sou
     active_rows(0, 2) = null_fert_var_offs + maxFert[0];
 
     for (uint i = 1; i <= curI; i++) {
-      active_rows(i, 0) = consistency_con_offs + 1;
+      active_rows(i, 0) = consistency_con_offs + i;
       active_rows(i, 1) = fert_var_offs + (i - 1) * nFertVarsPerWord;
       active_rows(i, 2) =
         fert_var_offs + (i - 1) * nFertVarsPerWord + maxFert[i];
