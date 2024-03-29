@@ -53,7 +53,7 @@ public:
   {
     return Base::direct_access();
   }
-
+  
   inline T& operator[](ST i) const noexcept;
 
   inline ST reserved_size() const noexcept;

@@ -52,6 +52,12 @@ public:
   {
     return value_;
   }
+  
+  //NOTE: values correspond to keys, which may be unsorted
+  VVec& value() noexcept
+  {
+    return value_;
+  }  
 
   void clear() noexcept
   {
@@ -102,13 +108,17 @@ public:
 
   bool contains(const KeyPassType key) const noexcept;
 
-  Value& operator[](const KeyPassType key) noexcept;
+  Value& operator[](const KeyPassType key); //vector can throw std::bad_alloc()
+  
+  Value operator()(const KeyPassType key, const Value backoff_value) const noexcept;
 
-  Value& find_or_insert(const KeyPassType key, const Value& initial_value) noexcept;
+  Value& find_or_insert(const KeyPassType key, const Value& initial_value); //vector can throw std::bad_alloc()
 
-  void operator=(const UnsortedMap<Key, Value, KVec, VVec, Equal>& toCopy);
+  Value& find_or_insert(Key&& key, const Value& initial_value); //vector can throw std::bad_alloc()
 
-  void operator=(UnsortedMap<Key, Value, KVec, VVec, Equal>&& toTake);
+  void operator=(const UnsortedMap<Key, Value, KVec, VVec, Equal>& toCopy); //vector can throw std::bad_alloc()
+
+  void operator=(UnsortedMap<Key, Value, KVec, VVec, Equal>&& toTake); //vector can throw std::bad_alloc()
 
   template<typename Hash, typename HT, typename ST>
   void assign(const HashMapBase<Key,Value,Hash,HT,ST>& toCopy);
@@ -151,9 +161,13 @@ public:
 
   bool contains(const KeyPassType key) const noexcept;
 
-  Value& operator[](const KeyPassType key) noexcept;
+  Value& operator[](const KeyPassType key); //std::vector can throw std::bad_alloc
+  
+  Value operator()(const KeyPassType key, const Value backoff_value) const noexcept;
 
-  Value& find_or_insert(const KeyPassType key, const Value& initial_value) noexcept;
+  Value& find_or_insert(const KeyPassType key, const Value& initial_value); //vector can throw std::bad_alloc()
+
+  Value& find_or_insert(Key&& key, const Value& initial_value); //vector can throw std::bad_alloc()
 
   void operator=(const UnsortedMap<Key, Value, KVec, VVec, Equal>& toCopy);
 
@@ -189,7 +203,7 @@ bool UnsortedMap<Key,Value,KVec,VVec,Equal>::contains(const KeyPassType key) con
 }
 
 template<typename Key, typename Value, typename KVec, typename VVec, typename Equal>
-Value& UnsortedMap<Key,Value,KVec,VVec,Equal>::operator[](const KeyPassType key) noexcept
+Value& UnsortedMap<Key,Value,KVec,VVec,Equal>::operator[](const KeyPassType key)
 {
   const size_t size = Base::key_.size();
   const size_t pos = Routines::find_unique<Key,Equal>(Base::key_.data(), key, size);
@@ -202,7 +216,31 @@ Value& UnsortedMap<Key,Value,KVec,VVec,Equal>::operator[](const KeyPassType key)
 }
 
 template<typename Key, typename Value, typename KVec, typename VVec, typename Equal>
-Value& UnsortedMap<Key,Value,KVec,VVec,Equal>::find_or_insert(const KeyPassType key, const Value& initial_value) noexcept
+Value UnsortedMap<Key,Value,KVec,VVec,Equal>::operator()(const KeyPassType key, const Value backoff_value) const noexcept
+{
+  const size_t size = Base::key_.size();
+  const size_t pos = Routines::find_unique<Key,Equal>(Base::key_.data(), key, size);
+  if (pos < size)
+    return Base::value_[pos];
+
+  return backoff_value;	
+}
+
+template<typename Key, typename Value, typename KVec, typename VVec, typename Equal>
+Value& UnsortedMap<Key,Value,KVec,VVec,Equal>::find_or_insert(const KeyPassType key, const Value& initial_value)
+{
+  const size_t size = Base::key_.size();
+  const size_t pos = Routines::find_unique(Base::key_.data(), key, size);
+  if (pos < size)
+    return Base::value_[pos];
+
+  Base::key_.push_back(key);
+  Base::value_.push_back(initial_value);
+  return Base::value_.back();
+}
+
+template<typename Key, typename Value, typename KVec, typename VVec, typename Equal>
+Value& UnsortedMap<Key,Value,KVec,VVec,Equal>::find_or_insert(Key&& key, const Value& initial_value)
 {
   const size_t size = Base::key_.size();
   const size_t pos = Routines::find_unique(Base::key_.data(), key, size);
@@ -304,7 +342,7 @@ bool UnsortedMapExploitSort<Key,Value,KVec,VVec,Less,Equal>::contains(const KeyP
 }
 
 template<typename Key, typename Value, typename KVec, typename VVec, typename Less, typename Equal>
-Value& UnsortedMapExploitSort<Key,Value,KVec,VVec,Less,Equal>::operator[](const KeyPassType key) noexcept
+Value& UnsortedMapExploitSort<Key,Value,KVec,VVec,Less,Equal>::operator[](const KeyPassType key) 
 {
   const size_t size = Base::key_.size();
   const size_t pos = (is_sorted_) ? Routines::binsearch<Key,Less,Equal>(Base::key_.data(), key, size)
@@ -321,8 +359,20 @@ Value& UnsortedMapExploitSort<Key,Value,KVec,VVec,Less,Equal>::operator[](const 
   return Base::value_.back();
 }
 
+
 template<typename Key, typename Value, typename KVec, typename VVec, typename Less, typename Equal>
-Value& UnsortedMapExploitSort<Key,Value,KVec,VVec,Less,Equal>::find_or_insert(const KeyPassType key, const Value& initial_value) noexcept
+Value UnsortedMapExploitSort<Key,Value,KVec,VVec,Less,Equal>::operator()(const KeyPassType key, const Value backoff_value) const noexcept
+{
+  const size_t size = Base::key_.size();
+  const size_t pos = (is_sorted_) ? Routines::binsearch<Key,Less,Equal>(Base::key_.data(), key, size)
+                     : Routines::find_unique<Key,Equal>(Base::key_.data(), key, size);
+  if (pos < size)
+    return Base::value_[pos];
+  return backoff_value;	
+}
+
+template<typename Key, typename Value, typename KVec, typename VVec, typename Less, typename Equal>
+Value& UnsortedMapExploitSort<Key,Value,KVec,VVec,Less,Equal>::find_or_insert(const KeyPassType key, const Value& initial_value)
 {
   const size_t size = Base::key_.size();
   const size_t pos = (is_sorted_) ? Routines::binsearch<Key,Less,Equal>(Base::key_.data(), key, size)
@@ -338,6 +388,25 @@ Value& UnsortedMapExploitSort<Key,Value,KVec,VVec,Less,Equal>::find_or_insert(co
   Base::value_.push_back(initial_value);
   return Base::value_.back();
 }
+
+template<typename Key, typename Value, typename KVec, typename VVec, typename Less, typename Equal>
+Value& UnsortedMapExploitSort<Key,Value,KVec,VVec,Less,Equal>::find_or_insert(Key&& key, const Value& initial_value)
+{
+  const size_t size = Base::key_.size();
+  const size_t pos = (is_sorted_) ? Routines::binsearch<Key,Less,Equal>(Base::key_.data(), key, size)
+                     : Routines::find_unique<Key,Equal>(Base::key_.data(), key, size);
+  if (pos < size)
+    return Base::value_[pos];
+
+  const static Less less;
+  if (size > 0 && less(key,Base::key_.back()))
+    is_sorted_ = false;
+
+  Base::key_.push_back(key);
+  Base::value_.push_back(initial_value);
+  return Base::value_.back();
+}
+
 
 template<typename Key, typename Value, typename KVec, typename VVec, typename Less, typename Equal>
 void UnsortedMapExploitSort<Key,Value,KVec,VVec,Less,Equal>::operator=(const UnsortedMap<Key, Value, KVec, VVec, Equal>& toCopy)

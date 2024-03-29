@@ -25,27 +25,27 @@ namespace Math1D {
     //according to https://gcc.gnu.org/onlinedocs/gcc-7.2.0/gcc/Common-Type-Attributes.html#Common-Type-Attributes , alignment has to be expressed like this:
     typedef T T_A16 ALIGNED16;
 
-    explicit Vector();
+    explicit Vector() noexcept;
 
-    explicit Vector(ST size);
+    explicit Vector(ST size); //new throws exceptions
 
-    explicit Vector(ST size, const T default_value);
+    explicit Vector(ST size, const T default_value); //new throws exceptions
 
-    Vector(const std::initializer_list<T>& init);
+    Vector(const std::initializer_list<T>& init); //new throws exceptions
 
     //copy constructor
-    Vector(const Vector<T,ST>& toCopy);
+    Vector(const Vector<T,ST>& toCopy); //new throws exceptions
 
     //move constructor
-    Vector(Vector<T,ST>&& toTake);
+    Vector(Vector<T,ST>&& toTake) noexcept;
 
-    ~Vector();
+    ~Vector() noexcept;
 
-    Vector<T,ST>& operator=(const Vector<T,ST>& toCopy);
+    Vector<T,ST>& operator=(const Vector<T,ST>& toCopy); //new throws exceptions
 
-    Vector<T,ST>& operator=(Vector<T,ST>&& toTake);
+    Vector<T,ST>& operator=(Vector<T,ST>&& toTake) noexcept;
 
-    Vector<T,ST>& operator=(const std::initializer_list<T>& init);
+    Vector<T,ST>& operator=(const std::initializer_list<T>& init); //new throws exceptions
 
     //redefining the operator[] methods because for basic types we can indicate 16-byte alignment
     inline const T& operator[](ST i) const noexcept;
@@ -238,7 +238,7 @@ namespace Math1D {
   template<typename T,typename ST>
   /*static*/ const std::string Vector<T,ST>::vector_name_ = "unnamed vector";
 
-  template<typename T,typename ST> Vector<T,ST>::Vector() : Storage1D<T,ST>() {}
+  template<typename T,typename ST> Vector<T,ST>::Vector() noexcept : Storage1D<T,ST>() {}
 
   template<typename T,typename ST> Vector<T,ST>::Vector(ST size) : Storage1D<T,ST>(size) {}
 
@@ -255,10 +255,10 @@ namespace Math1D {
   template<typename T,typename ST> Vector<T,ST>::Vector(const Vector<T,ST>& toCopy) : Storage1D<T,ST>(toCopy) {}
 
   //move constructor
-  template<typename T,typename ST> Vector<T,ST>::Vector(Vector<T,ST>&& toTake) : Storage1D<T,ST>(toTake) {}
+  template<typename T,typename ST> Vector<T,ST>::Vector(Vector<T,ST>&& toTake) noexcept : Storage1D<T,ST>(toTake) {}
 
   template<typename T,typename ST>
-  Vector<T,ST>& Vector<T,ST>::operator=(Vector<T,ST>&& toTake)
+  Vector<T,ST>& Vector<T,ST>::operator=(Vector<T,ST>&& toTake) noexcept
   {
     StorageBase<T,ST>::operator=(toTake);
     return *this;
@@ -284,7 +284,7 @@ namespace Math1D {
     return *this;
   }
 
-  template<typename T,typename ST> Vector<T,ST>::~Vector() {}
+  template<typename T,typename ST> Vector<T,ST>::~Vector() noexcept {}
 
   template<typename T,typename ST>
   inline T Vector<T,ST>::sum() const noexcept

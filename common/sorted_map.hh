@@ -33,9 +33,13 @@ public:
 
   bool contains(const KeyPassType key) const noexcept;
 
-  Value& find_or_insert(const KeyPassType key, const Value& initial_value) noexcept;
+  Value& find_or_insert(const KeyPassType key, const Value& initial_value); //vector can throw std::bad_alloc()
 
-  Value& operator[](const KeyPassType key) noexcept;
+  Value& find_or_insert(Key&& key, const Value& initial_value); //vector can throw std::bad_alloc()
+
+  Value& operator[](const KeyPassType key); //vector can throw std::bad_alloc()
+  
+  Value operator()(const KeyPassType key, const Value backoff_value) const noexcept;
 
   void operator=(const SortedMap<Key, Value>& toCopy);
 
@@ -62,7 +66,7 @@ bool SortedMap<Key,Value,KVec,VVec,Less,Equal>::contains(const KeyPassType key) 
 }
 
 template<typename Key, typename Value, typename KVec, typename VVec, typename Less, typename Equal>
-Value& SortedMap<Key,Value,KVec,VVec,Less,Equal>::operator[](const KeyPassType key) noexcept
+Value& SortedMap<Key,Value,KVec,VVec,Less,Equal>::operator[](const KeyPassType key) 
 {
   const size_t size = Base::key_.size();
   const size_t inspos = Routines::binsearch_insertpos<Key,Less,Equal>(Base::key_.data(), key, size);
@@ -89,7 +93,18 @@ Value& SortedMap<Key,Value,KVec,VVec,Less,Equal>::operator[](const KeyPassType k
 }
 
 template<typename Key, typename Value, typename KVec, typename VVec, typename Less, typename Equal>
-Value& SortedMap<Key,Value,KVec,VVec,Less,Equal>::find_or_insert(const KeyPassType key, const Value& initial_value) noexcept
+Value SortedMap<Key,Value,KVec,VVec,Less,Equal>::operator()(const KeyPassType key, const Value backoff_value) const noexcept
+{
+  const size_t size = Base::key_.size();
+  const size_t pos = Routines::binsearch<Key,Less,Equal>(Base::key_.data(), key, size);
+
+  if (pos < size)
+	return Base::value_[pos];
+  return backoff_value;
+}
+
+template<typename Key, typename Value, typename KVec, typename VVec, typename Less, typename Equal>
+Value& SortedMap<Key,Value,KVec,VVec,Less,Equal>::find_or_insert(const KeyPassType key, const Value& initial_value)
 {
   //std::cerr << "********* find_or_insert with key " << key << std::endl;	
 	
@@ -124,6 +139,44 @@ Value& SortedMap<Key,Value,KVec,VVec,Less,Equal>::find_or_insert(const KeyPassTy
     return Base::value_[inspos];
   }
 }
+
+template<typename Key, typename Value, typename KVec, typename VVec, typename Less, typename Equal>
+Value& SortedMap<Key,Value,KVec,VVec,Less,Equal>::find_or_insert(Key&& key, const Value& initial_value)
+{
+  //std::cerr << "********* find_or_insert with key " << key << std::endl;	
+	
+  const size_t size = Base::key_.size();
+  const size_t inspos = Routines::binsearch_insertpos<Key,Less,Equal>(Base::key_.data(), key, size);
+
+  //std::cerr << "key: " << Base::key_ << ", inspos: " << inspos << std::endl;
+
+  if (inspos >= size) {
+    Base::key_.push_back(key);
+    Base::value_.push_back(initial_value);
+    return Base::value_.back();
+  }
+  else {
+
+    const static Equal equal;
+    if (!equal(Base::key_[inspos],key)) {
+	  //std::cerr << "not equal" << std::endl;
+      Base::key_.push_back(Key());
+      Base::value_.push_back(initial_value);
+	  //std::cerr << "after push: " << Base::key_ 
+	  //          << std::endl << ", value: " << Base::value_ << std::endl;
+      Routines::upshift_array(Base::key_.data(), inspos, size, 1);
+      Routines::upshift_array(Base::value_.data(), inspos, size, 1);
+	  //std::cerr << "after upshift: " << Base::key_ 
+	  //		  << std::endl << ", value: " << Base::value_ << std::endl;
+      Base::key_[inspos] = key;
+	  //std::cerr << "after key assignment: " << Base::key_ << std::endl;
+      Base::value_[inspos] = initial_value;
+	  //std::cerr << "after assignment: " << Base::key_ << ", value: " << Base::value_ << std::endl;
+    }
+    return Base::value_[inspos];
+  }
+}
+
 
 template<typename Key, typename Value, typename KVec, typename VVec, typename Less, typename Equal>
 void SortedMap<Key,Value,KVec,VVec,Less,Equal>::operator=(const SortedMap<Key, Value>& toCopy)

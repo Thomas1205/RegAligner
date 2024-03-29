@@ -24,7 +24,7 @@ namespace Math2D {
     typedef T T_A16 ALIGNED16;
 
     /*---- constructors -----*/
-    explicit Matrix();
+    explicit Matrix() noexcept;
 
     explicit Matrix(ST xDim, ST yDim);
 
@@ -38,7 +38,7 @@ namespace Math2D {
     Matrix(const Matrix<T,ST>& toCopy) = default;
 
     //move constructor
-    Matrix(Matrix<T,ST>&& toTake) = default;
+    Matrix(Matrix<T,ST>&& toTake) noexcept = default;
 
     /*---- destructor ----*/
     ~Matrix();
@@ -229,7 +229,7 @@ namespace Math2D {
   template<typename T, typename ST>
   /*static*/ const std::string Matrix<T,ST>::matrix_name_ = "unnamed matrix";
 
-  template<typename T, typename ST> Matrix<T,ST>::Matrix() : Storage2D<T,ST>() {}
+  template<typename T, typename ST> Matrix<T,ST>::Matrix() noexcept : Storage2D<T,ST>() {}
 
   template<typename T, typename ST> Matrix<T,ST>::Matrix(ST xDim, ST yDim) : Storage2D<T,ST>(xDim, yDim)  {}
 

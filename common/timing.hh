@@ -4,6 +4,7 @@
 #define TIMING_HH
 
 #include <ctime>
+#include <chrono>
 
 #ifndef WIN32
 #include <sys/time.h>
@@ -14,10 +15,16 @@ typedef struct timeval {
 } timeval;
 #endif
 
+using chronoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
+
 double diff_mseconds(const timeval& end, const timeval& start);
 
 double diff_seconds(const timeval& end, const timeval& start);
 
 double diff_seconds(const std::clock_t& end, const std::clock_t& start);
+
+chronoTime currentTime();
+
+double diff_seconds(const chronoTime& end, const chronoTime& start);
 
 #endif

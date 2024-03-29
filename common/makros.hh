@@ -123,6 +123,16 @@ using T_A16 = T ALIGNED16;
 #ifndef NAN
 #define NAN sqrt(-1.0)
 #endif
+#ifndef NANL
+#define NANL sqrtl(-1.0)
+#endif
+#ifndef INF
+#define INF exp(MAX_UINT)
+#endif
+#ifndef INFL
+#define INFL expl(MAX_UINT)
+#endif
+
 
 enum NormType {L1,L2,L0_5};
 

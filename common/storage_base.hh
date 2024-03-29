@@ -15,19 +15,19 @@ public:
   //for compatibility with the STL:
   using value_type = T;
 
-  StorageBase();
+  StorageBase() noexcept; 
 
-  StorageBase(ST size);
+  explicit StorageBase(ST size); //new throws exceptions
 
-  StorageBase(ST size, const T default_value);
+  StorageBase(ST size, const T default_value); //new throws exceptions
 
   //copy constructor
-  StorageBase(const StorageBase<T,ST>& toCopy);
+  StorageBase(const StorageBase<T,ST>& toCopy); //new throws exceptions
 
   //move constructor
-  StorageBase(StorageBase<T,ST>&& toTake);
+  StorageBase(StorageBase<T,ST>&& toTake) noexcept;
 
-  ~StorageBase();
+  ~StorageBase() noexcept;
 
   virtual const std::string& name() const;
 
@@ -41,6 +41,8 @@ public:
 
   inline const T& ref_attr_restrict direct_access(ST i) const noexcept;
 
+  inline T* end_ptr() noexcept;
+
   inline const T* end_ptr() const noexcept;
 
   inline void set_constant(const T constant) noexcept;
@@ -51,7 +53,7 @@ protected:
 
   StorageBase(const std::initializer_list<T>& init);
 
-  StorageBase<T,ST>& operator=(const StorageBase<T,ST>& toCopy) noexcept;
+  StorageBase<T,ST>& operator=(const StorageBase<T,ST>& toCopy);
 
   StorageBase<T,ST>& operator=(StorageBase<T,ST>&& toTake) noexcept;
 
@@ -63,7 +65,7 @@ protected:
 
 /*************************** implementation ****************************/
 
-template<typename T, typename ST> StorageBase<T,ST>::StorageBase() : data_(0), size_(0)
+template<typename T, typename ST> StorageBase<T,ST>::StorageBase() noexcept : data_(0), size_(0)
 {
 }
 
@@ -96,19 +98,19 @@ template<typename T, typename ST> StorageBase<T,ST>::StorageBase(const StorageBa
 
 //move constructor
 template<typename T, typename ST> 
-StorageBase<T,ST>::StorageBase(StorageBase<T,ST>&& toTake) : data_(toTake.data_), size_(toTake.size_)
+StorageBase<T,ST>::StorageBase(StorageBase<T,ST>&& toTake) noexcept : data_(toTake.data_), size_(toTake.size_)
 {
   toTake.data_ = 0;
 }
 
 template<typename T, typename ST> 
-StorageBase<T,ST>::~StorageBase()
+StorageBase<T,ST>::~StorageBase() noexcept
 {
   delete[] data_;
 }
 
 template<typename T, typename ST>
-StorageBase<T,ST>& StorageBase<T,ST>::operator=(const StorageBase<T,ST>& toCopy) noexcept
+StorageBase<T,ST>& StorageBase<T,ST>::operator=(const StorageBase<T,ST>& toCopy)
 {
   if (size_ != toCopy.size_) {
 
@@ -172,6 +174,12 @@ inline const T& ref_attr_restrict StorageBase<T,ST>::direct_access(ST i) const n
 
 template<typename T, typename ST>
 const T* StorageBase<T,ST>::end_ptr() const noexcept
+{
+  return data_ + size_;
+}
+
+template<typename T, typename ST>
+T* StorageBase<T,ST>::end_ptr() noexcept
 {
   return data_ + size_;
 }

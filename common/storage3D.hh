@@ -39,13 +39,13 @@ public:
 
   using Base = StorageBase<T,ST>;
 
-  explicit Storage3D();
+  explicit Storage3D() noexcept;
 
   //copy constructor
   Storage3D(const Storage3D<T,ST>& toCopy);
 
   //move constructor
-  Storage3D(Storage3D<T,ST>&& toTake);
+  Storage3D(Storage3D<T,ST>&& toTake) noexcept;
 
   explicit Storage3D(ST xDim, ST yDim, ST zDim);
 
@@ -83,30 +83,30 @@ public:
 
   void get_z(ST x, ST y, Storage1D<T,ST>& vec) const noexcept;
 
-  Storage3D<T,ST>& operator=(const Storage3D<T,ST>& toCopy) noexcept;
+  Storage3D<T,ST>& operator=(const Storage3D<T,ST>& toCopy);
 
-  Storage3D<T,ST>& operator=(Storage3D<T,ST>&& toTake) noexcept;
+  Storage3D<T,ST>& operator=(Storage3D<T,ST>&& toTake);
 
   //existing positions are copied, new ones are uninitialized
-  void resize(ST newxDim, ST newyDim, ST newzDim) noexcept;
+  void resize(ST newxDim, ST newyDim, ST newzDim);
 
-  inline void resize(const Dim3D<ST> dims) noexcept
+  inline void resize(const Dim3D<ST> dims)
   {
     resize(dims.xDim_, dims.yDim_, dims.zDim_);
   }
 
   //existing positions are copied, new ones are uninitialized
-  void resize(ST newxDim, ST newyDim, ST newzDim, const T default_value) noexcept;
+  void resize(ST newxDim, ST newyDim, ST newzDim, const T default_value);
 
-  inline void resize(const Dim3D<ST> dims, T default_value) noexcept
+  inline void resize(const Dim3D<ST> dims, T default_value)
   {
     resize(dims.xDim_, dims.yDim_, dims.zDim_, default_value);
   }
 
   //all elements are uninitialized after this operation
-  void resize_dirty(ST newxDim, ST newyDim, ST newzDim) noexcept;
+  void resize_dirty(ST newxDim, ST newyDim, ST newzDim);
 
-  inline void resize_dirty(const Dim3D<ST> dims) noexcept
+  inline void resize_dirty(const Dim3D<ST> dims)
   {
     resize_dirty(dims.xDim_, dims.yDim_, dims.zDim_);
   }
@@ -209,7 +209,7 @@ namespace Makros {
 template<typename T, typename ST>
 /*static*/ const std::string Storage3D<T,ST>::stor3D_name_ = "unnamed Storage3D";
 
-template<typename T, typename ST> Storage3D<T,ST>::Storage3D() : StorageBase<T,ST>(), xDim_(0), yDim_(0), zDim_(0) {}
+template<typename T, typename ST> Storage3D<T,ST>::Storage3D() noexcept : StorageBase<T,ST>(), xDim_(0), yDim_(0), zDim_(0) {}
 
 template<typename T, typename ST> Storage3D<T,ST>::Storage3D(const Storage3D<T,ST>& toCopy) : StorageBase<T,ST>(toCopy.xDim()*toCopy.yDim()*toCopy.zDim())
 {
@@ -224,7 +224,7 @@ template<typename T, typename ST> Storage3D<T,ST>::Storage3D(const Storage3D<T,S
 }
 
 //move constructor
-template<typename T, typename ST> Storage3D<T,ST>::Storage3D(Storage3D<T,ST>&& toTake) : StorageBase<T,ST>(toTake)
+template<typename T, typename ST> Storage3D<T,ST>::Storage3D(Storage3D<T,ST>&& toTake) noexcept : StorageBase<T,ST>(toTake)
 {
   xDim_ = toTake.xDim();
   yDim_ = toTake.yDim();
@@ -387,7 +387,7 @@ Dim3D<ST> Storage3D<T,ST>::dims() const noexcept
 }
 
 template<typename T, typename ST>
-Storage3D<T,ST>& Storage3D<T,ST>::operator=(const Storage3D<T,ST>& toCopy) noexcept
+Storage3D<T,ST>& Storage3D<T,ST>::operator=(const Storage3D<T,ST>& toCopy)
 {
   if (Base::size_ != toCopy.size()) {
     if (Base::data_ != 0) {
@@ -413,7 +413,7 @@ Storage3D<T,ST>& Storage3D<T,ST>::operator=(const Storage3D<T,ST>& toCopy) noexc
 }
 
 template<typename T, typename ST>
-Storage3D<T,ST>& Storage3D<T,ST>::operator=(Storage3D<T,ST>&& toTake) noexcept
+Storage3D<T,ST>& Storage3D<T,ST>::operator=(Storage3D<T,ST>&& toTake)
 {
   delete[] Base::data_;
   Base::data_ = toTake.data_;
@@ -429,7 +429,7 @@ Storage3D<T,ST>& Storage3D<T,ST>::operator=(Storage3D<T,ST>&& toTake) noexcept
 
 //existing positions are copied, new ones are uninitialized
 template<typename T, typename ST>
-void Storage3D<T,ST>::resize(ST newxDim, ST newyDim, ST newzDim) noexcept
+void Storage3D<T,ST>::resize(ST newxDim, ST newyDim, ST newzDim)
 {
   const ST new_size = newxDim*newyDim*newzDim;
 
@@ -459,7 +459,7 @@ void Storage3D<T,ST>::resize(ST newxDim, ST newyDim, ST newzDim) noexcept
 
 //existing positions are copied, new ones are uninitialized
 template<typename T, typename ST>
-void Storage3D<T,ST>::resize(ST newxDim, ST newyDim, ST newzDim, const T default_value) noexcept
+void Storage3D<T,ST>::resize(ST newxDim, ST newyDim, ST newzDim, const T default_value)
 {
   const ST new_size = newxDim*newyDim*newzDim;
 
@@ -493,7 +493,7 @@ void Storage3D<T,ST>::resize(ST newxDim, ST newyDim, ST newzDim, const T default
 
 //all elements are uninitialized after this operation
 template<typename T, typename ST>
-void Storage3D<T,ST>::resize_dirty(ST newxDim, ST newyDim, ST newzDim) noexcept
+void Storage3D<T,ST>::resize_dirty(ST newxDim, ST newyDim, ST newzDim)
 {
   if (newxDim != xDim_ || newyDim != yDim_ || newzDim != zDim_) {
 
