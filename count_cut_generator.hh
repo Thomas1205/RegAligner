@@ -6,7 +6,8 @@
 #include "vector.hh"
 #include "matrix.hh"
 #include "sparse_matrix_description.hh"
-#include "CglGomory/CglGomory.hpp"
+#include "CglGomory.hpp"
+
 
 class CountCutGenerator : public CglCutGenerator {
 public:
